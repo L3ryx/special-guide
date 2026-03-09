@@ -4,25 +4,25 @@ const FormData = require('form-data');
 /**
  * Upload une image sur ImgBB.
  * Accepte : URL http/https OU data URL base64.
- * ImgBB n'accepte pas le WebP en base64 — on envoie toujours l'URL directe si possible.
+ * ImgBB n'accepte pas le WebP en base64 â€” on envoie toujours l'URL directe si possible.
  */
 async function uploadToImgBB(input) {
   try {
     // Si c'est une data URL base64, extraire le base64 pur
-    // Si c'est une URL http, l'envoyer directement (ImgBB fetch lui-même)
+    // Si c'est une URL http, l'envoyer directement (ImgBB fetch lui-mÃªme)
     const isDataUrl = input.startsWith('data:');
     const isHttp    = input.startsWith('http');
 
-    console.log(`📤 Uploading to ImgBB (${isDataUrl ? 'base64' : 'url'}): ${input.substring(0, 60)}...`);
+    console.log(`ðŸ“¤ Uploading to ImgBB (${isDataUrl ? 'base64' : 'url'}): ${input.substring(0, 60)}...`);
 
     const formData = new FormData();
     formData.append('key', process.env.IMGBB_API_KEY);
 
     if (isHttp) {
-      // Envoyer l'URL directement — ImgBB la télécharge lui-même
+      // Envoyer l'URL directement â€” ImgBB la tÃ©lÃ©charge lui-mÃªme
       formData.append('image', input);
     } else if (isDataUrl) {
-      // Extraire le base64 pur (sans le préfixe data:...)
+      // Extraire le base64 pur (sans le prÃ©fixe data:...)
       const b64 = input.split(',')[1];
       if (!b64) throw new Error('data URL invalide');
       formData.append('image', b64);
@@ -36,11 +36,14 @@ async function uploadToImgBB(input) {
     });
 
     if (response.data.success) {
-      const url = response.data.data.url;
-      console.log(`✅ ImgBB success: ${url}`);
+      const d = response.data.data;
+      // Prendre display_url en priorite â€” c'est l'URL directe sans troncature
+      // url peut etre tronquee pour les .webp sur ImgBB
+      const url = d.display_url || d.medium?.url || d.url;
+      console.log(`âœ… ImgBB success: ${url}`);
       return url;
     }
-    throw new Error('ImgBB échec: ' + JSON.stringify(response.data));
+    throw new Error('ImgBB Ã©chec: ' + JSON.stringify(response.data));
 
   } catch (error) {
     console.error('ImgBB upload error:', error.message);
