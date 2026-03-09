@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scout</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #22c55e;
+      --green-dark: #16a34a;
+      --green-glow: rgba(34,197,94,0.4);
+      --glass: rgba(0,0,0,0.55);
+      --glass-border: rgba(255,255,255,0.12);
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.55);
+      --etsy: #f1641e;
+      --ali: #e31837;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ── BACKGROUND ── */
+    #bg-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: #0a0a0a url('/background.png') center/cover no-repeat;
+    }
+
+    #bg-layer::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+    }
+
+    
+
+    /* ── MAIN LAYOUT ── */
+    #main-view {
+      position: relative;
+      z-index: 10;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      gap: 18px;
+    }
+
+    /* ── SEARCH CARD ── */
+    .search-card {
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    /* keyword input */
+    .input-wrap {
+      width: 100%;
+      position: relative;
+    }
+
+    .input-wrap input {
+      width: 100%;
+      padding: 16px 20px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      outline: none;
+      backdrop-filter: blur(16px);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input-wrap input::placeholder { color: var(--muted); }
+    .input-wrap input:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(34,197,94,0.15);
+    }
+
+    /* selects row */
+    .selects-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .select-wrap {
+      flex: 1;
+      position: relative;
+    }
+
+    .select-wrap select {
+      width: 100%;
+      padding: 13px 36px 13px 16px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      outline: none;
+      appearance: none;
+      backdrop-filter: blur(16px);
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .select-wrap select:focus { border-color: var(--green); }
+
+    .select-wrap option { background: #1a1a1a; color: #fff; }
+
+    .select-wrap::after {
+      content: '▾';
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+      font-size: 0.8rem;
+    }
+
+    /* similarity row */
+    .sim-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .sim-row .select-wrap { flex: 1; }
+
+    /* START button */
+    #start-btn {
+      width: 100%;
+      padding: 18px;
+      background: var(--green);
+      border: none;
+      border-radius: 14px;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 24px var(--green-glow);
+    }
+
+    #start-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%);
+      transform: translateX(-100%);
+      transition: transform 0.6s ease;
+    }
+
+    #start-btn:hover::before { transform: translateX(100%); }
+    #start-btn:hover { background: #16a34a; box-shadow: 0 6px 32px var(--green-glow); transform: translateY(-1px); }
+    #start-btn:active { transform: translateY(0); }
+    #start-btn:disabled {
+      background: rgba(34,197,94,0.3);
+      box-shadow: none;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ── PROGRESS BAR ── */
+    #progress-wrap {
+      width: 100%;
+      max-width: 520px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--green), #86efac);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+      box-shadow: 0 0 10px var(--green-glow);
+    }
+
+    .progress-steps {
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    .step-dot {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      opacity: 0.35;
+      transition: opacity 0.3s;
+    }
+
+    .step-dot.active { opacity: 1; }
+    .step-dot.done { opacity: 0.7; }
+
+    .step-dot .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+
+    .step-dot.active .dot {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: blink 1s infinite;
+    }
+
+    .step-dot.done .dot { background: var(--green); }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .step-dot .step-label {
+      font-size: 0.6rem;
+      color: var(--muted);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .progress-msg {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
+
+    /* ── RESULTS ── */
+    #results-section {
+      position: relative;
+      z-index: 10;
+      padding: 0 20px 60px;
+      display: none;
+    }
+
+    .results-grid {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .results-count-bar {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    /* match card */
+    .match-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      overflow: hidden;
+      backdrop-filter: blur(16px);
+      animation: slideUp 0.4s ease;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .match-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .score-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .score-num {
+      font-weight: 700;
+      font-size: 1.3rem;
+    }
+
+    .score-bar-track {
+      width: 100px;
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+    }
+
+    .reasoning-text {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-style: italic;
+      max-width: 360px;
+      text-align: right;
+    }
+
+    .match-body {
+      display: grid;
+      grid-template-columns: 1fr 40px 1fr;
+    }
+
+    .product-panel { padding: 20px; }
+    .product-panel.left { border-right: 1px solid var(--glass-border); }
+
+    .platform-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 3px 10px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+    }
+
+    .platform-badge.etsy { background: rgba(241,100,30,0.2); color: #f97316; }
+    .platform-badge.ali { background: rgba(227,24,55,0.2); color: #f87171; }
+
+    .img-box {
+      width: 100%;
+      aspect-ratio: 1;
+      max-width: 220px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.05);
+      margin-bottom: 12px;
+    }
+
+    .img-box img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s;
+    }
+
+    .img-box:hover img { transform: scale(1.05); }
+
+    .prod-title {
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .prod-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      color: var(--green);
+      text-decoration: none;
+      border: 1px solid rgba(34,197,94,0.3);
+      padding: 5px 12px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .prod-link:hover { background: rgba(34,197,94,0.1); }
+
+    .vs-col {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 0.15em;
+    }
+
+    /* empty state */
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+
+    /* status dot top right */
+    #status-indicator {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      backdrop-filter: blur(10px);
+      cursor: pointer;
+    }
+
+    #status-indicator .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    #status-indicator .dot.ready { background: var(--green); box-shadow: 0 0 6px var(--green); animation: blink 2s infinite; }
+    #status-indicator .dot.error { background: #f87171; }
+
+    @media (max-width: 600px) {
+      .match-body { grid-template-columns: 1fr; }
+      .product-panel.left { border-right: none; border-bottom: 1px solid var(--glass-border); }
+      .vs-col { display: none; }
+    }
+
+    /* ── LOG TERMINAL ── */
+    #log-terminal {
+      position: relative;
+      z-index: 10;
+      margin: 40px auto 60px;
+      max-width: 960px;
+      padding: 0 20px;
+      display: none;
+    }
+
+    .log-terminal-inner {
+      background: rgba(0,0,0,0.82);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      overflow: hidden;
+      backdrop-filter: blur(20px);
+      font-family: 'Courier New', 'Consolas', monospace;
+    }
+
+    .log-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .log-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .log-dot {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+    }
+
+    .log-dot.red   { background: #ff5f57; }
+    .log-dot.yellow{ background: #febc2e; }
+    .log-dot.green { background: #28c840; }
+
+    .log-title {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.35);
+      letter-spacing: 0.05em;
+    }
+
+    .log-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .log-btn {
+      font-size: 0.68rem;
+      color: rgba(255,255,255,0.35);
+      background: none;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      padding: 2px 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .log-btn:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+
+    #log-body {
+      padding: 14px 18px;
+      max-height: 420px;
+      overflow-y: auto;
+      font-size: 0.78rem;
+      line-height: 1.7;
+      scroll-behavior: smooth;
+    }
+
+    #log-body::-webkit-scrollbar { width: 4px; }
+    #log-body::-webkit-scrollbar-track { background: transparent; }
+    #log-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+    .log-line {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 1px 0;
+      animation: logFadeIn 0.2s ease;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    @keyframes logFadeIn {
+      from { opacity: 0; transform: translateX(-6px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    .log-time {
+      color: rgba(255,255,255,0.25);
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-size: 0.72rem;
+      margin-top: 1px;
+    }
+
+    .log-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 1px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .badge-info    { background: rgba(59,130,246,0.25); color: #93c5fd; }
+    .badge-success { background: rgba(34,197,94,0.25);  color: #86efac; }
+    .badge-warn    { background: rgba(234,179,8,0.25);  color: #fde047; }
+    .badge-error   { background: rgba(239,68,68,0.25);  color: #fca5a5; }
+    .badge-data    { background: rgba(168,85,247,0.25); color: #d8b4fe; }
+    .badge-api     { background: rgba(20,184,166,0.25); color: #5eead4; }
+    .badge-step    { background: rgba(249,115,22,0.25); color: #fdba74; }
+
+    .log-text {
+      color: rgba(255,255,255,0.75);
+      word-break: break-all;
+      flex: 1;
+    }
+
+    .log-text .key   { color: #93c5fd; }
+    .log-text .val   { color: #86efac; }
+    .log-text .url   { color: #5eead4; text-decoration: underline; cursor: pointer; }
+    .log-text .num   { color: #fde047; }
+    .log-text .dim   { color: rgba(255,255,255,0.3); }
+
+    .log-separator {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin: 6px 0;
+    }
+
+    .log-counter {
+      font-size: 0.68rem;
+      color: rgba(255,255,255,0.2);
+      text-align: right;
+      padding: 6px 18px 10px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background layer -->
+  <div id="bg-layer"></div>
+
+  <!-- Status indicator -->
+  <div id="status-indicator" onclick="checkHealth()">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-text">...</span>
+  </div>
+
+  <!-- Main centered UI -->
+  <div id="main-view">
+    <div class="search-card">
+
+      <!-- Keyword -->
+      <div class="input-wrap">
+        <input type="text" id="keyword-input" placeholder="Keyword (e.g. custom neon sign...)" />
+      </div>
+
+      <!-- Dropdowns row -->
+      <div class="selects-row">
+        <div class="select-wrap" id="count-wrap">
+          <!-- filled by JS -->
+        </div>
+        <div class="select-wrap" id="threshold-wrap">
+          <!-- filled by JS -->
+        </div>
+      </div>
+
+      <!-- START -->
+      <button id="start-btn" onclick="startSearch()">START</button>
+
+    </div>
+
+    <!-- Progress bar -->
+    <div id="progress-wrap">
+      <div class="progress-steps" id="progress-steps"></div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-msg" id="progress-msg"></div>
+    </div>
+
+  </div>
+
+  <!-- Results -->
+  <section id="results-section">
+    <div class="results-grid">
+      <div class="results-count-bar" id="results-count"></div>
+      <div id="results-container"></div>
+    </div>
+  </section>
+
+  <!-- Log Terminal -->
+  <div id="log-terminal">
+    <div class="log-terminal-inner">
+      <div class="log-topbar">
+        <div class="log-dots">
+          <div class="log-dot red"></div>
+          <div class="log-dot yellow"></div>
+          <div class="log-dot green"></div>
+        </div>
+        <span class="log-title">console — pipeline logs</span>
+        <div class="log-actions">
+          <button class="log-btn" onclick="clearLogs()">clear</button>
+          <button class="log-btn" onclick="copyLogs()">copy</button>
+          <button class="log-btn" onclick="toggleScroll()" id="scroll-btn">↓ auto</button>
+        </div>
+      </div>
+      <div id="log-body"></div>
+      <div class="log-counter" id="log-counter">0 lignes</div>
+    </div>
+  </div>
+
+  <script>
+    // ── Build selects ──
+    (function buildSelects() {
+      const countSel = document.createElement('select');
+      countSel.id = 'count-select';
+      for (let i = 1; i <= 100; i++) {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = i + (i === 10 ? ' résultats (défaut)' : ' résultat' + (i > 1 ? 's' : ''));
+        if (i === 10) o.selected = true;
+        countSel.appendChild(o);
+      }
+      document.getElementById('count-wrap').appendChild(countSel);
+
+      const simSel = document.createElement('select');
+      simSel.id = 'threshold-select';
+      for (let i = 0; i <= 100; i++) {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = i + '% similarité';
+        if (i === 60) o.selected = true;
+        simSel.appendChild(o);
+      }
+      document.getElementById('threshold-wrap').appendChild(simSel);
+    })();
+
+    // ══════════════════════════════════════════
+    // LOG SYSTEM
+    // ══════════════════════════════════════════
+    let logCount = 0;
+    let autoScroll = true;
+    let logLines = [];
+
+    function ts() {
+      const n = new Date();
+      return n.toTimeString().split(' ')[0] + '.' + String(n.getMilliseconds()).padStart(3,'0');
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;');
+    }
+
+    function formatLogText(text) {
+      // Highlight URLs
+      text = escHtml(text).replace(/(https?:\/\/[^\s"<]+)/g, '<span class="url" onclick="window.open(\'$1\',\'_blank\')">$1</span>');
+      // Highlight numbers
+      text = text.replace(/\b(\d+\.?\d*)\b/g, '<span class="num">$1</span>');
+      // Highlight key: value pairs
+      text = text.replace(/([A-Za-z_]+):\s/g, '<span class="key">$1</span>: ');
+      return text;
+    }
+
+    function formatDataObj(obj, indent = 0) {
+      if (typeof obj !== 'object' || obj === null) return `<span class="val">${escHtml(String(obj))}</span>`;
+      const pad = '&nbsp;'.repeat((indent + 1) * 4);
+      const closePad = '&nbsp;'.repeat(indent * 4);
+      const isArr = Array.isArray(obj);
+      const entries = isArr ? obj.map((v,i) => [i,v]) : Object.entries(obj);
+      if (entries.length === 0) return isArr ? '<span class="dim">[]</span>' : '<span class="dim">{}</span>';
+      const lines = entries.map(([k,v]) => {
+        const key = isArr ? '' : `<span class="key">${escHtml(String(k))}</span>: `;
+        let val;
+        if (typeof v === 'object' && v !== null) {
+          val = formatDataObj(v, indent + 1);
+        } else if (typeof v === 'string') {
+          val = `<span class="val">"${escHtml(v.length > 120 ? v.substring(0,120)+'…' : v)}"</span>`;
+        } else if (typeof v === 'number') {
+          val = `<span class="num">${v}</span>`;
+        } else {
+          val = `<span class="dim">${escHtml(String(v))}</span>`;
+        }
+        return pad + key + val;
+      });
+      return (isArr ? '[' : '{') + '<br>' + lines.join(',<br>') + '<br>' + closePad + (isArr ? ']' : '}');
+    }
+
+    function addLog(type, badge, message, dataObj = null) {
+      const terminal = document.getElementById('log-terminal');
+      const body = document.getElementById('log-body');
+      if (terminal.style.display === 'none' || terminal.style.display === '') {
+        terminal.style.display = 'block';
+      }
+
+      logCount++;
+      const timeStr = ts();
+
+      // Plain text for copy
+      logLines.push(`[${timeStr}] [${badge}] ${message}${dataObj ? ' ' + JSON.stringify(dataObj) : ''}`);
+
+      const line = document.createElement('div');
+      line.className = 'log-line';
+
+      const dataHtml = dataObj ? `<br><span class="dim">${formatDataObj(dataObj)}</span>` : '';
+
+      line.innerHTML = `
+        <span class="log-time">${timeStr}</span>
+        <span class="log-badge badge-${type}">${badge}</span>
+        <span class="log-text">${formatLogText(message)}${dataHtml}</span>
+      `;
+
+      body.appendChild(line);
+      document.getElementById('log-counter').textContent = logCount + ' ligne' + (logCount > 1 ? 's' : '');
+
+      if (autoScroll) body.scrollTop = body.scrollHeight;
+    }
+
+    function addSeparator() {
+      const body = document.getElementById('log-body');
+      const hr = document.createElement('hr');
+      hr.className = 'log-separator';
+      body.appendChild(hr);
+    }
+
+    function clearLogs() {
+      document.getElementById('log-body').innerHTML = '';
+      logCount = 0;
+      logLines = [];
+      document.getElementById('log-counter').textContent = '0 lignes';
+    }
+
+    function copyLogs() {
+      navigator.clipboard.writeText(logLines.join('\n')).then(() => {
+        const btn = document.querySelector('.log-btn');
+        btn.textContent = 'copied!';
+        setTimeout(() => btn.textContent = 'copy', 1500);
+      });
+    }
+
+    function toggleScroll() {
+      autoScroll = !autoScroll;
+      document.getElementById('scroll-btn').textContent = autoScroll ? '↓ auto' : '⏸ paused';
+    }
+
+    // ── Pipeline steps definition ──
+    const STEPS = [
+      { key: 'scraping_etsy',    label: 'Etsy' },
+      { key: 'uploading_images', label: 'ImgBB' },
+      { key: 'reverse_search',   label: 'Reverse' },
+      { key: 'aliexpress_found', label: 'AliExpress' },
+      { key: 'comparing',        label: 'IA' },
+      { key: 'finalizing',       label: 'Résultats' },
+    ];
+
+    let currentStepIdx = -1;
+
+    function initProgress() {
+      currentStepIdx = -1;
+      const container = document.getElementById('progress-steps');
+      container.innerHTML = '';
+      STEPS.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'step-dot';
+        div.id = 'step-' + s.key;
+        div.innerHTML = `<div class="dot"></div><span class="step-label">${s.label}</span>`;
+        container.appendChild(div);
+      });
+      setProgress(0);
+      document.getElementById('progress-msg').textContent = '';
+    }
+
+    function setProgress(pct) {
+      document.getElementById('progress-fill').style.width = pct + '%';
+    }
+
+    function advanceStep(stepKey, message) {
+      const idx = STEPS.findIndex(s => s.key === stepKey);
+      if (idx === -1) return;
+      for (let i = 0; i < idx; i++) {
+        const el = document.getElementById('step-' + STEPS[i].key);
+        if (el) el.className = 'step-dot done';
+      }
+      const el = document.getElementById('step-' + STEPS[idx].key);
+      if (el) el.className = 'step-dot active';
+      currentStepIdx = idx;
+      const pct = Math.round(((idx + 1) / STEPS.length) * 100);
+      setProgress(pct);
+      document.getElementById('progress-msg').textContent = message || '';
+    }
+
+    function completeAllSteps() {
+      STEPS.forEach(s => {
+        const el = document.getElementById('step-' + s.key);
+        if (el) el.className = 'step-dot done';
+      });
+      setProgress(100);
+    }
+
+    // ── Health check ──
+    async function checkHealth() {
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        const dot = document.getElementById('status-dot');
+        const txt = document.getElementById('status-text');
+        if (data.status === 'ready') {
+          dot.className = 'dot ready';
+          txt.textContent = 'Ready';
+        } else {
+          dot.className = 'dot error';
+          const missing = Object.entries(data.keys).filter(([,v]) => !v).map(([k]) => k).length;
+          txt.textContent = missing + ' key(s) missing';
+        }
+        window._healthData = data;
+      } catch {
+        document.getElementById('status-dot').className = 'dot error';
+        document.getElementById('status-text').textContent = 'Offline';
+      }
+    }
+
+    // ── Search ──
+    async function startSearch() {
+      const keyword = document.getElementById('keyword-input').value.trim();
+      const maxCount = parseInt(document.getElementById('count-select').value) || 10;
+      const threshold = parseInt(document.getElementById('threshold-select').value) || 60;
+
+      if (!keyword) { document.getElementById('keyword-input').focus(); return; }
+
+      const btn = document.getElementById('start-btn');
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      const pw = document.getElementById('progress-wrap');
+      pw.style.display = 'flex';
+      initProgress();
+
+      document.getElementById('results-section').style.display = 'none';
+      document.getElementById('results-container').innerHTML = '';
+      document.getElementById('results-count').textContent = '';
+
+      // Init logs
+      clearLogs();
+      addSeparator();
+      addLog('info', 'START', `Nouvelle recherche lancée`, { keyword, maxCount, similarityThreshold: threshold });
+      addLog('api', 'POST', `/api/search`, { keyword, maxCount, similarityThreshold: threshold });
+      addSeparator();
+
+      const startTime = Date.now();
+
+      try {
+        const response = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword, similarityThreshold: threshold, maxCount })
+        });
+
+        addLog('info', 'HTTP', `Réponse reçue`, { status: response.status, contentType: response.headers.get('content-type') });
+
+        const ct = response.headers.get('content-type') || '';
+
+        if (ct.includes('text/event-stream')) {
+          addLog('info', 'SSE', 'Stream SSE ouvert — lecture des événements...');
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          let eventCount = 0;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop();
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              try {
+                const ev = JSON.parse(line.slice(6));
+                eventCount++;
+
+                if (ev.step === 'complete') {
+                  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                  addSeparator();
+                  addLog('success', 'DONE', `Pipeline terminé en ${elapsed}s`, {
+                    totalMatches: ev.results?.length || 0,
+                    elapsedSeconds: elapsed
+                  });
+                  if (ev.results?.length) {
+                    ev.results.forEach((r, i) => {
+                      addLog('data', 'MATCH', `Correspondance #${i+1} — similarité ${r.similarity}%`, {
+                        etsy_title: r.etsy?.title,
+                        etsy_link: r.etsy?.link,
+                        ali_title: r.aliexpress?.title,
+                        ali_link: r.aliexpress?.link,
+                        similarity: r.similarity,
+                        reasoning: r.reasoning
+                      });
+                    });
+                  }
+                  completeAllSteps();
+                  document.getElementById('progress-msg').textContent = '✅ ' + (ev.results?.length || 0) + ' correspondance(s)';
+                  (ev.results || []).forEach(renderMatch);
+                  finalize(ev.results?.length || 0);
+
+                } else if (ev.step === 'error') {
+                  addLog('error', 'ERROR', ev.message);
+                  document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
+                  finalize(-1);
+
+                } else {
+                  // Determine log type from step key
+                  const typeMap = {
+                    scraping_etsy: ['step','ETSY'],
+                    etsy_done:     ['success','ETSY'],
+                    uploading_images: ['api','IMGBB'],
+                    images_uploaded:  ['success','IMGBB'],
+                    reverse_search:   ['api','SERPER'],
+                    aliexpress_found: ['data','ALIEXPR'],
+                    comparing:        ['api','OPENAI'],
+                    match_found:      ['success','MATCH'],
+                    finalizing:       ['info','FINAL'],
+                  };
+                  const [type, badge] = typeMap[ev.step] || ['info', ev.step.toUpperCase()];
+                  addLog(type, badge, ev.message, ev.data || null);
+                  advanceStep(ev.step, ev.message);
+                }
+              } catch(parseErr) {
+                addLog('warn', 'PARSE', 'Erreur de parsing SSE: ' + parseErr.message, { raw: line.slice(6, 80) });
+              }
+            }
+          }
+          addLog('info', 'SSE', `Stream fermé — ${eventCount} événement(s) reçu(s)`);
+
+        } else {
+          const data = await response.json();
+          addLog('error', 'ERROR', data.error || 'Erreur inconnue', { instructions: data.instructions, debug: data.debug_url });
+          document.getElementById('progress-msg').textContent = '❌ ' + (data.error || 'Erreur');
+          finalize(-1);
+        }
+      } catch (err) {
+        addLog('error', 'FATAL', 'Requête échouée: ' + err.message, { stack: err.stack?.split('\n')[1] });
+        document.getElementById('progress-msg').textContent = '❌ ' + err.message;
+        finalize(-1);
+      }
+
+      function finalize(count) {
+        btn.disabled = false;
+        btn.textContent = 'START';
+        const rs = document.getElementById('results-section');
+        rs.style.display = 'block';
+        if (count > 0) {
+          document.getElementById('results-count').textContent = count + ' correspondance(s) trouvée(s)';
+          rs.scrollIntoView({ behavior: 'smooth' });
+        } else if (count === 0) {
+          document.getElementById('results-container').innerHTML = '<div class="empty">Aucune correspondance. Essayez un autre mot-clé ou baissez le seuil.</div>';
+        }
+        // Scroll to logs
+        document.getElementById('log-terminal').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    // ── Render match card ──
+    function getColor(s) {
+      if (s >= 85) return '#22c55e';
+      if (s >= 70) return '#f59e0b';
+      return '#f97316';
+    }
+
+    function renderMatch(m) {
+      const { etsy, aliexpress, similarity, reasoning } = m;
+      const color = getColor(similarity);
+      const card = document.createElement('div');
+      card.className = 'match-card';
+      card.innerHTML = `
+        <div class="match-header">
+          <div class="score-pill">
+            <span class="score-num" style="color:${color}">${similarity}%</span>
+            <div class="score-bar-track">
+              <div class="score-bar-fill" style="width:${similarity}%;background:${color}"></div>
+            </div>
+          </div>
+          <div class="reasoning-text">${reasoning || ''}</div>
+        </div>
+        <div class="match-body">
+          <div class="product-panel left">
+            <span class="platform-badge etsy">ETSY</span>
+            <div class="img-box">
+              ${etsy.image ? `<img src="${etsy.hostedImageUrl || etsy.image}" loading="lazy" onerror="this.style.display='none'" />` : ''}
+            </div>
+            <div class="prod-title">${etsy.title || ''}</div>
+            <a class="prod-link" href="${etsy.link}" target="_blank" rel="noopener">Voir sur Etsy ↗</a>
+          </div>
+          <div class="vs-col">VS</div>
+          <div class="product-panel">
+            <span class="platform-badge ali">ALIEXPRESS</span>
+            <div class="img-box">
+              ${aliexpress.image ? `<img src="${aliexpress.image}" loading="lazy" onerror="this.style.display='none'" />` : ''}
+            </div>
+            <div class="prod-title">${aliexpress.title || ''}</div>
+            <a class="prod-link" href="${aliexpress.link}" target="_blank" rel="noopener">Voir sur AliExpress ↗</a>
+          </div>
+        </div>`;
+      document.getElementById('results-container').appendChild(card);
+    }
+
+    // ── Init ──
+    document.addEventListener('DOMContentLoaded', () => {
+      checkHealth();
+      document.getElementById('keyword-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') startSearch();
+      });
+    });
+  </script>
+
+    // ── Pipeline steps definition ──
+    const STEPS = [
+      { key: 'scraping_etsy',    label: 'Etsy' },
+      { key: 'uploading_images', label: 'ImgBB' },
+      { key: 'reverse_search',   label: 'Reverse' },
+      { key: 'aliexpress_found', label: 'AliExpress' },
+      { key: 'comparing',        label: 'IA' },
+      { key: 'finalizing',       label: 'Résultats' },
+    ];
+
+    let currentStepIdx = -1;
+
+    function initProgress() {
+      currentStepIdx = -1;
+      const container = document.getElementById('progress-steps');
+      container.innerHTML = '';
+      STEPS.forEach((s, i) => {
+        const div = document.createElement('div');
+        div.className = 'step-dot';
+        div.id = 'step-' + s.key;
+        div.innerHTML = `<div class="dot"></div><span class="step-label">${s.label}</span>`;
+        container.appendChild(div);
+      });
+      setProgress(0);
+      document.getElementById('progress-msg').textContent = '';
+    }
+
+    function setProgress(pct) {
+      document.getElementById('progress-fill').style.width = pct + '%';
+    }
+
+    function advanceStep(stepKey, message) {
+      const idx = STEPS.findIndex(s => s.key === stepKey);
+      if (idx === -1) return;
+
+      // Mark previous steps done
+      for (let i = 0; i < idx; i++) {
+        const el = document.getElementById('step-' + STEPS[i].key);
+        if (el) { el.className = 'step-dot done'; }
+      }
+
+      // Mark current active
+      const el = document.getElementById('step-' + STEPS[idx].key);
+      if (el) { el.className = 'step-dot active'; }
+
+      currentStepIdx = idx;
+      const pct = Math.round(((idx + 1) / STEPS.length) * 100);
+      setProgress(pct);
+      document.getElementById('progress-msg').textContent = message || '';
+    }
+
+    function completeAllSteps() {
+      STEPS.forEach(s => {
+        const el = document.getElementById('step-' + s.key);
+        if (el) el.className = 'step-dot done';
+      });
+      setProgress(100);
+    }
+
+    // ── Health check ──
+    async function checkHealth() {
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        const dot = document.getElementById('status-dot');
+        const txt = document.getElementById('status-text');
+        if (data.status === 'ready') {
+          dot.className = 'dot ready';
+          txt.textContent = 'Ready';
+        } else {
+          dot.className = 'dot error';
+          const missing = Object.entries(data.keys).filter(([,v]) => !v).map(([k]) => k).length;
+          txt.textContent = missing + ' key(s) missing';
+        }
+        window._healthData = data;
+      } catch {
+        document.getElementById('status-dot').className = 'dot error';
+        document.getElementById('status-text').textContent = 'Offline';
+      }
+    }
+
+    // ── Search ──
+    async function startSearch() {
+      const keyword = document.getElementById('keyword-input').value.trim();
+      const maxCount = parseInt(document.getElementById('count-select').value) || 10;
+      const threshold = parseInt(document.getElementById('threshold-select').value) || 60;
+
+      if (!keyword) { document.getElementById('keyword-input').focus(); return; }
+
+      const btn = document.getElementById('start-btn');
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      // Show progress
+      const pw = document.getElementById('progress-wrap');
+      pw.style.display = 'flex';
+      initProgress();
+
+      // Reset results
+      document.getElementById('results-section').style.display = 'none';
+      document.getElementById('results-container').innerHTML = '';
+      document.getElementById('results-count').textContent = '';
+
+      try {
+        const response = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword, similarityThreshold: threshold, maxCount })
+        });
+
+        const ct = response.headers.get('content-type') || '';
+
+        if (ct.includes('text/event-stream')) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop();
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              try {
+                const ev = JSON.parse(line.slice(6));
+                if (ev.step === 'complete') {
+                  completeAllSteps();
+                  document.getElementById('progress-msg').textContent = '✅ ' + (ev.results?.length || 0) + ' correspondance(s)';
+                  (ev.results || []).forEach(renderMatch);
+                  finalize(ev.results?.length || 0);
+                } else if (ev.step === 'error') {
+                  document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
+                  finalize(-1);
+                } else {
+                  advanceStep(ev.step, ev.message);
+                }
+              } catch {}
+            }
+          }
+        } else {
+          const data = await response.json();
+          document.getElementById('progress-msg').textContent = '❌ ' + (data.error || 'Erreur');
+          finalize(-1);
+        }
+      } catch (err) {
+        document.getElementById('progress-msg').textContent = '❌ ' + err.message;
+        finalize(-1);
+      }
+
+      function finalize(count) {
+        btn.disabled = false;
+        btn.textContent = 'START';
+        const rs = document.getElementById('results-section');
+        rs.style.display = 'block';
+        if (count > 0) {
+          document.getElementById('results-count').textContent = count + ' correspondance(s) trouvée(s)';
+          rs.scrollIntoView({ behavior: 'smooth' });
+        } else if (count === 0) {
+          document.getElementById('results-container').innerHTML = '<div class="empty">Aucune correspondance. Essayez un autre mot-clé ou baissez le seuil.</div>';
+        }
+      }
+    }
+
+    // ── Render match card ──
+    function getColor(s) {
+      if (s >= 85) return '#22c55e';
+      if (s >= 70) return '#f59e0b';
+      return '#f97316';
+    }
+
+    function renderMatch(m) {
+      const { etsy, aliexpress, similarity, reasoning } = m;
+      const color = getColor(similarity);
+      const card = document.createElement('div');
+      card.className = 'match-card';
+      card.innerHTML = `
+        <div class="match-header">
+          <div class="score-pill">
+            <span class="score-num" style="color:${color}">${similarity}%</span>
+            <div class="score-bar-track">
+              <div class="score-bar-fill" style="width:${similarity}%;background:${color}"></div>
+            </div>
+          </div>
+          <div class="reasoning-text">${reasoning || ''}</div>
+        </div>
+        <div class="match-body">
+          <div class="product-panel left">
+            <span class="platform-badge etsy">ETSY</span>
+            <div class="img-box">
+              ${etsy.image ? `<img src="${etsy.hostedImageUrl || etsy.image}" loading="lazy" onerror="this.style.display='none'" />` : ''}
+            </div>
+            <div class="prod-title">${etsy.title || ''}</div>
+            <a class="prod-link" href="${etsy.link}" target="_blank" rel="noopener">Voir sur Etsy ↗</a>
+          </div>
+          <div class="vs-col">VS</div>
+          <div class="product-panel">
+            <span class="platform-badge ali">ALIEXPRESS</span>
+            <div class="img-box">
+              ${aliexpress.image ? `<img src="${aliexpress.image}" loading="lazy" onerror="this.style.display='none'" />` : ''}
+            </div>
+            <div class="prod-title">${aliexpress.title || ''}</div>
+            <a class="prod-link" href="${aliexpress.link}" target="_blank" rel="noopener">Voir sur AliExpress ↗</a>
+          </div>
+        </div>`;
+      document.getElementById('results-container').appendChild(card);
+    }
+
+    // ── Init ──
+    document.addEventListener('DOMContentLoaded', () => {
+      checkHealth();
+      document.getElementById('keyword-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') startSearch();
+      });
+    });
+  </script>
+</body>
+</html>
