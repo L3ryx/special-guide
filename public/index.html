@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scout</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Croissant+One&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #22c55e;
+      --glass: rgba(0,0,0,0.55);
+      --glass-border: rgba(255,255,255,0.12);
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.55);
+    }
+
+    html, body { height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow: hidden; }
+    body.has-results { overflow-y: auto; overflow-x: hidden; }
+
+    #bg-layer {
+      position: fixed; inset: 0; z-index: 0;
+      background: #000;
+    }
+
+    /* ── MAIN ── */
+    #main-view {
+      position: relative; z-index: 10;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 40px 20px; gap: 20px;
+    }
+
+    .search-card {
+      width: 100%; max-width: 520px;
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+
+    /* keyword */
+    .input-wrap { width: 100%; }
+    .input-wrap input {
+      width: 100%; padding: 16px 20px;
+      background: var(--glass); border: 1px solid var(--glass-border); border-radius: 14px;
+      color: var(--text); font-family: 'Inter', sans-serif; font-size: 1rem;
+      outline: none; backdrop-filter: blur(16px);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input-wrap input::placeholder { color: var(--muted); }
+    .input-wrap input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
+
+    /* selects */
+    .selects-row { display: flex; gap: 10px; width: 100%; }
+    .select-wrap { flex: 1; position: relative; }
+    .select-wrap select {
+      width: 100%; padding: 13px 36px 13px 16px;
+      background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px;
+      color: var(--text); font-family: 'Inter', sans-serif; font-size: 0.88rem;
+      outline: none; appearance: none; backdrop-filter: blur(16px); cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .select-wrap select:focus { border-color: var(--green); }
+    .select-wrap option { background: #1a1a1a; color: #fff; }
+    .select-wrap::after {
+      content: '▾'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); pointer-events: none; font-size: 0.8rem;
+    }
+
+    /* START button */
+    #start-btn {
+      width: 100%; padding: 18px;
+      background: var(--green); border: none; border-radius: 14px;
+      color: #fff; font-family: 'Inter', sans-serif; font-weight: 700;
+      font-size: 1.1rem; letter-spacing: 0.1em; cursor: pointer;
+      transition: all 0.25s ease; position: relative; overflow: hidden;
+      box-shadow: 0 4px 24px rgba(34,197,94,0.4);
+    }
+    #start-btn::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%);
+      transform: translateX(-100%); transition: transform 0.6s ease;
+    }
+    #start-btn:hover::before { transform: translateX(100%); }
+    #start-btn:hover { background: #16a34a; transform: translateY(-1px); box-shadow: 0 6px 32px rgba(34,197,94,0.45); }
+    #start-btn:active { transform: translateY(0); }
+    #start-btn:disabled { cursor: not-allowed; transform: none; }
+    #start-btn.loading { animation: btnBlink 0.7s ease-in-out infinite; }
+    @keyframes btnBlink {
+      0%,100% { background: var(--green); box-shadow: 0 4px 24px rgba(34,197,94,0.4); }
+      50% { background: #86efac; box-shadow: 0 0 40px rgba(34,197,94,0.9); }
+    }
+
+    /* ── PROGRESS ── */
+    #progress-wrap {
+      width: 100%; max-width: 520px;
+      display: none; flex-direction: column; gap: 12px;
+    }
+
+    .progress-steps { display: flex; justify-content: space-between; gap: 4px; }
+
+    .step-dot {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px;
+      opacity: 0.3; transition: opacity 0.3s;
+    }
+    .step-dot.active { opacity: 1; }
+    .step-dot.done { opacity: 0.6; }
+
+    .step-dot .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .step-dot.active .dot { background: #f97316; box-shadow: 0 0 8px #f97316; animation: blink 0.8s infinite; }
+    .step-dot.done .dot { background: var(--green); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .step-dot .step-label { font-size: 0.6rem; color: var(--muted); text-align: center; white-space: nowrap; }
+
+    /* FLAME progress bar */
+    .progress-track {
+      width: 100%; height: 10px;
+      background: rgba(255,255,255,0.07); border-radius: 10px;
+      overflow: visible; position: relative;
+    }
+
+    .progress-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #7c2d12, #dc2626, #f97316, #fbbf24, #fef08a);
+      border-radius: 10px; position: relative;
+      transition: width 0.5s ease;
+      box-shadow: 0 0 6px #f97316, 0 0 20px #dc2626, 0 0 40px rgba(220,38,38,0.4);
+    }
+
+    .progress-fill::after {
+      content: "🔥";
+      position: absolute; right: -14px; top: 50%; transform: translateY(-55%);
+      font-size: 1.3rem; filter: drop-shadow(0 0 6px #f97316);
+      animation: flicker 0.3s infinite alternate;
+      display: none;
+    }
+    .progress-fill.burning::after { display: block; }
+
+    @keyframes flicker {
+      0%   { transform: translateY(-55%) scale(1) rotate(-3deg); }
+      100% { transform: translateY(-60%) scale(1.08) rotate(3deg); }
+    }
+
+    .progress-msg { text-align: center; font-size: 0.78rem; color: var(--muted); min-height: 1.2em; }
+
+    /* ── RESULTS ── */
+    #results-section { position: relative; z-index: 10; padding: 0 20px 80px; display: none; }
+
+    .results-grid { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+    .results-count-bar { text-align: center; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+
+    .match-card {
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: 18px; overflow: hidden; backdrop-filter: blur(20px);
+      animation: slideUp 0.4s ease;
+    }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+    .match-body { display: grid; grid-template-columns: 1fr 1px 1fr; }
+    .divider-line { background: var(--glass-border); align-self: stretch; }
+
+    .product-panel { display: flex; flex-direction: column; align-items: center; padding: 24px 20px 20px; gap: 14px; }
+
+    /* ── IMAGE BOX WITH ELECTRIC BORDER ── */
+    .img-wrap {
+      position: relative;
+      width: 100%; max-width: 320px;
+      padding: 3px;
+      border-radius: 14px;
+    }
+
+    /* Rotating conic gradient — the electric glow layer */
+    .img-wrap::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 15px;
+      background: conic-gradient(
+        from var(--angle, 0deg),
+        #00f0ff 0%,
+        #0066ff 10%,
+        transparent 20%,
+        transparent 45%,
+        #a855f7 50%,
+        #00f0ff 60%,
+        transparent 70%,
+        transparent 90%,
+        #0066ff 95%,
+        #00f0ff 100%
+      );
+      animation: electric-spin 1.8s linear infinite;
+      z-index: 0;
+    }
+
+    /* Blur glow behind */
+    .img-wrap::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 16px;
+      background: conic-gradient(
+        from var(--angle, 0deg),
+        #00f0ff 0%,
+        #0066ff 10%,
+        transparent 20%,
+        transparent 45%,
+        #a855f7 50%,
+        #00f0ff 60%,
+        transparent 70%,
+        transparent 90%,
+        #0066ff 95%,
+        #00f0ff 100%
+      );
+      animation: electric-spin 1.8s linear infinite;
+      filter: blur(8px);
+      opacity: 0.6;
+      z-index: 0;
+    }
+
+    @property --angle {
+      syntax: '<angle>';
+      initial-value: 0deg;
+      inherits: false;
+    }
+
+    @keyframes electric-spin {
+      0%   { --angle: 0deg; }
+      100% { --angle: 360deg; }
+    }
+
+    .img-box {
+      position: relative;
+      z-index: 1;
+      width: 100%; aspect-ratio: 1/1;
+      border-radius: 11px; overflow: hidden;
+      background: rgba(10,10,10,0.9);
+    }
+    .img-box img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; display: block; }
+    .img-box:hover img { transform: scale(1.04); }
+
+    .prod-link {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      width: 100%; max-width: 320px; padding: 11px 16px; border-radius: 10px;
+      font-size: 0.82rem; font-weight: 600; text-decoration: none; letter-spacing: 0.03em;
+      transition: all 0.2s;
+    }
+    .prod-link.etsy-link { background: rgba(241,100,30,0.15); border: 1px solid rgba(241,100,30,0.3); color: #fb923c; }
+    .prod-link.etsy-link:hover { background: rgba(241,100,30,0.25); border-color: rgba(241,100,30,0.6); }
+    .prod-link.ali-link { background: rgba(227,24,55,0.15); border: 1px solid rgba(227,24,55,0.3); color: #f87171; }
+    .prod-link.ali-link:hover { background: rgba(227,24,55,0.25); border-color: rgba(227,24,55,0.6); }
+
+    .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+
+    /* ── SHOP ROW ── */
+    .shop-row {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; max-width: 320px;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+    }
+    .shop-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      object-fit: cover; flex-shrink: 0;
+      border: 1.5px solid rgba(255,255,255,0.2);
+    }
+    .shop-avatar-placeholder {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; font-weight: 700; color: #fff; flex-shrink: 0;
+      border: 1.5px solid rgba(255,255,255,0.2);
+    }
+    .shop-name {
+      flex: 1; font-size: 0.75rem; color: rgba(255,255,255,0.75);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .shop-voir-btn {
+      flex-shrink: 0;
+      padding: 5px 11px;
+      background: var(--green);
+      color: #fff; font-size: 0.72rem; font-weight: 700;
+      border-radius: 7px; text-decoration: none;
+      transition: background 0.2s, transform 0.15s;
+      box-shadow: 0 2px 8px rgba(34,197,94,0.35);
+    }
+    .shop-voir-btn:hover { background: #16a34a; transform: translateY(-1px); }
+
+    /* ── MOBILE ── */
+    @media (max-width: 640px) {
+      #main-view { padding: 24px 14px; }
+      .search-card { gap: 10px; }
+      .input-wrap input { padding: 13px 16px; font-size: 0.95rem; }
+      .select-wrap select { padding: 11px 30px 11px 13px; font-size: 0.82rem; }
+      #start-btn { padding: 15px; font-size: 1rem; }
+
+      /* Keep side-by-side on mobile, just smaller */
+      .match-body { grid-template-columns: 1fr 1px 1fr; }
+      .product-panel { padding: 12px 8px 12px; gap: 8px; }
+      .img-wrap { max-width: 100%; }
+      .img-box { border-radius: 8px; }
+      .prod-link { font-size: 0.72rem; padding: 8px 8px; border-radius: 8px; }
+      .shop-row { padding: 6px 8px; gap: 6px; }
+      .shop-avatar, .shop-avatar-placeholder { width: 26px; height: 26px; font-size: 0.75rem; }
+      .shop-name { font-size: 0.68rem; }
+      .shop-voir-btn { font-size: 0.65rem; padding: 4px 8px; }
+    }
+
+    @media (max-width: 380px) {
+      .prod-link { font-size: 0.65rem; padding: 7px 5px; gap: 3px; }
+    }
+
+    /* ── SHOOTING STARS ── */
+    #space-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ── SPINNER on button ── */
+
+    /* ── NICHE FINDER 3D WAVE TITLE ── */
+    #niche-title {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      padding: 36px 20px 8px;
+      user-select: none;
+    }
+
+    #niche-title span {
+      display: inline-block;
+      font-family: 'Croissant One', cursive;
+      font-size: clamp(2.4rem, 7vw, 5rem);
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      color: #fff;
+      text-shadow:
+        0 1px 0 #ccc,
+        0 2px 0 #c9c9c9,
+        0 3px 0 #bbb,
+        0 4px 0 #b9b9b9,
+        0 5px 0 #aaa,
+        0 6px 1px rgba(0,0,0,.1),
+        0 0 5px rgba(0,0,0,.1),
+        0 1px 3px rgba(0,0,0,.3),
+        0 3px 5px rgba(0,0,0,.2),
+        0 5px 10px rgba(0,0,0,.25),
+        0 10px 10px rgba(0,0,0,.2),
+        0 20px 20px rgba(0,0,0,.15);
+      animation: wave3d 2.2s ease-in-out infinite;
+    }
+
+    /* Stagger each letter */
+    #niche-title span:nth-child(1)  { animation-delay: 0.00s; }
+    #niche-title span:nth-child(2)  { animation-delay: 0.07s; }
+    #niche-title span:nth-child(3)  { animation-delay: 0.14s; }
+    #niche-title span:nth-child(4)  { animation-delay: 0.21s; }
+    #niche-title span:nth-child(5)  { animation-delay: 0.28s; }
+    #niche-title span:nth-child(6)  { animation-delay: 0.35s; }
+    #niche-title span:nth-child(7)  { animation-delay: 0.42s; }
+    #niche-title span:nth-child(8)  { animation-delay: 0.49s; }
+    #niche-title span:nth-child(9)  { animation-delay: 0.56s; }
+    #niche-title span:nth-child(10) { animation-delay: 0.63s; }
+    #niche-title span:nth-child(11) { animation-delay: 0.70s; }
+
+    .title-space { display: inline-block; width: 0.35em; }
+
+    @keyframes wave3d {
+      0%, 100% {
+        transform: translateY(0) rotateX(0deg) scale(1);
+        text-shadow:
+          0 1px 0 #ccc, 0 2px 0 #c9c9c9, 0 3px 0 #bbb,
+          0 4px 0 #b9b9b9, 0 5px 0 #aaa,
+          0 6px 1px rgba(0,0,0,.1), 0 0 5px rgba(0,0,0,.1),
+          0 1px 3px rgba(0,0,0,.3), 0 3px 5px rgba(0,0,0,.2),
+          0 5px 10px rgba(0,0,0,.25), 0 10px 10px rgba(0,0,0,.2),
+          0 20px 20px rgba(0,0,0,.15);
+      }
+      25% {
+        transform: translateY(-18px) rotateX(20deg) scale(1.08);
+        text-shadow:
+          0 1px 0 #ccc, 0 2px 0 #c9c9c9, 0 3px 0 #bbb,
+          0 4px 0 #b9b9b9, 0 5px 0 #aaa, 0 6px 0 #999,
+          0 7px 0 #888, 0 8px 0 #777, 0 9px 0 #666, 0 10px 0 #555,
+          0 11px 1px rgba(0,0,0,.1), 0 0 8px rgba(0,0,0,.15),
+          0 1px 4px rgba(0,0,0,.35), 0 4px 8px rgba(0,0,0,.3),
+          0 8px 16px rgba(0,0,0,.25), 0 16px 22px rgba(0,0,0,.2),
+          0 28px 30px rgba(0,0,0,.18);
+      }
+      50% {
+        transform: translateY(0) rotateX(0deg) scale(1);
+      }
+    }
+
+
+    /* ── SHOP ROW ── */
+    .shop-row {
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; max-width: 320px;
+    }
+    .shop-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      object-fit: cover; border: 2px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06); flex-shrink: 0;
+    }
+    .shop-avatar-placeholder {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.15);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0;
+    }
+    .shop-name {
+      font-size: 0.75rem; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      flex: 1;
+    }
+    .shop-btn {
+      padding: 7px 14px; border-radius: 8px; border: none;
+      background: var(--green); color: #fff;
+      font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 700;
+      cursor: pointer; text-decoration: none; white-space: nowrap;
+      transition: background 0.2s, transform 0.15s;
+      box-shadow: 0 2px 10px rgba(34,197,94,0.35);
+    }
+    .shop-btn:hover { background: #16a34a; transform: translateY(-1px); }
+  </style>
+</head>
+<body>
+
+  <div id="bg-layer"></div>
+  <canvas id="space-canvas"></canvas>
+
+
+  <div id="niche-title">
+    <span>N</span><span>i</span><span>c</span><span>h</span><span>e</span><span class="title-space"></span><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span>
+  </div>
+
+  <div id="main-view">
+    <div class="search-card">
+      <div class="input-wrap">
+        <input type="text" id="keyword-input" placeholder="Keyword (e.g. custom neon sign...)" />
+      </div>
+      <div class="selects-row">
+        <div class="select-wrap" id="count-wrap"></div>
+      </div>
+      <button id="start-btn" onclick="startSearch()">START</button>
+    </div>
+
+    <div id="progress-wrap">
+      <div class="progress-steps" id="progress-steps"></div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-msg" id="progress-msg"></div>
+    </div>
+  </div>
+
+  <section id="results-section">
+    <div class="results-grid">
+      <div class="results-count-bar" id="results-count"></div>
+      <div id="results-container"></div>
+    </div>
+  </section>
+
+  <script>
+    // ── Build selects ──
+    (function() {
+      // Nombre d'images : 1–100
+      const countSel = document.createElement('select');
+      countSel.id = 'count-select';
+      for (let i = 1; i <= 100; i++) {
+        const o = document.createElement('option');
+        o.value = i;
+        o.textContent = i + ' image' + (i > 1 ? 's' : '');
+        if (i === 10) o.selected = true;
+        countSel.appendChild(o);
+      }
+      document.getElementById('count-wrap').appendChild(countSel);
+    })();
+
+    // ── Pipeline steps ──
+    const STEPS = [
+      { key: 'scraping_etsy',    label: 'Etsy' },
+      { key: 'reverse_search',   label: 'Reverse' },
+      { key: 'aliexpress_found', label: 'AliExpress' },
+      { key: 'comparing',        label: 'IA' },
+      { key: 'finalizing',       label: 'Résultats' },
+    ];
+
+    function initProgress() {
+      const container = document.getElementById('progress-steps');
+      container.innerHTML = '';
+      STEPS.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'step-dot';
+        div.id = 'step-' + s.key;
+        div.innerHTML = `<div class="dot"></div><span class="step-label">${s.label}</span>`;
+        container.appendChild(div);
+      });
+      setProgress(0);
+      document.getElementById('progress-msg').textContent = '';
+    }
+
+    function setProgress(pct) {
+      const el = document.getElementById('progress-fill');
+      el.style.width = pct + '%';
+      if (pct > 0 && pct < 100) el.classList.add('burning');
+      else el.classList.remove('burning');
+    }
+
+    function advanceStep(stepKey, message) {
+      const idx = STEPS.findIndex(s => s.key === stepKey);
+      if (idx === -1) return;
+      STEPS.forEach((s, i) => {
+        const el = document.getElementById('step-' + s.key);
+        if (!el) return;
+        if (i < idx) el.className = 'step-dot done';
+        else if (i === idx) el.className = 'step-dot active';
+        else el.className = 'step-dot';
+      });
+      setProgress(Math.round(((idx + 1) / STEPS.length) * 100));
+      document.getElementById('progress-msg').textContent = message || '';
+    }
+
+    function completeAllSteps() {
+      STEPS.forEach(s => {
+        const el = document.getElementById('step-' + s.key);
+        if (el) el.className = 'step-dot done';
+      });
+      setProgress(100);
+    }
+
+    // ── Search ──
+    async function startSearch() {
+      const keyword = document.getElementById('keyword-input').value.trim();
+      const maxCount = parseInt(document.getElementById('count-select').value) || 10;
+      const threshold = 40;
+
+      if (!keyword) { document.getElementById('keyword-input').focus(); return; }
+
+      const btn = document.getElementById('start-btn');
+      btn.disabled = true;
+      btn.textContent = 'START';
+      btn.classList.add('loading');
+
+      document.getElementById('progress-wrap').style.display = 'flex';
+      initProgress();
+      document.getElementById('results-section').style.display = 'none';
+      document.body.classList.remove('has-results');
+      document.getElementById('results-container').innerHTML = '';
+      document.getElementById('results-count').textContent = '';
+
+      try {
+        const response = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword, similarityThreshold: threshold, maxCount })
+        });
+
+        const ct = response.headers.get('content-type') || '';
+
+        if (ct.includes('text/event-stream')) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop();
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              try {
+                const ev = JSON.parse(line.slice(6));
+                if (ev.step === 'complete') {
+                  completeAllSteps();
+                  document.getElementById('progress-msg').textContent = '✅ ' + (ev.results?.length || 0) + ' correspondance(s)';
+                  (ev.results || []).forEach(renderMatch);
+                  finalize(ev.results?.length || 0);
+                } else if (ev.step === 'error') {
+                  document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
+                  finalize(-1);
+                } else {
+                  advanceStep(ev.step, ev.message);
+                }
+              } catch {}
+            }
+          }
+        } else {
+          const data = await response.json();
+          document.getElementById('progress-msg').textContent = '❌ ' + (data.error || 'Erreur');
+          finalize(-1);
+        }
+      } catch (err) {
+        document.getElementById('progress-msg').textContent = '❌ ' + err.message;
+        finalize(-1);
+      }
+
+      function finalize(count) {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btn.textContent = 'START';
+        const rs = document.getElementById('results-section');
+        rs.style.display = 'block';
+        document.body.classList.add('has-results');
+        if (count > 0) {
+          document.getElementById('results-count').textContent = count + ' correspondance(s) trouvée(s)';
+          rs.scrollIntoView({ behavior: 'smooth' });
+        } else if (count === 0) {
+          document.getElementById('results-container').innerHTML = '<div class="empty">Aucune correspondance. Essayez un autre mot-clé ou baissez le seuil.</div>';
+        }
+      }
+    }
+
+    // ── Render match ──
+    function renderMatch(m) {
+      const { etsy, aliexpress } = m;
+      const etsySrc    = etsy.hostedImageUrl || etsy.image || '';
+      const aliSrc     = aliexpress.image || '';
+      const shopAvatar = etsy.shopAvatar || '';
+      const shopUrl    = etsy.shopUrl || etsy.link?.split('/listing/')[0] || '';
+      const shopName   = etsy.shopName || 'Boutique';
+
+      const card = document.createElement('div');
+      card.className = 'match-card';
+      card.innerHTML = `
+        <div class="match-body">
+          <div class="product-panel">
+            <div class="img-wrap">
+              <div class="img-box">
+                ${etsySrc ? `<img src="${etsySrc}" loading="lazy" onerror="this.style.display='none'" />` : ''}
+              </div>
+            </div>
+            <div class="shop-row">
+              ${shopAvatar
+                ? `<img class="shop-avatar" src="${shopAvatar}" alt="${shopName}" onerror="this.style.display='none'" />`
+                : `<div class="shop-avatar shop-avatar-placeholder">${shopName.charAt(0).toUpperCase()}</div>`
+              }
+              <span class="shop-name">${shopName}</span>
+              ${shopUrl ? `<a class="shop-voir-btn" href="${shopUrl}" target="_blank" rel="noopener">Voir</a>` : ''}
+            </div>
+            <a class="prod-link etsy-link" href="${etsy.link}" target="_blank" rel="noopener">🛍 Etsy ↗</a>
+          </div>
+          <div class="divider-line"></div>
+          <div class="product-panel">
+            <div class="img-wrap">
+              <div class="img-box">
+                ${aliSrc ? `<img src="${aliSrc}" loading="lazy" onerror="this.style.display='none'" />` : ''}
+              </div>
+            </div>
+            <a class="prod-link ali-link" href="${aliexpress.link}" target="_blank" rel="noopener">🛒 AliExpress ↗</a>
+          </div>
+        </div>`;
+      document.getElementById('results-container').appendChild(card);
+    }
+
+
+
+    // ── WEBGL SPACE SCENE ──
+    (function() {
+      const canvas = document.getElementById('space-canvas');
+      if (!canvas) return;
+
+      const gl = canvas.getContext('webgl', { antialias: true, alpha: false }) ||
+                 canvas.getContext('experimental-webgl', { antialias: true, alpha: false });
+      if (!gl) { console.warn('WebGL not supported, falling back'); return; }
+
+      let W, H;
+      function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        gl.viewport(0, 0, W, H);
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      // ─── Shader compiler helper ───
+      function shader(type, src) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+          console.error(gl.getShaderInfoLog(s));
+        return s;
+      }
+      function program(vs, fs) {
+        const p = gl.createProgram();
+        gl.attachShader(p, shader(gl.VERTEX_SHADER,   vs));
+        gl.attachShader(p, shader(gl.FRAGMENT_SHADER, fs));
+        gl.linkProgram(p);
+        return p;
+      }
+
+      // ═══════════════════════════════
+      // 1. BACKGROUND — nebula + stars
+      // ═══════════════════════════════
+      const bgVS = `
+        attribute vec2 a_pos;
+        void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+      `;
+      const bgFS = `
+        precision highp float;
+        uniform vec2  u_res;
+        uniform float u_time;
+
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          f = f*f*(3.0-2.0*f);
+          return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),
+                     mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y);
+        }
+        float fbm(vec2 p) {
+          float v=0.0, a=0.5;
+          for(int i=0;i<6;i++){ v+=a*noise(p); p*=2.1; a*=0.5; }
+          return v;
+        }
+
+        void main() {
+          vec2 uv = gl_FragCoord.xy / u_res;
+          vec2 p  = uv * 3.0;
+
+          // Nebula layers
+          float n1 = fbm(p + vec2(u_time*0.012, 0.0));
+          float n2 = fbm(p * 1.8 - vec2(0.0, u_time*0.009));
+          float n3 = fbm(p * 0.7 + vec2(u_time*0.006, u_time*0.005));
+
+          vec3 col = vec3(0.0);
+          col += vec3(0.05, 0.02, 0.15) * n1 * 1.4;   // deep purple
+          col += vec3(0.02, 0.06, 0.20) * n2 * 1.2;   // blue
+          col += vec3(0.15, 0.03, 0.08) * n3 * 0.9;   // red
+          col += vec3(0.01, 0.08, 0.15) * fbm(p*2.2 + 1.3) * 0.8; // teal
+
+          // Stars
+          vec2 grid = uv * vec2(u_res.x/4.0, u_res.y/4.0);
+          vec2 cell = floor(grid);
+          vec2 local = fract(grid);
+          float h = hash(cell);
+          float h2 = hash(cell + 77.7);
+          float starBright = pow(max(0.0, 1.0 - length(local - vec2(h, h2)) * 22.0), 3.0);
+          float twinkle = 0.6 + 0.4 * sin(u_time * (2.0 + h * 5.0) + h * 6.28);
+          col += vec3(0.9, 0.95, 1.0) * starBright * twinkle * (0.4 + h * 0.6);
+
+          // Bright stars
+          vec2 grid2 = uv * vec2(u_res.x/18.0, u_res.y/18.0);
+          vec2 cell2 = floor(grid2);
+          vec2 local2 = fract(grid2);
+          float h3 = hash(cell2 + 13.3);
+          float h4 = hash(cell2 + 44.4);
+          float starB2 = pow(max(0.0, 1.0 - length(local2 - vec2(h3, h4)) * 12.0), 4.0);
+          float tw2 = 0.5 + 0.5 * sin(u_time * (1.5 + h3*3.0));
+          col += vec3(1.0, 0.97, 0.85) * starB2 * tw2 * 1.5;
+
+          // Milky way band
+          float band = exp(-pow((uv.y - 0.45 - sin(uv.x*3.14)*0.08)*6.0, 2.0));
+          col += vec3(0.08, 0.06, 0.12) * band * fbm(p*4.0) * 1.8;
+
+          col = pow(col, vec3(0.88)); // gamma
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `;
+
+      const bgProg = program(bgVS, bgFS);
+      const bgQuad = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, bgQuad);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+
+      // ═══════════════════════════════
+      // 2. EARTH
+      // ═══════════════════════════════
+      const earthVS = `
+        attribute vec2 a_pos;
+        varying vec2 v_uv;
+        void main() { v_uv = a_pos * 0.5 + 0.5; gl_Position = vec4(a_pos, 0.0, 1.0); }
+      `;
+      const earthFS = `
+        precision highp float;
+        uniform vec2  u_res;
+        uniform float u_time;
+        uniform vec2  u_center;  // screen-space center (0..1)
+        uniform float u_radius;  // screen-space radius (0..1 of min dim)
+        varying vec2 v_uv;
+
+        float hash(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+        float noise(vec2 p) {
+          vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+          return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
+        }
+        float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<5;i++){v+=a*noise(p);p*=2.1;a*=.5;} return v; }
+
+        vec2 sphereUV(vec2 sc, float r, vec2 uv) {
+          // uv in 0..1, convert to sphere coords
+          vec2 asp = vec2(u_res.x / u_res.y, 1.0);
+          vec2 p = (uv - sc) / (r * asp.yx);  
+          p.x *= u_res.y / u_res.x;
+          return p;
+        }
+
+        void main() {
+          vec2 aspect = vec2(u_res.x / u_res.y, 1.0);
+          vec2 uv = gl_FragCoord.xy / u_res;
+
+          // Center & radius in screen space
+          vec2 diff = (uv - u_center) * vec2(aspect.x, 1.0);
+          float r = u_radius;
+          float dist = length(diff);
+
+          // Atmosphere glow (outside sphere)
+          if (dist > r && dist < r * 1.35) {
+            float t = (dist - r) / (r * 0.35);
+            float glow = pow(1.0 - t, 2.5);
+            gl_FragColor = vec4(0.25, 0.55, 1.0, glow * 0.55);
+            return;
+          }
+
+          if (dist > r) { discard; return; }
+
+          // 3D sphere normal
+          vec2 uv2 = diff / r;
+          float z = sqrt(max(0.0, 1.0 - dot(uv2, uv2)));
+          vec3 normal = normalize(vec3(uv2, z));
+
+          // Light direction (sun from upper-left)
+          vec3 lightDir = normalize(vec3(-0.6, 0.5, 0.8));
+          float diffuse = max(0.0, dot(normal, lightDir));
+
+          // Map to spherical UV with rotation
+          float lon = atan(normal.x, normal.z) / (2.0 * 3.14159) + u_time * 0.012;
+          float lat = asin(normal.y) / 3.14159 + 0.5;
+          vec2 sUV = vec2(fract(lon), lat);
+
+          // --- Ocean ---
+          vec3 oceanDeep    = vec3(0.04, 0.15, 0.45);
+          vec3 oceanShallow = vec3(0.10, 0.40, 0.75);
+          float oceanNoise  = fbm(sUV * vec2(8.0, 4.0) + 0.5) * 0.5;
+          vec3 ocean = mix(oceanDeep, oceanShallow, oceanNoise);
+
+          // --- Land (continents via fbm threshold) ---
+          float landMask = fbm(sUV * vec2(6.0, 3.0) + vec2(1.7, 0.9));
+          landMask = smoothstep(0.47, 0.54, landMask);
+
+          // Pole ice caps
+          float poles = smoothstep(0.12, 0.0, abs(lat - 0.5) - 0.35);
+          landMask = max(landMask, poles);
+
+          vec3 landLow  = vec3(0.15, 0.45, 0.10);
+          vec3 landHigh = vec3(0.40, 0.32, 0.18);
+          float elevation = fbm(sUV * vec2(12.0, 6.0) + 3.3);
+          vec3 land = mix(landLow, landHigh, smoothstep(0.45, 0.65, elevation));
+          land = mix(land, vec3(0.92, 0.94, 0.97), poles); // snow
+
+          vec3 surface = mix(ocean, land, landMask);
+
+          // --- Clouds ---
+          float cloud1 = fbm(sUV * vec2(7.0, 3.5) + vec2(u_time * 0.008, 0.3));
+          float cloud2 = fbm(sUV * vec2(5.0, 2.5) - vec2(u_time * 0.005, 0.7));
+          float clouds = smoothstep(0.50, 0.62, cloud1) + smoothstep(0.52, 0.60, cloud2) * 0.5;
+          clouds = clamp(clouds, 0.0, 1.0);
+          surface = mix(surface, vec3(0.95, 0.96, 0.98), clouds * 0.88);
+
+          // --- Lighting ---
+          float ambient = 0.08;
+          float light = ambient + diffuse * 0.92;
+          surface *= light;
+
+          // Night city lights (dark side only)
+          float nightMask = 1.0 - smoothstep(0.0, 0.25, diffuse);
+          float cityNoise = fbm(sUV * vec2(18.0, 9.0) + 2.1);
+          float cities = smoothstep(0.60, 0.75, cityNoise) * (1.0 - clouds) * landMask;
+          surface += vec3(1.0, 0.85, 0.4) * cities * nightMask * 0.5;
+
+          // Specular highlight on ocean
+          vec3 viewDir = vec3(0.0, 0.0, 1.0);
+          vec3 halfDir = normalize(lightDir + viewDir);
+          float spec = pow(max(0.0, dot(normal, halfDir)), 40.0);
+          surface += (1.0 - landMask) * (1.0 - clouds) * spec * 0.6 * vec3(1.0, 0.98, 0.9);
+
+          // Rim / atmosphere on sphere edge
+          float rim = 1.0 - z;
+          rim = pow(rim, 3.0);
+          surface += rim * vec3(0.2, 0.5, 1.0) * 0.5;
+
+          gl_FragColor = vec4(surface, 1.0);
+        }
+      `;
+
+      const earthProg = program(earthVS, earthFS);
+      const earthQuad = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, earthQuad);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+
+      // ═══════════════════════════════
+      // 3. PLANETS (Canvas 2D overlay — simpler)
+      // ═══════════════════════════════
+      const overlay = document.createElement('canvas');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:2;pointer-events:none;';
+      document.body.appendChild(overlay);
+      const oc = overlay.getContext('2d');
+
+      const planets = [
+        { orbitR: 0.26, speed: 0.00042, angle: 0.3,  r: 0.018, color: '#d4c5a0', rings: false },
+        { orbitR: 0.37, speed: 0.00020, angle: 2.1,  r: 0.028, color: '#c1440e', rings: false },
+        { orbitR: 0.50, speed: 0.000095,angle: 3.8,  r: 0.048, color: '#c8a96e', rings: true  },
+        { orbitR: 0.63, speed: 0.000055,angle: 5.5,  r: 0.032, color: '#7faaff', rings: false },
+      ];
+
+      let shooting = [];
+      const rand = (a,b) => Math.random()*(b-a)+a;
+      function spawnShoot() {
+        const a = rand(22,55)*Math.PI/180, sp = rand(9,20);
+        shooting.push({ x:rand(-100,overlay.width), y:rand(-60,overlay.height*.5),
+          vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, alpha:rand(.7,1), w:rand(1,2.5), decay:rand(.989,.997) });
+      }
+      for (let i=0;i<4;i++) spawnShoot();
+
+      function hexTo(hex,off) {
+        return `rgb(${Math.min(255,Math.max(0,parseInt(hex.slice(1,3),16)+off))},${Math.min(255,Math.max(0,parseInt(hex.slice(3,5),16)+off))},${Math.min(255,Math.max(0,parseInt(hex.slice(5,7),16)+off))})`;
+      }
+      function hexA(hex,a) {
+        return `rgba(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)},${a})`;
+      }
+
+      function drawPlanet(p, cx, cy, sc) {
+        const ox = p.orbitR*sc*.78, oy = ox*.36;
+        const px = cx+Math.cos(p.angle)*ox, py = cy+Math.sin(p.angle)*oy;
+        const r  = p.r*sc*.48;
+
+        // Orbit
+        oc.beginPath(); oc.ellipse(cx,cy,ox,oy,0,0,Math.PI*2);
+        oc.strokeStyle='rgba(255,255,255,0.05)'; oc.lineWidth=1; oc.stroke();
+
+        oc.save(); oc.translate(px,py);
+
+        if (p.rings) {
+          oc.save(); oc.scale(1,.3);
+          const rg=oc.createRadialGradient(0,0,r*1.1,0,0,r*2.3);
+          rg.addColorStop(0,'rgba(210,180,100,0.5)'); rg.addColorStop(.6,'rgba(210,180,100,0.2)'); rg.addColorStop(1,'rgba(210,180,100,0)');
+          oc.beginPath(); oc.arc(0,0,r*2.3,0,Math.PI*2); oc.fillStyle=rg; oc.fill(); oc.restore();
+        }
+
+        const sg=oc.createRadialGradient(-r*.3,-r*.3,0,0,0,r);
+        sg.addColorStop(0,hexTo(p.color,55)); sg.addColorStop(.5,p.color); sg.addColorStop(1,hexTo(p.color,-60));
+        oc.beginPath(); oc.arc(0,0,r,0,Math.PI*2); oc.fillStyle=sg; oc.fill();
+
+        // Night shadow
+        const ns=oc.createRadialGradient(r*.4,0,0,r*.2,0,r*1.1);
+        ns.addColorStop(0,'rgba(0,0,0,0)'); ns.addColorStop(.5,'rgba(0,0,0,0.4)'); ns.addColorStop(1,'rgba(0,0,0,0.75)');
+        oc.save(); oc.beginPath(); oc.arc(0,0,r,0,Math.PI*2); oc.clip();
+        oc.fillStyle=ns; oc.fillRect(-r,-r,r*2,r*2); oc.restore();
+
+        oc.restore();
+      }
+
+      // ═══════════════════════════════
+      // RENDER LOOP
+      // ═══════════════════════════════
+      let t = 0;
+      function frame() {
+        t += 0.016;
+
+        // ─ WebGL: background nebula + stars ─
+        gl.useProgram(bgProg);
+        gl.bindBuffer(gl.ARRAY_BUFFER, bgQuad);
+        const bgPos = gl.getAttribLocation(bgProg, 'a_pos');
+        gl.enableVertexAttribArray(bgPos);
+        gl.vertexAttribPointer(bgPos, 2, gl.FLOAT, false, 0, 0);
+        gl.uniform2f(gl.getUniformLocation(bgProg,'u_res'), W, H);
+        gl.uniform1f(gl.getUniformLocation(bgProg,'u_time'), t);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        // ─ WebGL: Earth ─
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.useProgram(earthProg);
+        gl.bindBuffer(gl.ARRAY_BUFFER, earthQuad);
+        const ePos = gl.getAttribLocation(earthProg,'a_pos');
+        gl.enableVertexAttribArray(ePos);
+        gl.vertexAttribPointer(ePos,2,gl.FLOAT,false,0,0);
+        gl.uniform2f(gl.getUniformLocation(earthProg,'u_res'), W, H);
+        gl.uniform1f(gl.getUniformLocation(earthProg,'u_time'), t);
+        gl.uniform2f(gl.getUniformLocation(earthProg,'u_center'), 0.5, 0.5);
+        const earthR = Math.min(W,H) * 0.13 / Math.min(W,H);
+        gl.uniform1f(gl.getUniformLocation(earthProg,'u_radius'), earthR);
+        gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+
+        // ─ Canvas 2D overlay: planets + shooting stars ─
+        overlay.width  = W;
+        overlay.height = H;
+        oc.clearRect(0,0,W,H);
+
+        const cx = W/2, cy = H/2, sc = Math.min(W,H);
+
+        // Planets behind earth
+        for (const p of planets) {
+          p.angle += p.speed;
+          const oy = p.orbitR*sc*.78*.36;
+          if (Math.sin(p.angle)*oy + cy > cy) drawPlanet(p,cx,cy,sc);
+        }
+        // Planets in front
+        for (const p of planets) {
+          const oy = p.orbitR*sc*.78*.36;
+          if (Math.sin(p.angle)*oy + cy <= cy) drawPlanet(p,cx,cy,sc);
+        }
+
+        // Shooting stars
+        if (Math.random()<.013 && shooting.length<10) spawnShoot();
+        shooting = shooting.filter(s => {
+          const tl=14;
+          const gd=oc.createLinearGradient(s.x,s.y,s.x-s.vx*tl,s.y-s.vy*tl);
+          gd.addColorStop(0,`rgba(255,255,255,${s.alpha})`); gd.addColorStop(1,'rgba(255,255,255,0)');
+          oc.beginPath(); oc.strokeStyle=gd; oc.lineWidth=s.w;
+          oc.moveTo(s.x,s.y); oc.lineTo(s.x-s.vx*tl,s.y-s.vy*tl); oc.stroke();
+          const g=oc.createRadialGradient(s.x,s.y,0,s.x,s.y,s.w*3);
+          g.addColorStop(0,`rgba(255,255,255,${s.alpha})`); g.addColorStop(1,'rgba(255,255,255,0)');
+          oc.beginPath(); oc.fillStyle=g; oc.arc(s.x,s.y,s.w*3,0,Math.PI*2); oc.fill();
+          s.x+=s.vx; s.y+=s.vy; s.alpha*=s.decay;
+          return s.x<W+300 && s.y<H+200 && s.alpha>.04;
+        });
+
+        requestAnimationFrame(frame);
+      }
+      frame();
+    })();
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('keyword-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') startSearch();
+      });
+    });
+  </script>
+</body>
+</html>
