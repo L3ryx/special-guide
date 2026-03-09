@@ -1,53 +1,36 @@
-const axios = require('axios');
+const axios    = require('axios');
 const FormData = require('form-data');
 
-/**
- * Upload une image sur ImgBB.
- * Accepte : URL http/https OU data URL base64.
- * ImgBB n'accepte pas le WebP en base64 â€” on envoie toujours l'URL directe si possible.
- */
+// Upload une image sur ImgBB en base64 (évite la troncature des noms longs)
 async function uploadToImgBB(input) {
   try {
-    // Si c'est une data URL base64, extraire le base64 pur
-    // Si c'est une URL http, l'envoyer directement (ImgBB fetch lui-mÃªme)
-    const isDataUrl = input.startsWith('data:');
-    const isHttp    = input.startsWith('http');
-
-    console.log(`ðŸ“¤ Uploading to ImgBB (${isDataUrl ? 'base64' : 'url'}): ${input.substring(0, 60)}...`);
-
-    const formData = new FormData();
-    formData.append('key', process.env.IMGBB_API_KEY);
-
-    if (isHttp) {
-      // Envoyer l'URL directement â€” ImgBB la tÃ©lÃ©charge lui-mÃªme
-      formData.append('image', input);
-    } else if (isDataUrl) {
-      // Extraire le base64 pur (sans le prÃ©fixe data:...)
-      const b64 = input.split(',')[1];
-      if (!b64) throw new Error('data URL invalide');
-      formData.append('image', b64);
+    let b64;
+    if (input.startsWith('data:')) {
+      b64 = input.split(',')[1];
+    } else if (input.startsWith('http')) {
+      const dl = await axios.get(input, {
+        responseType: 'arraybuffer', timeout: 15000,
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.etsy.com/' }
+      });
+      b64 = Buffer.from(dl.data).toString('base64');
     } else {
-      formData.append('image', input);
+      b64 = input;
     }
 
-    const response = await axios.post('https://api.imgbb.com/1/upload', formData, {
-      headers: formData.getHeaders ? formData.getHeaders() : { 'Content-Type': 'multipart/form-data' },
+    const form = new FormData();
+    form.append('key', process.env.IMGBB_API_KEY);
+    form.append('image', b64);
+
+    const res = await axios.post('https://api.imgbb.com/1/upload', form, {
+      headers: form.getHeaders?.() || { 'Content-Type': 'multipart/form-data' },
       timeout: 30000
     });
 
-    if (response.data.success) {
-      const d = response.data.data;
-      // Prendre display_url en priorite â€” c'est l'URL directe sans troncature
-      // url peut etre tronquee pour les .webp sur ImgBB
-      const url = d.display_url || d.medium?.url || d.url;
-      console.log(`âœ… ImgBB success: ${url}`);
-      return url;
-    }
-    throw new Error('ImgBB Ã©chec: ' + JSON.stringify(response.data));
-
-  } catch (error) {
-    console.error('ImgBB upload error:', error.message);
-    return input; // fallback: retourner l'input original
+    if (res.data.success) return res.data.data.url;
+    throw new Error(JSON.stringify(res.data));
+  } catch (err) {
+    console.error('ImgBB error:', err.message);
+    return input; // fallback: URL originale
   }
 }
 
