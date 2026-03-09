@@ -16,14 +16,13 @@
       --muted: rgba(255,255,255,0.55);
     }
 
-    html { height: 100%; overflow: hidden; }
-    body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow: hidden; }
-    body.scrollable { overflow-y: auto !important; overflow-x: hidden; }
-    html.scrollable { overflow: visible !important; }
+    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow-x: hidden; }
+    body { position: relative; }
 
     #bg-layer {
-      position: fixed; inset: 0; z-index: 0;
-      background: #0a0a0a url('/background.png') center/cover no-repeat;
+      position: absolute; top: 0; left: 0; right: 0; min-height: 100%;
+      z-index: 0;
+      background: #0a0a0a url('/background.png') center top / cover repeat-y;
     }
     #bg-layer::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.45); }
 
@@ -338,6 +337,14 @@
       pointer-events: none;
     }
 
+    /* Wrapper pour que bg et canvas s'étendent avec le contenu */
+    #bg-wrap {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      min-height: 100%;
+      z-index: 0;
+    }
+
     /* ── SPINNER on button ── */
 
     /* ── NICHE FINDER 3D WAVE TITLE ── */
@@ -586,11 +593,6 @@
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('results-container').innerHTML = '';
       document.getElementById('results-count').textContent = '';
-      // Reverrouiller le scroll
-      document.documentElement.classList.remove('scrollable');
-      document.body.classList.remove('scrollable');
-      document.documentElement.style.overflow = '';
-      document.body.style.overflow = '';
       window.scrollTo({ top: 0 });
 
       try {
@@ -657,16 +659,8 @@
           }
           const rs = document.getElementById('results-section');
           rs.style.display = 'block';
-
-          // Déverrouiller le scroll sur html ET body
-          document.documentElement.classList.add('scrollable');
-          document.body.classList.add('scrollable');
-          document.documentElement.style.overflow = 'auto';
-          document.body.style.overflow = 'auto';
-
           setTimeout(() => {
-            const top = rs.getBoundingClientRect().top + window.pageYOffset;
-            window.scrollTo({ top: top, behavior: 'smooth' });
+            rs.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }, 100);
         }
       }
@@ -788,3 +782,4 @@
   </script>
 </body>
 </html>
+
