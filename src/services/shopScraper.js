@@ -1,93 +1,73 @@
 const axios = require('axios');
 
-// Cache to avoid re-scraping the same shop
-const shopCache = new Map();
+const cache = new Map();
 
-/**
- * Given an Etsy listing object, returns { shopName, shopUrl, shopAvatar }
- * Scrapes the listing page to find the shop name + avatar if not already known.
- */
 async function getShopInfo(listing) {
-  // If we already have shopName from the search page, try to get avatar only
-  const cacheKey = listing.shopName || listing.link;
-  if (shopCache.has(cacheKey)) return shopCache.get(cacheKey);
+  const key = listing.shopName || listing.link;
+  if (cache.has(key)) return cache.get(key);
+
+  // Si on a déjà le shopName depuis ScrapingBee, on construit juste les infos sans re-scraper
+  if (listing.shopName) {
+    const info = {
+      shopName:   listing.shopName,
+      shopUrl:    listing.shopUrl || `https://www.etsy.com/shop/${listing.shopName}`,
+      shopAvatar: listing.shopAvatar || null
+    };
+    cache.set(key, info);
+    return info;
+  }
 
   try {
-    const listingUrl = listing.link;
-    const scraperUrl = `http://api.scraperapi.com?api_key=${process.env.SCRAPEAPI_KEY}&url=${encodeURIComponent(listingUrl)}&render=false`;
-
-    const response = await axios.get(scraperUrl, { timeout: 30000 });
-    const html = response.data;
-
-    const info = parseShopInfo(html, listing.shopName);
-    shopCache.set(cacheKey, info);
-    if (info.shopName) shopCache.set(info.shopName, info);
+    const url = `http://api.scraperapi.com?api_key=${process.env.SCRAPEAPI_KEY}&url=${encodeURIComponent(listing.link)}&render=false`;
+    const res  = await axios.get(url, { timeout: 20000 });
+    const html = res.data;
+    const info = parseShopInfo(html);
+    cache.set(key, info);
+    if (info.shopName) cache.set(info.shopName, info);
     return info;
   } catch (err) {
     console.error('shopScraper error:', err.message);
-    const fallback = {
-      shopName: listing.shopName || null,
-      shopUrl:  listing.shopUrl  || null,
-      shopAvatar: null
-    };
-    return fallback;
+    return { shopName: listing.shopName || null, shopUrl: listing.shopUrl || null, shopAvatar: null };
   }
 }
 
-function parseShopInfo(html, knownShopName) {
-  let shopName = knownShopName || null;
-  let shopUrl  = null;
-  let shopAvatar = null;
+function parseShopInfo(html) {
+  let shopName = null, shopAvatar = null;
 
-  // ── 1. Shop name from JSON-LD (seller.name or brand.name) ──
-  const jsonLdBlocks = html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
-  for (const block of jsonLdBlocks) {
+  // JSON-LD
+  for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
-      const data = JSON.parse(block[1]);
-      const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
+      const items = [].concat(JSON.parse(raw)?.['@graph'] || JSON.parse(raw));
       for (const item of items) {
-        const seller = item.seller?.name || item.brand?.name || item.offers?.seller?.name;
-        if (seller && !shopName) shopName = seller;
+        shopName = shopName || item.seller?.name || item.brand?.name;
       }
     } catch {}
+    if (shopName) break;
   }
 
-  // ── 2. Shop name from HTML meta / data attributes ──
+  // HTML fallback
   if (!shopName) {
-    const m = html.match(/data-shop-name="([^"]+)"/i)
-           || html.match(/"shopName"\s*:\s*"([^"]+)"/i)
-           || html.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
+    const m = html.match(/data-shop-name="([^"]+)"/i) || html.match(/"shopName"\s*:\s*"([^"]+)"/i);
     if (m) shopName = m[1];
   }
 
-  // ── 3. Shop URL ──
-  if (shopName) shopUrl = `https://www.etsy.com/shop/${shopName}`;
-
-  // ── 4. Shop avatar — look for shop owner profile image ──
-  // Pattern A: data-src or src on an img near shop-owner / shop-icon context
+  // Avatar
   const avatarPatterns = [
-    /shop-owner[^>]*>[\s\S]{0,500}?<img[^>]+(?:src|data-src)="(https:\/\/i\.etsystatic\.com\/iusa\/[^"]+)"/i,
-    /<img[^>]+class="[^"]*shop-icon[^"]*"[^>]+(?:src|data-src)="([^"]+)"/i,
-    /<img[^>]+(?:src|data-src)="([^"]+)"[^>]+class="[^"]*shop-icon[^"]*"/i,
-    /shopAvatar[^"]*"[^"]*"[^"]*"([^"]+etsystatic[^"]+)"/i,
     /"iconUrl"\s*:\s*"([^"]+)"/i,
     /"shop_icon_url"\s*:\s*"([^"]+)"/i,
-    /shop[_-]?icon[^>]*(?:src|data-src)="(https?:\/\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i,
+    /<img[^>]+class="[^"]*shop-icon[^"]*"[^>]+src="([^"]+)"/i,
+    /shop-owner[\s\S]{0,300}?<img[^>]+src="(https:\/\/i\.etsystatic\.com\/iusa\/[^"]+)"/i,
   ];
   for (const pat of avatarPatterns) {
     const m = html.match(pat);
     if (m) { shopAvatar = m[1].replace(/\\u0026/g, '&'); break; }
   }
 
-  // Pattern B: look for owner image via JSON embedded data
-  if (!shopAvatar) {
-    const jsonMatch = html.match(/"owner"[\s\S]{0,200}?"image_url_[^"]*"\s*:\s*"([^"]+)"/i)
-                   || html.match(/"seller_avatar_url"\s*:\s*"([^"]+)"/i)
-                   || html.match(/"shop_banner_url"\s*:\s*"([^"]+)"/i);
-    if (jsonMatch) shopAvatar = jsonMatch[1].replace(/\\u0026/g, '&');
-  }
-
-  return { shopName, shopUrl, shopAvatar };
+  return {
+    shopName,
+    shopUrl:    shopName ? `https://www.etsy.com/shop/${shopName}` : null,
+    shopAvatar
+  };
 }
 
 module.exports = { getShopInfo };
