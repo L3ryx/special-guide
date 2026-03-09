@@ -1,10 +1,10 @@
 const axios = require('axios');
 
 /**
- * Comparaison via Claude claude-haiku-4-5-20251001 Vision — rapide et précis.
- * Les images sont passées en base64 directement.
+ * Comparaison via Claude claude-haiku-4-5-20251001 Vision â€” rapide et prÃ©cis.
+ * Les images sont passÃ©es en base64 directement.
  */
-async function calculateSimilarityWithClaude(b64Etsy, b64Ali, retries = 2) {
+async function calculateSimilarityWithClaude(b64Etsy, mediaEtsy, b64Ali, mediaAli, retries = 2) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await axios.post(
@@ -17,20 +17,20 @@ async function calculateSimilarityWithClaude(b64Etsy, b64Ali, retries = 2) {
             content: [
               {
                 type: 'image',
-                source: { type: 'base64', media_type: 'image/jpeg', data: b64Etsy }
+                source: { type: 'base64', media_type: mediaEtsy || 'image/jpeg', data: b64Etsy }
               },
               {
                 type: 'image',
-                source: { type: 'base64', media_type: 'image/jpeg', data: b64Ali }
+                source: { type: 'base64', media_type: mediaAli || 'image/jpeg', data: b64Ali }
               },
               {
                 type: 'text',
                 text: `Compare these two product images. Could one be a dropshipped or wholesale version of the other?
 Score rules:
-- Same product, same design → 0.85–1.0
-- Same product type, similar design → 0.65–0.84
-- Same category, different design → 0.35–0.64
-- Different product → 0.0–0.34
+- Same product, same design â†’ 0.85â€“1.0
+- Same product type, similar design â†’ 0.65â€“0.84
+- Same category, different design â†’ 0.35â€“0.64
+- Different product â†’ 0.0â€“0.34
 Ignore: background, watermarks, angle, lighting.
 Reply with ONLY a single decimal number (e.g. 0.82). Nothing else.`
               }
@@ -48,7 +48,7 @@ Reply with ONLY a single decimal number (e.g. 0.82). Nothing else.`
       );
 
       const text = response.data.content[0]?.text?.trim() || '0';
-      console.log(`🤖 Claude score: "${text}"`);
+      console.log(`ðŸ¤– Claude score: "${text}"`);
       const match = text.match(/0\.\d+|1(\.0+)?/);
       return match ? parseFloat(match[0]) : 0;
 
@@ -56,10 +56,10 @@ Reply with ONLY a single decimal number (e.g. 0.82). Nothing else.`
       const status = err.response?.status;
       if ((status === 529 || status === 429) && attempt < retries) {
         const wait = attempt * 2000;
-        console.log(`⏳ Claude ${status} — retry dans ${wait}ms`);
+        console.log(`â³ Claude ${status} â€” retry dans ${wait}ms`);
         await new Promise(r => setTimeout(r, wait));
       } else {
-        console.error(`❌ Claude Vision: ${status || err.message}`);
+        console.error(`âŒ Claude Vision: ${status || err.message}`);
         throw err;
       }
     }
@@ -74,13 +74,17 @@ async function downloadBase64(url, label = '') {
       timeout: 12000,
       headers: {
         'User-Agent': 'Mozilla/5.0',
-        'Accept': 'image/jpeg,image/webp,image/*'
+        'Accept': 'image/jpeg,image/webp,image/png,image/*'
       }
     });
-    // Convertir en JPEG-like base64 (Claude accepte jpeg, png, gif, webp)
-    return Buffer.from(res.data).toString('base64');
+    const ct = res.headers['content-type'] || '';
+    let mediaType = 'image/jpeg';
+    if (ct.includes('webp')) mediaType = 'image/webp';
+    else if (ct.includes('png')) mediaType = 'image/png';
+    else if (ct.includes('gif')) mediaType = 'image/gif';
+    return { data: Buffer.from(res.data).toString('base64'), mediaType };
   } catch (err) {
-    console.error(`❌ Download ${label}: ${err.message}`);
+    console.error(`âŒ Download ${label}: ${err.message}`);
     return null;
   }
 }
@@ -89,9 +93,9 @@ async function compareEtsyWithAliexpress(etsyItem, aliexpressItems, threshold = 
   const etsyImg = etsyItem.hostedImageUrl || etsyItem.image;
   if (!etsyImg) return [];
 
-  // Télécharger image Etsy
-  const b64Etsy = await downloadBase64(etsyImg, 'Etsy');
-  if (!b64Etsy) return [];
+  // TÃ©lÃ©charger image Etsy
+  const etsyDl = await downloadBase64(etsyImg, 'Etsy');
+  if (!etsyDl) return [];
 
   const candidates = [];
 
@@ -99,19 +103,19 @@ async function compareEtsyWithAliexpress(etsyItem, aliexpressItems, threshold = 
     if (!aliItem.image) continue;
 
     try {
-      // L'image AliExpress est déjà une URL ImgBB — télécharger en base64
-      const b64Ali = await downloadBase64(aliItem.image, 'AliExpress');
-      if (!b64Ali) continue;
+      // L'image AliExpress est dÃ©jÃ  une URL ImgBB â€” tÃ©lÃ©charger en base64
+      const aliDl = await downloadBase64(aliItem.image, 'AliExpress');
+      if (!aliDl) continue;
 
-      const score = await calculateSimilarityWithClaude(b64Etsy, b64Ali);
+      const score = await calculateSimilarityWithClaude(etsyDl.data, etsyDl.mediaType, aliDl.data, aliDl.mediaType);
       const similarity = Math.round(score * 100);
-      console.log(`📊 Similarité Claude: ${similarity}% — ${aliItem.link?.substring(0, 50)}`);
+      console.log(`ðŸ“Š SimilaritÃ© Claude: ${similarity}% â€” ${aliItem.link?.substring(0, 50)}`);
 
       candidates.push({ etsy: etsyItem, aliexpress: aliItem, similarity });
 
     } catch (err) {
       console.error(`Erreur comparaison: ${err.message}`);
-      // Fallback : score basé sur la source Serper
+      // Fallback : score basÃ© sur la source Serper
       const fallback = aliItem.source === 'lens' ? 70 : 55;
       candidates.push({ etsy: etsyItem, aliexpress: aliItem, similarity: fallback });
     }
@@ -123,11 +127,11 @@ async function compareEtsyWithAliexpress(etsyItem, aliexpressItems, threshold = 
   const best = candidates[0];
 
   if (best.similarity >= threshold) {
-    console.log(`✅ Match: ${best.similarity}%`);
+    console.log(`âœ… Match: ${best.similarity}%`);
     return [best];
   }
 
-  console.log(`❌ Score ${best.similarity}% sous seuil ${threshold}%`);
+  console.log(`âŒ Score ${best.similarity}% sous seuil ${threshold}%`);
   return [];
 }
 
