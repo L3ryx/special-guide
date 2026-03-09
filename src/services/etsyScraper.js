@@ -2,7 +2,7 @@ const axios = require('axios');
 
 async function scrapeEtsy(keyword, maxCount = 10) {
   const apiKey = process.env.SCRAPINGBEE_KEY;
-  if (!apiKey) throw new Error('SCRAPINGBEE_KEY manquant — ajoute-le dans les variables Render');
+  if (!apiKey) throw new Error('SCRAPINGBEE_KEY manquant â€” ajoute-le dans les variables Render');
 
   console.log(`ScrapingBee Etsy: "${keyword}" (max ${maxCount})`);
 
@@ -40,7 +40,7 @@ async function scrapeEtsy(keyword, maxCount = 10) {
     console.log(`  [${i+1}] ${l.link.substring(0,60)} | img: ${l.image.substring(0,50)}`)
   );
 
-  if (valid.length === 0) throw new Error('Aucune annonce trouvee — Etsy a peut-etre change sa structure');
+  if (valid.length === 0) throw new Error('Aucune annonce trouvee â€” Etsy a peut-etre change sa structure');
 
   return valid.slice(0, maxCount);
 }
@@ -57,7 +57,8 @@ function parseEtsyListings(html) {
       const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
       for (const item of items) {
         const url   = item.url || item['@id'];
-        const image = Array.isArray(item.image) ? item.image[0] : (typeof item.image === 'string' ? item.image : null);
+        const rawImg = Array.isArray(item.image) ? item.image[0] : (typeof item.image === 'string' ? item.image : null);
+        const image = cleanEtsyImage(rawImg);
         const name  = item.name;
         if (url?.includes('/listing/') && image && name && !seen.has(url)) {
           seen.add(url);
@@ -129,6 +130,23 @@ function parseEtsyListings(html) {
 function extractShopFromUrl(url) {
   const m = url.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
   return m ? m[1] : null;
+}
+
+// Nettoie et valide une URL image etsystatic
+// Les URLs tronquees comme /c/2142/2142/367/ sont invalides
+function cleanEtsyImage(url) {
+  if (!url) return null;
+  // Retirer les parametres
+  url = url.split('?')[0].trim();
+  // Doit se terminer par une extension image
+  if (/\.(jpg|jpeg|png|webp|gif)$/i.test(url)) return url;
+  // Essayer d'ajouter il_fullxfull.jpg si l'URL contient un path etsystatic valide
+  // Pattern valide: /r/il/HASH/DIGITS/il_...jpg  ou /c/.../il_...jpg
+  // Pattern invalide: se termine par un chiffre ou /
+  if (url.match(/\/il\/[a-f0-9]+\/\d+$/)) {
+    return url + '.jpg';
+  }
+  return null;
 }
 
 async function debugEtsyHtml(keyword) {
