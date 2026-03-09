@@ -674,6 +674,8 @@
       const shopAvatar = etsy.shopAvatar || '';
       const shopUrl    = etsy.shopUrl || etsy.link?.split('/listing/')[0] || '';
       const shopName   = etsy.shopName || 'Boutique';
+      const etsyPriceHtml = etsy.price ? `<div class="price-tag etsy-price">💰 ${etsy.price}</div>` : '';
+      const aliPriceHtml  = aliexpress.price ? `<div class="price-tag ali-price">💰 ${aliexpress.price}</div>` : '';
 
       const card = document.createElement('div');
       card.className = 'match-card';
@@ -782,4 +784,3 @@
   </script>
 </body>
 </html>
-
