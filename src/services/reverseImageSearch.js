@@ -5,18 +5,18 @@ const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
 async function reverseImageSearch(etsyImageUrl, title = '') {
   try {
-    // Upload Etsy sur ImgBB en parallèle avec la préparation texte
-    console.log(`📤 Upload Etsy ImgBB...`);
+    // Upload Etsy sur ImgBB en parallÃ¨le avec la prÃ©paration texte
+    console.log(`ðŸ“¤ Upload Etsy ImgBB...`);
     const publicUrl = await uploadToImgBB(etsyImageUrl);
-    console.log(`🔗 ImgBB Etsy: ${publicUrl.substring(0, 60)}`);
+    console.log(`ðŸ”— ImgBB Etsy: ${publicUrl.substring(0, 60)}`);
 
-    // Lens + texte en parallèle
+    // Lens + texte en parallÃ¨le
     const [lensResults, textResults] = await Promise.all([
       tryLens(publicUrl),
       title ? tryTextSearch(title) : Promise.resolve([])
     ]);
 
-    // Fusionner — Lens en priorité
+    // Fusionner â€” Lens en prioritÃ©
     const seen = new Set();
     const combined = [];
     for (const item of [...lensResults, ...textResults]) {
@@ -27,18 +27,9 @@ async function reverseImageSearch(etsyImageUrl, title = '') {
     }
 
     const best = combined.slice(0, 1);
-    console.log(`🛒 Résultat: ${best[0]?.link?.substring(0, 60) || 'aucun'}`);
+    console.log(`ðŸ›’ RÃ©sultat: ${best[0]?.link?.substring(0, 60) || 'aucun'}`);
 
-    // Upload image AliExpress sur ImgBB (si disponible)
-    for (const item of best) {
-      if (item.image) {
-        try {
-          item.image = await uploadToImgBB(item.image);
-          console.log(`🔗 ImgBB Ali: ${item.image.substring(0, 60)}`);
-        } catch { /* garder url originale */ }
-      }
-    }
-
+    // Pas d'upload ImgBB pour AliExpress â€” imageSimilarity tÃ©lÃ©charge directement en base64
     return best;
 
   } catch (error) {
@@ -50,7 +41,7 @@ async function reverseImageSearch(etsyImageUrl, title = '') {
 function cleanAliLink(raw) {
   if (!raw) return null;
   try {
-    // Décoder les entités HTML et caractères encodés
+    // DÃ©coder les entitÃ©s HTML et caractÃ¨res encodÃ©s
     let url = raw.replace(/&amp;/g, '&').trim();
 
     // Extraire l'item ID et reconstruire une URL propre
@@ -59,13 +50,13 @@ function cleanAliLink(raw) {
       return `https://www.aliexpress.com/item/${itemMatch[1]}.html`;
     }
 
-    // Parfois l'ID est dans les paramètres
+    // Parfois l'ID est dans les paramÃ¨tres
     const idParam = url.match(/[?&](?:id|itemId|productId)=(\d{10,})/);
     if (idParam) {
       return `https://www.aliexpress.com/item/${idParam[1]}.html`;
     }
 
-    // Lien de recherche wholesale → invalide
+    // Lien de recherche wholesale â†’ invalide
     if (url.includes('/w/wholesale') || url.includes('wholesale-')) return null;
 
     return null; // URL sans item ID = inutilisable
@@ -92,7 +83,7 @@ async function tryLens(imageUrl) {
     const ali = [...visual, ...organic]
       .filter(m => (m.link || m.url || '').includes('aliexpress.com'));
 
-    console.log(`🔍 Lens: ${visual.length} visual + ${organic.length} organic → ${ali.length} AliExpress`);
+    console.log(`ðŸ” Lens: ${visual.length} visual + ${organic.length} organic â†’ ${ali.length} AliExpress`);
 
     return ali.slice(0, 3).map(m => ({
       title: m.title || 'AliExpress',
@@ -113,7 +104,7 @@ async function tryTextSearch(title) {
       .filter(w => w.length > 2 && !stopWords.has(w.toLowerCase())).slice(0, 5).join(' ');
     if (!keywords) return [];
 
-    console.log(`🔤 Text: "${keywords} site:aliexpress.com"`);
+    console.log(`ðŸ”¤ Text: "${keywords} site:aliexpress.com"`);
     const response = await axios.post(
       'https://google.serper.dev/search',
       { q: `${keywords} site:aliexpress.com`, gl: 'us', hl: 'en', num: 3 },
