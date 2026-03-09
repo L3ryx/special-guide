@@ -12,14 +12,17 @@ async function scrapeEtsy(keyword, maxCount = 10) {
   try {
     response = await axios.get('https://app.scrapingbee.com/api/v1/', {
       params: {
-        api_key:         apiKey,
-        url:             etsyUrl,
-        render_js:       'true',
-        premium_proxy:   'true',
-        country_code:    'us',
-        wait:            '2000',
+        api_key:       apiKey,
+        url:           etsyUrl,
+        render_js:     'true',
+        premium_proxy: 'true',
+        country_code:  'us',
+        wait_for:      '[data-listing-id]', // attend le 1er article, pas un delai fixe
+        timeout:       '15000',             // timeout JS interne ScrapingBee
+        block_ads:     'true',              // evite de charger les pubs inutiles
+        block_resources: 'true',           // bloque fonts/images/css => plus rapide
       },
-      timeout: 60000,
+      timeout: 30000, // timeout axios
     });
   } catch (err) {
     const status = err.response?.status;
