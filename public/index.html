@@ -487,9 +487,72 @@
     .price-tag.etsy-price { color: #fb923c; border-color: rgba(241,100,30,0.3); background: rgba(241,100,30,0.08); }
     .price-tag.ali-price  { color: #f87171; border-color: rgba(227,24,55,0.3);  background: rgba(227,24,55,0.08); }
     .price-tag.no-price   { color: var(--muted); font-weight: 400; font-style: italic; font-size: 0.75rem; }
+
+    /* ── INTRO SPLASH ── */
+    #intro-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #000;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    #intro-splash.hidden { display: none; }
+
+    #intro-title {
+      font-family: 'Croissant One', cursive;
+      font-size: clamp(3rem, 10vw, 7rem);
+      color: #fff;
+      text-align: center;
+      letter-spacing: 0.06em;
+      text-shadow:
+        0 2px 0 #ccc, 0 4px 0 #aaa,
+        0 6px 1px rgba(0,0,0,.2),
+        0 0 20px rgba(255,255,255,0.3);
+      opacity: 0;
+      animation: introFadeIn 0.8s ease forwards 0.3s;
+    }
+
+    #intro-title span {
+      display: inline-block;
+      transition: transform 0.6s ease, opacity 0.6s ease;
+    }
+    #intro-title span.explode {
+      animation: letterExplode 0.7s ease forwards;
+    }
+
+    @keyframes introFadeIn {
+      from { opacity: 0; transform: scale(0.85); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes letterExplode {
+      0%   { transform: translate(0,0) scale(1); opacity: 1; }
+      100% { transform: translate(var(--ex), var(--ey)) scale(0.2) rotate(var(--er)); opacity: 0; }
+    }
+
+    /* Cache la page principale pendant l'intro */
+    body.intro-active #bg-layer,
+    body.intro-active #stars-canvas,
+    body.intro-active #title-outer,
+    body.intro-active #main-view { opacity: 0; pointer-events: none; }
+    body.intro-active { overflow: hidden; }
+
+    body.intro-done #bg-layer,
+    body.intro-done #stars-canvas,
+    body.intro-done #title-outer,
+    body.intro-done #main-view {
+      opacity: 1;
+      transition: opacity 0.6s ease;
+    }
   </style>
 </head>
-<body>
+<body class="intro-active">
+
+  <!-- INTRO SPLASH -->
+  <div id="intro-splash">
+    <div id="intro-title">
+      <span>N</span><span>i</span><span>c</span><span>h</span><span>e</span><span>&nbsp;</span><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span>
+    </div>
+  </div>
 
   <div id="bg-layer"></div>
   <canvas id="stars-canvas"></canvas>
@@ -863,6 +926,32 @@
         if (e.key === 'Enter') startSearch();
       });
     });
+
+    // ── INTRO SPLASH ──
+    (function() {
+      document.body.classList.add('intro-active');
+      var splash = document.getElementById('intro-splash');
+      var letters = document.querySelectorAll('#intro-title span');
+
+      setTimeout(function() {
+        // Explosion des lettres
+        letters.forEach(function(el) {
+          var angle = Math.random() * Math.PI * 2;
+          var dist  = 200 + Math.random() * 400;
+          el.style.setProperty('--ex', Math.cos(angle) * dist + 'px');
+          el.style.setProperty('--ey', Math.sin(angle) * dist + 'px');
+          el.style.setProperty('--er', (Math.random() * 720 - 360) + 'deg');
+          el.classList.add('explode');
+        });
+
+        setTimeout(function() {
+          splash.classList.add('hidden');
+          document.body.classList.remove('intro-active');
+          document.body.classList.add('intro-done');
+        }, 700);
+
+      }, 3000);
+    })();
   </script>
 </body>
 </html>
