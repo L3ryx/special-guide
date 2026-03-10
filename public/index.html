@@ -57,6 +57,7 @@
       color: var(--text); font-family: 'Inter', sans-serif; font-size: 1.15rem;
       outline: none; backdrop-filter: blur(16px);
       transition: border-color 0.2s, box-shadow 0.2s;
+      text-align: center;
     }
     .input-wrap input::placeholder { color: var(--muted); }
     .input-wrap input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
@@ -362,28 +363,24 @@
       width: 100%;
       display: flex;
       justify-content: center;
-      z-index: 10;
-      position: relative;
     }
     #title-wrap {
       position: relative;
       display: inline-block;
-      z-index: 10;
-      text-align: center;
-      padding: 36px 20px 8px;
-    }
-    #niche-title {
-      position: relative;
-      z-index: 11;
-      text-align: center;
-      user-select: none;
+      padding: 36px 40px 8px;
     }
     #orb-canvas {
       position: absolute;
       top: 0; left: 0;
-      pointer-events: none;
-      z-index: 9;
       display: block;
+      pointer-events: none;
+      z-index: 100;
+    }
+    #niche-title {
+      position: relative;
+      z-index: 101;
+      text-align: center;
+      user-select: none;
     }
 
     #niche-title span {
@@ -515,7 +512,7 @@
   <div id="main-view">
     <div class="search-card">
       <div class="input-wrap">
-        <input type="text" id="keyword-input" placeholder="Keyword (e.g. custom neon sign...)" />
+        <input type="text" id="keyword-input" placeholder="Enter keyword" />
       </div>
       <div class="selects-row">
         <div class="select-wrap" id="count-wrap"></div>
@@ -618,6 +615,8 @@
       btn.disabled = true;
       btn.textContent = 'LOADING';
       btn.classList.add('loading');
+      document.getElementById('keyword-input').disabled = true;
+      document.getElementById('count-select').disabled  = true;
 
       // Reset UI for new search
       document.getElementById('progress-wrap').style.display = 'flex';
@@ -682,6 +681,8 @@
         btn.disabled = false;
         btn.classList.remove('loading');
         btn.textContent = 'START';
+        document.getElementById('keyword-input').disabled = false;
+        document.getElementById('count-select').disabled  = false;
 
         if (count === 0) {
           document.getElementById('results-container').innerHTML = '<div class="empty">Aucune correspondance. Essayez un autre mot-clé ou baissez le seuil.</div>';
@@ -752,79 +753,53 @@
 
 
     // ── BLUE ORB ORBIT ──
-    window.addEventListener('load', function() {
-      const canvas = document.getElementById('orb-canvas');
-      const wrap   = document.getElementById('title-wrap');
-      if (!canvas || !wrap) return;
-      const ctx = canvas.getContext('2d');
+    setTimeout(function() {
+      var canvas = document.getElementById('orb-canvas');
+      var wrap   = document.getElementById('title-wrap');
+      if (!canvas || !wrap) { console.log('ORB: elements not found'); return; }
+      var ctx = canvas.getContext('2d');
+      canvas.width  = wrap.offsetWidth  || 420;
+      canvas.height = wrap.offsetHeight || 130;
+      console.log('ORB init:', canvas.width, 'x', canvas.height);
 
-      function resize() {
-        canvas.width  = wrap.offsetWidth;
-        canvas.height = wrap.offsetHeight;
-      }
-      window.addEventListener('resize', resize);
-      resize();
+      var DURATION = 3000;
+      var start = null;
 
-      const DURATION = 4500;
-      let start = null;
-
-      function getOrbPos(t) {
-        const pad = 10;
-        const W = canvas.width, H = canvas.height;
-        const x0 = pad, y0 = pad, x1 = W - pad, y1 = H - pad;
-        const seg1 = x1 - x0; // top
-        const seg2 = y1 - y0; // right
-        const seg3 = x1 - x0; // bottom
-        const seg4 = y1 - y0; // left
-        const perim = seg1 + seg2 + seg3 + seg4;
-        const d = (t % 1) * perim;
-        if (d < seg1)
-          return { x: x0 + d, y: y0 };
-        else if (d < seg1 + seg2)
-          return { x: x1, y: y0 + (d - seg1) };
-        else if (d < seg1 + seg2 + seg3)
-          return { x: x1 - (d - seg1 - seg2), y: y1 };
-        else
-          return { x: x0, y: y1 - (d - seg1 - seg2 - seg3) };
+      function getPos(t) {
+        var pad=8, W=canvas.width, H=canvas.height;
+        var x0=pad, y0=pad, x1=W-pad, y1=H-pad;
+        var s1=x1-x0, s2=y1-y0, s3=x1-x0, s4=y1-y0;
+        var P=s1+s2+s3+s4, d=(t%1)*P;
+        if(d<s1)          return {x:x0+d,         y:y0};
+        if(d<s1+s2)       return {x:x1,            y:y0+(d-s1)};
+        if(d<s1+s2+s3)    return {x:x1-(d-s1-s2), y:y1};
+                          return {x:x0,            y:y1-(d-s1-s2-s3)};
       }
 
       function draw(ts) {
-        if (!start) start = ts;
-        const elapsed = ts - start;
-        const pos = getOrbPos(elapsed / DURATION);
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Outer glow halo
-        const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 40);
-        glow.addColorStop(0,   'rgba(150, 210, 255, 0.7)');
-        glow.addColorStop(0.4, 'rgba(59, 130, 246, 0.35)');
-        glow.addColorStop(1,   'rgba(29, 78, 216, 0)');
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 40, 0, Math.PI * 2);
-        ctx.fillStyle = glow;
-        ctx.fill();
-
-        // Bright core
-        const core = ctx.createRadialGradient(pos.x - 3, pos.y - 3, 0, pos.x, pos.y, 10);
-        core.addColorStop(0,   '#ffffff');
-        core.addColorStop(0.25, '#dbeafe');
-        core.addColorStop(0.6, '#3b82f6');
-        core.addColorStop(1,   '#1e40af');
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 2);
-        ctx.fillStyle = core;
-        ctx.shadowColor = '#93c5fd';
-        ctx.shadowBlur  = 22;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
+        if(!start) start=ts;
+        var p = getPos((ts-start)/DURATION);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        var g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,50);
+        g.addColorStop(0,'rgba(100,180,255,0.9)');
+        g.addColorStop(0.5,'rgba(59,130,246,0.4)');
+        g.addColorStop(1,'rgba(0,0,255,0)');
+        ctx.beginPath(); ctx.arc(p.x,p.y,50,0,Math.PI*2);
+        ctx.fillStyle=g; ctx.fill();
+        var c=ctx.createRadialGradient(p.x-3,p.y-3,0,p.x,p.y,12);
+        c.addColorStop(0,'#fff');
+        c.addColorStop(0.4,'#93c5fd');
+        c.addColorStop(1,'#1d4ed8');
+        ctx.shadowColor='#60a5fa'; ctx.shadowBlur=30;
+        ctx.beginPath(); ctx.arc(p.x,p.y,12,0,Math.PI*2);
+        ctx.fillStyle=c; ctx.fill();
+        ctx.shadowBlur=0;
         requestAnimationFrame(draw);
       }
       requestAnimationFrame(draw);
-    });
+    }, 300);
 
-    // ── PARTICULES FLOTTANTES ──
+        // ── PARTICULES FLOTTANTES ──
     (function() {
       const canvas = document.getElementById('stars-canvas');
       if (!canvas) return;
