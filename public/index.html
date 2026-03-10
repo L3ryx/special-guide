@@ -217,14 +217,14 @@
     .match-body {
       display: grid;
       grid-template-columns: 1fr 1px 1fr;
-      align-items: start;
+      align-items: stretch;
     }
     .divider-line { background: var(--glass-border); align-self: stretch; }
 
     .product-panel {
       display: flex; flex-direction: column; align-items: center;
       padding: 16px 14px; gap: 10px;
-      width: 100%;
+      flex: 1; min-width: 0;
     }
 
     /* ── IMAGE BOX WITH ELECTRIC BORDER ── */
@@ -308,9 +308,9 @@
 
     .prod-link {
       display: flex; align-items: center; justify-content: center; gap: 6px;
-      width: 100%; max-width: 320px; padding: 11px 16px; border-radius: 10px;
+      width: 100%; padding: 11px 16px; border-radius: 10px;
       font-size: 0.82rem; font-weight: 600; text-decoration: none; letter-spacing: 0.03em;
-      transition: all 0.2s;
+      transition: all 0.2s; box-sizing: border-box;
     }
     .prod-link.etsy-link { background: rgba(241,100,30,0.15); border: 1px solid rgba(241,100,30,0.3); color: #fb923c; }
     .prod-link.etsy-link:hover { background: rgba(241,100,30,0.25); border-color: rgba(241,100,30,0.6); }
