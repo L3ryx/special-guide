@@ -30,8 +30,8 @@
     #main-view {
       position: relative; z-index: 10;
       min-height: 100vh;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 40px 20px; gap: 20px;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding: 40px 20px 20px; gap: 20px;
     }
 
     .search-card {
@@ -88,8 +88,8 @@
     #start-btn:disabled { cursor: not-allowed; transform: none; }
     #start-btn.loading { animation: btnBlink 0.7s ease-in-out infinite; }
     @keyframes btnBlink {
-      0%,100% { background: var(--green); box-shadow: 0 4px 24px rgba(34,197,94,0.4); }
-      50% { background: #86efac; box-shadow: 0 0 40px rgba(34,197,94,0.9); }
+      0%,100% { background: #dc2626; box-shadow: 0 4px 32px rgba(220,38,38,0.6); }
+      50%      { background: #ff6b6b; box-shadow: 0 0 48px rgba(220,38,38,0.9); }
     }
 
     /* ── PROGRESS ── */
@@ -584,7 +584,7 @@
 
       const btn = document.getElementById('start-btn');
       btn.disabled = true;
-      btn.textContent = 'START';
+      btn.textContent = 'LOADING';
       btn.classList.add('loading');
 
       // Reset UI for new search
