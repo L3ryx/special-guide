@@ -358,27 +358,32 @@
     /* ── SPINNER on button ── */
 
     /* ── NICHE FINDER 3D WAVE TITLE ── */
-    #niche-title {
+    #title-outer {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      z-index: 10;
       position: relative;
+    }
+    #title-wrap {
+      position: relative;
+      display: inline-block;
       z-index: 10;
       text-align: center;
       padding: 36px 20px 8px;
+    }
+    #niche-title {
+      position: relative;
+      z-index: 11;
+      text-align: center;
       user-select: none;
     }
     #orb-canvas {
       position: absolute;
       top: 0; left: 0;
-      width: 100%; height: 100%;
       pointer-events: none;
-      z-index: 20;
-    }
-
-    #orb-canvas {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      pointer-events: none;
-      z-index: 20;
+      z-index: 9;
+      display: block;
     }
 
     #niche-title span {
@@ -500,9 +505,11 @@
   <canvas id="stars-canvas"></canvas>
 
 
-  <div id="niche-title">
+  <div id="title-outer">
+  <div id="title-wrap">
     <canvas id="orb-canvas"></canvas>
-    <span>N</span><span>i</span><span>c</span><span>h</span><span>e</span><span class="title-space"></span><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span>
+    <div id="niche-title"><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span><span class="title-space"></span><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span></div>
+  </div>
   </div>
 
   <div id="main-view">
@@ -745,65 +752,77 @@
 
 
     // ── BLUE ORB ORBIT ──
-    (function() {
+    window.addEventListener('load', function() {
       const canvas = document.getElementById('orb-canvas');
-      const title  = document.getElementById('niche-title');
-      if (!canvas || !title) return;
+      const wrap   = document.getElementById('title-wrap');
+      if (!canvas || !wrap) return;
       const ctx = canvas.getContext('2d');
 
       function resize() {
-        canvas.width  = title.offsetWidth;
-        canvas.height = title.offsetHeight;
+        canvas.width  = wrap.offsetWidth;
+        canvas.height = wrap.offsetHeight;
       }
       window.addEventListener('resize', resize);
       resize();
 
-      const DURATION = 4000;
+      const DURATION = 4500;
       let start = null;
 
       function getOrbPos(t) {
-        const pad = 14;
+        const pad = 10;
         const W = canvas.width, H = canvas.height;
         const x0 = pad, y0 = pad, x1 = W - pad, y1 = H - pad;
-        const top = x1-x0, right = y1-y0, bottom = x1-x0, left = y1-y0;
-        const perimeter = top + right + bottom + left;
-        const d = (t % 1) * perimeter;
-        if (d < top)                           return { x: x0 + d,           y: y0 };
-        else if (d < top+right)                return { x: x1,               y: y0 + (d-top) };
-        else if (d < top+right+bottom)         return { x: x1 - (d-top-right), y: y1 };
-        else                                   return { x: x0,               y: y1 - (d-top-right-bottom) };
+        const seg1 = x1 - x0; // top
+        const seg2 = y1 - y0; // right
+        const seg3 = x1 - x0; // bottom
+        const seg4 = y1 - y0; // left
+        const perim = seg1 + seg2 + seg3 + seg4;
+        const d = (t % 1) * perim;
+        if (d < seg1)
+          return { x: x0 + d, y: y0 };
+        else if (d < seg1 + seg2)
+          return { x: x1, y: y0 + (d - seg1) };
+        else if (d < seg1 + seg2 + seg3)
+          return { x: x1 - (d - seg1 - seg2), y: y1 };
+        else
+          return { x: x0, y: y1 - (d - seg1 - seg2 - seg3) };
       }
 
       function draw(ts) {
         if (!start) start = ts;
-        const pos = getOrbPos((ts - start) / DURATION);
-        canvas.width = canvas.width; // clear
+        const elapsed = ts - start;
+        const pos = getOrbPos(elapsed / DURATION);
 
-        // Glow
-        const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 36);
-        glow.addColorStop(0,   'rgba(120,190,255,0.6)');
-        glow.addColorStop(0.5, 'rgba(40,120,255,0.2)');
-        glow.addColorStop(1,   'rgba(0,50,255,0)');
-        ctx.beginPath(); ctx.arc(pos.x, pos.y, 36, 0, Math.PI*2);
-        ctx.fillStyle = glow; ctx.fill();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Core
-        const core = ctx.createRadialGradient(pos.x-3, pos.y-3, 0, pos.x, pos.y, 9);
+        // Outer glow halo
+        const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 40);
+        glow.addColorStop(0,   'rgba(150, 210, 255, 0.7)');
+        glow.addColorStop(0.4, 'rgba(59, 130, 246, 0.35)');
+        glow.addColorStop(1,   'rgba(29, 78, 216, 0)');
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 40, 0, Math.PI * 2);
+        ctx.fillStyle = glow;
+        ctx.fill();
+
+        // Bright core
+        const core = ctx.createRadialGradient(pos.x - 3, pos.y - 3, 0, pos.x, pos.y, 10);
         core.addColorStop(0,   '#ffffff');
-        core.addColorStop(0.3, '#bde0ff');
-        core.addColorStop(0.7, '#3b82f6');
-        core.addColorStop(1,   '#1d4ed8');
-        ctx.beginPath(); ctx.arc(pos.x, pos.y, 9, 0, Math.PI*2);
+        core.addColorStop(0.25, '#dbeafe');
+        core.addColorStop(0.6, '#3b82f6');
+        core.addColorStop(1,   '#1e40af');
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 2);
         ctx.fillStyle = core;
-        ctx.shadowColor = '#60a5fa';
-        ctx.shadowBlur  = 18;
+        ctx.shadowColor = '#93c5fd';
+        ctx.shadowBlur  = 22;
         ctx.fill();
         ctx.shadowBlur = 0;
 
         requestAnimationFrame(draw);
       }
       requestAnimationFrame(draw);
-    })();
+    });
 
     // ── PARTICULES FLOTTANTES ──
     (function() {
