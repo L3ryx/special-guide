@@ -642,6 +642,33 @@
   </div>
 
   <script>
+    // ── INTRO SPLASH ── (EN PREMIER)
+    // ── INTRO SPLASH ──
+    (function() {
+      document.body.classList.add('intro-active');
+      var splash = document.getElementById('intro-splash');
+      var letters = document.querySelectorAll('#intro-title span');
+
+      setTimeout(function() {
+        // Explosion des lettres
+        letters.forEach(function(el) {
+          var angle = Math.random() * Math.PI * 2;
+          var dist  = 200 + Math.random() * 400;
+          el.style.setProperty('--ex', Math.cos(angle) * dist + 'px');
+          el.style.setProperty('--ey', Math.sin(angle) * dist + 'px');
+          el.style.setProperty('--er', (Math.random() * 720 - 360) + 'deg');
+          el.classList.add('explode');
+        });
+
+        setTimeout(function() {
+          splash.classList.add('hidden');
+          document.body.classList.remove('intro-active');
+          document.body.classList.add('intro-done');
+        }, 700);
+
+      }, 3000);
+    })();
+
     // ── Build selects ──
     (function() {
       // Nombre d'images : 1–100
@@ -1073,31 +1100,7 @@
       });
     });
 
-    // ── INTRO SPLASH ──
-    (function() {
-      document.body.classList.add('intro-active');
-      var splash = document.getElementById('intro-splash');
-      var letters = document.querySelectorAll('#intro-title span');
 
-      setTimeout(function() {
-        // Explosion des lettres
-        letters.forEach(function(el) {
-          var angle = Math.random() * Math.PI * 2;
-          var dist  = 200 + Math.random() * 400;
-          el.style.setProperty('--ex', Math.cos(angle) * dist + 'px');
-          el.style.setProperty('--ey', Math.sin(angle) * dist + 'px');
-          el.style.setProperty('--er', (Math.random() * 720 - 360) + 'deg');
-          el.classList.add('explode');
-        });
-
-        setTimeout(function() {
-          splash.classList.add('hidden');
-          document.body.classList.remove('intro-active');
-          document.body.classList.add('intro-done');
-        }, 700);
-
-      }, 3000);
-    })();
   </script>
 </body>
 </html>
