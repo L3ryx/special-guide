@@ -2,7 +2,7 @@ const axios = require('axios');
 
 async function scrapeEtsy(keyword, maxCount = 10) {
   const apiKey = process.env.SCRAPINGBEE_KEY;
-  if (!apiKey) throw new Error('SCRAPINGBEE_KEY manquant â€” ajoute-le dans les variables Render');
+  if (!apiKey) throw new Error('SCRAPINGBEE_KEY manquant â€" ajoute-le dans les variables Render');
 
   console.log(`ScrapingBee Etsy: "${keyword}" (max ${maxCount})`);
 
@@ -19,8 +19,9 @@ async function scrapeEtsy(keyword, maxCount = 10) {
         country_code:  'us',
         wait:          '3000',
         block_ads:     'true',
+        timeout:       '45000',   // timeout côté ScrapingBee (45s pour charger la page)
       },
-      timeout: 60000,
+      timeout: 120000,            // 120s côté axios — largement au-dessus du timeout ScrapingBee
     });
   } catch (err) {
     const status = err.response?.status;
@@ -41,7 +42,7 @@ async function scrapeEtsy(keyword, maxCount = 10) {
     console.log(`  [${i+1}] ${l.link.substring(0,60)} | img: ${l.image.substring(0,50)}`)
   );
 
-  if (valid.length === 0) throw new Error('Aucune annonce trouvee â€” Etsy a peut-etre change sa structure');
+  if (valid.length === 0) throw new Error('Aucune annonce trouvee â€" Etsy a peut-etre change sa structure');
 
   return valid.slice(0, maxCount);
 }
@@ -133,17 +134,10 @@ function extractShopFromUrl(url) {
   return m ? m[1] : null;
 }
 
-// Nettoie et valide une URL image etsystatic
-// Les URLs tronquees comme /c/2142/2142/367/ sont invalides
 function cleanEtsyImage(url) {
   if (!url) return null;
-  // Retirer les parametres
   url = url.split('?')[0].trim();
-  // Doit se terminer par une extension image
   if (/\.(jpg|jpeg|png|webp|gif)$/i.test(url)) return url;
-  // Essayer d'ajouter il_fullxfull.jpg si l'URL contient un path etsystatic valide
-  // Pattern valide: /r/il/HASH/DIGITS/il_...jpg  ou /c/.../il_...jpg
-  // Pattern invalide: se termine par un chiffre ou /
   if (url.match(/\/il\/[a-f0-9]+\/\d+$/)) {
     return url + '.jpg';
   }
@@ -156,8 +150,16 @@ async function debugEtsyHtml(keyword) {
   try {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}`;
     const response = await axios.get('https://app.scrapingbee.com/api/v1/', {
-      params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2000' },
-      timeout: 60000,
+      params: {
+        api_key:      apiKey,
+        url:          etsyUrl,
+        render_js:    'true',
+        premium_proxy:'true',
+        country_code: 'us',
+        wait:         '2000',
+        timeout:      '45000',
+      },
+      timeout: 120000,
     });
     const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
     const listings = parseEtsyListings(html);
