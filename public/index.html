@@ -21,11 +21,20 @@
     body.unlocked { overflow-y: auto; overflow-x: hidden; }
 
     #bg-layer {
-      position: absolute; top: 0; left: 0; right: 0; min-height: 100%;
+      position: fixed; inset: 0;
       z-index: -1;
       background: #0a0a0a url('/background.png') center center / cover no-repeat;
+      animation: bgDrift 18s ease-in-out infinite alternate;
+      transform-origin: center;
     }
-    #bg-layer::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.55); }
+    @keyframes bgDrift {
+      0%   { transform: scale(1.08) translate(0px, 0px); }
+      25%  { transform: scale(1.1)  translate(-12px, -8px); }
+      50%  { transform: scale(1.08) translate(8px, -14px); }
+      75%  { transform: scale(1.1)  translate(-6px, 10px); }
+      100% { transform: scale(1.08) translate(10px, 6px); }
+    }
+    #bg-layer::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
 
     /* ── MAIN ── */
     #main-view {
@@ -356,6 +365,21 @@
       padding: 36px 20px 8px;
       user-select: none;
     }
+    #orb-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    #orb-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 20;
+    }
 
     #niche-title span {
       display: inline-block;
@@ -477,6 +501,7 @@
 
 
   <div id="niche-title">
+    <canvas id="orb-canvas"></canvas>
     <span>N</span><span>i</span><span>c</span><span>h</span><span>e</span><span class="title-space"></span><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span>
   </div>
 
@@ -719,7 +744,68 @@
 
 
 
-    // ── SHOOTING STARS ──
+    // ── BLUE ORB ORBIT ──
+    (function() {
+      const canvas = document.getElementById('orb-canvas');
+      const title  = document.getElementById('niche-title');
+      if (!canvas || !title) return;
+      const ctx = canvas.getContext('2d');
+
+      function resize() {
+        canvas.width  = title.offsetWidth;
+        canvas.height = title.offsetHeight;
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      const DURATION = 4000;
+      let start = null;
+
+      function getOrbPos(t) {
+        const pad = 14;
+        const W = canvas.width, H = canvas.height;
+        const x0 = pad, y0 = pad, x1 = W - pad, y1 = H - pad;
+        const top = x1-x0, right = y1-y0, bottom = x1-x0, left = y1-y0;
+        const perimeter = top + right + bottom + left;
+        const d = (t % 1) * perimeter;
+        if (d < top)                           return { x: x0 + d,           y: y0 };
+        else if (d < top+right)                return { x: x1,               y: y0 + (d-top) };
+        else if (d < top+right+bottom)         return { x: x1 - (d-top-right), y: y1 };
+        else                                   return { x: x0,               y: y1 - (d-top-right-bottom) };
+      }
+
+      function draw(ts) {
+        if (!start) start = ts;
+        const pos = getOrbPos((ts - start) / DURATION);
+        canvas.width = canvas.width; // clear
+
+        // Glow
+        const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 36);
+        glow.addColorStop(0,   'rgba(120,190,255,0.6)');
+        glow.addColorStop(0.5, 'rgba(40,120,255,0.2)');
+        glow.addColorStop(1,   'rgba(0,50,255,0)');
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, 36, 0, Math.PI*2);
+        ctx.fillStyle = glow; ctx.fill();
+
+        // Core
+        const core = ctx.createRadialGradient(pos.x-3, pos.y-3, 0, pos.x, pos.y, 9);
+        core.addColorStop(0,   '#ffffff');
+        core.addColorStop(0.3, '#bde0ff');
+        core.addColorStop(0.7, '#3b82f6');
+        core.addColorStop(1,   '#1d4ed8');
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, 9, 0, Math.PI*2);
+        ctx.fillStyle = core;
+        ctx.shadowColor = '#60a5fa';
+        ctx.shadowBlur  = 18;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        requestAnimationFrame(draw);
+      }
+      requestAnimationFrame(draw);
+    })();
+
+    // ── PARTICULES FLOTTANTES ──
     (function() {
       const canvas = document.getElementById('stars-canvas');
       if (!canvas) return;
@@ -730,50 +816,68 @@
       window.addEventListener('resize', resize);
       resize();
 
-      function rand(a, b) { return Math.random() * (b - a) + a; }
+      const rand = (a, b) => Math.random() * (b - a) + a;
 
-      function createStar() {
-        const angle = rand(20, 50) * Math.PI / 180;
-        const speed = rand(6, 16);
+      // Crée une particule flottante
+      function mkParticle() {
         return {
-          x: rand(-200, W + 100),
-          y: rand(-80, H * 0.7),
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          alpha: rand(0.5, 1),
-          width: rand(1, 2.2),
-          decay: rand(0.992, 0.998)
+          x: rand(0, W), y: rand(0, H),
+          r: rand(0.8, 2.5),
+          vx: rand(-0.3, 0.3), vy: rand(-0.5, -0.1),
+          alpha: rand(0.1, 0.7),
+          dAlpha: rand(0.002, 0.006) * (Math.random() < 0.5 ? 1 : -1),
+          color: Math.random() < 0.6
+            ? `rgba(${[180+Math.random()*75|0},${180+Math.random()*75|0},255,`
+            : `rgba(255,255,${200+Math.random()*55|0},`
         };
       }
 
-      let stars = Array.from({ length: 6 }, createStar);
+      // Crée une étoile filante
+      function mkShooter() {
+        const angle = rand(25, 45) * Math.PI / 180;
+        const spd   = rand(5, 14);
+        return {
+          x: rand(-100, W * 0.8), y: rand(-60, H * 0.5),
+          vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd,
+          alpha: rand(0.6, 1), w: rand(1, 2),
+          decay: rand(0.991, 0.997), tail: rand(10, 22),
+          shooter: true
+        };
+      }
+
+      let particles = Array.from({ length: 80 }, mkParticle);
+      let shooters  = Array.from({ length: 3 }, mkShooter);
 
       function draw() {
         ctx.clearRect(0, 0, W, H);
-        if (Math.random() < 0.08 && stars.length < 15) stars.push(createStar());
 
-        stars = stars.filter(s => {
-          const tail = 12;
-          const grad = ctx.createLinearGradient(s.x, s.y, s.x - s.vx * tail, s.y - s.vy * tail);
+        // Particules flottantes
+        for (const p of particles) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = p.color + p.alpha + ')';
+          ctx.fill();
+          p.x += p.vx; p.y += p.vy;
+          p.alpha += p.dAlpha;
+          if (p.alpha > 0.7 || p.alpha < 0.05) p.dAlpha *= -1;
+          if (p.y < -10) { p.y = H + 5; p.x = rand(0, W); }
+          if (p.x < -10 || p.x > W + 10) p.x = rand(0, W);
+        }
+
+        // Étoiles filantes
+        if (Math.random() < 0.015 && shooters.length < 8) shooters.push(mkShooter());
+        shooters = shooters.filter(s => {
+          const grad = ctx.createLinearGradient(s.x, s.y, s.x - s.vx * s.tail, s.y - s.vy * s.tail);
           grad.addColorStop(0, `rgba(255,255,255,${s.alpha})`);
           grad.addColorStop(1, 'rgba(255,255,255,0)');
           ctx.beginPath();
           ctx.strokeStyle = grad;
-          ctx.lineWidth = s.width;
+          ctx.lineWidth = s.w;
           ctx.moveTo(s.x, s.y);
-          ctx.lineTo(s.x - s.vx * tail, s.y - s.vy * tail);
+          ctx.lineTo(s.x - s.vx * s.tail, s.y - s.vy * s.tail);
           ctx.stroke();
-
-          const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.width * 3);
-          g.addColorStop(0, `rgba(255,255,255,${s.alpha})`);
-          g.addColorStop(1, 'rgba(255,255,255,0)');
-          ctx.beginPath();
-          ctx.fillStyle = g;
-          ctx.arc(s.x, s.y, s.width * 3, 0, Math.PI * 2);
-          ctx.fill();
-
           s.x += s.vx; s.y += s.vy; s.alpha *= s.decay;
-          return s.x < W + 300 && s.y < H + 100 && s.alpha > 0.04;
+          return s.x < W + 300 && s.y < H + 200 && s.alpha > 0.03;
         });
 
         requestAnimationFrame(draw);
