@@ -659,7 +659,28 @@
         <input type="text" id="keyword-input" placeholder="Enter keyword" />
       </div>
       <div class="selects-row">
-        <div class="select-wrap" id="count-wrap"></div>
+        <div class="select-wrap">
+          <select id="count-select">
+            <option value="1">1 image</option>
+            <option value="2">2 images</option>
+            <option value="3">3 images</option>
+            <option value="4">4 images</option>
+            <option value="5">5 images</option>
+            <option value="6">6 images</option>
+            <option value="7">7 images</option>
+            <option value="8">8 images</option>
+            <option value="9">9 images</option>
+            <option value="10" selected>10 images</option>
+            <option value="15">15 images</option>
+            <option value="20">20 images</option>
+            <option value="25">25 images</option>
+            <option value="30">30 images</option>
+            <option value="40">40 images</option>
+            <option value="50">50 images</option>
+            <option value="75">75 images</option>
+            <option value="100">100 images</option>
+          </select>
+        </div>
       </div>
       <button id="start-btn" onclick="startSearch()">START</button>
     </div>
@@ -723,20 +744,7 @@
 
   <script>
 
-    // ── Build selects ──
-    (function() {
-      // Nombre d'images : 1–100
-      const countSel = document.createElement('select');
-      countSel.id = 'count-select';
-      for (let i = 1; i <= 100; i++) {
-        const o = document.createElement('option');
-        o.value = i;
-        o.textContent = i + ' image' + (i > 1 ? 's' : '');
-        if (i === 10) o.selected = true;
-        countSel.appendChild(o);
-      }
-      document.getElementById('count-wrap').appendChild(countSel);
-    })();
+    // ── count-select défini en HTML ──
 
     // ── Pipeline steps ──
     const STEPS = [
