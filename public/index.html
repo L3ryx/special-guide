@@ -16,8 +16,9 @@
       --muted: rgba(255,255,255,0.55);
     }
 
-    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow-x: hidden; }
+    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow: hidden; }
     body { position: relative; }
+    body.unlocked { overflow-y: auto; overflow-x: hidden; }
 
     #bg-layer {
       position: absolute; top: 0; left: 0; right: 0; min-height: 100%;
@@ -497,14 +498,13 @@
       </div>
       <div class="progress-msg" id="progress-msg"></div>
     </div>
+    <section id="results-section">
+      <div class="results-grid">
+        <div class="results-count-bar" id="results-count"></div>
+        <div id="results-container"></div>
+      </div>
+    </section>
   </div>
-
-  <section id="results-section">
-    <div class="results-grid">
-      <div class="results-count-bar" id="results-count"></div>
-      <div id="results-container"></div>
-    </div>
-  </section>
 
   <script>
     // ── Build selects ──
@@ -593,6 +593,8 @@
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('results-container').innerHTML = '';
       document.getElementById('results-count').textContent = '';
+      document.body.classList.remove('unlocked');
+      document.body.style.overflow = '';
       window.scrollTo({ top: 0 });
 
       try {
@@ -659,6 +661,9 @@
           }
           const rs = document.getElementById('results-section');
           rs.style.display = 'block';
+          // Déverrouiller le scroll
+          document.body.classList.add('unlocked');
+          document.body.style.overflow = 'auto';
           setTimeout(() => {
             rs.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }, 100);
