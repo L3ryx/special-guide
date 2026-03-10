@@ -600,61 +600,39 @@
     .price-tag.ali-price  { color: #f87171; border-color: rgba(227,24,55,0.3);  background: rgba(227,24,55,0.08); }
     .price-tag.no-price   { color: var(--muted); font-weight: 400; font-style: italic; font-size: 0.75rem; }
 
-    /* ── INTRO SPLASH ── */
-    #intro-splash {
+    /* transition douce au chargement */
+    #bg-layer, #milkyway-canvas, #title-outer, #main-view {
+      transition: opacity 0.5s ease;
+    }
+
+    /* ── INTRO ── */
+    #intro {
       position: fixed; inset: 0; z-index: 9999;
       background: #000;
       display: flex; align-items: center; justify-content: center;
-      pointer-events: none;
     }
-    #intro-splash.hidden { display: none; }
-
-    #intro-title {
+    #intro-text {
       font-family: 'Croissant One', cursive;
-      font-size: clamp(3rem, 10vw, 7rem);
-      color: #fff;
-      text-align: center;
-      letter-spacing: 0.06em;
-      text-shadow:
-        0 2px 0 #ccc, 0 4px 0 #aaa,
-        0 6px 1px rgba(0,0,0,.2),
-        0 0 20px rgba(255,255,255,0.3);
-      opacity: 0;
-      animation: introFadeIn 0.8s ease forwards 0.3s;
+      font-size: clamp(2.8rem, 9vw, 6rem);
+      color: #fff; letter-spacing: 0.06em; text-align: center;
+      text-shadow: 0 0 40px rgba(255,255,255,0.3);
+      animation: introAppear 0.8s ease forwards;
     }
-
-    #intro-title span {
-      display: inline-block;
-      transition: transform 0.6s ease, opacity 0.6s ease;
-    }
-    #intro-title span.explode {
-      animation: letterExplode 0.7s ease forwards;
-    }
-
-    @keyframes introFadeIn {
-      from { opacity: 0; transform: scale(0.85); }
+    @keyframes introAppear {
+      from { opacity: 0; transform: scale(0.8); }
       to   { opacity: 1; transform: scale(1); }
     }
-
-    @keyframes letterExplode {
-      0%   { transform: translate(0,0) scale(1); opacity: 1; }
-      100% { transform: translate(var(--ex), var(--ey)) scale(0.2) rotate(var(--er)); opacity: 0; }
+    #intro-text span { display: inline-block; }
+    #intro-text span.blast {
+      animation: blast 0.6s ease forwards;
     }
-
-    /* Page cachée pendant intro — gérée en JS direct */
-    #bg-layer, #milkyway-canvas, #title-outer, #main-view {
-      transition: opacity 0.7s ease;
+    @keyframes blast {
+      to { transform: translate(var(--tx), var(--ty)) scale(0) rotate(var(--tr)); opacity: 0; }
     }
   </style>
 </head>
 <body>
 
-  <!-- INTRO SPLASH -->
-  <div id="intro-splash">
-    <div id="intro-title">
-      <span>N</span><span>i</span><span>c</span><span>h</span><span>e</span><span>&nbsp;</span><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span>
-    </div>
-  </div>
 
   <div id="bg-layer"></div>
   <canvas id="milkyway-canvas"></canvas>
@@ -701,40 +679,36 @@
   </div>
 
   <script>
-    // ── INTRO SPLASH ──
+    // ── INTRO ──
     (function() {
-      // Cacher la page directement en JS
-      var hide = ['bg-layer','milkyway-canvas','title-outer','main-view'];
-      hide.forEach(function(id) {
+      var page = ['bg-layer','milkyway-canvas','title-outer','main-view','shooting-canvas','stars-canvas'];
+      page.forEach(function(id) {
         var el = document.getElementById(id);
-        if (el) el.style.opacity = '0';
+        if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.6s ease'; }
       });
 
-      var splash  = document.getElementById('intro-splash');
-      var letters = document.querySelectorAll('#intro-title span');
-
-      // Explosion après 3s
       setTimeout(function() {
+        var letters = document.querySelectorAll('#intro-text span');
         letters.forEach(function(el) {
-          var angle = Math.random() * Math.PI * 2;
-          var dist  = 200 + Math.random() * 400;
-          el.style.setProperty('--ex', Math.cos(angle) * dist + 'px');
-          el.style.setProperty('--ey', Math.sin(angle) * dist + 'px');
-          el.style.setProperty('--er', (Math.random() * 720 - 360) + 'deg');
-          el.classList.add('explode');
+          var a = Math.random() * Math.PI * 2;
+          var d = 150 + Math.random() * 350;
+          el.style.setProperty('--tx', Math.cos(a)*d + 'px');
+          el.style.setProperty('--ty', Math.sin(a)*d + 'px');
+          el.style.setProperty('--tr', (Math.random()*600-300) + 'deg');
+          el.classList.add('blast');
         });
-
-        // Après l'explosion, montrer la page
         setTimeout(function() {
-          if (splash) splash.style.display = 'none';
-          hide.forEach(function(id) {
+          var intro = document.getElementById('intro');
+          if (intro) intro.style.display = 'none';
+          page.forEach(function(id) {
             var el = document.getElementById(id);
             if (el) el.style.opacity = '1';
           });
-        }, 700);
-
-      }, 3000);
+        }, 650);
+      }, 2000);
     })();
+
+
 
     // ── Build selects ──
     (function() {
