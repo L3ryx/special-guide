@@ -369,13 +369,6 @@
       display: inline-block;
       padding: 36px 40px 8px;
     }
-    #orb-canvas {
-      position: absolute;
-      top: 0; left: 0;
-      display: block;
-      pointer-events: none;
-      z-index: 100;
-    }
     #niche-title {
       position: relative;
       z-index: 101;
@@ -504,7 +497,6 @@
 
   <div id="title-outer">
   <div id="title-wrap">
-    <canvas id="orb-canvas"></canvas>
     <div id="niche-title"><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span><span class="title-space"></span><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span></div>
   </div>
   </div>
@@ -752,54 +744,7 @@
 
 
 
-    // ── BLUE ORB ORBIT ──
-    setTimeout(function() {
-      var canvas = document.getElementById('orb-canvas');
-      var wrap   = document.getElementById('title-wrap');
-      if (!canvas || !wrap) { console.log('ORB: elements not found'); return; }
-      var ctx = canvas.getContext('2d');
-      canvas.width  = wrap.offsetWidth  || 420;
-      canvas.height = wrap.offsetHeight || 130;
-      console.log('ORB init:', canvas.width, 'x', canvas.height);
-
-      var DURATION = 3000;
-      var start = null;
-
-      function getPos(t) {
-        var pad=8, W=canvas.width, H=canvas.height;
-        var x0=pad, y0=pad, x1=W-pad, y1=H-pad;
-        var s1=x1-x0, s2=y1-y0, s3=x1-x0, s4=y1-y0;
-        var P=s1+s2+s3+s4, d=(t%1)*P;
-        if(d<s1)          return {x:x0+d,         y:y0};
-        if(d<s1+s2)       return {x:x1,            y:y0+(d-s1)};
-        if(d<s1+s2+s3)    return {x:x1-(d-s1-s2), y:y1};
-                          return {x:x0,            y:y1-(d-s1-s2-s3)};
-      }
-
-      function draw(ts) {
-        if(!start) start=ts;
-        var p = getPos((ts-start)/DURATION);
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        var g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,50);
-        g.addColorStop(0,'rgba(100,180,255,0.9)');
-        g.addColorStop(0.5,'rgba(59,130,246,0.4)');
-        g.addColorStop(1,'rgba(0,0,255,0)');
-        ctx.beginPath(); ctx.arc(p.x,p.y,50,0,Math.PI*2);
-        ctx.fillStyle=g; ctx.fill();
-        var c=ctx.createRadialGradient(p.x-3,p.y-3,0,p.x,p.y,12);
-        c.addColorStop(0,'#fff');
-        c.addColorStop(0.4,'#93c5fd');
-        c.addColorStop(1,'#1d4ed8');
-        ctx.shadowColor='#60a5fa'; ctx.shadowBlur=30;
-        ctx.beginPath(); ctx.arc(p.x,p.y,12,0,Math.PI*2);
-        ctx.fillStyle=c; ctx.fill();
-        ctx.shadowBlur=0;
-        requestAnimationFrame(draw);
-      }
-      requestAnimationFrame(draw);
-    }, 300);
-
-        // ── PARTICULES FLOTTANTES ──
+    // ── MÉTÉORITES ──
     (function() {
       const canvas = document.getElementById('stars-canvas');
       if (!canvas) return;
@@ -812,66 +757,100 @@
 
       const rand = (a, b) => Math.random() * (b - a) + a;
 
-      // Crée une particule flottante
-      function mkParticle() {
+      // Crée une météorite
+      function mkMeteor() {
+        const angle = rand(30, 55) * Math.PI / 180;
+        const spd   = rand(8, 20);
+        const size  = rand(2, 5);
         return {
-          x: rand(0, W), y: rand(0, H),
-          r: rand(0.8, 2.5),
-          vx: rand(-0.3, 0.3), vy: rand(-0.5, -0.1),
-          alpha: rand(0.1, 0.7),
-          dAlpha: rand(0.002, 0.006) * (Math.random() < 0.5 ? 1 : -1),
-          color: Math.random() < 0.6
-            ? `rgba(${[180+Math.random()*75|0},${180+Math.random()*75|0},255,`
-            : `rgba(255,255,${200+Math.random()*55|0},`
+          x:     rand(-200, W * 0.7),
+          y:     rand(-150, H * 0.3),
+          vx:    Math.cos(angle) * spd,
+          vy:    Math.sin(angle) * spd,
+          size,
+          alpha: rand(0.8, 1),
+          tailLen: rand(40, 120),
+          // Particules de feu attachées
+          embers: []
         };
       }
 
-      // Crée une étoile filante
-      function mkShooter() {
-        const angle = rand(25, 45) * Math.PI / 180;
-        const spd   = rand(5, 14);
+      // Crée une braise de feu
+      function mkEmber(x, y) {
         return {
-          x: rand(-100, W * 0.8), y: rand(-60, H * 0.5),
-          vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd,
-          alpha: rand(0.6, 1), w: rand(1, 2),
-          decay: rand(0.991, 0.997), tail: rand(10, 22),
-          shooter: true
+          x, y,
+          vx: rand(-1.5, 1.5),
+          vy: rand(-2, 0.5),
+          r:  rand(1, 3),
+          life: 1.0,
+          decay: rand(0.03, 0.07),
+          hue: rand(0, 40)   // orange→rouge
         };
       }
 
-      let particles = Array.from({ length: 80 }, mkParticle);
-      let shooters  = Array.from({ length: 3 }, mkShooter);
+      let meteors = Array.from({ length: 2 }, mkMeteor);
 
       function draw() {
         ctx.clearRect(0, 0, W, H);
 
-        // Particules flottantes
-        for (const p of particles) {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-          ctx.fillStyle = p.color + p.alpha + ')';
-          ctx.fill();
-          p.x += p.vx; p.y += p.vy;
-          p.alpha += p.dAlpha;
-          if (p.alpha > 0.7 || p.alpha < 0.05) p.dAlpha *= -1;
-          if (p.y < -10) { p.y = H + 5; p.x = rand(0, W); }
-          if (p.x < -10 || p.x > W + 10) p.x = rand(0, W);
-        }
+        // Spawn de nouvelles météorites
+        if (Math.random() < 0.008 && meteors.length < 6) meteors.push(mkMeteor());
 
-        // Étoiles filantes
-        if (Math.random() < 0.015 && shooters.length < 8) shooters.push(mkShooter());
-        shooters = shooters.filter(s => {
-          const grad = ctx.createLinearGradient(s.x, s.y, s.x - s.vx * s.tail, s.y - s.vy * s.tail);
-          grad.addColorStop(0, `rgba(255,255,255,${s.alpha})`);
-          grad.addColorStop(1, 'rgba(255,255,255,0)');
+        meteors = meteors.filter(m => {
+          // Traîné de feu (dégradé orange→rouge→transparent)
+          const tailX = m.x - m.vx * (m.tailLen / m.spd || 6);
+          const tailY = m.y - m.vy * (m.tailLen / m.vy  || 6);
+          const grad = ctx.createLinearGradient(m.x, m.y, m.x - m.vx * 7, m.y - m.vy * 7);
+          grad.addColorStop(0,   `rgba(255,255,220,${m.alpha})`);     // blanc chaud
+          grad.addColorStop(0.15,`rgba(255,160,20,${m.alpha * 0.9})`); // orange vif
+          grad.addColorStop(0.5, `rgba(255,60,0,${m.alpha * 0.6})`);   // rouge
+          grad.addColorStop(1,   `rgba(80,0,0,0)`);                    // transparent
+
           ctx.beginPath();
           ctx.strokeStyle = grad;
-          ctx.lineWidth = s.w;
-          ctx.moveTo(s.x, s.y);
-          ctx.lineTo(s.x - s.vx * s.tail, s.y - s.vy * s.tail);
+          ctx.lineWidth = m.size * 1.2;
+          ctx.lineCap = 'round';
+          ctx.moveTo(m.x, m.y);
+          ctx.lineTo(m.x - m.vx * 7, m.y - m.vy * 7);
           ctx.stroke();
-          s.x += s.vx; s.y += s.vy; s.alpha *= s.decay;
-          return s.x < W + 300 && s.y < H + 200 && s.alpha > 0.03;
+
+          // Noyau brillant
+          const core = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.size * 2.5);
+          core.addColorStop(0,   `rgba(255,255,255,${m.alpha})`);
+          core.addColorStop(0.4, `rgba(255,200,50,${m.alpha * 0.8})`);
+          core.addColorStop(1,   `rgba(255,80,0,0)`);
+          ctx.beginPath();
+          ctx.arc(m.x, m.y, m.size * 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = core;
+          ctx.fill();
+
+          // Émettre des braises
+          if (Math.random() < 0.6) {
+            m.embers.push(mkEmber(m.x, m.y));
+            m.embers.push(mkEmber(m.x, m.y));
+          }
+
+          // Dessiner et mettre à jour les braises
+          m.embers = m.embers.filter(e => {
+            e.life -= e.decay;
+            if (e.life <= 0) return false;
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.r * e.life, 0, Math.PI * 2);
+            const fireColor = `hsla(${e.hue}, 100%, 60%, ${e.life * 0.9})`;
+            ctx.fillStyle = fireColor;
+            ctx.shadowColor = `hsl(${e.hue}, 100%, 60%)`;
+            ctx.shadowBlur = 6;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            e.x += e.vx;
+            e.y += e.vy;
+            e.vy += 0.05; // gravité légère
+            return true;
+          });
+
+          m.x += m.vx;
+          m.y += m.vy;
+          return m.x < W + 300 && m.y < H + 300;
         });
 
         requestAnimationFrame(draw);
