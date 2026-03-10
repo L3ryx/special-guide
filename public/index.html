@@ -103,6 +103,47 @@
       50%      { background: #ff6b6b; box-shadow: 0 0 48px rgba(220,38,38,0.9); }
     }
 
+
+    /* ── BANDE LATÉRALE BOUTIQUE ── */
+    .etsy-img-container {
+      display: flex;
+      align-items: stretch;
+      width: 100%;
+    }
+
+    .shop-side-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      min-height: 100%;
+      flex-shrink: 0;
+      background: rgba(0,0,0,0.35);
+      border-right: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px 0 0 12px;
+      text-decoration: none;
+      transition: background 0.2s;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .shop-side-btn:hover { background: rgba(241,100,30,0.25); }
+    .shop-side-btn img {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(241,100,30,0.5);
+    }
+    .side-initial {
+      display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: rgba(241,100,30,0.3);
+      border: 2px solid rgba(241,100,30,0.5);
+      color: #fff;
+      font-weight: 700; font-size: 1rem;
+    }
+    .shop-side-btn .img-wrap { flex: 1; border-radius: 0 12px 12px 0; }
     /* ── PROGRESS ── */
     #progress-wrap {
       width: 100%; max-width: 660px;
@@ -785,20 +826,22 @@
       card.innerHTML = `
         <div class="match-body">
           <div class="product-panel">
-            <div class="img-wrap">
-              <div class="img-box">
-                ${etsySrc ? `<img src="${etsySrc}" loading="lazy" onerror="this.style.display='none'" />` : ''}
+            <div class="etsy-img-container">
+              <!-- Bande latérale gauche -->
+              <a class="shop-side-btn" href="${shopUrl}" target="_blank" rel="noopener" title="${shopName}">
+                ${shopAvatar
+                  ? `<img src="${shopAvatar}" alt="${shopName}" onerror="this.innerHTML='<span class=\'side-initial\'>${shopName.charAt(0).toUpperCase()}</span>'" />`
+                  : `<span class="side-initial">${shopName.charAt(0).toUpperCase()}</span>`
+                }
+              </a>
+              <!-- Image produit -->
+              <div class="img-wrap">
+                <div class="img-box">
+                  ${etsySrc ? `<img src="${etsySrc}" loading="lazy" onerror="this.style.display='none'" />` : ''}
+                </div>
               </div>
             </div>
             ${etsyPriceHtml}
-            <div class="shop-row">
-              ${shopAvatar
-                ? `<img class="shop-avatar" src="${shopAvatar}" alt="${shopName}" onerror="this.style.display='none'" />`
-                : `<div class="shop-avatar shop-avatar-placeholder">${shopName.charAt(0).toUpperCase()}</div>`
-              }
-              <span class="shop-name">${shopName}</span>
-              ${shopUrl ? `<a class="shop-voir-btn" href="${shopUrl}" target="_blank" rel="noopener">Voir</a>` : ''}
-            </div>
             <a class="prod-link etsy-link" href="${etsy.link}" target="_blank" rel="noopener">🛍 Etsy ↗</a>
           </div>
           <div class="divider-line"></div>
@@ -842,16 +885,7 @@
         mwStars = [];
         nebulae = [];
 
-        // 600 étoiles de fond
-        for (let i = 0; i < 600; i++) {
-          bgStars.push({
-            x: rand(0, W), y: rand(0, H),
-            r: rand(0.3, 1.4),
-            alpha: rand(0.2, 0.9),
-            twinkleSpeed: rand(0.005, 0.02),
-            twinkleDir: Math.random() < 0.5 ? 1 : -1
-          });
-        }
+        // Étoiles de fond supprimées
 
         // Bande voie lactée — diagonale de coin en coin
         const bandAngle = -30 * Math.PI / 180;
@@ -940,13 +974,7 @@
           ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
         }
 
-        // Étoiles de fond
-        for (const s of bgStars) {
-          s.alpha += s.twinkleSpeed * s.twinkleDir;
-          if (s.alpha > 0.9 || s.alpha < 0.1) s.twinkleDir *= -1;
-          ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
-          ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
-        }
+
 
         ctx.restore();
         requestAnimationFrame(draw);
