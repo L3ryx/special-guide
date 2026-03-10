@@ -341,6 +341,13 @@
     }
 
     /* ── SHOOTING STARS ── */
+    #milkyway-canvas {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
     #stars-canvas {
       position: fixed;
       inset: 0;
@@ -531,12 +538,14 @@
 
     /* Cache la page principale pendant l'intro */
     body.intro-active #bg-layer,
+    body.intro-active #milkyway-canvas,
     body.intro-active #stars-canvas,
     body.intro-active #title-outer,
     body.intro-active #main-view { opacity: 0; pointer-events: none; }
     body.intro-active { overflow: hidden; }
 
     body.intro-done #bg-layer,
+    body.intro-done #milkyway-canvas,
     body.intro-done #stars-canvas,
     body.intro-done #title-outer,
     body.intro-done #main-view {
@@ -555,6 +564,7 @@
   </div>
 
   <div id="bg-layer"></div>
+  <canvas id="milkyway-canvas"></canvas>
   <canvas id="stars-canvas"></canvas>
 
 
@@ -806,6 +816,143 @@
     }
 
 
+
+    // ── VOIE LACTÉE ──
+    (function() {
+      const canvas = document.getElementById('milkyway-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let W, H;
+
+      function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+      window.addEventListener('resize', () => { resize(); buildMilkyWay(); });
+      resize();
+
+      const rand = (a, b) => Math.random() * (b - a) + a;
+
+      // Étoiles de fond fixes
+      let bgStars = [];
+      // Étoiles de la voie lactée (bande dense)
+      let mwStars = [];
+      // Nébuleuses colorées
+      let nebulae = [];
+
+      function buildMilkyWay() {
+        bgStars = [];
+        mwStars = [];
+        nebulae = [];
+
+        // 600 étoiles de fond
+        for (let i = 0; i < 600; i++) {
+          bgStars.push({
+            x: rand(0, W), y: rand(0, H),
+            r: rand(0.3, 1.4),
+            alpha: rand(0.2, 0.9),
+            twinkleSpeed: rand(0.005, 0.02),
+            twinkleDir: Math.random() < 0.5 ? 1 : -1
+          });
+        }
+
+        // Bande voie lactée — diagonale de coin en coin
+        const bandAngle = -30 * Math.PI / 180;
+        const bandW = Math.max(W, H) * 2.5;
+        const cx = W * 0.5, cy = H * 0.45;
+        for (let i = 0; i < 1800; i++) {
+          const along = rand(-bandW / 2, bandW / 2);
+          const perp  = rand(-1, 1);
+          const thick = 90 + Math.abs(perp) * 40;
+          const spread = (Math.random() ** 1.8) * thick * Math.sign(perp === 0 ? 1 : perp);
+          const px = cx + Math.cos(bandAngle) * along - Math.sin(bandAngle) * spread;
+          const py = cy + Math.sin(bandAngle) * along + Math.cos(bandAngle) * spread;
+          mwStars.push({
+            x: px, y: py,
+            r: rand(0.2, 1.8),
+            alpha: rand(0.05, 0.55) * (1 - Math.abs(spread) / (thick * 1.2)),
+            twinkleSpeed: rand(0.003, 0.015),
+            twinkleDir: Math.random() < 0.5 ? 1 : -1,
+            hue: Math.random() < 0.3 ? rand(180, 260) : (Math.random() < 0.5 ? rand(30, 60) : 0)
+          });
+        }
+
+        // Nébuleuses (halo colorés diffus)
+        const nebulaColors = [
+          [180, 100, 200], [100, 120, 255], [255, 120, 80],
+          [80, 200, 255],  [200, 80, 255]
+        ];
+        for (let i = 0; i < 5; i++) {
+          const col = nebulaColors[i % nebulaColors.length];
+          const along = rand(-bandW * 0.4, bandW * 0.4);
+          const spread = rand(-60, 60);
+          nebulae.push({
+            x: cx + Math.cos(bandAngle) * along - Math.sin(bandAngle) * spread,
+            y: cy + Math.sin(bandAngle) * along + Math.cos(bandAngle) * spread,
+            rx: rand(80, 220), ry: rand(40, 120),
+            angle: bandAngle + rand(-0.3, 0.3),
+            r: col[0], g: col[1], b: col[2],
+            alpha: rand(0.04, 0.1),
+            pulse: rand(0.001, 0.003),
+            pulseDir: 1
+          });
+        }
+      }
+
+      buildMilkyWay();
+
+      // Animation lente de rotation de toute la voie lactée
+      let driftAngle = 0;
+
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // Rotation lente du canvas entier
+        driftAngle += 0.00008;
+        ctx.save();
+        ctx.translate(W / 2, H / 2);
+        ctx.rotate(driftAngle);
+        ctx.translate(-W / 2, -H / 2);
+
+        // Nébuleuses
+        for (const n of nebulae) {
+          n.alpha += n.pulse * n.pulseDir;
+          if (n.alpha > 0.12 || n.alpha < 0.03) n.pulseDir *= -1;
+          ctx.save();
+          ctx.translate(n.x, n.y);
+          ctx.rotate(n.angle);
+          const g = ctx.createRadialGradient(0, 0, 0, 0, 0, n.rx);
+          g.addColorStop(0,   `rgba(${n.r},${n.g},${n.b},${n.alpha})`);
+          g.addColorStop(0.5, `rgba(${n.r},${n.g},${n.b},${n.alpha * 0.4})`);
+          g.addColorStop(1,   `rgba(${n.r},${n.g},${n.b},0)`);
+          ctx.scale(1, n.ry / n.rx);
+          ctx.beginPath(); ctx.arc(0, 0, n.rx, 0, Math.PI * 2);
+          ctx.fillStyle = g; ctx.fill();
+          ctx.restore();
+        }
+
+        // Étoiles voie lactée
+        for (const s of mwStars) {
+          s.alpha += s.twinkleSpeed * s.twinkleDir;
+          if (s.alpha > 0.6 || s.alpha < 0.02) s.twinkleDir *= -1;
+          if (s.hue > 0) {
+            ctx.fillStyle = `hsla(${s.hue},60%,85%,${s.alpha})`;
+          } else {
+            ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+          }
+          ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Étoiles de fond
+        for (const s of bgStars) {
+          s.alpha += s.twinkleSpeed * s.twinkleDir;
+          if (s.alpha > 0.9 || s.alpha < 0.1) s.twinkleDir *= -1;
+          ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+          ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+        }
+
+        ctx.restore();
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
 
     // ── MÉTÉORITES ──
     (function() {
