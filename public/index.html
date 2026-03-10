@@ -396,14 +396,14 @@
     #shooting-canvas {
       position: fixed; inset: 0;
       width: 100%; height: 100%;
-      z-index: -1;
+      z-index: 2;
       pointer-events: none;
     }
 
     #stars-canvas {
       position: fixed;
       inset: 0;
-      z-index: 1;
+      z-index: 3;
       pointer-events: none;
     }
 
@@ -591,16 +591,12 @@
     /* Cache la page principale pendant l'intro */
     body.intro-active #bg-layer,
     body.intro-active #milkyway-canvas,
-    body.intro-active #shooting-canvas,
-    body.intro-active #stars-canvas,
     body.intro-active #title-outer,
     body.intro-active #main-view { opacity: 0; pointer-events: none; }
     body.intro-active { overflow: hidden; }
 
     body.intro-done #bg-layer,
     body.intro-done #milkyway-canvas,
-    body.intro-done #shooting-canvas,
-    body.intro-done #stars-canvas,
     body.intro-done #title-outer,
     body.intro-done #main-view {
       opacity: 1;
