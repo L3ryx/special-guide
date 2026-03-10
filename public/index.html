@@ -843,6 +843,7 @@
       window.scrollTo({ top: 0 });
 
       try {
+        showDebug('⏳ Envoi fetch...');
         document.getElementById('progress-msg').textContent = '⏳ Connexion au serveur...';
         const response = await fetch('https://etsy-money-finder-2-3ub5.onrender.com/api/search', {
           method: 'POST',
@@ -850,7 +851,9 @@
           body: JSON.stringify({ keyword, similarityThreshold: threshold, maxCount })
         });
 
+        showDebug('✅ Réponse status: ' + response.status);
         const ct = response.headers.get('content-type') || '';
+        showDebug('Content-Type: ' + ct);
 
         if (ct.includes('text/event-stream')) {
           const reader = response.body.getReader();
@@ -889,6 +892,7 @@
           finalize(-1);
         }
       } catch (err) {
+        showDebug('❌ CATCH: ' + err.message);
         document.getElementById('progress-msg').textContent = '❌ ERREUR: ' + err.message;
         document.getElementById('progress-msg').style.color = '#ff4444';
         document.getElementById('progress-msg').style.fontSize = '1rem';
