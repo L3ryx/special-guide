@@ -178,25 +178,23 @@
 
     .progress-fill {
       height: 100%; width: 0%;
-      background: linear-gradient(90deg, #7c2d12, #dc2626, #f97316, #fbbf24, #fef08a);
+      background: linear-gradient(90deg, #7c2d12 0%, #dc2626 40%, #f97316 70%, #fbbf24 88%, #fef9c3 100%);
       border-radius: 10px; position: relative;
-      transition: width 0.5s ease;
+      transition: width 1.8s cubic-bezier(0.1, 0.05, 0.3, 1);
       box-shadow: 0 0 6px #f97316, 0 0 20px #dc2626, 0 0 40px rgba(220,38,38,0.4);
+      overflow: visible;
     }
 
-    .progress-fill::after {
-      content: "🔥";
-      position: absolute; right: -14px; top: 50%; transform: translateY(-55%);
-      font-size: 1.3rem; filter: drop-shadow(0 0 6px #f97316);
-      animation: flicker 0.3s infinite alternate;
+    /* Flamme canvas au bout de la barre */
+    #flame-canvas {
+      position: absolute;
+      right: -18px; top: 50%;
+      transform: translateY(-70%);
+      width: 36px; height: 52px;
+      pointer-events: none;
       display: none;
     }
-    .progress-fill.burning::after { display: block; }
-
-    @keyframes flicker {
-      0%   { transform: translateY(-55%) scale(1) rotate(-3deg); }
-      100% { transform: translateY(-60%) scale(1.08) rotate(3deg); }
-    }
+    .progress-fill.burning #flame-canvas { display: block; }
 
     .progress-msg { text-align: center; font-size: 0.78rem; color: var(--muted); min-height: 1.2em; }
 
@@ -629,7 +627,7 @@
     <div id="progress-wrap">
       <div class="progress-steps" id="progress-steps"></div>
       <div class="progress-track">
-        <div class="progress-fill" id="progress-fill"></div>
+        <div class="progress-fill" id="progress-fill"><canvas id="flame-canvas"></canvas></div>
       </div>
       <div class="progress-msg" id="progress-msg"></div>
     </div>
@@ -707,11 +705,82 @@
       document.getElementById('progress-msg').textContent = '';
     }
 
+    // Flamme canvas animée
+    let flameAnim = null;
+    function startFlame() {
+      const canvas = document.getElementById('flame-canvas');
+      if (!canvas || flameAnim) return;
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width  = 36;
+      const H = canvas.height = 52;
+      const particles = [];
+      function mkP() {
+        return { x: W/2 + (Math.random()-0.5)*8, y: H-4,
+          vx: (Math.random()-0.5)*1.2, vy: -(1.5+Math.random()*2.5),
+          life: 1, decay: 0.025+Math.random()*0.03,
+          r: 2+Math.random()*5, hue: Math.random()*40 };
+      }
+      function drawFlame() {
+        ctx.clearRect(0,0,W,H);
+        if (particles.length < 28) particles.push(mkP(), mkP());
+        for (let i = particles.length-1; i >= 0; i--) {
+          const p = particles[i];
+          p.life -= p.decay;
+          if (p.life <= 0) { particles.splice(i,1); continue; }
+          p.x += p.vx; p.y += p.vy; p.vy -= 0.04;
+          p.vx += (Math.random()-0.5)*0.15;
+          const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*(1+p.life));
+          const alpha = p.life * 0.95;
+          g.addColorStop(0,   `hsla(${p.hue+50},100%,95%,${alpha})`);
+          g.addColorStop(0.3, `hsla(${p.hue+20},100%,65%,${alpha*0.8})`);
+          g.addColorStop(0.7, `hsla(${p.hue},90%,40%,${alpha*0.5})`);
+          g.addColorStop(1,   `hsla(${p.hue},80%,20%,0)`);
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r*(1+p.life*0.5), 0, Math.PI*2);
+          ctx.fillStyle = g; ctx.fill();
+        }
+        flameAnim = requestAnimationFrame(drawFlame);
+      }
+      drawFlame();
+    }
+    function stopFlame() {
+      if (flameAnim) { cancelAnimationFrame(flameAnim); flameAnim = null; }
+    }
+
+    // Progression lisse — avance toujours doucement même sans event serveur
+    let _currentPct = 0;
+    let _targetPct  = 0;
+    let _driftTimer = null;
+
+    function driftProgress() {
+      // Avance lentement vers la cible, jamais au-delà
+      if (_currentPct < _targetPct) {
+        _currentPct = Math.min(_currentPct + 0.18, _targetPct);
+        document.getElementById('progress-fill').style.width = _currentPct + '%';
+      }
+      // Dérive légère entre les étapes pour ne jamais paraître bloquée
+      if (_currentPct >= _targetPct && _targetPct < 95) {
+        _currentPct = Math.min(_currentPct + 0.03, _targetPct + 2);
+        document.getElementById('progress-fill').style.width = _currentPct + '%';
+      }
+      _driftTimer = requestAnimationFrame(driftProgress);
+    }
+
     function setProgress(pct) {
+      _targetPct = pct;
       const el = document.getElementById('progress-fill');
-      el.style.width = pct + '%';
-      if (pct > 0 && pct < 100) el.classList.add('burning');
-      else el.classList.remove('burning');
+      // Transition CSS désactivée — on anime manuellement
+      el.style.transition = 'none';
+      if (pct > 0 && pct < 100) {
+        el.classList.add('burning');
+        startFlame();
+        if (!_driftTimer) driftProgress();
+      } else {
+        el.classList.remove('burning');
+        stopFlame();
+        if (_driftTimer) { cancelAnimationFrame(_driftTimer); _driftTimer = null; }
+        _currentPct = pct;
+        el.style.width = pct + '%';
+      }
     }
 
     function advanceStep(stepKey, message) {
@@ -754,6 +823,9 @@
       // Reset UI for new search
       document.getElementById('progress-wrap').style.display = 'flex';
       initProgress();
+      _currentPct = 0; _targetPct = 0;
+      if (_driftTimer) { cancelAnimationFrame(_driftTimer); _driftTimer = null; }
+      stopFlame();
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('results-container').innerHTML = '';
       document.getElementById('results-count').textContent = '';
