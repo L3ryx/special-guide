@@ -23,15 +23,21 @@ function extractStatsFromListingHtml(html) {
   }
 
   const datePatterns = [
+    // ✅ Structure Etsy actuelle : "On Etsy since <span ...>2020</span>"
+    [/[Oo]n\s+Etsy\s+since[\s\S]{0,60}<span[^>]*>(20[0-2]\d)<\/span>/i, 'year'],
+    // Unix timestamp
     [/"creation_tsz"\s*:\s*(\d{10})/i,               'unix'],
     [/"joined_epoch"\s*:\s*(\d{10})/i,               'unix'],
     [/"create_date"\s*:\s*(\d{10})/i,                'unix'],
+    // ISO string
     [/"joined"\s*:\s*"(\d{4}-\d{2}-\d{2}[^"]*)"/i,  'iso'],
     [/"shopCreatedDate"\s*:\s*"([^"]+)"/i,           'iso'],
     [/"dateCreated"\s*:\s*"([^"]+)"/i,               'iso'],
+    // Texte classique avec mois + année
     [/[Oo]n\s+Etsy\s+since\s+([A-Za-z]+ \d{4})/i,  'text'],
     [/[Mm]ember\s+since\s+([A-Za-z]+ \d{4})/i,      'text'],
     [/[Ss]elling\s+since\s+([A-Za-z]+ \d{4})/i,     'text'],
+    // Année seule après "since"
     [/since\D{0,20}(\d{4})/i,                        'year'],
   ];
   for (const [pat, type] of datePatterns) {
@@ -70,27 +76,6 @@ async function scrapeShopPage(shopUrl, retries = 2) {
       const res  = await axios.get(reqUrl, { timeout: 120000 });
       const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
       console.log(`  📄 boutique (render_js=${useJs}, ${html.length} chars)`);
-
-      // ── LOGS DEBUG DATE ──
-      const keywords = ['since', 'joined', 'creation_tsz', 'shopCreatedDate', 'dateCreated', 'joined_epoch', 'create_date'];
-      for (const kw of keywords) {
-        const idx = html.toLowerCase().indexOf(kw.toLowerCase());
-        if (idx !== -1) {
-          console.log(`  🔎 [${kw}]: ...${html.substring(Math.max(0, idx - 30), idx + 120)}...`);
-        }
-      }
-      // Chercher les années entre 2005 et 2024 dans le HTML
-      const yearMatches = [...html.matchAll(/\b(200[5-9]|201\d|202[0-4])\b/g)];
-      if (yearMatches.length > 0) {
-        const sample = yearMatches.slice(0, 3).map(m => {
-          const i = m.index;
-          return `"${html.substring(Math.max(0, i - 40), i + 60)}"`;
-        });
-        console.log(`  📅 années trouvées: ${sample.join(' | ')}`);
-      } else {
-        console.log(`  ❌ aucune année 2005-2024 trouvée dans le HTML`);
-      }
-
       return html;
 
     } catch (err) {
