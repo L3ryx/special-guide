@@ -1,12 +1,9 @@
 const axios = require('axios');
 
-// ── Extrait les stats depuis le HTML d'une page listing Etsy déjà scraped ──
-// Zéro appel ScrapingBee supplémentaire — on réutilise le HTML qu'on a déjà
 function extractStatsFromListingHtml(html) {
   let sales = null;
   let createdAt = null;
 
-  // ── VENTES ──
   const salesPatterns = [
     /"sales_count"\s*:\s*(\d+)/i,
     /"salesCount"\s*:\s*(\d+)/i,
@@ -25,7 +22,6 @@ function extractStatsFromListingHtml(html) {
     }
   }
 
-  // ── DATE DE CRÉATION ──
   const datePatterns = [
     [/"creation_tsz"\s*:\s*(\d{10})/i,               'unix'],
     [/"joined_epoch"\s*:\s*(\d{10})/i,               'unix'],
@@ -59,12 +55,9 @@ function extractStatsFromListingHtml(html) {
   return { sales, createdAt };
 }
 
-// ── Scrape la page boutique via ScrapingBee (fallback si listing ne suffit pas) ──
 async function scrapeShopPage(shopUrl, retries = 2) {
   for (let attempt = 1; attempt <= retries + 1; attempt++) {
     try {
-      // Tentative 1 : render_js=false (rapide, ~2s)
-      // Tentative 2+ : render_js=true (lent mais fiable, ~8s)
       const useJs = attempt > 1;
       const reqUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}`
         + `&url=${encodeURIComponent(shopUrl)}`
@@ -77,6 +70,27 @@ async function scrapeShopPage(shopUrl, retries = 2) {
       const res  = await axios.get(reqUrl, { timeout: 120000 });
       const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
       console.log(`  📄 boutique (render_js=${useJs}, ${html.length} chars)`);
+
+      // ── LOGS DEBUG DATE ──
+      const keywords = ['since', 'joined', 'creation_tsz', 'shopCreatedDate', 'dateCreated', 'joined_epoch', 'create_date'];
+      for (const kw of keywords) {
+        const idx = html.toLowerCase().indexOf(kw.toLowerCase());
+        if (idx !== -1) {
+          console.log(`  🔎 [${kw}]: ...${html.substring(Math.max(0, idx - 30), idx + 120)}...`);
+        }
+      }
+      // Chercher les années entre 2005 et 2024 dans le HTML
+      const yearMatches = [...html.matchAll(/\b(200[5-9]|201\d|202[0-4])\b/g)];
+      if (yearMatches.length > 0) {
+        const sample = yearMatches.slice(0, 3).map(m => {
+          const i = m.index;
+          return `"${html.substring(Math.max(0, i - 40), i + 60)}"`;
+        });
+        console.log(`  📅 années trouvées: ${sample.join(' | ')}`);
+      } else {
+        console.log(`  ❌ aucune année 2005-2024 trouvée dans le HTML`);
+      }
+
       return html;
 
     } catch (err) {
@@ -92,13 +106,9 @@ async function scrapeShopPage(shopUrl, retries = 2) {
   return null;
 }
 
-// ── Point d'entrée principal ──
-// listingHtml : HTML de la page listing déjà scraped (peut être null)
-// shopUrl     : URL de la boutique pour le fallback
 async function scrapeShopStats(shopUrl, listingHtml = null) {
   console.log(`\n── ${shopUrl.split('/').pop()} ──`);
 
-  // 1. Essayer d'extraire depuis le HTML listing (gratuit, immédiat)
   if (listingHtml) {
     const stats = extractStatsFromListingHtml(listingHtml);
     if (stats.sales && stats.createdAt) {
@@ -108,7 +118,6 @@ async function scrapeShopStats(shopUrl, listingHtml = null) {
     console.log(`  ⚠️ listing insuffisant (sales=${stats.sales ?? 'null'}, date=${stats.createdAt ?? 'null'}) → fallback boutique`);
   }
 
-  // 2. Fallback : scraper la page boutique
   const html = await scrapeShopPage(shopUrl);
   if (!html) {
     console.log(`  ❌ scraping boutique échoué`);
@@ -120,7 +129,6 @@ async function scrapeShopStats(shopUrl, listingHtml = null) {
   return { shopUrl, ...stats };
 }
 
-// Score : ventes par jour d'existence
 function computeScore(stats) {
   if (!stats.sales || !stats.createdAt) return 0;
   const ageMs   = Date.now() - stats.createdAt.getTime();
