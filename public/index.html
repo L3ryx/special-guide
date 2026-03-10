@@ -115,7 +115,15 @@
       transition: all 0.25s; box-shadow: 0 4px 24px rgba(34,197,94,0.4);
     }
     #find-btn:hover { background: #16a34a; transform: translateY(-1px); }
-    #find-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    #find-btn:disabled { opacity: 1; cursor: not-allowed; transform: none; }
+    #find-btn.searching {
+      animation: findBlink 0.6s ease-in-out infinite;
+      cursor: not-allowed;
+    }
+    @keyframes findBlink {
+      0%,100% { background: #dc2626; box-shadow: 0 4px 32px rgba(220,38,38,0.7), 0 0 60px rgba(220,38,38,0.4); }
+      50%     { background: #ff3333; box-shadow: 0 0 48px rgba(255,50,50,1),    0 0 80px rgba(220,38,38,0.6); }
+    }
     #find-status { font-size: 0.82rem; color: var(--muted); text-align: center; min-height: 1.2em; }
     #winner-card {
       display: none; width: 100%; max-width: 600px;
@@ -212,15 +220,35 @@
     .prod-link.ali-link:hover { background: rgba(227,24,55,0.25); border-color: rgba(227,24,55,0.6); }
     .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
 
+    /* SHOP STATS STRIP */
+    .shop-stats-strip {
+      width: 100%; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+      padding: 8px 10px 4px; border-top: 1px solid rgba(255,255,255,0.07);
+    }
+    .shop-stat-pill {
+      display: flex; flex-direction: column; align-items: center;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; padding: 5px 10px; min-width: 64px; flex: 1;
+    }
+    .shop-stat-pill .sp-val { font-size: 0.82rem; font-weight: 700; color: #fff; }
+    .shop-stat-pill .sp-lbl { font-size: 0.58rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 1px; white-space: nowrap; }
+    .shop-stat-pill.highlight .sp-val { color: var(--green); }
+
     /* PRICE TAG */
     .price-tag { font-size: 0.88rem; font-weight: 700; color: #fff; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 5px 12px; width: 100%; text-align: center; }
     .price-tag.etsy-price { color: #fb923c; border-color: rgba(241,100,30,0.3); background: rgba(241,100,30,0.08); }
     .price-tag.ali-price  { color: #f87171; border-color: rgba(227,24,55,0.3);  background: rgba(227,24,55,0.08); }
 
-    /* CANVAS */
-    #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -2; pointer-events: none; }
-    #shooting-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 200; pointer-events: none; }
-    #stars-canvas    { position: fixed; inset: 0; z-index: 201; pointer-events: none; }
+    /* CANVAS — ordre de stratification :
+       -3 : bg-layer (image de fond)
+       -2 : milkyway-canvas (voie lactée)
+       -1 : stars-canvas (météorites) ← au-dessus du fond, sous le contenu
+        0 : shooting-canvas (étoiles filantes) ← idem
+       10 : main-view / results-section (contenu cliquable)
+    */
+    #milkyway-canvas  { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -2; pointer-events: none; }
+    #shooting-canvas  { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+    #stars-canvas     { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
 
     /* TITLE */
     #title-outer { width: 100%; display: flex; justify-content: center; }
@@ -601,10 +629,21 @@
       const status = document.getElementById('find-status');
       const winnerCard = document.getElementById('winner-card');
       if (!_lastResults.length) { status.textContent = 'Aucun résultat disponible.'; return; }
+
+      // Bouton rouge clignotant
       btn.disabled = true;
-      btn.textContent = '⏳ Analyse...';
+      btn.classList.add('searching');
+      btn.textContent = '🔴 Analyse...';
       status.textContent = 'Connexion...';
       winnerCard.style.display = 'none';
+
+      function resetBtn() {
+        btn.disabled = false;
+        btn.classList.remove('searching');
+        btn.textContent = '🔍 Find';
+        btn.style.background = '';
+      }
+
       try {
         const response = await fetch('/api/shop-stats', {
           method: 'POST',
@@ -626,25 +665,78 @@
               const ev = JSON.parse(line.slice(6));
               if (ev.step === 'scraping') {
                 status.textContent = '🏪 Scraping ' + ev.shopName + '... (' + (ev.index + 1) + ')';
+                // Mettre à jour les stats de la carte en live
+                updateCardStats(ev.shopName, null);
               } else if (ev.step === 'done') {
                 const st = ev.stats;
                 const salesStr = st.sales != null ? st.sales.toLocaleString('fr-FR') + ' ventes' : 'ventes inconnues';
                 const dateStr  = st.createdAt ? new Date(st.createdAt).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : 'date inconnue';
                 status.textContent = '✅ ' + ev.shopName + ' — ' + salesStr + ', créée ' + dateStr;
+                // Injecter les stats dans la carte correspondante
+                updateCardStats(ev.shopName, st);
               } else if (ev.step === 'complete') {
-                btn.disabled = false; btn.textContent = '🔍 Find'; status.textContent = '';
+                resetBtn(); status.textContent = '';
                 showWinner(ev.winner);
               } else if (ev.step === 'error') {
                 status.textContent = '❌ ' + ev.message;
-                btn.disabled = false; btn.textContent = '🔍 Find';
+                resetBtn();
               }
             } catch(e) {}
           }
         }
       } catch(err) {
         status.textContent = '❌ ' + err.message;
-        btn.disabled = false; btn.textContent = '🔍 Find';
+        resetBtn();
       }
+    }
+
+    // Injecte les stats dans la strip de la carte dont le shopName correspond
+    function updateCardStats(shopName, stats) {
+      // Cherche la carte dont le title du shop-side-btn correspond
+      document.querySelectorAll('.match-card').forEach(function(card) {
+        const sideBtn = card.querySelector('.shop-side-btn');
+        if (!sideBtn) return;
+        const title = sideBtn.getAttribute('title') || '';
+        if (title.toLowerCase() !== (shopName || '').toLowerCase()) return;
+
+        let strip = card.querySelector('.shop-stats-strip');
+        if (!strip) {
+          strip = document.createElement('div');
+          strip.className = 'shop-stats-strip';
+          card.appendChild(strip);
+        }
+
+        if (!stats) {
+          strip.innerHTML = '<div class="shop-stat-pill"><span class="sp-val">⏳</span><span class="sp-lbl">Chargement...</span></div>';
+          return;
+        }
+
+        const sales    = stats.sales    != null ? stats.sales.toLocaleString('fr-FR') : '—';
+        const created  = stats.createdAt ? new Date(stats.createdAt) : null;
+        const dateStr  = created ? created.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : '—';
+        const ageMs    = created ? Date.now() - created.getTime() : 0;
+        const ageDays  = created ? Math.max(Math.floor(ageMs / 86400000), 1) : 0;
+        const ageStr   = ageDays ? (ageDays < 365 ? ageDays + 'j' : Math.floor(ageDays/365) + ' ans') : '—';
+        const perDay   = (stats.sales && ageDays) ? (stats.sales / ageDays).toFixed(2) : '—';
+
+        strip.innerHTML =
+          '<div class="shop-stat-pill highlight">' +
+            '<span class="sp-val">' + sales + '</span>' +
+            '<span class="sp-lbl">Ventes</span>' +
+          '</div>' +
+          '<div class="shop-stat-pill">' +
+            '<span class="sp-val">' + ageStr + '</span>' +
+            '<span class="sp-lbl">Âge</span>' +
+          '</div>' +
+          '<div class="shop-stat-pill highlight">' +
+            '<span class="sp-val">' + perDay + '</span>' +
+            '<span class="sp-lbl">Ventes/jour</span>' +
+          '</div>' +
+          '<div class="shop-stat-pill">' +
+            '<span class="sp-val">' + dateStr + '</span>' +
+            '<span class="sp-lbl">Création</span>' +
+          '</div>';
+      });
     }
 
     function showWinner(winner) {
