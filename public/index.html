@@ -887,26 +887,7 @@
 
         // Étoiles de fond supprimées
 
-        // Bande voie lactée — diagonale de coin en coin
-        const bandAngle = -30 * Math.PI / 180;
-        const bandW = Math.max(W, H) * 2.5;
-        const cx = W * 0.5, cy = H * 0.45;
-        for (let i = 0; i < 1800; i++) {
-          const along = rand(-bandW / 2, bandW / 2);
-          const perp  = rand(-1, 1);
-          const thick = 90 + Math.abs(perp) * 40;
-          const spread = (Math.random() ** 1.8) * thick * Math.sign(perp === 0 ? 1 : perp);
-          const px = cx + Math.cos(bandAngle) * along - Math.sin(bandAngle) * spread;
-          const py = cy + Math.sin(bandAngle) * along + Math.cos(bandAngle) * spread;
-          mwStars.push({
-            x: px, y: py,
-            r: rand(0.2, 1.8),
-            alpha: rand(0.05, 0.55) * (1 - Math.abs(spread) / (thick * 1.2)),
-            twinkleSpeed: rand(0.003, 0.015),
-            twinkleDir: Math.random() < 0.5 ? 1 : -1,
-            hue: Math.random() < 0.3 ? rand(180, 260) : (Math.random() < 0.5 ? rand(30, 60) : 0)
-          });
-        }
+
 
         // Nébuleuses (halo colorés diffus)
         const nebulaColors = [
@@ -962,17 +943,7 @@
           ctx.restore();
         }
 
-        // Étoiles voie lactée
-        for (const s of mwStars) {
-          s.alpha += s.twinkleSpeed * s.twinkleDir;
-          if (s.alpha > 0.6 || s.alpha < 0.02) s.twinkleDir *= -1;
-          if (s.hue > 0) {
-            ctx.fillStyle = `hsla(${s.hue},60%,85%,${s.alpha})`;
-          } else {
-            ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
-          }
-          ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
-        }
+
 
 
 
