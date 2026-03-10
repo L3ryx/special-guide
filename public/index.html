@@ -18,7 +18,7 @@
 
     html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow: hidden; }
     body { position: relative; }
-    body.unlocked { overflow-y: auto; overflow-x: hidden; }
+    html.unlocked, html.unlocked body { overflow-y: auto; overflow-x: hidden; }
 
     #bg-layer {
       position: fixed; inset: 0;
@@ -761,8 +761,8 @@
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('results-container').innerHTML = '';
       document.getElementById('results-count').textContent = '';
-      document.body.classList.remove('unlocked');
-      document.body.style.overflow = '';
+      document.documentElement.classList.remove('unlocked');
+      document.documentElement.style.overflow = '';
       window.scrollTo({ top: 0 });
 
       try {
@@ -832,8 +832,8 @@
           const rs = document.getElementById('results-section');
           rs.style.display = 'block';
           // Déverrouiller le scroll
-          document.body.classList.add('unlocked');
-          document.body.style.overflow = 'auto';
+          document.documentElement.classList.add('unlocked');
+          document.documentElement.style.overflowY = 'auto';
           setTimeout(() => {
             rs.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }, 100);
