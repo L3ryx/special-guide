@@ -106,44 +106,41 @@
 
     /* ── BANDE LATÉRALE BOUTIQUE ── */
     .etsy-img-container {
-      display: flex;
-      align-items: stretch;
+      position: relative;
       width: 100%;
     }
 
     .shop-side-btn {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 40px;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      width: 44px;
-      min-height: 100%;
-      flex-shrink: 0;
-      background: rgba(0,0,0,0.35);
+      background: rgba(0,0,0,0.45);
       border-right: 1px solid rgba(255,255,255,0.08);
-      border-radius: 12px 0 0 12px;
+      border-radius: 11px 0 0 11px;
       text-decoration: none;
       transition: background 0.2s;
-      overflow: hidden;
       cursor: pointer;
+      z-index: 2;
     }
-    .shop-side-btn:hover { background: rgba(241,100,30,0.25); }
+    .shop-side-btn:hover { background: rgba(241,100,30,0.3); }
     .shop-side-btn img {
-      width: 34px; height: 34px;
+      width: 30px; height: 30px;
       border-radius: 50%;
       object-fit: cover;
-      border: 2px solid rgba(241,100,30,0.5);
+      border: 2px solid rgba(241,100,30,0.6);
     }
     .side-initial {
       display: flex; align-items: center; justify-content: center;
-      width: 34px; height: 34px;
+      width: 30px; height: 30px;
       border-radius: 50%;
       background: rgba(241,100,30,0.3);
       border: 2px solid rgba(241,100,30,0.5);
       color: #fff;
-      font-weight: 700; font-size: 1rem;
+      font-weight: 700; font-size: 0.9rem;
     }
-    .shop-side-btn .img-wrap { flex: 1; border-radius: 0 12px 12px 0; }
     /* ── PROGRESS ── */
     #progress-wrap {
       width: 100%; max-width: 660px;
@@ -217,23 +214,23 @@
     .match-body {
       display: grid;
       grid-template-columns: 1fr 1px 1fr;
-      align-items: stretch;
+      align-items: start;
     }
     .divider-line { background: var(--glass-border); align-self: stretch; }
 
     .product-panel {
-      display: flex; flex-direction: column; align-items: stretch;
+      display: flex; flex-direction: column; align-items: center;
       padding: 16px 14px; gap: 10px;
-      flex: 1; min-width: 0;
+      min-width: 0; box-sizing: border-box;
     }
 
     /* ── IMAGE BOX WITH ELECTRIC BORDER ── */
     .img-wrap {
       position: relative;
       width: 100%;
-      max-width: 100%;
       padding: 3px;
       border-radius: 14px;
+      box-sizing: border-box;
     }
 
     /* Rotating conic gradient — the electric glow layer */
@@ -302,10 +299,6 @@
       aspect-ratio: 1 / 1;
       border-radius: 11px; overflow: hidden;
       background: rgba(10,10,10,0.9);
-      flex-shrink: 0;
-    }
-    .product-panel .img-wrap {
-      flex-shrink: 0;
     }
     .img-box img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; display: block; }
     .img-box:hover img { transform: scale(1.04); }
@@ -314,7 +307,7 @@
       display: flex; align-items: center; justify-content: center; gap: 6px;
       width: 100%; padding: 11px 16px; border-radius: 10px;
       font-size: 0.82rem; font-weight: 600; text-decoration: none; letter-spacing: 0.03em;
-      transition: all 0.2s; box-sizing: border-box;
+      transition: all 0.2s; box-sizing: border-box; text-align: center;
     }
     .prod-link.etsy-link { background: rgba(241,100,30,0.15); border: 1px solid rgba(241,100,30,0.3); color: #fb923c; }
     .prod-link.etsy-link:hover { background: rgba(241,100,30,0.25); border-color: rgba(241,100,30,0.6); }
