@@ -1,11 +1,12 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
+const axios   = require('axios');
 
-const { scrapeEtsy, debugEtsyHtml } = require('../services/etsyScraper');
-const { reverseImageSearch } = require('../services/reverseImageSearch');
-const { compareEtsyWithAliexpress } = require('../services/imageSimilarity');
-const { getShopInfo } = require('../services/shopScraper');
-const { scrapeShopStats, computeScore } = require('../services/shopStatsScraper');
+const { scrapeEtsy, debugEtsyHtml }          = require('../services/etsyScraper');
+const { reverseImageSearch }                  = require('../services/reverseImageSearch');
+const { compareEtsyWithAliexpress }           = require('../services/imageSimilarity');
+const { getShopInfo }                         = require('../services/shopScraper');
+const { scrapeShopStats, computeScore }       = require('../services/shopStatsScraper');
 
 async function parallel(items, concurrency, fn) {
   const results = new Array(items.length);
@@ -20,8 +21,9 @@ async function parallel(items, concurrency, fn) {
   return results;
 }
 
+// ── DEBUG CLÉS ──
 router.get('/debug', (req, res) => {
-  const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY'];
+  const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY', 'SCRAPINGBEE_KEY'];
   const status = {};
   for (const key of keys) {
     const val = process.env[key];
@@ -30,11 +32,50 @@ router.get('/debug', (req, res) => {
   res.json({ keys: status });
 });
 
+// ── DEBUG HTML BOUTIQUE (pour identifier les patterns) ──
+// Usage : GET /api/debug-shop?url=https://www.etsy.com/shop/NomBoutique
+router.get('/debug-shop', async (req, res) => {
+  const shopUrl = req.query.url;
+  if (!shopUrl) return res.status(400).json({ error: 'Paramètre ?url= requis' });
+
+  const apiKey = process.env.SCRAPINGBEE_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'SCRAPINGBEE_KEY manquant' });
+
+  try {
+    const reqUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}`
+      + `&url=${encodeURIComponent(shopUrl)}`
+      + `&render_js=false&premium_proxy=true&country_code=us&timeout=45000`;
+
+    const response = await axios.get(reqUrl, { timeout: 120000 });
+    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+
+    // Extraire les passages utiles autour des mots-clés
+    const keywords = ['sales', 'since', 'joined', 'creation', 'member', 'ventes', 'created'];
+    const excerpts = {};
+    for (const kw of keywords) {
+      const idx = html.toLowerCase().indexOf(kw);
+      if (idx !== -1) {
+        excerpts[kw] = html.substring(Math.max(0, idx - 100), idx + 200);
+      }
+    }
+
+    res.json({
+      htmlLength: html.length,
+      excerpts,
+      // Les 3000 premiers chars pour voir la structure générale
+      head: html.substring(0, 3000),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message, status: err.response?.status });
+  }
+});
+
+// ── SEARCH ──
 router.post('/search', async (req, res) => {
   const { keyword, maxCount = 10 } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Mot-clé requis' });
 
-  const missing = ['SCRAPEAPI_KEY','SERPER_API_KEY','ANTHROPIC_API_KEY','IMGBB_API_KEY']
+  const missing = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY']
     .filter(k => !process.env[k]);
   if (missing.length) return res.status(500).json({ error: 'Clés manquantes: ' + missing.join(', ') });
 
@@ -42,9 +83,9 @@ router.post('/search', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
-  const send = (step, msg) => res.write('data: ' + JSON.stringify({ step, message: msg }) + '\n\n');
-  const sendError = msg => { res.write('data: ' + JSON.stringify({ step: 'error', message: msg }) + '\n\n'); res.end(); };
-  const sendComplete = r => { res.write('data: ' + JSON.stringify({ step: 'complete', results: r }) + '\n\n'); res.end(); };
+  const send        = (step, msg) => res.write('data: ' + JSON.stringify({ step, message: msg }) + '\n\n');
+  const sendError   = msg => { res.write('data: ' + JSON.stringify({ step: 'error', message: msg }) + '\n\n'); res.end(); };
+  const sendComplete = r  => { res.write('data: ' + JSON.stringify({ step: 'complete', results: r }) + '\n\n'); res.end(); };
 
   try {
     send('scraping_etsy', `🔍 Scraping Etsy pour "${keyword}"...`);
@@ -52,7 +93,6 @@ router.post('/search', async (req, res) => {
     if (!listings.length) return sendError('Aucune annonce Etsy trouvée');
     send('etsy_done', `✅ ${listings.length} annonces trouvées`);
 
-    // Enrich listings with shop info (avatar + confirmed shop name) — parallel, max 5
     send('reverse_search', `🏪 Récupération des infos boutiques...`);
     await parallel(listings, 5, async (listing) => {
       try {
@@ -68,7 +108,6 @@ router.post('/search', async (req, res) => {
     let done = 0;
     const allResults = [];
 
-    // 5 recherches en parallèle (Serper + ImgBB + Claude Vision)
     await parallel(
       listings.filter(l => l.image),
       5,
@@ -93,7 +132,6 @@ router.post('/search', async (req, res) => {
 
     send('finalizing', `📊 Terminé — ${allResults.length} résultat(s)`);
 
-    // Dédupliquer par lien AliExpress, trier par similarité
     const seen = new Set();
     const deduped = allResults
       .sort((a, b) => b.similarity - a.similarity)
@@ -104,13 +142,12 @@ router.post('/search', async (req, res) => {
         return true;
       });
 
-    // Enrichir avec les infos boutique (en parallèle, max 3)
     await parallel(deduped, 3, async (result) => {
       try {
         const shop = await getShopInfo(result.etsy);
         result.etsy.shopName   = shop.shopName   || result.etsy.shopName   || null;
-        result.etsy.shopUrl    = shop.shopUrl     || result.etsy.shopUrl    || null;
-        result.etsy.shopAvatar = shop.shopAvatar  || null;
+        result.etsy.shopUrl    = shop.shopUrl    || result.etsy.shopUrl    || null;
+        result.etsy.shopAvatar = shop.shopAvatar || null;
       } catch {}
     });
 
@@ -121,6 +158,7 @@ router.post('/search', async (req, res) => {
   }
 });
 
+// ── DEBUG ETSY HTML ──
 router.get('/debug-etsy', async (req, res) => {
   const keyword = req.query.q || 'neon sign';
   try {
@@ -131,7 +169,7 @@ router.get('/debug-etsy', async (req, res) => {
   }
 });
 
-// POST /api/shop-stats — scrape stats de chaque boutique et retourne le winner
+// ── SHOP STATS ──
 router.post('/shop-stats', async (req, res) => {
   const { results } = req.body;
   if (!results?.length) return res.status(400).json({ error: 'Aucun résultat fourni' });
@@ -145,9 +183,9 @@ router.post('/shop-stats', async (req, res) => {
   try {
     const shops = [...new Map(
       results.map(r => [r.etsy.shopUrl || r.etsy.shopName, {
-        shopUrl:  r.etsy.shopUrl,
-        shopName: r.etsy.shopName,
-        listingUrl: r.etsy.link
+        shopUrl:    r.etsy.shopUrl,
+        shopName:   r.etsy.shopName,
+        listingUrl: r.etsy.link,
       }])
     ).values()].filter(s => s.shopUrl);
 
@@ -157,30 +195,49 @@ router.post('/shop-stats', async (req, res) => {
     for (let i = 0; i < shops.length; i++) {
       const shop = shops[i];
       send({ step: 'scraping', index: i, shopName: shop.shopName, message: `Scraping ${shop.shopName}...` });
-      const stats = await scrapeShopStats(shop.shopUrl);
+
+      const stats      = await scrapeShopStats(shop.shopUrl);
       stats.shopName   = shop.shopName;
+      stats.shopUrl    = shop.shopUrl;
       stats.listingUrl = shop.listingUrl;
       stats.score      = computeScore(stats);
       statsArr.push(stats);
-      send({ step: 'done', index: i, shopName: shop.shopName, stats: {
-        sales: stats.sales,
-        createdAt: stats.createdAt,
-        score: stats.score
-      }});
+
+      send({
+        step:     'done',
+        index:    i,
+        shopName: shop.shopName,
+        stats: {
+          sales:     stats.sales,
+          createdAt: stats.createdAt,
+          score:     stats.score,
+        },
+      });
     }
 
-    // Winner = meilleur score (ventes/jour)
     const withScore = statsArr.filter(s => s.score > 0);
     withScore.sort((a, b) => b.score - a.score);
     const winner = withScore[0] || statsArr[0];
 
-    send({ step: 'complete', winner, all: statsArr.map(s => ({
-      shopName:  s.shopName,
-      shopUrl:   s.shopUrl,
-      sales:     s.sales,
-      createdAt: s.createdAt,
-      score:     s.score
-    }))});
+    // Log pour vérifier les données avant envoi
+    console.log('WINNER:', JSON.stringify({
+      shopName:  winner?.shopName,
+      sales:     winner?.sales,
+      createdAt: winner?.createdAt,
+      score:     winner?.score,
+    }));
+
+    send({
+      step: 'complete',
+      winner,
+      all: statsArr.map(s => ({
+        shopName:  s.shopName,
+        shopUrl:   s.shopUrl,
+        sales:     s.sales,
+        createdAt: s.createdAt,
+        score:     s.score,
+      })),
+    });
     res.end();
 
   } catch (err) {
@@ -189,12 +246,14 @@ router.post('/shop-stats', async (req, res) => {
   }
 });
 
+// ── HEALTH ──
 router.get('/health', (req, res) => {
   const keys = {
     SCRAPEAPI_KEY:     !!process.env.SCRAPEAPI_KEY,
     SERPER_API_KEY:    !!process.env.SERPER_API_KEY,
     ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
-    IMGBB_API_KEY:     !!process.env.IMGBB_API_KEY
+    IMGBB_API_KEY:     !!process.env.IMGBB_API_KEY,
+    SCRAPINGBEE_KEY:   !!process.env.SCRAPINGBEE_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
