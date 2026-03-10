@@ -87,6 +87,14 @@
       0%,100% { background: #dc2626; box-shadow: 0 4px 32px rgba(220,38,38,0.6); }
       50%     { background: #ff6b6b; box-shadow: 0 0 48px rgba(220,38,38,0.9); }
     }
+    #start-btn.retry {
+      animation: btnRetry 0.8s ease-in-out infinite;
+      letter-spacing: 0.18em;
+    }
+    @keyframes btnRetry {
+      0%,100% { background: #ca8a04; box-shadow: 0 4px 32px rgba(202,138,4,0.6); }
+      50%     { background: #fbbf24; box-shadow: 0 0 48px rgba(251,191,36,0.9); color: #422006; }
+    }
 
     /* BANDE LATÉRALE BOUTIQUE */
     .etsy-img-container { position: relative; width: 100%; }
@@ -469,6 +477,7 @@
       const btn = document.getElementById('start-btn');
       btn.disabled = true;
       btn.textContent = 'LOADING';
+      btn.classList.remove('retry');
       btn.classList.add('loading');
       document.getElementById('keyword-input').disabled = true;
       document.getElementById('count-select').disabled = true;
@@ -539,9 +548,17 @@
       function finalize(count) {
         btn.disabled = false;
         btn.classList.remove('loading');
-        btn.textContent = 'START';
         document.getElementById('keyword-input').disabled = false;
         document.getElementById('count-select').disabled = false;
+
+        if (count === -1) {
+          // Erreur — bouton jaune RETRY
+          btn.classList.add('retry');
+          btn.textContent = 'RETRY';
+        } else {
+          btn.classList.remove('retry');
+          btn.textContent = 'START';
+        }
 
         if (count === 0) {
           document.getElementById('results-container').innerHTML = '<div class="empty">Aucune correspondance. Essayez un autre mot-clé.</div>';
@@ -615,7 +632,7 @@
 
       btn.disabled = true;
       btn.classList.add('searching');
-      btn.textContent = '🔴 Analyse...';
+      btn.textContent = 'Analyse...';
       status.textContent = 'Connexion...';
       winnerCard.style.display = 'none';
 
