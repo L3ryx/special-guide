@@ -1,67 +1,133 @@
 const axios = require('axios');
 
-// Scrape les stats d'une boutique Etsy via ScrapingBee
-async function scrapeShopStats(shopUrl) {
-  try {
-    const url = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}`
-      + `&url=${encodeURIComponent(shopUrl)}`
-      + `&render_js=false&premium_proxy=true&country_code=us`;
+async function scrapeShopStats(shopUrl, retries = 2) {
+  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    try {
+      const reqUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}`
+        + `&url=${encodeURIComponent(shopUrl)}`
+        + `&render_js=false`
+        + `&premium_proxy=true`
+        + `&country_code=us`
+        + `&timeout=45000`;
 
-    const res  = await axios.get(url, { timeout: 30000 });
-    const html = res.data;
+      const res  = await axios.get(reqUrl, { timeout: 120000 });
+      const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
 
-    // Nombre de ventes
-    let sales = null;
-    const salesPatterns = [
-      /"sales_count"\s*:\s*(\d+)/i,
-      /(\d[\d,]+)\s+sales/i,
-      /"transaction_sold_count"\s*:\s*(\d+)/i,
-      /class="[^"]*shop-sales[^"]*"[^>]*>([\d,]+)/i,
-      /"totalSales"\s*:\s*(\d+)/i,
-      /(\d[\d,]+)\s+ventes/i,
-    ];
-    for (const pat of salesPatterns) {
-      const m = html.match(pat);
-      if (m) {
-        sales = parseInt(m[1].replace(/,/g, ''));
-        if (sales > 0) break;
-        sales = null;
-      }
-    }
+      console.log(`\n── ${shopUrl.split('/').pop()} (${html.length} chars) ──`);
 
-    // Date de création
-    let createdAt = null;
-    const datePatterns = [
-      /"creation_tsz"\s*:\s*(\d+)/i,
-      /"joined"\s*:\s*"([^"]+)"/i,
-      /On Etsy since\s+([A-Za-z]+ \d{4})/i,
-      /Member since\s+([A-Za-z]+ \d{4})/i,
-      /"shopCreatedDate"\s*:\s*"([^"]+)"/i,
-      /class="[^"]*shop-info[^"]*"[\s\S]{0,200}?(\d{4})/,
-    ];
-    for (const pat of datePatterns) {
-      const m = html.match(pat);
-      if (m) {
-        if (/^\d{10}$/.test(m[1])) {
-          createdAt = new Date(parseInt(m[1]) * 1000);
-        } else {
-          const d = new Date(m[1]);
-          if (!isNaN(d)) createdAt = d;
+      // ── VENTES ──
+      let sales = null;
+      const salesPatterns = [
+        /"sales_count"\s*:\s*(\d+)/i,
+        /"salesCount"\s*:\s*(\d+)/i,
+        /"transaction_sold_count"\s*:\s*(\d+)/i,
+        /"totalSales"\s*:\s*(\d+)/i,
+        /(\d[\d,]+)\s+(?:sales|sale)\b/i,
+        /(\d[\d,]+)\s+ventes?\b/i,
+        /data-sales="(\d+)"/i,
+        />(\d[\d,.]+)\s+[Ss]ales?</,
+      ];
+      for (const pat of salesPatterns) {
+        const m = html.match(pat);
+        if (m) {
+          const val = parseInt(m[1].replace(/[,.\s]/g, ''));
+          if (val > 0) { sales = val; console.log(`  ✅ ventes: ${sales}`); break; }
         }
-        if (createdAt) break;
       }
+      if (!sales) console.log(`  ❌ ventes non trouvées`);
+
+      // ── DATE DE CRÉATION ──
+      let createdAt = null;
+      const datePatterns = [
+        [/"creation_tsz"\s*:\s*(\d{10})/i,               'unix'],
+        [/"joined_epoch"\s*:\s*(\d{10})/i,               'unix'],
+        [/"create_date"\s*:\s*(\d{10})/i,                'unix'],
+        [/"joined"\s*:\s*"(\d{4}-\d{2}-\d{2}[^"]*)"/i,  'iso'],
+        [/"shopCreatedDate"\s*:\s*"([^"]+)"/i,           'iso'],
+        [/"dateCreated"\s*:\s*"([^"]+)"/i,               'iso'],
+        [/[Oo]n\s+Etsy\s+since\s+([A-Za-z]+ \d{4})/i,  'text'],
+        [/[Mm]ember\s+since\s+([A-Za-z]+ \d{4})/i,      'text'],
+        [/[Ss]elling\s+since\s+([A-Za-z]+ \d{4})/i,     'text'],
+        [/since\D{0,20}(\d{4})/i,                        'year'],
+      ];
+      for (const [pat, type] of datePatterns) {
+        const m = html.match(pat);
+        if (!m) continue;
+        let d = null;
+        if (type === 'unix') {
+          d = new Date(parseInt(m[1]) * 1000);
+        } else if (type === 'year') {
+          const y = parseInt(m[1]);
+          if (y >= 2005 && y <= new Date().getFullYear()) d = new Date(`${y}-01-01`);
+        } else {
+          d = new Date(m[1]);
+        }
+        if (d && !isNaN(d.getTime()) && d.getFullYear() >= 2005) {
+          createdAt = d;
+          console.log(`  ✅ date: ${createdAt.toLocaleDateString('fr-FR')}`);
+          break;
+        }
+      }
+      if (!createdAt) console.log(`  ❌ date non trouvée`);
+
+      // ── FALLBACK /about ──
+      if (!sales || !createdAt) {
+        try {
+          const aboutUrl    = shopUrl.replace(/\/$/, '') + '/about';
+          const aboutReqUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}`
+            + `&url=${encodeURIComponent(aboutUrl)}`
+            + `&render_js=false&premium_proxy=true&country_code=us&timeout=30000`;
+          const aboutRes  = await axios.get(aboutReqUrl, { timeout: 90000 });
+          const aboutHtml = typeof aboutRes.data === 'string' ? aboutRes.data : JSON.stringify(aboutRes.data);
+          console.log(`  📄 /about: ${aboutHtml.length} chars`);
+
+          if (!sales) {
+            for (const pat of salesPatterns) {
+              const m = aboutHtml.match(pat);
+              if (m) {
+                const val = parseInt(m[1].replace(/[,.\s]/g, ''));
+                if (val > 0) { sales = val; console.log(`  ✅ ventes /about: ${sales}`); break; }
+              }
+            }
+          }
+          if (!createdAt) {
+            for (const [pat, type] of datePatterns) {
+              const m = aboutHtml.match(pat);
+              if (!m) continue;
+              let d = null;
+              if (type === 'unix') d = new Date(parseInt(m[1]) * 1000);
+              else if (type === 'year') { const y = parseInt(m[1]); if (y >= 2005 && y <= new Date().getFullYear()) d = new Date(`${y}-01-01`); }
+              else d = new Date(m[1]);
+              if (d && !isNaN(d.getTime()) && d.getFullYear() >= 2005) {
+                createdAt = d;
+                console.log(`  ✅ date /about: ${createdAt.toLocaleDateString('fr-FR')}`);
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          console.log(`  ⚠️ /about échoué: ${e.message}`);
+        }
+      }
+
+      console.log(`  → FINAL: ventes=${sales ?? 'null'}, créée=${createdAt?.toLocaleDateString('fr-FR') ?? 'null'}\n`);
+      return { shopUrl, sales, createdAt };
+
+    } catch (err) {
+      const isTimeout = err.code === 'ECONNABORTED' || (err.message || '').includes('timeout');
+      console.warn(`scrapeShopStats tentative ${attempt}/${retries + 1} (${shopUrl.split('/').pop()}): ${err.message}`);
+      if (attempt <= retries && isTimeout) {
+        const wait = attempt * 3000;
+        console.log(`⏳ Retry dans ${wait / 1000}s...`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      console.error(`scrapeShopStats échoué (${shopUrl}): ${err.message}`);
+      return { shopUrl, sales: null, createdAt: null };
     }
-
-    console.log(`🏪 ${shopUrl.split('/').pop()} — ventes: ${sales}, créée: ${createdAt?.toLocaleDateString('fr-FR') || 'inconnue'}`);
-    return { shopUrl, sales, createdAt };
-
-  } catch (err) {
-    console.error(`scrapeShopStats error (${shopUrl}): ${err.message}`);
-    return { shopUrl, sales: null, createdAt: null };
   }
 }
 
-// Score : ventes par jour d'existence (plus c'est élevé = récent + populaire)
 function computeScore(stats) {
   if (!stats.sales || !stats.createdAt) return 0;
   const ageMs   = Date.now() - stats.createdAt.getTime();
