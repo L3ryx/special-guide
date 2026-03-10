@@ -5,6 +5,7 @@ const { scrapeEtsy, debugEtsyHtml } = require('../services/etsyScraper');
 const { reverseImageSearch } = require('../services/reverseImageSearch');
 const { compareEtsyWithAliexpress } = require('../services/imageSimilarity');
 const { getShopInfo } = require('../services/shopScraper');
+const { scrapeShopStats, computeScore } = require('../services/shopStatsScraper');
 
 async function parallel(items, concurrency, fn) {
   const results = new Array(items.length);
@@ -127,6 +128,64 @@ router.get('/debug-etsy', async (req, res) => {
     res.json(info);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/shop-stats — scrape stats de chaque boutique et retourne le winner
+router.post('/shop-stats', async (req, res) => {
+  const { results } = req.body;
+  if (!results?.length) return res.status(400).json({ error: 'Aucun résultat fourni' });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (data) => res.write('data: ' + JSON.stringify(data) + '\n\n');
+
+  try {
+    const shops = [...new Map(
+      results.map(r => [r.etsy.shopUrl || r.etsy.shopName, {
+        shopUrl:  r.etsy.shopUrl,
+        shopName: r.etsy.shopName,
+        listingUrl: r.etsy.link
+      }])
+    ).values()].filter(s => s.shopUrl);
+
+    send({ step: 'start', total: shops.length, message: `Analyse de ${shops.length} boutique(s)...` });
+
+    const statsArr = [];
+    for (let i = 0; i < shops.length; i++) {
+      const shop = shops[i];
+      send({ step: 'scraping', index: i, shopName: shop.shopName, message: `Scraping ${shop.shopName}...` });
+      const stats = await scrapeShopStats(shop.shopUrl);
+      stats.shopName   = shop.shopName;
+      stats.listingUrl = shop.listingUrl;
+      stats.score      = computeScore(stats);
+      statsArr.push(stats);
+      send({ step: 'done', index: i, shopName: shop.shopName, stats: {
+        sales: stats.sales,
+        createdAt: stats.createdAt,
+        score: stats.score
+      }});
+    }
+
+    // Winner = meilleur score (ventes/jour)
+    const withScore = statsArr.filter(s => s.score > 0);
+    withScore.sort((a, b) => b.score - a.score);
+    const winner = withScore[0] || statsArr[0];
+
+    send({ step: 'complete', winner, all: statsArr.map(s => ({
+      shopName:  s.shopName,
+      shopUrl:   s.shopUrl,
+      sales:     s.sales,
+      createdAt: s.createdAt,
+      score:     s.score
+    }))});
+    res.end();
+
+  } catch (err) {
+    send({ step: 'error', message: err.message });
+    res.end();
   }
 });
 
