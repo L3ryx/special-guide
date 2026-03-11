@@ -96,7 +96,7 @@
       50%     { background: #fbbf24; box-shadow: 0 0 48px rgba(251,191,36,0.9); color: #422006; }
     }
 
-    /* BANDE LATÉRALE BOUTIQUE */
+    /* SHOP SIDE COLUMN */
     .etsy-img-container { position: relative; width: 100%; }
     .shop-side-col {
       position: absolute; top: 0; left: 0; bottom: 0; width: 42px; z-index: 2;
@@ -324,7 +324,7 @@
 
     #bg-layer, #milkyway-canvas, #title-outer, #main-view { transition: opacity 0.7s ease; }
 
-    /* ── AUTH MODAL ── */
+    /* AUTH MODAL */
     #auth-modal-overlay {
       position: fixed; inset: 0; z-index: 2000;
       background: transparent;
@@ -366,7 +366,7 @@
     .modal-submit:disabled { opacity: 0.6; cursor: not-allowed; }
     .modal-error { color: #f87171; font-size: 0.76rem; margin-top: 7px; min-height: 1em; text-align: center; }
 
-    /* START btn verrouillé */
+    /* START btn locked */
     #start-btn.locked {
       background: #dc2626 !important;
       color: #fff !important;
@@ -376,7 +376,7 @@
     }
     #start-btn.locked:hover { background: #b91c1c !important; transform: translateY(-1px) !important; }
 
-    /* ── BOUTON DASHBOARD ── */
+    /* DASHBOARD BUTTON */
     #dashboard-btn {
       position: fixed; top: 10px; right: 10px; z-index: 500;
       display: flex; align-items: center; gap: 5px;
@@ -391,15 +391,15 @@
       background: rgba(0,0,0,0.25); border-radius: 5px;
       padding: 0px 5px; font-size: 0.68rem; display: none;
     }
-    /* ── BOUTON COEUR ── */
+    /* HEART BUTTON */
     .btn-heart-icon {
       width: 28px; height: 28px; border-radius: 50%;
       border: none; background: transparent; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      color: rgba(239,68,68,0.6); font-size: 1.1rem; transition: all 0.2s; padding: 0;
+      color: #ef4444; font-size: 1.2rem; transition: all 0.2s; padding: 0;
     }
-    .btn-heart-icon:hover { color: #ef4444; transform: scale(1.2); }
-    .btn-heart-icon.saved { color: #ef4444; }
+    .btn-heart-icon:hover { transform: scale(1.25); color: #dc2626; }
+    .btn-heart-icon.saved { color: #ef4444; transform: scale(1.1); }
     .btn-heart-icon.saving { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
@@ -501,6 +501,19 @@
     (function() {
       try {
         var ids = ['bg-layer','milkyway-canvas','title-outer','main-view','shooting-canvas'];
+
+        // Si on revient du dashboard, pas d'intro
+        if (sessionStorage.getItem('skipIntro') === '1') {
+          sessionStorage.removeItem('skipIntro');
+          var intro = document.getElementById('intro');
+          if (intro) intro.style.display = 'none';
+          ids.forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.style.opacity = '1';
+          });
+          return;
+        }
+
         ids.forEach(function(id) {
           var el = document.getElementById(id);
           if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.7s ease'; }
@@ -538,7 +551,7 @@
       { key: 'reverse_search',   label: 'Reverse' },
       { key: 'aliexpress_found', label: 'AliExpress' },
       { key: 'comparing',        label: 'IA' },
-      { key: 'finalizing',       label: 'Résultats' },
+      { key: 'finalizing',       label: 'Results' },
     ];
 
     function initProgress() {
@@ -672,7 +685,7 @@
         document.getElementById('count-select').disabled = false;
 
         if (count === -1) {
-          // Erreur — bouton jaune RETRY
+          // Error — yellow RETRY button
           btn.classList.add('retry');
           btn.textContent = 'RETRY';
         } else {
@@ -705,7 +718,7 @@
       const etsySrc  = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc   = aliexpress.image || '';
       const shopUrl  = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0].replace(/\/listing\/.*/, '') : '') || '';
-      // Extraire le nom depuis l'URL si shopName absent : etsy.com/shop/NomBoutique
+      // Extract name from URL if shopName missing: etsy.com/shop/ShopName
       const _shopNameFromUrl = shopUrl ? shopUrl.split('/shop/')[1]?.split('/')[0] || shopUrl.split('/')[3] || '' : '';
       const shopName = etsy.shopName || _shopNameFromUrl || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
@@ -725,7 +738,7 @@
                   ? '<img src="' + shopAvatar + '" alt="' + shopName + '" onerror="this.style.display=\'none\'" />'
                   : '<span class="side-initial">' + initial + '</span>') +
               '</a>' +
-              '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + JSON.stringify(JSON.stringify({shopUrl, shopName, shopAvatar})) + ', this)">♡</button>' +
+              '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + JSON.stringify(JSON.stringify({shopUrl, shopName, shopAvatar})) + ', this)">♥</button>' +
             '</div>' +
               '<div class="img-wrap"><div class="img-box">' +
                 (etsySrc ? '<img src="' + etsySrc + '" loading="lazy" alt="" onerror="this.style.display=\'none\'" />' : '') +
@@ -792,8 +805,8 @@
                 status.textContent = '🏪 Scraping ' + ev.shopName + '... (' + (ev.index + 1) + ')';
               } else if (ev.step === 'done') {
                 const st = ev.stats;
-                const salesStr = st.sales != null ? st.sales.toLocaleString('fr-FR') + ' sales' : 'unknown sales';
-                const dateStr  = st.createdAt ? new Date(st.createdAt).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : 'unknown date';
+                const salesStr = st.sales != null ? st.sales.toLocaleString('en-US') + ' sales' : 'unknown sales';
+                const dateStr  = st.createdAt ? new Date(st.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'unknown date';
                 status.textContent = '✅ ' + ev.shopName + ' — ' + salesStr + ', created ' + dateStr;
               } else if (ev.step === 'complete') {
                 resetBtn(); status.textContent = '';
@@ -814,15 +827,15 @@
     function showWinner(winner) {
       const card = document.getElementById('winner-card');
       if (!winner) { document.getElementById('find-status').textContent = 'Insufficient data.'; return; }
-      const sales   = winner.sales != null ? winner.sales.toLocaleString('fr-FR') : '—';
+      const sales   = winner.sales != null ? winner.sales.toLocaleString('en-US') : '—';
       const created = winner.createdAt ? new Date(winner.createdAt) : null;
       const ageDays = created ? Math.max(Math.floor((Date.now() - created.getTime()) / 86400000), 1) : 0;
       const ageStr  = ageDays ? (ageDays < 365 ? ageDays + ' days' : Math.floor(ageDays / 365) + ' years') : '—';
       const perDay  = (winner.sales && ageDays) ? (winner.sales / ageDays).toFixed(2) : '—';
       const yearStr = created ? created.getFullYear().toString() : '—';
-      const dateStr = created ? created.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '—';
+      const dateStr = created ? created.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—';
 
-      // Bénéfice brut estimé = prix moyen boutique × sales totales
+      // Estimated gross revenue = avg shop price × total sales
       let revenueHtml = '';
       if (winner.avgPrice != null && winner.sales != null) {
         const revenue = winner.avgPrice * winner.sales;
@@ -836,13 +849,13 @@
           '<div class="winner-revenue">' +
             '<div class="revenue-amount">' + revenueStr + '</div>' +
             '<div class="revenue-label">Estimated revenue</div>' +
-            '<div class="revenue-detail">Avg. shop price : ' + avgPriceStr + ' × ' + winner.sales.toLocaleString('fr-FR') + ' sales</div>' +
+            '<div class="revenue-detail">Avg. shop price: ' + avgPriceStr + ' × ' + winner.sales.toLocaleString('en-US') + ' sales</div>' +
           '</div>';
       }
 
       card.innerHTML =
         '<div class="winner-label">🏆 Top performing shop</div>' +
-        '<div class="winner-name">' + (winner.shopName || 'Boutique') + '</div>' +
+        '<div class="winner-name">' + (winner.shopName || 'Shop') + '</div>' +
         '<div class="winner-stats">' +
           '<div class="winner-stat">' +
             '<span class="winner-stat-val">' + sales + '</span>' +
@@ -991,7 +1004,7 @@
         SCOUT_TOKEN = null;
         localStorage.removeItem('scout_token');
       }
-      // Pas connecté — verrouiller START, ne PAS ouvrir la modal
+      // Not logged in — lock START, do not open modal
       lockStart();
     }
 
@@ -1028,7 +1041,7 @@
       document.getElementById('auth-modal-overlay').style.display = 'none';
     }
 
-    // Clic en dehors = ferme seulement si déjà connecté
+    // Click outside = close only if already logged in
     document.getElementById('auth-modal-overlay').addEventListener('click', function(e) {
       if (e.target === this && SCOUT_TOKEN) hideAuthModal();
     });
@@ -1056,7 +1069,7 @@
           body: JSON.stringify({ email, password })
         });
         const data = await r.json();
-        if (!r.ok) { errEl.textContent = data.error || 'Erreur'; return; }
+        if (!r.ok) { errEl.textContent = data.error || 'Error'; return; }
         localStorage.setItem('scout_token', data.token);
         SCOUT_TOKEN = data.token;
         onLoggedIn(data.email);
@@ -1100,14 +1113,14 @@
     }
 
     async function saveShop(jsonStr, btn) {
-      // Relire le token à chaque appel au cas où il a été défini après chargement
+      // Re-read token on every call in case it was set after page load
       const token = localStorage.getItem('scout_token');
       if (!token) { showAuthModal(); return; }
 
       let data;
       try { data = JSON.parse(jsonStr); } catch(e) { return; }
 
-      // Si déjà sauvegardée, marquer le bouton et aller au dashboard
+      // Already saved — mark button
       if (_savedShopUrls.has(data.shopUrl)) {
         btn.classList.add('saved');
         btn.textContent = '♥';
@@ -1133,12 +1146,12 @@
           const err = await r.json().catch(() => ({}));
           console.warn('[saveShop] error:', err);
           btn.classList.remove('saving');
-          btn.textContent = '♡';
+          btn.textContent = '♥';
         }
       } catch(e) {
         console.warn('[saveShop] fetch error:', e.message);
         btn.classList.remove('saving');
-        btn.textContent = '♡';
+        btn.textContent = '♥';
       }
     }
   </script>
