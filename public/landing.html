@@ -389,7 +389,10 @@
         if (r.ok) {
           const d = await r.json();
           const btn = document.querySelector('.btn-login');
-          btn.textContent = d.email.split('@')[0];
+          btn.innerHTML = '👤';
+          btn.style.fontSize = '1.1rem';
+          btn.style.padding = '6px 10px';
+          btn.title = d.email;
           btn.onclick = () => { window.location.href='/dashboard'; };
         }
       } catch(e) {}
