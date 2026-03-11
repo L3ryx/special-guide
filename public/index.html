@@ -100,8 +100,8 @@
     .etsy-img-container { position: relative; width: 100%; }
     .shop-side-col {
       position: absolute; top: 0; left: 0; bottom: 0; width: 42px; z-index: 2;
-      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-      padding-top: 8px; gap: 8px;
+      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      padding: 10px 0;
       background: rgba(0,0,0,0.45); border-right: 1px solid rgba(255,255,255,0.08);
       border-radius: 11px 0 0 11px;
     }
@@ -1100,18 +1100,27 @@
     }
 
     async function saveShop(jsonStr, btn) {
-      if (!SCOUT_TOKEN) { showAuthModal(); return; }
-      const data = JSON.parse(jsonStr);
+      // Relire le token à chaque appel au cas où il a été défini après chargement
+      const token = localStorage.getItem('scout_token');
+      if (!token) { showAuthModal(); return; }
+
+      let data;
+      try { data = JSON.parse(jsonStr); } catch(e) { return; }
+
+      // Si déjà sauvegardée, marquer le bouton et aller au dashboard
       if (_savedShopUrls.has(data.shopUrl)) {
-        window.location.href = '/dashboard.html';
+        btn.classList.add('saved');
+        btn.textContent = '♥';
         return;
       }
+
       btn.classList.add('saving');
       btn.textContent = '⏳';
+
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SCOUT_TOKEN },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
           body: JSON.stringify(data)
         });
         if (r.ok) {
@@ -1121,10 +1130,13 @@
           btn.textContent = '♥';
           updateDbCount();
         } else {
+          const err = await r.json().catch(() => ({}));
+          console.warn('[saveShop] error:', err);
           btn.classList.remove('saving');
           btn.textContent = '♡';
         }
       } catch(e) {
+        console.warn('[saveShop] fetch error:', e.message);
         btn.classList.remove('saving');
         btn.textContent = '♡';
       }
