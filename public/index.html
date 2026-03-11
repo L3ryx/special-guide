@@ -325,29 +325,7 @@
     #bg-layer, #milkyway-canvas, #title-outer, #main-view { transition: opacity 0.7s ease; }
 
     /* AUTH MODAL */
-    #auth-modal-overlay {
-      position: fixed; inset: 0; z-index: 2000;
-      background: transparent;
-      display: flex; align-items: center; justify-content: center;
-      pointer-events: none;
-    }
-    #auth-modal {
-      width: 100%; max-width: 320px; margin: 20px;
-      background: rgba(8,8,8,0.55); border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 18px; padding: 26px 24px 22px;
-      backdrop-filter: blur(18px); animation: modalUp 0.4s ease;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
-      pointer-events: all;
-    }
     @keyframes modalUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
-    .modal-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-    .modal-tab {
-      flex: 1; padding: 9px; background: transparent;
-      border: 1.5px solid var(--green); border-radius: 9px;
-      color: var(--green); font-family: 'Inter', sans-serif;
-      font-size: 0.84rem; font-weight: 700; cursor: pointer; transition: background 0.2s, color 0.2s;
-    }
-    .modal-tab.active { background: var(--green); color: #fff; box-shadow: 0 2px 12px rgba(34,197,94,0.4); }
     .modal-field {
       width: 100%; padding: 11px 14px; margin-bottom: 9px;
       background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
@@ -364,7 +342,6 @@
     }
     .modal-submit:hover { background: #16a34a; }
     .modal-submit:disabled { opacity: 0.6; cursor: not-allowed; }
-    .modal-error { color: #f87171; font-size: 0.76rem; margin-top: 7px; min-height: 1em; text-align: center; }
 
     /* START btn locked */
     #start-btn.locked {
@@ -378,18 +355,20 @@
 
     /* DASHBOARD BUTTON */
     #dashboard-btn {
-      position: fixed; top: 10px; right: 10px; z-index: 500;
-      display: flex; align-items: center; gap: 5px;
-      padding: 6px 12px; border-radius: 8px; border: none;
-      background: var(--green); color: #fff;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.72rem;
-      cursor: pointer; text-decoration: none; letter-spacing: 0.06em;
-      box-shadow: 0 2px 12px rgba(34,197,94,0.35); transition: all 0.2s;
+      position: fixed; top: 10px; right: 12px; z-index: 500;
+      display: flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.2);
+      background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.85);
+      font-size: 1.15rem; cursor: pointer; text-decoration: none;
+      backdrop-filter: blur(10px); transition: all 0.2s; position: fixed;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
     }
-    #dashboard-btn:hover { background: #16a34a; transform: translateY(-1px); }
+    #dashboard-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); color: #fff; transform: translateY(-1px); }
     #dashboard-btn .db-count {
-      background: rgba(0,0,0,0.25); border-radius: 5px;
-      padding: 0px 5px; font-size: 0.68rem; display: none;
+      position: absolute; top: -4px; right: -4px;
+      background: var(--green); border-radius: 50%;
+      width: 16px; height: 16px; font-size: 0.6rem; font-weight: 700;
+      display: none; align-items: center; justify-content: center; color: #fff;
     }
     /* HEART BUTTON */
     .btn-heart-icon {
@@ -406,23 +385,9 @@
 <body>
 
   <!-- AUTH MODAL -->
-  <div id="auth-modal-overlay" style="display:none;">
-    <div id="auth-modal">
-
-      <div class="modal-tabs">
-        <button class="modal-tab active" id="modal-tab-login"    onclick="modalSwitchTab('login')">Login</button>
-        <button class="modal-tab"        id="modal-tab-register" onclick="modalSwitchTab('register')">Register</button>
-      </div>
-      <input class="modal-field" id="modal-email"    type="email"    placeholder="Email" />
-      <input class="modal-field" id="modal-password" type="password" placeholder="Password" />
-      <button class="modal-submit" id="modal-submit-btn" onclick="modalSubmitAuth()">Login</button>
-      <div class="modal-error" id="modal-error"></div>
-    </div>
-  </div>
-
   <!-- BOUTON DASHBOARD -->
-  <a id="dashboard-btn" href="/dashboard.html">
-    <span id="db-label">LOGIN</span>
+  <a id="dashboard-btn" href="/dashboard" title="My account">
+    <span id="db-label">👤</span>
     <span class="db-count" id="db-count">0</span>
   </a>
 
@@ -1019,18 +984,15 @@
     function onLoggedIn(email) {
       SCOUT_TOKEN = localStorage.getItem('scout_token');
       unlockStart();
-      hideAuthModal();
       const label = document.getElementById('db-label');
-      if (label) label.textContent = email ? email.split('@')[0] : 'Dashboard';
+      if (label) label.textContent = '👤';
       initSavedShops();
     }
 
     function lockStart() {
       const btn = document.getElementById('start-btn');
       if (!btn) return;
-      btn.textContent = 'REGISTER';
       btn.classList.add('locked');
-      btn.onclick = function(e) { e.preventDefault(); showAuthModal(); };
     }
 
     function unlockStart() {
@@ -1041,18 +1003,9 @@
       btn.onclick = startSearch;
     }
 
-    function showAuthModal() {
-      document.getElementById('auth-modal-overlay').style.display = 'flex';
-    }
 
-    function hideAuthModal() {
-      document.getElementById('auth-modal-overlay').style.display = 'none';
-    }
 
     // Click outside = close only if already logged in
-    document.getElementById('auth-modal-overlay').addEventListener('click', function(e) {
-      if (e.target === this && SCOUT_TOKEN) hideAuthModal();
-    });
 
     function modalSwitchTab(tab) {
       _modalTab = tab;
@@ -1062,7 +1015,6 @@
       document.getElementById('modal-error').textContent = '';
     }
 
-    async function modalSubmitAuth() {
       const email    = document.getElementById('modal-email').value.trim();
       const password = document.getElementById('modal-password').value;
       const errEl    = document.getElementById('modal-error');
@@ -1091,8 +1043,6 @@
 
     // Enter key dyears modal
     document.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && document.getElementById('auth-modal-overlay').style.display !== 'none') {
-        modalSubmitAuth();
       }
     });
 
@@ -1130,7 +1080,7 @@
 
     async function saveShop(indexOrJson, btn) {
       const token = localStorage.getItem('scout_token');
-      if (!token) { showAuthModal(); showToast('Please log in first', '#ef4444'); return; }
+      if (!token) { window.location.href='/dashboard'; return; }
 
       let data;
       if (typeof indexOrJson === 'number' || (typeof indexOrJson === 'string' && !indexOrJson.startsWith('{'))) {
