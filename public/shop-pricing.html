@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shop — Pricing</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --orange: #f1641e;
+      --green:  #22c55e;
+      --glass:  rgba(0,0,0,0.55);
+      --glass-border: rgba(255,255,255,0.12);
+      --text:   #ffffff;
+      --muted:  rgba(255,255,255,0.55);
+    }
+    html, body { height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; overflow-x: hidden; }
+
+    /* BG */
+    #bg-layer {
+      position: fixed; inset: 0; z-index: -3;
+      background: #0a0a0a url('/background.png') center center / cover no-repeat;
+      animation: bgDrift 18s ease-in-out infinite alternate; transform-origin: center;
+    }
+    @keyframes bgDrift {
+      0%   { transform: scale(1.08) translate(0px,0px); }
+      25%  { transform: scale(1.1)  translate(-12px,-8px); }
+      50%  { transform: scale(1.08) translate(8px,-14px); }
+      75%  { transform: scale(1.1)  translate(-6px,10px); }
+      100% { transform: scale(1.08) translate(10px,6px); }
+    }
+    #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.55); }
+    #milkyway-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-2; pointer-events:none; }
+    #shooting-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px;
+    }
+    .nav-back {
+      display: flex; align-items: center; gap: 8px;
+      color: rgba(255,255,255,0.6); font-size: 0.85rem; font-weight: 500;
+      text-decoration: none; transition: color 0.2s;
+    }
+    .nav-back:hover { color: #fff; }
+    .nav-logo { font-family: 'Croissant One', cursive; font-size: 1.1rem; color: #fff; }
+
+    /* PAGE */
+    main {
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 100px 20px 60px; gap: 0;
+    }
+
+    .page-icon { font-size: 3.5rem; margin-bottom: 16px; }
+    h1 {
+      font-family: 'Croissant One', cursive; font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 400; color: #fff; margin-bottom: 10px; text-align: center;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .subtitle {
+      color: var(--muted); font-size: 1rem; text-align: center;
+      max-width: 440px; line-height: 1.6; margin-bottom: 52px;
+    }
+
+    /* PLANS */
+    .plans { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; max-width: 800px; }
+
+    .plan {
+      flex: 1; min-width: 240px; max-width: 300px;
+      background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border);
+      border-radius: 22px; padding: 32px 28px 28px;
+      backdrop-filter: blur(20px);
+      display: flex; flex-direction: column; gap: 0;
+      transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+      position: relative;
+    }
+    .plan:hover { transform: translateY(-4px); box-shadow: 0 16px 48px rgba(241,100,30,0.15); }
+    .plan.featured { border-color: rgba(241,100,30,0.5); background: rgba(241,100,30,0.06); }
+    .plan-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--orange); color: #fff; font-size: 0.72rem; font-weight: 700;
+      padding: 4px 14px; border-radius: 20px; letter-spacing: 0.08em; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .plan-name { font-weight: 800; font-size: 1.15rem; margin-bottom: 8px; }
+    .plan-price { font-size: 2.4rem; font-weight: 800; color: #fff; margin-bottom: 4px; line-height: 1; }
+    .plan-price sup { font-size: 1.1rem; font-weight: 600; vertical-align: super; }
+    .plan-period { color: var(--muted); font-size: 0.8rem; margin-bottom: 24px; }
+    .plan-features { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; flex: 1; }
+    .plan-features li { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: rgba(255,255,255,0.85); }
+    .plan-features li::before { content: '✓'; color: var(--green); font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
+    .plan-features li.no { color: var(--muted); }
+    .plan-features li.no::before { content: '✕'; color: rgba(255,255,255,0.2); }
+    .btn-plan {
+      width: 100%; padding: 14px; border-radius: 12px; border: none;
+      background: var(--orange); color: #fff;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.95rem;
+      cursor: pointer; transition: all 0.2s; letter-spacing: 0.03em;
+      box-shadow: 0 4px 16px rgba(241,100,30,0.4);
+    }
+    .btn-plan:hover { background: #d9511a; transform: translateY(-1px); box-shadow: 0 6px 22px rgba(241,100,30,0.55); }
+    .btn-plan.outline {
+      background: transparent; border: 1.5px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.7);
+      box-shadow: none;
+    }
+    .btn-plan.outline:hover { border-color: rgba(255,255,255,0.5); color: #fff; background: rgba(255,255,255,0.06); }
+
+    .guarantee { margin-top: 36px; color: var(--muted); font-size: 0.8rem; text-align: center; }
+    .guarantee span { color: rgba(255,255,255,0.7); }
+
+    @media (max-width: 560px) {
+      .plan { min-width: 100%; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="bg-layer"></div>
+  <canvas id="milkyway-canvas"></canvas>
+  <canvas id="shooting-canvas"></canvas>
+
+  <nav>
+    <a class="nav-back" href="/">← Back</a>
+    <span class="nav-logo">Finder Niche</span>
+  </nav>
+
+  <main>
+    <div class="page-icon">🏪</div>
+    <h1>Shop</h1>
+    <p class="subtitle">Save your favorite Etsy shops, track their performance and find winning products to source.</p>
+
+    <div class="plans">
+      <div class="plan">
+        <div class="plan-name">Free</div>
+        <div class="plan-price"><sup>$</sup>0</div>
+        <div class="plan-period">forever</div>
+        <ul class="plan-features">
+          <li>Save up to 5 shops</li>
+          <li>Shop stats overview</li>
+          <li>Visit shop links</li>
+          <li class="no">FIND analysis</li>
+          <li class="no">Priority support</li>
+        </ul>
+        <button class="btn-plan outline" onclick="window.location.href='/dashboard'">Get started free</button>
+      </div>
+
+      <div class="plan featured">
+        <div class="plan-badge">Most popular</div>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price"><sup>$</sup>9<span style="font-size:1.2rem">.99</span></div>
+        <div class="plan-period">per month</div>
+        <ul class="plan-features">
+          <li>Unlimited saved shops</li>
+          <li>Full shop stats & analytics</li>
+          <li>FIND — AliExpress matcher</li>
+          <li>Revenue estimator</li>
+          <li>Priority support</li>
+        </ul>
+        <button class="btn-plan" onclick="alert('Payment coming soon!')">Get Pro →</button>
+      </div>
+    </div>
+
+    <p class="guarantee">🔒 Secure payment &nbsp;·&nbsp; <span>Cancel anytime</span> &nbsp;·&nbsp; 7-day money back guarantee</p>
+  </main>
+
+  <script>
+    (function() {
+      const canvas = document.getElementById('milkyway-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let W, H, cx, cy;
+      const bandAngle = Math.PI/5, bandW = 600;
+      const rand = (a,b) => Math.random()*(b-a)+a;
+      let nebulae = [];
+      function resize() { W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; cx=W/2; cy=H/2; buildNebulae(); }
+      window.addEventListener('resize', resize); resize();
+      function buildNebulae() {
+        nebulae=[];
+        const colors=[[180,100,200],[100,120,255],[255,120,80],[80,200,255],[200,80,255]];
+        for(let i=0;i<5;i++){const col=colors[i],along=rand(-bandW*.4,bandW*.4),spread=rand(-60,60);nebulae.push({x:cx+Math.cos(bandAngle)*along-Math.sin(bandAngle)*spread,y:cy+Math.sin(bandAngle)*along+Math.cos(bandAngle)*spread,rx:rand(80,220),ry:rand(40,120),angle:bandAngle+rand(-0.3,0.3),r:col[0],g:col[1],b:col[2],alpha:rand(0.04,0.1),pulse:rand(0.001,0.003),pulseDir:1});}
+      }
+      let driftAngle=0;
+      function draw() {
+        ctx.clearRect(0,0,W,H); driftAngle+=0.00008;
+        ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(driftAngle); ctx.translate(-W/2,-H/2);
+        nebulae.forEach(n=>{n.alpha+=n.pulse*n.pulseDir;if(n.alpha>0.12||n.alpha<0.03)n.pulseDir*=-1;ctx.save();ctx.translate(n.x,n.y);ctx.rotate(n.angle);const g=ctx.createRadialGradient(0,0,0,0,0,n.rx);g.addColorStop(0,'rgba('+n.r+','+n.g+','+n.b+','+n.alpha+')');g.addColorStop(0.5,'rgba('+n.r+','+n.g+','+n.b+','+(n.alpha*.4)+')');g.addColorStop(1,'rgba('+n.r+','+n.g+','+n.b+',0)');ctx.scale(1,n.ry/n.rx);ctx.beginPath();ctx.arc(0,0,n.rx,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();ctx.restore();});
+        ctx.restore(); requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+    (function() {
+      const canvas = document.getElementById('shooting-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let W, H;
+      function resize() { W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; }
+      window.addEventListener('resize', resize); resize();
+      const rand = (a,b) => Math.random()*(b-a)+a;
+      function mkStar() { const angle=rand(25,50)*Math.PI/180,spd=rand(6,16); return{x:rand(-100,W*.8),y:rand(-60,H*.4),vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,alpha:rand(0.6,1),w:rand(1,2.5),tail:rand(12,28),decay:rand(0.991,0.997)}; }
+      let stars=[mkStar(),mkStar(),mkStar(),mkStar()];
+      function draw() {
+        ctx.clearRect(0,0,W,H);
+        if(Math.random()<0.02&&stars.length<10) stars.push(mkStar());
+        stars=stars.filter(s=>{const grad=ctx.createLinearGradient(s.x,s.y,s.x-s.vx*s.tail,s.y-s.vy*s.tail);grad.addColorStop(0,'rgba(255,255,255,'+s.alpha+')');grad.addColorStop(0.4,'rgba(200,220,255,'+(s.alpha*.5)+')');grad.addColorStop(1,'rgba(180,200,255,0)');ctx.beginPath();ctx.strokeStyle=grad;ctx.lineWidth=s.w;ctx.lineCap='round';ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx*s.tail,s.y-s.vy*s.tail);ctx.stroke();ctx.beginPath();ctx.arc(s.x,s.y,s.w*1.2,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+(s.alpha*.8)+')';ctx.fill();s.x+=s.vx;s.y+=s.vy;s.alpha*=s.decay;return s.alpha>0.02&&s.x<W+100&&s.y<H+100;});
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+  </script>
+</body>
+</html>
