@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -256,7 +256,7 @@
 
 <nav>
   <a href="/" class="nav-brand" onclick="sessionStorage.setItem('skipIntro','1')">Dashboard</a>
-  <div style="display:flex;gap:10px;align-items:center;">
+  <div id="nav-actions" style="display:none;gap:10px;align-items:center;">
     <button class="btn-settings" onclick="openSettings()" title="Settings">⚙</button>
     <button class="btn-logout" onclick="logout()">Logout</button>
     <a href="/" onclick="sessionStorage.setItem('skipIntro','1')" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);font-size:1.1rem;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">✕</a>
@@ -335,7 +335,7 @@
   async function showDashboard() {
     document.getElementById('auth-gate').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
-    // Force reload shops every time dashboard is shown
+    document.getElementById('nav-actions').style.display = 'flex';
     document.getElementById('shops-list').innerHTML = '';
     await loadShops();
   }
@@ -381,6 +381,7 @@
 
   function logout() {
     TOKEN = null; localStorage.removeItem('scout_token');
+    document.getElementById('nav-actions').style.display = 'none';
     showAuthGate();
   }
 
