@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard</title>
+  <title>Scout — Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -240,6 +240,8 @@
   async function showDashboard() {
     document.getElementById('auth-gate').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
+    // Force reload shops every time dashboard is shown
+    document.getElementById('shops-list').innerHTML = '';
     await loadShops();
   }
 
