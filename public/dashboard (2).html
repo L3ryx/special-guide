@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scout — Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green: #22c55e; --red: #ef4444;
+      --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12);
+      --text: #ffffff; --muted: rgba(255,255,255,0.55);
+    }
+    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
+    #bg-layer {
+      position: fixed; inset: 0; z-index: -1;
+      background: #0a0a0a url('/background.png') center/cover no-repeat;
+      animation: bgDrift 18s ease-in-out infinite alternate;
+    }
+    #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.6); }
+    @keyframes bgDrift {
+      0%   { transform: scale(1.08) translate(0,0); }
+      50%  { transform: scale(1.1) translate(-8px,-10px); }
+      100% { transform: scale(1.08) translate(8px,6px); }
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 28px;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .nav-brand { font-family: 'Croissant One', cursive; font-size: 1.5rem; color: #fff; text-decoration: none; }
+    .nav-right  { display: flex; align-items: center; gap: 14px; }
+    .nav-email  { font-size: 0.82rem; color: var(--muted); }
+    .btn-logout {
+      padding: 8px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.07); color: var(--muted); font-size: 0.82rem;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-logout:hover { background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.4); color: #f87171; }
+
+    /* ── LAYOUT ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px 80px; }
+    h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 8px; }
+    .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 32px; }
+
+    /* ── AUTH GATE ── */
+    #auth-gate {
+      max-width: 420px; margin: 80px auto; padding: 40px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: 20px; backdrop-filter: blur(20px); text-align: center;
+    }
+    #auth-gate h2 { font-size: 1.6rem; margin-bottom: 6px; }
+    #auth-gate p  { color: var(--muted); font-size: 0.88rem; margin-bottom: 28px; }
+    .auth-tabs { display: flex; gap: 0; margin-bottom: 24px; border-radius: 10px; overflow: hidden; border: 1px solid var(--glass-border); }
+    .auth-tab {
+      flex: 1; padding: 11px; background: transparent; border: none; color: var(--muted);
+      font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+    }
+    .auth-tab.active { background: var(--green); color: #fff; }
+    .auth-field {
+      width: 100%; padding: 14px 16px; margin-bottom: 12px;
+      background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border);
+      border-radius: 10px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 0.95rem;
+      outline: none; transition: border-color 0.2s;
+    }
+    .auth-field:focus { border-color: var(--green); }
+    .auth-field::placeholder { color: var(--muted); }
+    .btn-auth {
+      width: 100%; padding: 14px; border: none; border-radius: 10px;
+      background: var(--green); color: #fff; font-family: 'Inter', sans-serif;
+      font-weight: 700; font-size: 1rem; cursor: pointer; transition: all 0.2s; margin-top: 4px;
+    }
+    .btn-auth:hover { background: #16a34a; }
+    .btn-auth:disabled { opacity: 0.6; cursor: not-allowed; }
+    .auth-error { color: #f87171; font-size: 0.82rem; margin-top: 10px; min-height: 1.2em; }
+
+    /* ── SHOPS GRID ── */
+    #dashboard { display: none; }
+    .shops-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .shop-card {
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: 18px; overflow: hidden; backdrop-filter: blur(16px);
+      animation: slideUp 0.4s ease;
+    }
+    @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+    .shop-card-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 16px 12px;
+    }
+    .shop-avatar {
+      width: 44px; height: 44px; border-radius: 50%; object-fit: cover;
+      border: 2px solid rgba(241,100,30,0.5); flex-shrink: 0;
+    }
+    .shop-initial {
+      width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(241,100,30,0.2); border: 2px solid rgba(241,100,30,0.4);
+      font-weight: 800; font-size: 1.2rem;
+    }
+    .shop-info { flex: 1; min-width: 0; }
+    .shop-name { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .shop-date { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .btn-delete {
+      width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,80,80,0.3);
+      background: rgba(255,80,80,0.08); color: #f87171; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 1rem;
+      transition: all 0.2s; flex-shrink: 0;
+    }
+    .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.6); }
+
+    .shop-card-body { padding: 0 16px 16px; }
+    .shop-url {
+      display: block; font-size: 0.75rem; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 14px; text-decoration: none;
+    }
+    .shop-url:hover { color: #fb923c; }
+
+    .btn-find {
+      width: 100%; padding: 13px; border: none; border-radius: 12px;
+      background: var(--green); color: #fff; font-family: 'Inter', sans-serif;
+      font-weight: 700; font-size: 0.95rem; letter-spacing: 0.08em;
+      cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 20px rgba(34,197,94,0.3);
+    }
+    .btn-find:hover { background: #16a34a; transform: translateY(-1px); }
+    .btn-find:disabled { opacity: 1; cursor: not-allowed; transform: none; }
+    .btn-find.running { animation: findPulse 0.6s ease-in-out infinite; }
+    @keyframes findPulse {
+      0%,100% { background:#dc2626; box-shadow:0 4px 20px rgba(220,38,38,0.5); }
+      50%     { background:#ff4444; box-shadow:0 0 32px rgba(255,50,50,0.9); }
+    }
+
+    /* ── RÉSULTATS FIND ── */
+    .find-status { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 8px; min-height: 1.1em; }
+    .find-results { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .find-result-item {
+      display: flex; gap: 10px; align-items: center;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
+      border-radius: 12px; padding: 10px;
+    }
+    .fri-img {
+      width: 52px; height: 52px; border-radius: 8px; object-fit: cover;
+      border: 1px solid var(--glass-border); flex-shrink: 0;
+    }
+    .fri-img-placeholder { width:52px; height:52px; border-radius:8px; background:rgba(255,255,255,0.06); flex-shrink:0; }
+    .fri-info { flex: 1; min-width: 0; }
+    .fri-title { font-size: 0.78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fri-links { display: flex; gap: 6px; margin-top: 5px; }
+    .fri-link {
+      font-size: 0.68rem; padding: 3px 8px; border-radius: 6px; text-decoration: none; font-weight: 600;
+    }
+    .fri-link.etsy { background: rgba(241,100,30,0.15); color: #fb923c; border: 1px solid rgba(241,100,30,0.3); }
+    .fri-link.ali  { background: rgba(227,24,55,0.15);  color: #f87171; border: 1px solid rgba(227,24,55,0.3);  }
+    .fri-score { font-size: 0.72rem; font-weight: 700; flex-shrink: 0; }
+    .fri-score.high { color: var(--green); }
+    .fri-score.mid  { color: #fbbf24; }
+    .fri-score.low  { color: #f87171; }
+
+    .empty-state { text-align:center; padding:60px 20px; color:var(--muted); font-size:0.9rem; }
+    .empty-state .emoji { font-size:3rem; display:block; margin-bottom:12px; }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      padding: 12px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 600;
+      animation: toastIn 0.3s ease; pointer-events: none;
+    }
+    .toast.success { background: rgba(34,197,94,0.9); color:#fff; }
+    .toast.error   { background: rgba(239,68,68,0.9);  color:#fff; }
+    @keyframes toastIn { from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;} }
+  </style>
+</head>
+<body>
+<div id="bg-layer"></div>
+
+<nav>
+  <a href="/" class="nav-brand">Scout</a>
+  <div class="nav-right">
+    <span class="nav-email" id="nav-email"></span>
+    <button class="btn-logout" id="btn-logout" onclick="logout()">Déconnexion</button>
+  </div>
+</nav>
+
+<!-- AUTH GATE -->
+<div id="auth-gate">
+  <h2>✦ Scout</h2>
+  <p>Connectez-vous pour accéder à votre espace personnel</p>
+  <div class="auth-tabs">
+    <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Connexion</button>
+    <button class="auth-tab"        id="tab-register" onclick="switchTab('register')">Inscription</button>
+  </div>
+  <input class="auth-field" id="auth-email"    type="email"    placeholder="Email" autocomplete="email" />
+  <input class="auth-field" id="auth-password" type="password" placeholder="Mot de passe (6 chars min)" autocomplete="current-password" />
+  <button class="btn-auth" id="btn-auth-submit" onclick="submitAuth()">Se connecter</button>
+  <div class="auth-error" id="auth-error"></div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="container">
+    <h1>Mes boutiques</h1>
+    <p class="subtitle" id="dash-subtitle">Chargement...</p>
+    <div class="shops-grid" id="shops-grid"></div>
+  </div>
+</div>
+
+<script>
+  const API = '';
+  let TOKEN = localStorage.getItem('scout_token') || null;
+  let currentTab = 'login';
+
+  // ── INIT ──
+  window.addEventListener('DOMContentLoaded', async () => {
+    if (TOKEN) {
+      const ok = await verifyToken();
+      if (ok) return showDashboard();
+    }
+    showAuthGate();
+  });
+
+  async function verifyToken() {
+    try {
+      const r = await apiFetch('/api/auth/me');
+      if (!r.ok) { TOKEN = null; localStorage.removeItem('scout_token'); return false; }
+      const data = await r.json();
+      document.getElementById('nav-email').textContent = data.email;
+      return true;
+    } catch { return false; }
+  }
+
+  function showAuthGate() {
+    document.getElementById('auth-gate').style.display = 'block';
+    document.getElementById('dashboard').style.display = 'none';
+  }
+
+  async function showDashboard() {
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    await loadShops();
+  }
+
+  // ── AUTH ──
+  function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+    document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+    document.getElementById('btn-auth-submit').textContent = tab === 'login' ? 'Se connecter' : "S'inscrire";
+    document.getElementById('auth-error').textContent = '';
+    document.getElementById('auth-password').autocomplete = tab === 'login' ? 'current-password' : 'new-password';
+  }
+
+  async function submitAuth() {
+    const email    = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const errEl    = document.getElementById('auth-error');
+    const btn      = document.getElementById('btn-auth-submit');
+    errEl.textContent = '';
+    if (!email || !password) { errEl.textContent = 'Remplissez tous les champs'; return; }
+    btn.disabled = true; btn.textContent = '...';
+    try {
+      const endpoint = currentTab === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const r = await fetch(endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await r.json();
+      if (!r.ok) { errEl.textContent = data.error || 'Erreur'; return; }
+      TOKEN = data.token;
+      localStorage.setItem('scout_token', TOKEN);
+      document.getElementById('nav-email').textContent = data.email;
+      showDashboard();
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = currentTab === 'login' ? 'Se connecter' : "S'inscrire";
+    }
+  }
+
+  // Enter key
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.getElementById('auth-gate').style.display !== 'none') submitAuth();
+  });
+
+  function logout() {
+    TOKEN = null; localStorage.removeItem('scout_token');
+    document.getElementById('nav-email').textContent = '';
+    showAuthGate();
+  }
+
+  // ── API HELPER ──
+  function apiFetch(url, opts = {}) {
+    opts.headers = opts.headers || {};
+    if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+    return fetch(url, opts);
+  }
+
+  // ── LOAD SHOPS ──
+  async function loadShops() {
+    const grid = document.getElementById('shops-grid');
+    const sub  = document.getElementById('dash-subtitle');
+    grid.innerHTML = '<div class="empty-state"><span class="emoji">⏳</span>Chargement...</div>';
+    try {
+      const r = await apiFetch('/api/shops');
+      const shops = await r.json();
+      sub.textContent = shops.length + ' boutique(s) sauvegardée(s)';
+      if (!shops.length) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><span class="emoji">🏪</span>Aucune boutique sauvegardée.<br>Lancez une recherche et cliquez sur ♥ pour en ajouter.</div>';
+        return;
+      }
+      grid.innerHTML = '';
+      shops.forEach(shop => grid.appendChild(buildShopCard(shop)));
+    } catch (e) {
+      grid.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
+    }
+  }
+
+  function buildShopCard(shop) {
+    const div = document.createElement('div');
+    div.className = 'shop-card';
+    div.id = 'shop-card-' + shop._id;
+    const savedDate = new Date(shop.savedAt).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' });
+    const avatarHtml = shop.shopAvatar
+      ? `<img class="shop-avatar" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
+      : `<div class="shop-initial">${(shop.shopName||'?').charAt(0).toUpperCase()}</div>`;
+
+    // Résultats du dernier FIND
+    const lastFind = shop.lastFind;
+    const hasResults = lastFind?.results?.length > 0;
+    const lastRunStr = lastFind?.runAt ? 'Dernière analyse : ' + new Date(lastFind.runAt).toLocaleDateString('fr-FR') : '';
+
+    div.innerHTML = `
+      <div class="shop-card-header">
+        ${avatarHtml}
+        <div class="shop-info">
+          <div class="shop-name">${shop.shopName || 'Boutique'}</div>
+          <div class="shop-date">Ajoutée le ${savedDate}</div>
+        </div>
+        <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Supprimer">✕</button>
+      </div>
+      <div class="shop-card-body">
+        <a class="shop-url" href="${shop.shopUrl}" target="_blank" rel="noopener">${shop.shopUrl}</a>
+        <button class="btn-find" id="find-btn-${shop._id}" onclick="runFind('${shop._id}', '${shop.shopUrl}')">FIND</button>
+        <div class="find-status" id="find-status-${shop._id}">${lastRunStr}</div>
+        <div class="find-results" id="find-results-${shop._id}">
+          ${hasResults ? renderFindResults(lastFind.results) : ''}
+        </div>
+      </div>`;
+    return div;
+  }
+
+  function renderFindResults(results) {
+    if (!results?.length) return '';
+    return results.slice(0, 8).map(r => {
+      const score = r.similarity || 0;
+      const scoreClass = score >= 75 ? 'high' : score >= 50 ? 'mid' : 'low';
+      return `
+        <div class="find-result-item">
+          ${r.etsyImage
+            ? `<img class="fri-img" src="${r.etsyImage}" alt="" onerror="this.style.display='none'" loading="lazy" />`
+            : `<div class="fri-img-placeholder"></div>`}
+          <div class="fri-info">
+            <div class="fri-title">${r.etsyTitle || '—'}</div>
+            <div class="fri-links">
+              <a class="fri-link etsy" href="${r.etsyUrl}" target="_blank" rel="noopener">Etsy ↗</a>
+              ${r.aliUrl ? `<a class="fri-link ali" href="${r.aliUrl}" target="_blank" rel="noopener">AliExpress ↗</a>` : ''}
+            </div>
+          </div>
+          <div class="fri-score ${scoreClass}">${score}%</div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── DELETE ──
+  async function deleteShop(id) {
+    if (!confirm('Supprimer cette boutique ?')) return;
+    await apiFetch('/api/shops/' + id, { method: 'DELETE' });
+    const el = document.getElementById('shop-card-' + id);
+    if (el) el.remove();
+    showToast('Boutique supprimée', 'success');
+    const remaining = document.querySelectorAll('.shop-card').length;
+    document.getElementById('dash-subtitle').textContent = remaining + ' boutique(s) sauvegardée(s)';
+    if (!remaining) loadShops();
+  }
+
+  // ── FIND ──
+  async function runFind(shopId, shopUrl) {
+    const btn    = document.getElementById('find-btn-' + shopId);
+    const status = document.getElementById('find-status-' + shopId);
+    const resDiv = document.getElementById('find-results-' + shopId);
+
+    btn.disabled = true; btn.classList.add('running'); btn.textContent = 'Analyse...';
+    status.textContent = 'Connexion...';
+    resDiv.innerHTML = '';
+
+    try {
+      const response = await apiFetch('/api/shops/' + shopId + '/find', { method: 'POST' });
+      const reader  = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const ev = JSON.parse(line.slice(6));
+            if (ev.step === 'scraping') {
+              status.textContent = ev.message;
+            } else if (ev.step === 'searching') {
+              status.textContent = ev.message;
+            } else if (ev.step === 'match') {
+              resDiv.innerHTML += renderFindResults([ev.result]);
+            } else if (ev.step === 'complete') {
+              status.textContent = '✅ ' + ev.results.length + ' correspondance(s) trouvée(s)';
+              resDiv.innerHTML = renderFindResults(ev.results);
+              showToast('Analyse terminée !', 'success');
+            } else if (ev.step === 'error') {
+              status.textContent = '❌ ' + ev.message;
+            }
+          } catch(e) {}
+        }
+      }
+    } catch (e) {
+      status.textContent = '❌ ' + e.message;
+    } finally {
+      btn.disabled = false; btn.classList.remove('running'); btn.textContent = 'FIND';
+    }
+  }
+
+  // ── TOAST ──
+  function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+</script>
+</body>
+</html>
