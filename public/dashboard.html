@@ -34,8 +34,6 @@
       border-bottom: 1px solid var(--glass-border);
     }
     .nav-brand { font-family: 'Croissant One', cursive; font-size: 1.5rem; color: #fff; text-decoration: none; }
-    .nav-right  { display: flex; align-items: center; gap: 14px; }
-    .nav-email  { font-size: 0.82rem; color: var(--muted); }
     .btn-logout {
       padding: 8px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);
       background: rgba(255,255,255,0.07); color: var(--muted); font-size: 0.82rem;
@@ -43,19 +41,13 @@
     }
     .btn-logout:hover { background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.4); color: #f87171; }
 
-    /* ── LAYOUT ── */
-    .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px 80px; }
-    h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 8px; }
-    .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 32px; }
-
     /* ── AUTH GATE ── */
     #auth-gate {
       max-width: 420px; margin: 80px auto; padding: 40px;
       background: var(--glass); border: 1px solid var(--glass-border);
       border-radius: 20px; backdrop-filter: blur(20px); text-align: center;
+      display: none;
     }
-    #auth-gate h2 { font-size: 1.6rem; margin-bottom: 6px; }
-    #auth-gate p  { color: var(--muted); font-size: 0.88rem; margin-bottom: 28px; }
     .auth-tabs { display: flex; gap: 0; margin-bottom: 24px; border-radius: 10px; overflow: hidden; border: 1px solid var(--glass-border); }
     .auth-tab {
       flex: 1; padding: 11px; background: transparent; border: none; color: var(--muted);
@@ -79,84 +71,92 @@
     .btn-auth:disabled { opacity: 0.6; cursor: not-allowed; }
     .auth-error { color: #f87171; font-size: 0.82rem; margin-top: 10px; min-height: 1.2em; }
 
-    /* ── SHOPS GRID ── */
+    /* ── DASHBOARD ── */
     #dashboard { display: none; }
-    .shops-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-    .shop-card {
+    .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px 80px; }
+    h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 8px; }
+    .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 32px; }
+
+    /* ── SHOP LIST ── */
+    .shops-list { display: flex; flex-direction: column; gap: 14px; }
+
+    .shop-row {
+      display: flex; align-items: center; gap: 16px;
       background: var(--glass); border: 1px solid var(--glass-border);
-      border-radius: 18px; overflow: hidden; backdrop-filter: blur(16px);
-      animation: slideUp 0.4s ease;
+      border-radius: 16px; padding: 14px 16px;
+      backdrop-filter: blur(16px); animation: slideUp 0.4s ease;
     }
-    @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
-    .shop-card-header {
-      display: flex; align-items: center; gap: 12px;
-      padding: 16px 16px 12px;
+    @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+    /* Image produit */
+    .shop-thumb {
+      width: 60px; height: 60px; border-radius: 10px; object-fit: cover;
+      border: 1px solid var(--glass-border); flex-shrink: 0; background: rgba(255,255,255,0.05);
     }
-    .shop-avatar {
-      width: 44px; height: 44px; border-radius: 50%; object-fit: cover;
-      border: 2px solid rgba(241,100,30,0.5); flex-shrink: 0;
-    }
-    .shop-initial {
-      width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+    .shop-thumb-placeholder {
+      width: 60px; height: 60px; border-radius: 10px; flex-shrink: 0;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
       display: flex; align-items: center; justify-content: center;
-      background: rgba(241,100,30,0.2); border: 2px solid rgba(241,100,30,0.4);
-      font-weight: 800; font-size: 1.2rem;
+      font-size: 1.4rem;
     }
-    .shop-info { flex: 1; min-width: 0; }
-    .shop-name { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .shop-date { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
-    .btn-delete {
-      width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,80,80,0.3);
-      background: rgba(255,80,80,0.08); color: #f87171; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; font-size: 1rem;
-      transition: all 0.2s; flex-shrink: 0;
-    }
-    .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.6); }
 
-    .shop-card-body { padding: 0 16px 16px; }
-    .shop-url {
-      display: block; font-size: 0.75rem; color: var(--muted);
+    /* Infos */
+    .shop-row-info { flex: 1; min-width: 0; }
+    .shop-row-name {
+      font-weight: 700; font-size: 1rem;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      margin-bottom: 14px; text-decoration: none;
     }
-    .shop-url:hover { color: #fb923c; }
+    .shop-row-sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
 
+    /* Actions */
+    .shop-row-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .btn-visit {
+      padding: 8px 16px; border-radius: 9px; border: 1px solid rgba(241,100,30,0.35);
+      background: rgba(241,100,30,0.12); color: #fb923c;
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.8rem;
+      text-decoration: none; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-visit:hover { background: rgba(241,100,30,0.25); border-color: rgba(241,100,30,0.6); }
     .btn-find {
-      width: 100%; padding: 13px; border: none; border-radius: 12px;
-      background: var(--green); color: #fff; font-family: 'Inter', sans-serif;
-      font-weight: 700; font-size: 0.95rem; letter-spacing: 0.08em;
-      cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 20px rgba(34,197,94,0.3);
+      padding: 8px 16px; border-radius: 9px; border: none;
+      background: var(--green); color: #fff;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.8rem;
+      cursor: pointer; transition: all 0.2s; letter-spacing: 0.06em; white-space: nowrap;
+      box-shadow: 0 2px 12px rgba(34,197,94,0.3);
     }
     .btn-find:hover { background: #16a34a; transform: translateY(-1px); }
-    .btn-find:disabled { opacity: 1; cursor: not-allowed; transform: none; }
+    .btn-find:disabled { opacity:1; cursor:not-allowed; transform:none; }
     .btn-find.running { animation: findPulse 0.6s ease-in-out infinite; }
     @keyframes findPulse {
-      0%,100% { background:#dc2626; box-shadow:0 4px 20px rgba(220,38,38,0.5); }
-      50%     { background:#ff4444; box-shadow:0 0 32px rgba(255,50,50,0.9); }
+      0%,100% { background:#dc2626; box-shadow:0 2px 12px rgba(220,38,38,0.5); }
+      50%     { background:#ff4444; box-shadow:0 0 20px rgba(255,50,50,0.9); }
     }
+    .btn-delete {
+      width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(255,80,80,0.25);
+      background: rgba(255,80,80,0.07); color: #f87171; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
+      transition: all 0.2s; flex-shrink: 0;
+    }
+    .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.5); }
 
-    /* ── RÉSULTATS FIND ── */
-    .find-status { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 8px; min-height: 1.1em; }
-    .find-results { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+    /* Status + résultats find */
+    .shop-find-area { padding: 0 16px 14px 92px; }
+    .find-status { font-size: 0.74rem; color: var(--muted); min-height: 1.1em; }
+    .find-results { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
     .find-result-item {
       display: flex; gap: 10px; align-items: center;
       background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
-      border-radius: 12px; padding: 10px;
+      border-radius: 10px; padding: 8px 10px;
     }
-    .fri-img {
-      width: 52px; height: 52px; border-radius: 8px; object-fit: cover;
-      border: 1px solid var(--glass-border); flex-shrink: 0;
-    }
-    .fri-img-placeholder { width:52px; height:52px; border-radius:8px; background:rgba(255,255,255,0.06); flex-shrink:0; }
+    .fri-img { width: 44px; height: 44px; border-radius: 7px; object-fit: cover; border: 1px solid var(--glass-border); flex-shrink: 0; }
+    .fri-img-placeholder { width:44px; height:44px; border-radius:7px; background:rgba(255,255,255,0.06); flex-shrink:0; }
     .fri-info { flex: 1; min-width: 0; }
-    .fri-title { font-size: 0.78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .fri-links { display: flex; gap: 6px; margin-top: 5px; }
-    .fri-link {
-      font-size: 0.68rem; padding: 3px 8px; border-radius: 6px; text-decoration: none; font-weight: 600;
-    }
+    .fri-title { font-size: 0.76rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fri-links { display: flex; gap: 5px; margin-top: 4px; }
+    .fri-link { font-size: 0.66rem; padding: 2px 7px; border-radius: 5px; text-decoration: none; font-weight: 600; }
     .fri-link.etsy { background: rgba(241,100,30,0.15); color: #fb923c; border: 1px solid rgba(241,100,30,0.3); }
-    .fri-link.ali  { background: rgba(227,24,55,0.15);  color: #f87171; border: 1px solid rgba(227,24,55,0.3);  }
-    .fri-score { font-size: 0.72rem; font-weight: 700; flex-shrink: 0; }
+    .fri-link.ali  { background: rgba(227,24,55,0.15);  color: #f87171; border: 1px solid rgba(227,24,55,0.3); }
+    .fri-score { font-size: 0.7rem; font-weight: 700; flex-shrink: 0; }
     .fri-score.high { color: var(--green); }
     .fri-score.mid  { color: #fbbf24; }
     .fri-score.low  { color: #f87171; }
@@ -172,29 +172,30 @@
     .toast.success { background: rgba(34,197,94,0.9); color:#fff; }
     .toast.error   { background: rgba(239,68,68,0.9);  color:#fff; }
     @keyframes toastIn { from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;} }
+
+    @media (max-width: 600px) {
+      .shop-row { flex-wrap: wrap; }
+      .shop-row-actions { width: 100%; justify-content: flex-end; }
+      .shop-find-area { padding-left: 16px; }
+    }
   </style>
 </head>
 <body>
 <div id="bg-layer"></div>
 
 <nav>
-  <a href="/" class="nav-brand">Scout</a>
-  <div class="nav-right">
-    <span class="nav-email" id="nav-email"></span>
-    <button class="btn-logout" id="btn-logout" onclick="logout()">Déconnexion</button>
-  </div>
+  <a href="/" class="nav-brand">Dashboard</a>
+  <button class="btn-logout" onclick="logout()">Déconnexion</button>
 </nav>
 
 <!-- AUTH GATE -->
 <div id="auth-gate">
-  <h2>✦ Scout</h2>
-  <p>Connectez-vous pour accéder à votre espace personnel</p>
   <div class="auth-tabs">
     <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Connexion</button>
     <button class="auth-tab"        id="tab-register" onclick="switchTab('register')">Inscription</button>
   </div>
   <input class="auth-field" id="auth-email"    type="email"    placeholder="Email" autocomplete="email" />
-  <input class="auth-field" id="auth-password" type="password" placeholder="Mot de passe (6 chars min)" autocomplete="current-password" />
+  <input class="auth-field" id="auth-password" type="password" placeholder="Mot de passe" autocomplete="current-password" />
   <button class="btn-auth" id="btn-auth-submit" onclick="submitAuth()">Se connecter</button>
   <div class="auth-error" id="auth-error"></div>
 </div>
@@ -204,16 +205,14 @@
   <div class="container">
     <h1>Mes boutiques</h1>
     <p class="subtitle" id="dash-subtitle">Chargement...</p>
-    <div class="shops-grid" id="shops-grid"></div>
+    <div class="shops-list" id="shops-list"></div>
   </div>
 </div>
 
 <script>
-  const API = '';
   let TOKEN = localStorage.getItem('scout_token') || null;
   let currentTab = 'login';
 
-  // ── INIT ──
   window.addEventListener('DOMContentLoaded', async () => {
     if (TOKEN) {
       const ok = await verifyToken();
@@ -226,8 +225,6 @@
     try {
       const r = await apiFetch('/api/auth/me');
       if (!r.ok) { TOKEN = null; localStorage.removeItem('scout_token'); return false; }
-      const data = await r.json();
-      document.getElementById('nav-email').textContent = data.email;
       return true;
     } catch { return false; }
   }
@@ -250,7 +247,6 @@
     document.getElementById('tab-register').classList.toggle('active', tab === 'register');
     document.getElementById('btn-auth-submit').textContent = tab === 'login' ? 'Se connecter' : "S'inscrire";
     document.getElementById('auth-error').textContent = '';
-    document.getElementById('auth-password').autocomplete = tab === 'login' ? 'current-password' : 'new-password';
   }
 
   async function submitAuth() {
@@ -262,8 +258,7 @@
     if (!email || !password) { errEl.textContent = 'Remplissez tous les champs'; return; }
     btn.disabled = true; btn.textContent = '...';
     try {
-      const endpoint = currentTab === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const r = await fetch(endpoint, {
+      const r = await fetch(currentTab === 'login' ? '/api/auth/login' : '/api/auth/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
@@ -271,7 +266,6 @@
       if (!r.ok) { errEl.textContent = data.error || 'Erreur'; return; }
       TOKEN = data.token;
       localStorage.setItem('scout_token', TOKEN);
-      document.getElementById('nav-email').textContent = data.email;
       showDashboard();
     } catch (e) {
       errEl.textContent = e.message;
@@ -281,18 +275,15 @@
     }
   }
 
-  // Enter key
   document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && document.getElementById('auth-gate').style.display !== 'none') submitAuth();
   });
 
   function logout() {
     TOKEN = null; localStorage.removeItem('scout_token');
-    document.getElementById('nav-email').textContent = '';
     showAuthGate();
   }
 
-  // ── API HELPER ──
   function apiFetch(url, opts = {}) {
     opts.headers = opts.headers || {};
     if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
@@ -301,63 +292,69 @@
 
   // ── LOAD SHOPS ──
   async function loadShops() {
-    const grid = document.getElementById('shops-grid');
+    const list = document.getElementById('shops-list');
     const sub  = document.getElementById('dash-subtitle');
-    grid.innerHTML = '<div class="empty-state"><span class="emoji">⏳</span>Chargement...</div>';
+    list.innerHTML = '<div class="empty-state"><span class="emoji">⏳</span>Chargement...</div>';
     try {
-      const r = await apiFetch('/api/shops');
+      const r     = await apiFetch('/api/shops');
       const shops = await r.json();
       sub.textContent = shops.length + ' boutique(s) sauvegardée(s)';
       if (!shops.length) {
-        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><span class="emoji">🏪</span>Aucune boutique sauvegardée.<br>Lancez une recherche et cliquez sur ♥ pour en ajouter.</div>';
+        list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>Aucune boutique sauvegardée.<br>Lancez une recherche sur Scout et cliquez sur ♥.</div>';
         return;
       }
-      grid.innerHTML = '';
-      shops.forEach(shop => grid.appendChild(buildShopCard(shop)));
+      list.innerHTML = '';
+      shops.forEach(shop => {
+        const row = buildShopRow(shop);
+        list.appendChild(row);
+      });
     } catch (e) {
-      grid.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
+      list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
     }
   }
 
-  function buildShopCard(shop) {
-    const div = document.createElement('div');
-    div.className = 'shop-card';
-    div.id = 'shop-card-' + shop._id;
-    const savedDate = new Date(shop.savedAt).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' });
-    const avatarHtml = shop.shopAvatar
-      ? `<img class="shop-avatar" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
-      : `<div class="shop-initial">${(shop.shopName||'?').charAt(0).toUpperCase()}</div>`;
+  function buildShopRow(shop) {
+    const wrap = document.createElement('div');
 
-    // Résultats du dernier FIND
-    const lastFind = shop.lastFind;
-    const hasResults = lastFind?.results?.length > 0;
-    const lastRunStr = lastFind?.runAt ? 'Dernière analyse : ' + new Date(lastFind.runAt).toLocaleDateString('fr-FR') : '';
+    // Image : dernier résultat find ou avatar ou placeholder
+    const imgSrc = shop.lastFind?.results?.[0]?.etsyImage || shop.shopAvatar || null;
+    const imgHtml = imgSrc
+      ? `<img class="shop-thumb" src="${imgSrc}" alt="" onerror="this.src=''; this.className='shop-thumb-placeholder'; this.textContent='🏪'" loading="lazy" />`
+      : `<div class="shop-thumb-placeholder">🏪</div>`;
 
-    div.innerHTML = `
-      <div class="shop-card-header">
-        ${avatarHtml}
-        <div class="shop-info">
-          <div class="shop-name">${shop.shopName || 'Boutique'}</div>
-          <div class="shop-date">Ajoutée le ${savedDate}</div>
+    const lastRunStr = shop.lastFind?.runAt
+      ? 'Analysée le ' + new Date(shop.lastFind.runAt).toLocaleDateString('fr-FR')
+      : '';
+
+    const hasResults = shop.lastFind?.results?.length > 0;
+
+    wrap.innerHTML = `
+      <div class="shop-row" id="shop-row-${shop._id}">
+        ${imgHtml}
+        <div class="shop-row-info">
+          <div class="shop-row-name">${shop.shopName || 'Boutique'}</div>
+          <div class="shop-row-sub">${lastRunStr}</div>
         </div>
-        <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Supprimer">✕</button>
+        <div class="shop-row-actions">
+          <a class="btn-visit" href="${shop.shopUrl}" target="_blank" rel="noopener">Voir la boutique ↗</a>
+          <button class="btn-find" id="find-btn-${shop._id}" onclick="runFind('${shop._id}')">FIND</button>
+          <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Supprimer">✕</button>
+        </div>
       </div>
-      <div class="shop-card-body">
-        <a class="shop-url" href="${shop.shopUrl}" target="_blank" rel="noopener">${shop.shopUrl}</a>
-        <button class="btn-find" id="find-btn-${shop._id}" onclick="runFind('${shop._id}', '${shop.shopUrl}')">FIND</button>
-        <div class="find-status" id="find-status-${shop._id}">${lastRunStr}</div>
+      <div class="shop-find-area" id="find-area-${shop._id}">
+        <div class="find-status" id="find-status-${shop._id}"></div>
         <div class="find-results" id="find-results-${shop._id}">
-          ${hasResults ? renderFindResults(lastFind.results) : ''}
+          ${hasResults ? renderFindResults(shop.lastFind.results) : ''}
         </div>
       </div>`;
-    return div;
+    return wrap;
   }
 
   function renderFindResults(results) {
     if (!results?.length) return '';
     return results.slice(0, 8).map(r => {
       const score = r.similarity || 0;
-      const scoreClass = score >= 75 ? 'high' : score >= 50 ? 'mid' : 'low';
+      const cls   = score >= 75 ? 'high' : score >= 50 ? 'mid' : 'low';
       return `
         <div class="find-result-item">
           ${r.etsyImage
@@ -370,7 +367,7 @@
               ${r.aliUrl ? `<a class="fri-link ali" href="${r.aliUrl}" target="_blank" rel="noopener">AliExpress ↗</a>` : ''}
             </div>
           </div>
-          <div class="fri-score ${scoreClass}">${score}%</div>
+          <div class="fri-score ${cls}">${score}%</div>
         </div>`;
     }).join('');
   }
@@ -379,47 +376,42 @@
   async function deleteShop(id) {
     if (!confirm('Supprimer cette boutique ?')) return;
     await apiFetch('/api/shops/' + id, { method: 'DELETE' });
-    const el = document.getElementById('shop-card-' + id);
-    if (el) el.remove();
+    const row = document.getElementById('shop-row-' + id)?.closest('div');
+    if (row) row.remove();
     showToast('Boutique supprimée', 'success');
-    const remaining = document.querySelectorAll('.shop-card').length;
-    document.getElementById('dash-subtitle').textContent = remaining + ' boutique(s) sauvegardée(s)';
-    if (!remaining) loadShops();
+    const n = document.querySelectorAll('.shop-row').length;
+    document.getElementById('dash-subtitle').textContent = n + ' boutique(s) sauvegardée(s)';
+    if (!n) loadShops();
   }
 
   // ── FIND ──
-  async function runFind(shopId, shopUrl) {
+  async function runFind(shopId) {
     const btn    = document.getElementById('find-btn-' + shopId);
     const status = document.getElementById('find-status-' + shopId);
     const resDiv = document.getElementById('find-results-' + shopId);
-
-    btn.disabled = true; btn.classList.add('running'); btn.textContent = 'Analyse...';
+    btn.disabled = true; btn.classList.add('running'); btn.textContent = '...';
     status.textContent = 'Connexion...';
     resDiv.innerHTML = '';
-
     try {
       const response = await apiFetch('/api/shops/' + shopId + '/find', { method: 'POST' });
-      const reader  = response.body.getReader();
-      const decoder = new TextDecoder();
+      const reader   = response.body.getReader();
+      const decoder  = new TextDecoder();
       let buf = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop();
+        const lines = buf.split('\n'); buf = lines.pop();
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           try {
             const ev = JSON.parse(line.slice(6));
-            if (ev.step === 'scraping') {
-              status.textContent = ev.message;
-            } else if (ev.step === 'searching') {
+            if (ev.step === 'scraping' || ev.step === 'searching') {
               status.textContent = ev.message;
             } else if (ev.step === 'match') {
               resDiv.innerHTML += renderFindResults([ev.result]);
             } else if (ev.step === 'complete') {
-              status.textContent = '✅ ' + ev.results.length + ' correspondance(s) trouvée(s)';
+              status.textContent = '✅ ' + ev.results.length + ' correspondance(s)';
               resDiv.innerHTML = renderFindResults(ev.results);
               showToast('Analyse terminée !', 'success');
             } else if (ev.step === 'error') {
@@ -435,11 +427,9 @@
     }
   }
 
-  // ── TOAST ──
   function showToast(msg, type = 'success') {
     const t = document.createElement('div');
-    t.className = 'toast ' + type;
-    t.textContent = msg;
+    t.className = 'toast ' + type; t.textContent = msg;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3000);
   }
