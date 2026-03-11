@@ -98,20 +98,24 @@
 
     /* BANDE LATÉRALE BOUTIQUE */
     .etsy-img-container { position: relative; width: 100%; }
-    .shop-side-btn {
-      position: absolute; top: 0; left: 0; bottom: 0; width: 40px;
-      display: flex; align-items: center; justify-content: center;
+    .shop-side-col {
+      position: absolute; top: 0; left: 0; bottom: 0; width: 42px; z-index: 2;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding-top: 8px; gap: 8px;
       background: rgba(0,0,0,0.45); border-right: 1px solid rgba(255,255,255,0.08);
-      border-radius: 11px 0 0 11px; text-decoration: none;
-      transition: background 0.2s; cursor: pointer; z-index: 2;
+      border-radius: 11px 0 0 11px;
     }
-    .shop-side-btn:hover { background: rgba(241,100,30,0.3); }
-    .shop-side-btn img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(241,100,30,0.6); }
+    .shop-side-btn {
+      display: flex; align-items: center; justify-content: center;
+      text-decoration: none; cursor: pointer;
+    }
+    .shop-side-btn:hover img, .shop-side-btn:hover .side-initial { border-color: rgba(241,100,30,0.9); }
+    .shop-side-btn img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(241,100,30,0.6); }
     .side-initial {
       display: flex; align-items: center; justify-content: center;
-      width: 30px; height: 30px; border-radius: 50%;
+      width: 28px; height: 28px; border-radius: 50%;
       background: rgba(241,100,30,0.3); border: 2px solid rgba(241,100,30,0.5);
-      color: #fff; font-weight: 700; font-size: 0.9rem;
+      color: #fff; font-weight: 700; font-size: 0.85rem;
     }
 
     /* FIND BUTTON & WINNER */
@@ -388,16 +392,15 @@
       padding: 0px 5px; font-size: 0.68rem; display: none;
     }
     /* ── BOUTON COEUR ── */
-    .btn-heart {
-      width: 100%; padding: 9px; border-radius: 10px; border: 1px solid rgba(239,68,68,0.25);
-      background: rgba(239,68,68,0.1); cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 6px;
-      color: #f87171; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.8rem;
-      transition: all 0.2s;
+    .btn-heart-icon {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: none; background: transparent; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(239,68,68,0.6); font-size: 1.1rem; transition: all 0.2s; padding: 0;
     }
-    .btn-heart:hover { background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.5); }
-    .btn-heart.saved { background: rgba(239,68,68,0.22); border-color: rgba(239,68,68,0.6); }
-    .btn-heart.saving { opacity: 0.6; cursor: not-allowed; }
+    .btn-heart-icon:hover { color: #ef4444; transform: scale(1.2); }
+    .btn-heart-icon.saved { color: #ef4444; }
+    .btn-heart-icon.saving { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -701,8 +704,10 @@
       const aliexpress = m.aliexpress;
       const etsySrc  = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc   = aliexpress.image || '';
-      const shopUrl  = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0] : '') || '';
-      const shopName = etsy.shopName || 'Boutique';
+      const shopUrl  = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0].replace(/\/listing\/.*/, '') : '') || '';
+      // Extraire le nom depuis l'URL si shopName absent : etsy.com/shop/NomBoutique
+      const _shopNameFromUrl = shopUrl ? shopUrl.split('/shop/')[1]?.split('/')[0] || shopUrl.split('/')[3] || '' : '';
+      const shopName = etsy.shopName || _shopNameFromUrl || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const etsyPriceHtml = etsy.price ? '<div class="price-tag etsy-price">💰 ' + etsy.price + '</div>' : '';
       const aliPriceHtml  = aliexpress.price ? '<div class="price-tag ali-price">💰 ' + aliexpress.price + '</div>' : '';
@@ -714,18 +719,21 @@
         '<div class="match-body">' +
           '<div class="product-panel">' +
             '<div class="etsy-img-container">' +
+              '<div class="shop-side-col">' +
               '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener" title="' + shopName + '">' +
                 (shopAvatar
                   ? '<img src="' + shopAvatar + '" alt="' + shopName + '" onerror="this.style.display=\'none\'" />'
                   : '<span class="side-initial">' + initial + '</span>') +
               '</a>' +
+              '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + JSON.stringify(JSON.stringify({shopUrl, shopName, shopAvatar})) + ', this)">♡</button>' +
+            '</div>' +
               '<div class="img-wrap"><div class="img-box">' +
                 (etsySrc ? '<img src="' + etsySrc + '" loading="lazy" alt="" onerror="this.style.display=\'none\'" />' : '') +
               '</div></div>' +
             '</div>' +
             etsyPriceHtml +
             '<a class="prod-link etsy-link" href="' + etsy.link + '" target="_blank" rel="noopener">🛍 Etsy ↗</a>' +
-            '<button class="btn-heart" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + JSON.stringify(JSON.stringify({shopUrl, shopName, shopAvatar})) + ', this)" title="Sauvegarder la boutique">❤ Save shop</button>' +
+            
           '</div>' +
           '<div class="divider-line"></div>' +
           '<div class="product-panel">' +
@@ -1099,7 +1107,7 @@
         return;
       }
       btn.classList.add('saving');
-      btn.textContent = '⏳ Saving...';
+      btn.textContent = '⏳';
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST',
@@ -1110,15 +1118,15 @@
           _savedShopUrls.add(data.shopUrl);
           btn.classList.remove('saving');
           btn.classList.add('saved');
-          btn.innerHTML = '✅ Saved';
+          btn.textContent = '♥';
           updateDbCount();
         } else {
           btn.classList.remove('saving');
-          btn.textContent = '❤ Retry';
+          btn.textContent = '♡';
         }
       } catch(e) {
         btn.classList.remove('saving');
-        btn.textContent = '❤ Retry';
+        btn.textContent = '♡';
       }
     }
   </script>
