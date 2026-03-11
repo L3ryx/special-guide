@@ -61,3 +61,40 @@ router.get('/me', requireAuth, async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
+
+// POST /api/auth/change-password
+router.post('/change-password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both fields required' });
+  if (newPassword.length < 6) return res.status(400).json({ error: 'Password too short (6+ chars)' });
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const ok = await user.comparePassword(currentPassword);
+    if (!ok) return res.status(401).json({ error: 'Current password incorrect' });
+    user.password = newPassword;
+    await user.save();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/auth/delete-account
+router.delete('/delete-account', requireAuth, async (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ error: 'Password required' });
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const ok = await user.comparePassword(password);
+    if (!ok) return res.status(401).json({ error: 'Incorrect password' });
+    await user.deleteOne();
+    // Also delete all saved shops
+    const SavedShop = require('../models/shopModel');
+    await SavedShop.deleteMany({ userId: req.user.id });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
