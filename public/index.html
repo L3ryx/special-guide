@@ -320,20 +320,72 @@
 
     #bg-layer, #milkyway-canvas, #title-outer, #main-view { transition: opacity 0.7s ease; }
 
+    /* ── AUTH MODAL ── */
+    #auth-modal-overlay {
+      position: fixed; inset: 0; z-index: 2000;
+      background: transparent;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    #auth-modal {
+      width: 100%; max-width: 320px; margin: 20px;
+      background: rgba(8,8,8,0.55); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 18px; padding: 26px 24px 22px;
+      backdrop-filter: blur(18px); animation: modalUp 0.4s ease;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+      pointer-events: all;
+    }
+    @keyframes modalUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+    .modal-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .modal-tab {
+      flex: 1; padding: 9px; background: transparent;
+      border: 1.5px solid var(--green); border-radius: 9px;
+      color: var(--green); font-family: 'Inter', sans-serif;
+      font-size: 0.84rem; font-weight: 700; cursor: pointer; transition: background 0.2s, color 0.2s;
+    }
+    .modal-tab.active { background: var(--green); color: #fff; box-shadow: 0 2px 12px rgba(34,197,94,0.4); }
+    .modal-field {
+      width: 100%; padding: 11px 14px; margin-bottom: 9px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 9px; color: #fff; font-family: 'Inter', sans-serif; font-size: 0.88rem;
+      outline: none; transition: border-color 0.2s;
+    }
+    .modal-field:focus { border-color: var(--green); }
+    .modal-field::placeholder { color: rgba(255,255,255,0.25); }
+    .modal-submit {
+      width: 100%; padding: 12px; border: none; border-radius: 9px;
+      background: var(--green); color: #fff; font-family: 'Inter', sans-serif;
+      font-weight: 700; font-size: 0.92rem; cursor: pointer; transition: all 0.2s; margin-top: 2px;
+      box-shadow: 0 3px 16px rgba(34,197,94,0.3);
+    }
+    .modal-submit:hover { background: #16a34a; }
+    .modal-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+    .modal-error { color: #f87171; font-size: 0.76rem; margin-top: 7px; min-height: 1em; text-align: center; }
+
+    /* START btn verrouillé */
+    #start-btn.locked {
+      background: #dc2626 !important;
+      color: #fff !important;
+      box-shadow: 0 4px 24px rgba(220,38,38,0.45) !important;
+      cursor: pointer !important;
+      border: none;
+    }
+    #start-btn.locked:hover { background: #b91c1c !important; transform: translateY(-1px) !important; }
+
     /* ── BOUTON DASHBOARD ── */
     #dashboard-btn {
-      position: fixed; top: 18px; right: 20px; z-index: 500;
-      display: flex; align-items: center; gap: 8px;
-      padding: 10px 18px; border-radius: 12px; border: none;
+      position: fixed; top: 10px; right: 10px; z-index: 500;
+      display: flex; align-items: center; gap: 5px;
+      padding: 6px 12px; border-radius: 8px; border: none;
       background: var(--green); color: #fff;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.85rem;
-      cursor: pointer; text-decoration: none;
-      box-shadow: 0 4px 20px rgba(34,197,94,0.4); transition: all 0.2s;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.72rem;
+      cursor: pointer; text-decoration: none; letter-spacing: 0.06em;
+      box-shadow: 0 2px 12px rgba(34,197,94,0.35); transition: all 0.2s;
     }
     #dashboard-btn:hover { background: #16a34a; transform: translateY(-1px); }
     #dashboard-btn .db-count {
-      background: rgba(0,0,0,0.25); border-radius: 6px;
-      padding: 1px 6px; font-size: 0.75rem; display: none;
+      background: rgba(0,0,0,0.25); border-radius: 5px;
+      padding: 0px 5px; font-size: 0.68rem; display: none;
     }
     /* ── BOUTON COEUR ── */
     .btn-heart {
@@ -350,9 +402,24 @@
 </head>
 <body>
 
+  <!-- AUTH MODAL -->
+  <div id="auth-modal-overlay" style="display:none;">
+    <div id="auth-modal">
+
+      <div class="modal-tabs">
+        <button class="modal-tab active" id="modal-tab-login"    onclick="modalSwitchTab('login')">Login</button>
+        <button class="modal-tab"        id="modal-tab-register" onclick="modalSwitchTab('register')">Register</button>
+      </div>
+      <input class="modal-field" id="modal-email"    type="email"    placeholder="Email" />
+      <input class="modal-field" id="modal-password" type="password" placeholder="Password" />
+      <button class="modal-submit" id="modal-submit-btn" onclick="modalSubmitAuth()">Login</button>
+      <div class="modal-error" id="modal-error"></div>
+    </div>
+  </div>
+
   <!-- BOUTON DASHBOARD -->
   <a id="dashboard-btn" href="/dashboard.html">
-    <span>✦</span> Mon espace
+    <span id="db-label">LOGIN</span>
     <span class="db-count" id="db-count">0</span>
   </a>
 
@@ -546,7 +613,7 @@
       window.scrollTo({ top: 0 });
 
       try {
-        document.getElementById('progress-msg').textContent = '⏳ Connexion au serveur...';
+        document.getElementById('progress-msg').textContent = '⏳ Connecting to server...';
         const response = await fetch('/api/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -571,7 +638,7 @@
                 const ev = JSON.parse(line.slice(6));
                 if (ev.step === 'complete') {
                   completeAllSteps();
-                  document.getElementById('progress-msg').textContent = '✅ ' + (ev.results?.length || 0) + ' correspondance(s)';
+                  document.getElementById('progress-msg').textContent = '✅ ' + (ev.results?.length || 0) + ' match(es)';
                   _lastResults = ev.results || [];
                   _lastResults.forEach(renderMatch);
                   finalize(_lastResults.length);
@@ -586,7 +653,7 @@
           }
         } else {
           const data = await response.json();
-          document.getElementById('progress-msg').textContent = '❌ ' + (data.error || 'Erreur serveur');
+          document.getElementById('progress-msg').textContent = '❌ ' + (data.error || 'Server error');
           finalize(-1);
         }
       } catch(err) {
@@ -611,10 +678,10 @@
         }
 
         if (count === 0) {
-          document.getElementById('results-container').innerHTML = '<div class="empty">Aucune correspondance. Essayez un autre mot-clé.</div>';
+          document.getElementById('results-container').innerHTML = '<div class="empty">No matches found. Try another keyword.</div>';
         }
         if (count >= 0) {
-          if (count > 0) document.getElementById('results-count').textContent = count + ' correspondance(s) trouvée(s)';
+          if (count > 0) document.getElementById('results-count').textContent = count + ' match(es) found';
           const rs = document.getElementById('results-section');
           rs.style.display = 'block';
           if (count > 0) {
@@ -658,7 +725,7 @@
             '</div>' +
             etsyPriceHtml +
             '<a class="prod-link etsy-link" href="' + etsy.link + '" target="_blank" rel="noopener">🛍 Etsy ↗</a>' +
-            '<button class="btn-heart" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + JSON.stringify(JSON.stringify({shopUrl, shopName, shopAvatar})) + ', this)" title="Sauvegarder la boutique">❤ Sauvegarder la boutique</button>' +
+            '<button class="btn-heart" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + JSON.stringify(JSON.stringify({shopUrl, shopName, shopAvatar})) + ', this)" title="Sauvegarder la boutique">❤ Save shop</button>' +
           '</div>' +
           '<div class="divider-line"></div>' +
           '<div class="product-panel">' +
@@ -679,12 +746,12 @@
       const btn = document.getElementById('find-btn');
       const status = document.getElementById('find-status');
       const winnerCard = document.getElementById('winner-card');
-      if (!_lastResults.length) { status.textContent = 'Aucun résultat disponible.'; return; }
+      if (!_lastResults.length) { status.textContent = 'No results available.'; return; }
 
       btn.disabled = true;
       btn.classList.add('searching');
-      btn.textContent = 'Analyse...';
-      status.textContent = 'Connexion...';
+      btn.textContent = 'Analyzing...';
+      status.textContent = 'Connecting...';
       winnerCard.style.display = 'none';
 
       function resetBtn() {
@@ -717,9 +784,9 @@
                 status.textContent = '🏪 Scraping ' + ev.shopName + '... (' + (ev.index + 1) + ')';
               } else if (ev.step === 'done') {
                 const st = ev.stats;
-                const salesStr = st.sales != null ? st.sales.toLocaleString('fr-FR') + ' ventes' : 'ventes inconnues';
-                const dateStr  = st.createdAt ? new Date(st.createdAt).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : 'date inconnue';
-                status.textContent = '✅ ' + ev.shopName + ' — ' + salesStr + ', créée ' + dateStr;
+                const salesStr = st.sales != null ? st.sales.toLocaleString('fr-FR') + ' sales' : 'unknown sales';
+                const dateStr  = st.createdAt ? new Date(st.createdAt).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : 'unknown date';
+                status.textContent = '✅ ' + ev.shopName + ' — ' + salesStr + ', created ' + dateStr;
               } else if (ev.step === 'complete') {
                 resetBtn(); status.textContent = '';
                 showWinner(ev.winner);
@@ -738,16 +805,16 @@
 
     function showWinner(winner) {
       const card = document.getElementById('winner-card');
-      if (!winner) { document.getElementById('find-status').textContent = 'Données insuffisantes.'; return; }
+      if (!winner) { document.getElementById('find-status').textContent = 'Insufficient data.'; return; }
       const sales   = winner.sales != null ? winner.sales.toLocaleString('fr-FR') : '—';
       const created = winner.createdAt ? new Date(winner.createdAt) : null;
       const ageDays = created ? Math.max(Math.floor((Date.now() - created.getTime()) / 86400000), 1) : 0;
-      const ageStr  = ageDays ? (ageDays < 365 ? ageDays + ' jours' : Math.floor(ageDays / 365) + ' ans') : '—';
+      const ageStr  = ageDays ? (ageDays < 365 ? ageDays + ' days' : Math.floor(ageDays / 365) + ' years') : '—';
       const perDay  = (winner.sales && ageDays) ? (winner.sales / ageDays).toFixed(2) : '—';
       const yearStr = created ? created.getFullYear().toString() : '—';
       const dateStr = created ? created.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '—';
 
-      // Bénéfice brut estimé = prix moyen boutique × ventes totales
+      // Bénéfice brut estimé = prix moyen boutique × sales totales
       let revenueHtml = '';
       if (winner.avgPrice != null && winner.sales != null) {
         const revenue = winner.avgPrice * winner.sales;
@@ -760,35 +827,35 @@
         revenueHtml =
           '<div class="winner-revenue">' +
             '<div class="revenue-amount">' + revenueStr + '</div>' +
-            '<div class="revenue-label">Chiffre d\'affaires estimé</div>' +
-            '<div class="revenue-detail">Prix moyen boutique : ' + avgPriceStr + ' × ' + winner.sales.toLocaleString('fr-FR') + ' ventes</div>' +
+            '<div class="revenue-label">Estimated revenue</div>' +
+            '<div class="revenue-detail">Avg. shop price : ' + avgPriceStr + ' × ' + winner.sales.toLocaleString('fr-FR') + ' sales</div>' +
           '</div>';
       }
 
       card.innerHTML =
-        '<div class="winner-label">🏆 Boutique la plus performante</div>' +
+        '<div class="winner-label">🏆 Top performing shop</div>' +
         '<div class="winner-name">' + (winner.shopName || 'Boutique') + '</div>' +
         '<div class="winner-stats">' +
           '<div class="winner-stat">' +
             '<span class="winner-stat-val">' + sales + '</span>' +
-            '<span class="winner-stat-lbl">Ventes totales</span>' +
+            '<span class="winner-stat-lbl">Total sales</span>' +
           '</div>' +
           '<div class="winner-stat">' +
             '<span class="winner-stat-val">' + ageStr + '</span>' +
-            '<span class="winner-stat-lbl">Âge boutique</span>' +
+            '<span class="winner-stat-lbl">Shop age</span>' +
           '</div>' +
           '<div class="winner-stat">' +
             '<span class="winner-stat-val">' + perDay + '</span>' +
-            '<span class="winner-stat-lbl">Ventes / jour</span>' +
+            '<span class="winner-stat-lbl">Sales / day</span>' +
           '</div>' +
           '<div class="winner-stat">' +
             '<span class="winner-stat-val">' + yearStr + '</span>' +
-            '<span class="winner-stat-lbl">Année création</span>' +
+            '<span class="winner-stat-lbl">Founded</span>' +
           '</div>' +
         '</div>' +
         revenueHtml +
-        '<div style="font-size:0.75rem;color:var(--muted);margin-top:10px;">Créée en ' + dateStr + '</div>' +
-        (winner.shopUrl ? '<a class="winner-link" href="' + winner.shopUrl + '" target="_blank" rel="noopener">Voir la boutique ↗</a>' : '');
+        '<div style="font-size:0.75rem;color:var(--muted);margin-top:10px;">Founded in ' + dateStr + '</div>' +
+        (winner.shopUrl ? '<a class="winner-link" href="' + winner.shopUrl + '" target="_blank" rel="noopener">Visit shop ↗</a>' : '');
       card.style.display = 'block';
       setTimeout(function() { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
     }
@@ -895,13 +962,112 @@
       document.getElementById('keyword-input').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') startSearch();
       });
-      initSavedShops();
+      initAuth();
     });
 
-    // ── DASHBOARD / SAVE SHOP ──
-    const SCOUT_TOKEN = localStorage.getItem('scout_token');
+    // ── AUTH ──
+    let SCOUT_TOKEN = localStorage.getItem('scout_token') || null;
     let _savedShopUrls = new Set();
+    let _modalTab = 'login';
 
+    async function initAuth() {
+      if (SCOUT_TOKEN) {
+        try {
+          const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } });
+          if (r.ok) {
+            const data = await r.json();
+            onLoggedIn(data.email);
+            return;
+          }
+        } catch(e) {}
+        SCOUT_TOKEN = null;
+        localStorage.removeItem('scout_token');
+      }
+      // Pas connecté — verrouiller START, ne PAS ouvrir la modal
+      lockStart();
+    }
+
+    function onLoggedIn(email) {
+      SCOUT_TOKEN = localStorage.getItem('scout_token');
+      unlockStart();
+      hideAuthModal();
+      const label = document.getElementById('db-label');
+      if (label) label.textContent = email ? email.split('@')[0] : 'Dashboard';
+      initSavedShops();
+    }
+
+    function lockStart() {
+      const btn = document.getElementById('start-btn');
+      if (!btn) return;
+      btn.textContent = 'REGISTER';
+      btn.classList.add('locked');
+      btn.onclick = function(e) { e.preventDefault(); showAuthModal(); };
+    }
+
+    function unlockStart() {
+      const btn = document.getElementById('start-btn');
+      if (!btn) return;
+      btn.textContent = 'START';
+      btn.classList.remove('locked');
+      btn.onclick = startSearch;
+    }
+
+    function showAuthModal() {
+      document.getElementById('auth-modal-overlay').style.display = 'flex';
+    }
+
+    function hideAuthModal() {
+      document.getElementById('auth-modal-overlay').style.display = 'none';
+    }
+
+    // Clic en dehors = ferme seulement si déjà connecté
+    document.getElementById('auth-modal-overlay').addEventListener('click', function(e) {
+      if (e.target === this && SCOUT_TOKEN) hideAuthModal();
+    });
+
+    function modalSwitchTab(tab) {
+      _modalTab = tab;
+      document.getElementById('modal-tab-login').classList.toggle('active', tab === 'login');
+      document.getElementById('modal-tab-register').classList.toggle('active', tab === 'register');
+      document.getElementById('modal-submit-btn').textContent = tab === 'login' ? 'Login' : "Register";
+      document.getElementById('modal-error').textContent = '';
+    }
+
+    async function modalSubmitAuth() {
+      const email    = document.getElementById('modal-email').value.trim();
+      const password = document.getElementById('modal-password').value;
+      const errEl    = document.getElementById('modal-error');
+      const btn      = document.getElementById('modal-submit-btn');
+      errEl.textContent = '';
+      if (!email || !password) { errEl.textContent = 'Please fill in all fields'; return; }
+      btn.disabled = true; btn.textContent = '...';
+      try {
+        const endpoint = _modalTab === 'login' ? '/api/auth/login' : '/api/auth/register';
+        const r = await fetch(endpoint, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await r.json();
+        if (!r.ok) { errEl.textContent = data.error || 'Erreur'; return; }
+        localStorage.setItem('scout_token', data.token);
+        SCOUT_TOKEN = data.token;
+        onLoggedIn(data.email);
+      } catch(e) {
+        errEl.textContent = e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = _modalTab === 'login' ? 'Login' : "Register";
+      }
+    }
+
+    // Enter key dyears modal
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && document.getElementById('auth-modal-overlay').style.display !== 'none') {
+        modalSubmitAuth();
+      }
+    });
+
+    // ── SAVE SHOP ──
     function encodeShopKey(url) {
       return (url || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40);
     }
@@ -926,17 +1092,14 @@
     }
 
     async function saveShop(jsonStr, btn) {
-      if (!SCOUT_TOKEN) {
-        window.location.href = '/dashboard.html';
-        return;
-      }
+      if (!SCOUT_TOKEN) { showAuthModal(); return; }
       const data = JSON.parse(jsonStr);
       if (_savedShopUrls.has(data.shopUrl)) {
         window.location.href = '/dashboard.html';
         return;
       }
       btn.classList.add('saving');
-      btn.textContent = '⏳ Sauvegarde...';
+      btn.textContent = '⏳ Saving...';
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST',
@@ -947,15 +1110,15 @@
           _savedShopUrls.add(data.shopUrl);
           btn.classList.remove('saving');
           btn.classList.add('saved');
-          btn.innerHTML = '✅ Sauvegardée';
+          btn.innerHTML = '✅ Saved';
           updateDbCount();
         } else {
           btn.classList.remove('saving');
-          btn.textContent = '❤ Réessayer';
+          btn.textContent = '❤ Retry';
         }
       } catch(e) {
         btn.classList.remove('saving');
-        btn.textContent = '❤ Réessayer';
+        btn.textContent = '❤ Retry';
       }
     }
   </script>
