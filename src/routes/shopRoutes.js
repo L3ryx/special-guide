@@ -6,14 +6,23 @@ const SavedShop    = require('../models/shopModel');
 const { uploadToImgBB } = require('../services/imgbbUploader');
 
 // ── SAVE shop ──
-// POST /api/shops/save
 router.post('/save', requireAuth, async (req, res) => {
-  const { shopName, shopUrl, shopAvatar } = req.body;
+  let { shopName, shopUrl, shopAvatar } = req.body;
   if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
+
+  // Nettoyer l'URL — garder seulement la partie boutique
+  shopUrl = shopUrl.split('/listing/')[0].replace(/\/$/, '');
+
+  // Extraire le nom depuis l'URL si absent
+  if (!shopName || shopName === 'Shop' || shopName === 'Boutique') {
+    const m = shopUrl.match(/\/shop\/([^/?#]+)/);
+    shopName = m ? m[1] : shopUrl.split('/').filter(Boolean).pop() || 'Shop';
+  }
+
   try {
     const shop = await SavedShop.findOneAndUpdate(
       { userId: req.user.id, shopUrl },
-      { shopName, shopUrl, shopAvatar, savedAt: new Date() },
+      { $set: { shopName, shopAvatar: shopAvatar || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ ok: true, shop });
@@ -23,21 +32,22 @@ router.post('/save', requireAuth, async (req, res) => {
 });
 
 // ── LIST shops ──
-// GET /api/shops
 router.get('/', requireAuth, async (req, res) => {
-  const shops = await SavedShop.find({ userId: req.user.id }).sort({ savedAt: -1 });
-  res.json(shops);
+  try {
+    const shops = await SavedShop.find({ userId: req.user.id }).sort({ savedAt: -1 });
+    res.json(shops);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── DELETE shop ──
-// DELETE /api/shops/:id
 router.delete('/:id', requireAuth, async (req, res) => {
   await SavedShop.deleteOne({ _id: req.params.id, userId: req.user.id });
   res.json({ ok: true });
 });
 
-// ── FIND — analyse complète d'une boutique sauvegardée ──
-// POST /api/shops/:id/find  (SSE)
+// ── FIND ──
 router.post('/:id/find', requireAuth, async (req, res) => {
   const shop = await SavedShop.findOne({ _id: req.params.id, userId: req.user.id });
   if (!shop) return res.status(404).json({ error: 'Boutique introuvable' });
@@ -48,24 +58,20 @@ router.post('/:id/find', requireAuth, async (req, res) => {
   const send = d => res.write('data: ' + JSON.stringify(d) + '\n\n');
 
   try {
-    // 1. Scraper les listings de la boutique via ScrapingBee
-    send({ step: 'scraping', message: '🔍 Récupération des listings...' });
+    send({ step: 'scraping', message: '🔍 Fetching listings...' });
     const listings = await scrapeShopListings(shop.shopUrl);
     if (!listings.length) {
-      send({ step: 'error', message: 'Aucun listing trouvé dans cette boutique' });
+      send({ step: 'error', message: 'No listings found in this shop' });
       return res.end();
     }
-    send({ step: 'scraping', message: `✅ ${listings.length} listings trouvés` });
+    send({ step: 'scraping', message: `✅ ${listings.length} listings found` });
 
-    // 2. Reverse image search + filtre AliExpress pour chaque listing
     const results = [];
     for (let i = 0; i < listings.length; i++) {
       const listing = listings[i];
       send({ step: 'searching', index: i, total: listings.length, message: `🔎 ${i+1}/${listings.length} — ${listing.title?.slice(0,40) || ''}` });
       try {
-        // Upload sur ImgBB
         const publicUrl = await uploadToImgBB(listing.image);
-        // Serper Lens
         const lensRes = await axios.post('https://google.serper.dev/lens',
           { url: publicUrl, gl: 'us', hl: 'en' },
           { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
@@ -77,47 +83,39 @@ router.post('/:id/find', requireAuth, async (req, res) => {
         const aliUrl = cleanAliUrl(aliMatch.link || aliMatch.url);
         if (!aliUrl) continue;
 
-        // Comparer avec Claude Vision
         const aliImgUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl || null;
-        let similarity  = 75; // fallback
+        let similarity  = 75;
         if (aliImgUrl) {
-          try {
-            similarity = await compareWithClaude(listing.image, aliImgUrl);
-          } catch (e) {
-            console.warn('Claude Vision indispo:', e.message);
-          }
+          try { similarity = await compareWithClaude(listing.image, aliImgUrl); }
+          catch (e) { console.warn('Claude Vision unavailable:', e.message); }
         }
 
         results.push({
-          etsyTitle:  listing.title,
-          etsyUrl:    listing.url,
-          etsyImage:  listing.image,
-          etsyPrice:  listing.price,
+          etsyTitle: listing.title,
+          etsyUrl:   listing.url,
+          etsyImage: listing.image,
+          etsyPrice: listing.price,
           aliUrl,
-          aliImage:   aliImgUrl,
+          aliImage:  aliImgUrl,
           similarity,
         });
 
         send({ step: 'match', result: results[results.length - 1], total: results.length });
       } catch (e) {
-        console.warn(`Listing ${i} erreur:`, e.message);
+        console.warn(`Listing ${i} error:`, e.message);
       }
     }
 
-    // 3. Sauvegarder les résultats dans MongoDB
     shop.lastFind = { runAt: new Date(), results };
     await shop.save();
-
     send({ step: 'complete', results, shopId: shop._id });
     res.end();
-
   } catch (err) {
     send({ step: 'error', message: err.message });
     res.end();
   }
 });
 
-// ── Helpers ──
 function cleanAliUrl(raw) {
   if (!raw) return null;
   const m = raw.match(/\/item\/(\d{10,})/);
@@ -132,12 +130,8 @@ async function scrapeShopListings(shopUrl) {
 
   const res  = await axios.get(reqUrl, { timeout: 120000 });
   const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
-
-  // Extraire les listings depuis le JSON embarqué ou le HTML
   const listings = [];
 
-  // Pattern JSON __NEXT_DATA__ ou similaire
-  // Chercher les objets listing : {listing_id, title, price, url, image}
   const listingPattern = /"listing_id"\s*:\s*(\d+)[^}]*?"title"\s*:\s*"([^"]+)"[^}]*?"price"[^}]*?"amount"\s*:\s*(\d+)[^}]*?"divisor"\s*:\s*(\d+)/g;
   let m;
   while ((m = listingPattern.exec(html)) !== null && listings.length < 30) {
@@ -148,14 +142,12 @@ async function scrapeShopListings(shopUrl) {
     listings.push({ id, title, price, url, image: null });
   }
 
-  // Extraire les images (etsystatic.com)
   const imgMatches = [...html.matchAll(/https:\/\/i\.etsystatic\.com\/[^\s"']+(?:il|il_fullxfull)[^"'\s]*/g)];
   imgMatches.forEach((im, idx) => {
-    if (listings[idx]) listings[idx].image = im[0].replace(/\/il\//, '/il_300x300.').replace(/\.(jpg|jpeg|png|webp).*$/, '.$1');
+    if (listings[idx]) listings[idx].image = im[0];
     else if (idx < 30) listings.push({ image: im[0], title: '', url: shopUrl, price: null });
   });
 
-  // Si on n'a rien, parser le HTML directement
   if (listings.length === 0) {
     const hrefMatches = [...html.matchAll(/href="(https:\/\/www\.etsy\.com\/listing\/\d+\/[^"]+)"/g)];
     const seen = new Set();
