@@ -29,10 +29,10 @@
     #main-view {
       position: relative; z-index: 10;
       min-height: 100vh;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 80px 20px 20px; gap: 0px;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding: 120px 20px 20px; gap: 0px;
     }
-    .search-card { width: 100%; max-width: 660px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+    .search-card { width: 100%; max-width: 660px; display: flex; flex-direction: column; align-items: center; gap: 36px; }
     .input-wrap { width: 100%; }
     .input-wrap input {
       width: 100%; padding: 20px 24px;
@@ -257,7 +257,7 @@
     
 
     /* TITLE */
-    #title-outer { width: 100%; display: flex; justify-content: center; margin-top: 40px; margin-bottom: -30px; }
+    #title-outer { width: 100%; display: flex; justify-content: center; margin-top: 60px; margin-bottom: 50px; }
     #title-wrap { position: relative; display: inline-block; padding: 36px 40px 8px; }
     #niche-title { position: relative; z-index: 101; text-align: center; user-select: none; }
     #niche-title span {
@@ -296,26 +296,9 @@
       .product-panel { flex: 1; min-width: 0; padding: 10px 6px; gap: 6px; }
       .prod-link { font-size: 0.65rem; padding: 6px 4px; border-radius: 8px; }
       .price-tag { font-size: 0.7rem; padding: 4px 6px; }
-    }
+    } }
 
-    /* INTRO */
-    #intro {
-      position: fixed; inset: 0; z-index: 9999;
-      background: #000; display: flex; align-items: center; justify-content: center;
-    }
-    #intro-text {
-      font-family: 'Croissant One', cursive;
-      font-size: clamp(2.8rem, 9vw, 6rem);
-      color: #fff; letter-spacing: 0.06em; text-align: center;
-      text-shadow: 0 0 40px rgba(255,255,255,0.3);
-      animation: introAppear 0.8s ease forwards;
-    }
-    @keyframes introAppear { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
-    #intro-text span { display: inline-block; }
-    #intro-text span.blast { animation: blast 0.6s ease forwards; }
-    @keyframes blast { to { transform: translate(var(--tx), var(--ty)) scale(0) rotate(var(--tr)); opacity: 0; } }
-
-    #bg-layer, #milkyway-canvas, #title-outer, #main-view { transition: opacity 0.7s ease; }
+    
 
     /* AUTH MODAL */
     @keyframes modalUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
@@ -416,13 +399,7 @@
     <span>Niche List</span>
     <span class="db-count" id="db-count">0</span>
   </a>
-
-  <!-- INTRO -->
-  <div id="intro">
-    <div id="intro-text">
-      <span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span>&nbsp;</span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span>
-    </div>
-  </div>
+</div>
 
   <div id="title-outer">
     <div id="title-wrap">
@@ -484,54 +461,6 @@
   </div>
 
   <a href="/dashboard" class="btn-home-top"><span style="font-size:0.82rem;">🏠</span> Account</a>
-
-  <!-- INTRO SCRIPT — isolé, en premier -->
-  <script>
-    (function() {
-      try {
-        var ids = ['milkyway-canvas','title-outer','main-view','shooting-canvas'];
-
-        // Si on revient du dashboard, pas d'intro
-        if (sessionStorage.getItem('skipIntro') === '1') {
-          sessionStorage.removeItem('skipIntro');
-          var intro = document.getElementById('intro');
-          if (intro) intro.style.display = 'none';
-          ids.forEach(function(id) {
-            var el = document.getElementById(id);
-            if (el) el.style.opacity = '1';
-          });
-          return;
-        }
-
-        ids.forEach(function(id) {
-          var el = document.getElementById(id);
-          if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.7s ease'; }
-        });
-        setTimeout(function() {
-          try {
-            document.querySelectorAll('#intro-text span').forEach(function(el) {
-              var a = Math.random() * Math.PI * 2;
-              var d = 150 + Math.random() * 350;
-              el.style.setProperty('--tx', Math.cos(a)*d + 'px');
-              el.style.setProperty('--ty', Math.sin(a)*d + 'px');
-              el.style.setProperty('--tr', (Math.random()*600-300) + 'deg');
-              el.classList.add('blast');
-            });
-          } catch(e) {}
-          setTimeout(function() {
-            try {
-              var intro = document.getElementById('intro');
-              if (intro) intro.style.display = 'none';
-              ids.forEach(function(id) {
-                var el = document.getElementById(id);
-                if (el) el.style.opacity = '1';
-              });
-            } catch(e) {}
-          }, 650);
-        }, 2000);
-      } catch(e) {}
-    })();
-  </script>
 
   <script>
     // ── Pipeline steps ──
