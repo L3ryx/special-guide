@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Finder Niche — Dashboard</title>
+  <title>Finder Niche — Niche List</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,7 +33,7 @@
       background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--glass-border);
     }
-    .nav-brand { font-family: 'Croissant One', cursive; font-size: 1.5rem; color: #fff; text-decoration: none; }
+    .nav-brand { font-family: 'Croissant One', cursive; font-size: 0.95rem; color: rgba(255,255,255,0.7); text-decoration: none; letter-spacing: 0.02em; }
     .btn-logout {
       padding: 8px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);
       background: rgba(255,255,255,0.07); color: var(--muted); font-size: 0.82rem;
@@ -168,72 +168,73 @@
     .empty-state { text-align:center; padding:60px 20px; color:var(--muted); font-size:0.9rem; }
     .empty-state .emoji { font-size:3rem; display:block; margin-bottom:12px; }
 
-    /* ── SETTINGS MODAL ── */
-    #settings-overlay {
-      position: fixed; inset: 0; z-index: 3000;
-      background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
-      display: none; align-items: center; justify-content: center;
-    }
-    #settings-modal {
-      width: 100%; max-width: 340px; margin: 20px;
-      background: rgba(12,12,12,0.95); border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 18px; padding: 28px 24px 22px;
-      backdrop-filter: blur(20px); box-shadow: 0 16px 60px rgba(0,0,0,0.6);
-      animation: modalUp 0.3s ease;
-    }
-    @keyframes modalUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
-    #settings-modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: #fff; }
-    .settings-btn {
-      width: 100%; padding: 13px 16px; border-radius: 10px; border: none;
-      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.92rem;
-      cursor: pointer; transition: all 0.2s; text-align: left; margin-bottom: 10px;
-      display: flex; align-items: center; gap: 10px;
-    }
-    .settings-btn.change-pw {
-      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: #fff;
-    }
-    .settings-btn.change-pw:hover { background: rgba(255,255,255,0.13); }
-    .settings-btn.delete-acc {
-      background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); color: #f87171;
-    }
-    .settings-btn.delete-acc:hover { background: rgba(239,68,68,0.18); border-color: rgba(239,68,68,0.5); }
-    .settings-close {
-      position: absolute; top: 14px; right: 14px;
-      width: 28px; height: 28px; border-radius: 50%; border: none;
-      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.5);
-      cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;
-    }
-    .settings-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
-    #settings-modal { position: relative; }
 
-    /* sub-form inside settings */
-    .settings-subform { display: none; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px; }
-    .settings-subform.active { display: block; }
-    .settings-field {
-      width: 100%; padding: 11px 14px; margin-bottom: 9px;
+    /* ── ACCOUNT SECTION ── */
+    .account-section {
+      max-width: 680px; margin: 32px auto 0; padding: 0 20px 60px;
+    }
+    .account-card {
+      background: rgba(0,0,0,0.55); border: 1px solid var(--glass-border);
+      border-radius: 18px; padding: 0; margin-bottom: 12px;
+      backdrop-filter: blur(16px); overflow: hidden;
+    }
+    .account-card-header {
+      padding: 18px 20px; font-weight: 700; font-size: 0.8rem;
+      letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .account-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 15px 20px; gap: 12px; cursor: pointer;
+      transition: background 0.2s; border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .account-row:last-child { border-bottom: none; }
+    .account-row:hover { background: rgba(255,255,255,0.04); }
+    .account-row-left { display: flex; align-items: center; gap: 12px; }
+    .account-row-icon { font-size: 1.1rem; width: 22px; text-align: center; }
+    .account-row-label { font-size: 0.9rem; font-weight: 500; color: #fff; }
+    .account-row-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .account-row-arrow { color: var(--muted); font-size: 0.85rem; flex-shrink: 0; }
+    .btn-finder-niche {
+      width: 100%; padding: 15px; border-radius: 14px; border: none;
+      background: #f1641e; color: #fff;
+      font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1rem;
+      cursor: pointer; letter-spacing: 0.04em;
+      box-shadow: 0 4px 20px rgba(241,100,30,0.45);
+      transition: all 0.2s; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .btn-finder-niche:hover { background: #d9511a; transform: translateY(-1px); box-shadow: 0 6px 26px rgba(241,100,30,0.6); }
+    .btn-delete-account {
+      width: 100%; padding: 13px; border-radius: 12px;
+      border: 1px solid rgba(239,68,68,0.25); background: rgba(239,68,68,0.06);
+      color: #f87171; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.88rem;
+      cursor: pointer; transition: all 0.2s; margin-top: 8px;
+    }
+    .btn-delete-account:hover { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.5); }
+
+    /* Inline sub-forms */
+    .account-subform {
+      display: none; padding: 0 20px 16px; border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .account-subform.active { display: block; }
+    .account-subform-field {
+      width: 100%; padding: 11px 14px; margin: 10px 0 6px;
       background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
       border-radius: 9px; color: #fff; font-family: 'Inter', sans-serif; font-size: 0.88rem;
       outline: none; transition: border-color 0.2s; box-sizing: border-box;
     }
-    .settings-field:focus { border-color: var(--green); }
-    .settings-field::placeholder { color: rgba(255,255,255,0.25); }
-    .settings-confirm {
+    .account-subform-field:focus { border-color: var(--green); }
+    .account-subform-field::placeholder { color: rgba(255,255,255,0.25); }
+    .account-subform-btn {
       width: 100%; padding: 11px; border: none; border-radius: 9px;
       background: var(--green); color: #fff; font-family: 'Inter', sans-serif;
-      font-weight: 700; font-size: 0.88rem; cursor: pointer; transition: all 0.2s;
+      font-weight: 700; font-size: 0.87rem; cursor: pointer; transition: all 0.2s; margin-top: 4px;
     }
-    .settings-confirm:hover { background: #16a34a; }
-    .settings-msg { font-size: 0.78rem; margin-top: 8px; min-height: 1em; text-align: center; }
-    .settings-msg.ok  { color: var(--green); }
-    .settings-msg.err { color: #f87171; }
-
-    .btn-settings {
-      width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.6);
-      cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s;
-    }
-    .btn-settings:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .account-subform-btn:hover { background: #16a34a; }
+    .account-subform-msg { font-size: 0.77rem; margin-top: 7px; min-height: 1em; }
+    .account-subform-msg.ok  { color: var(--green); }
+    .account-subform-msg.err { color: #f87171; }
 
     .toast {
       position: fixed; bottom: 24px; right: 24px; z-index: 9999;
@@ -255,10 +256,9 @@
 <div id="bg-layer"></div>
 
 <nav>
-  <a href="/" class="nav-brand" onclick="sessionStorage.setItem('skipIntro','1')">Dashboard</a>
+  <a href="/" class="nav-brand" onclick="sessionStorage.setItem('skipIntro','1')">Niche List</a>
   <div id="nav-actions" style="display:none;gap:10px;align-items:center;">
     <a href="/" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);font-size:1rem;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">🏠</a>
-    <button class="btn-settings" onclick="openSettings()" title="Settings">⚙</button>
     <button class="btn-logout" onclick="logout()">Logout</button>
     <a href="/" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);font-size:1.1rem;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">✕</a>
   </div>
@@ -279,25 +279,99 @@
 <!-- DASHBOARD -->
 <div id="dashboard">
   <div class="container">
-    <h1>My Shops</h1>
+    <h1>Niche List</h1>
     <p class="subtitle" id="dash-subtitle">Loading...</p>
     <div class="shops-list" id="shops-list"></div>
   </div>
-</div>
 
-<!-- SETTINGS MODAL -->
-<div id="settings-overlay" onclick="if(event.target===this)closeSettings()">
-  <div id="settings-modal">
-    <button class="settings-close" onclick="closeSettings()">✕</button>
-    <h3>⚙ Settings</h3>
+  <!-- ACCOUNT SECTION -->
+  <div class="account-section">
 
-    <button class="settings-btn change-pw" onclick="toggleSubform('pw-form')">🔑 Change password</button>
-    <div class="settings-subform" id="pw-form">
-      <input class="settings-field" id="pw-current" type="password" placeholder="Current password" />
-      <input class="settings-field" id="pw-new"     type="password" placeholder="New password (6+ chars)" />
-      <button class="settings-confirm" onclick="changePassword()">Update password</button>
-      <div class="settings-msg" id="pw-msg"></div>
+    <!-- Finder Niche button -->
+    <button class="btn-finder-niche" onclick="window.location.href='/finder'">
+      🔍 Finder Niche
+    </button>
+
+    <!-- Account settings -->
+    <div class="account-card">
+      <div class="account-card-header">Account</div>
+
+      <div class="account-row" onclick="toggleAccForm('form-pw')">
+        <div class="account-row-left">
+          <span class="account-row-icon">🔑</span>
+          <div>
+            <div class="account-row-label">Change password</div>
+          </div>
+        </div>
+        <span class="account-row-arrow">›</span>
+      </div>
+      <div class="account-subform" id="form-pw">
+        <input class="account-subform-field" id="acc-pw-current" type="password" placeholder="Current password" />
+        <input class="account-subform-field" id="acc-pw-new"     type="password" placeholder="New password (6+ chars)" />
+        <button class="account-subform-btn" onclick="accChangePassword()">Update password</button>
+        <div class="account-subform-msg" id="msg-pw"></div>
+      </div>
+
+      <div class="account-row" onclick="toggleAccForm('form-email')">
+        <div class="account-row-left">
+          <span class="account-row-icon">✉️</span>
+          <div>
+            <div class="account-row-label">Change email address</div>
+          </div>
+        </div>
+        <span class="account-row-arrow">›</span>
+      </div>
+      <div class="account-subform" id="form-email">
+        <input class="account-subform-field" id="acc-email-new"  type="email"    placeholder="New email address" />
+        <input class="account-subform-field" id="acc-email-pw"   type="password" placeholder="Confirm password" />
+        <button class="account-subform-btn" onclick="accChangeEmail()">Update email</button>
+        <div class="account-subform-msg" id="msg-email"></div>
+      </div>
     </div>
+
+    <!-- Billing -->
+    <div class="account-card">
+      <div class="account-card-header">Billing</div>
+
+      <div class="account-row" onclick="toggleAccForm('form-billing')">
+        <div class="account-row-left">
+          <span class="account-row-icon">💳</span>
+          <div>
+            <div class="account-row-label">Payment information</div>
+            <div class="account-row-sub">Manage your payment method</div>
+          </div>
+        </div>
+        <span class="account-row-arrow">›</span>
+      </div>
+      <div class="account-subform" id="form-billing">
+        <div style="color:var(--muted);font-size:0.82rem;padding:10px 0;">Payment integration coming soon.</div>
+      </div>
+
+      <div class="account-row" onclick="toggleAccForm('form-history')">
+        <div class="account-row-left">
+          <span class="account-row-icon">🧾</span>
+          <div>
+            <div class="account-row-label">Billing history</div>
+            <div class="account-row-sub">View past transactions</div>
+          </div>
+        </div>
+        <span class="account-row-arrow">›</span>
+      </div>
+      <div class="account-subform" id="form-history">
+        <div style="color:var(--muted);font-size:0.82rem;padding:10px 0;">No transactions yet.</div>
+      </div>
+    </div>
+
+    <!-- Delete account -->
+    <button class="btn-delete-account" onclick="toggleAccForm('form-delete')">🗑 Delete my account</button>
+    <div class="account-subform" id="form-delete" style="background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.15);border-radius:12px;padding:16px;margin-top:0;">
+      <input class="account-subform-field" id="acc-del-pw" type="password" placeholder="Confirm your password" />
+      <button class="account-subform-btn" style="background:#ef4444;" onclick="accDeleteAccount()">Permanently delete account</button>
+      <div class="account-subform-msg" id="msg-delete"></div>
+    </div>
+
+  </div>
+</div>
 
     <button class="settings-btn delete-acc" onclick="toggleSubform('del-form')">🗑 Delete my account</button>
     <div class="settings-subform" id="del-form">
@@ -589,6 +663,57 @@
       const data = await r.json();
       if (r.ok) { localStorage.removeItem('scout_token'); window.location.href = '/'; }
       else      { msg.textContent = data.error || 'Error'; msg.classList.add('err'); }
+    } catch(e) { msg.textContent = 'Network error'; msg.classList.add('err'); }
+  }
+
+  // ── ACCOUNT FORMS ──
+  function toggleAccForm(id) {
+    const el = document.getElementById(id);
+    const isOpen = el.classList.contains('active');
+    document.querySelectorAll('.account-subform').forEach(f => f.classList.remove('active'));
+    if (!isOpen) el.classList.add('active');
+  }
+
+  async function accChangePassword() {
+    const current = document.getElementById('acc-pw-current').value;
+    const newPw   = document.getElementById('acc-pw-new').value;
+    const msg     = document.getElementById('msg-pw');
+    msg.textContent = ''; msg.className = 'account-subform-msg';
+    if (!current || !newPw) { msg.textContent = 'Fill in both fields'; msg.classList.add('err'); return; }
+    if (newPw.length < 6)   { msg.textContent = 'Password too short (6+ chars)'; msg.classList.add('err'); return; }
+    try {
+      const r = await apiFetch('/api/auth/change-password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ currentPassword: current, newPassword: newPw }) });
+      const d = await r.json();
+      if (r.ok) { msg.textContent = 'Password updated ✅'; msg.classList.add('ok'); document.getElementById('acc-pw-current').value=''; document.getElementById('acc-pw-new').value=''; }
+      else      { msg.textContent = d.error || 'Error'; msg.classList.add('err'); }
+    } catch(e) { msg.textContent = 'Network error'; msg.classList.add('err'); }
+  }
+
+  async function accChangeEmail() {
+    const newEmail = document.getElementById('acc-email-new').value.trim();
+    const pw       = document.getElementById('acc-email-pw').value;
+    const msg      = document.getElementById('msg-email');
+    msg.textContent = ''; msg.className = 'account-subform-msg';
+    if (!newEmail || !pw) { msg.textContent = 'Fill in both fields'; msg.classList.add('err'); return; }
+    try {
+      const r = await apiFetch('/api/auth/change-email', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ newEmail, password: pw }) });
+      const d = await r.json();
+      if (r.ok) { msg.textContent = 'Email updated ✅'; msg.classList.add('ok'); document.getElementById('acc-email-new').value=''; document.getElementById('acc-email-pw').value=''; }
+      else      { msg.textContent = d.error || 'Error'; msg.classList.add('err'); }
+    } catch(e) { msg.textContent = 'Network error'; msg.classList.add('err'); }
+  }
+
+  async function accDeleteAccount() {
+    const pw  = document.getElementById('acc-del-pw').value;
+    const msg = document.getElementById('msg-delete');
+    msg.textContent = ''; msg.className = 'account-subform-msg';
+    if (!pw) { msg.textContent = 'Enter your password to confirm'; msg.classList.add('err'); return; }
+    if (!confirm('This will permanently delete your account and all saved shops. Continue?')) return;
+    try {
+      const r = await apiFetch('/api/auth/delete-account', { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ password: pw }) });
+      const d = await r.json();
+      if (r.ok) { localStorage.removeItem('scout_token'); window.location.href = '/'; }
+      else      { msg.textContent = d.error || 'Error'; msg.classList.add('err'); }
     } catch(e) { msg.textContent = 'Network error'; msg.classList.add('err'); }
   }
 </script>
