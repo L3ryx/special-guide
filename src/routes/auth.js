@@ -60,8 +60,6 @@ router.get('/me', requireAuth, async (req, res) => {
   res.json({ email: user.email, id: user._id });
 });
 
-module.exports = { router, requireAuth };
-
 // POST /api/auth/change-password
 router.post('/change-password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
@@ -117,3 +115,67 @@ router.post('/change-email', requireAuth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// POST /api/auth/forgot-password
+const crypto = require('crypto');
+const { Resend } = require('resend');
+
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+  try {
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    // Always return success to avoid user enumeration
+    if (!user) return res.json({ ok: true });
+
+    // Generate token
+    const token = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken   = token;
+    user.resetPasswordExpires = Date.now() + 1000 * 60 * 60; // 1h
+    await user.save();
+
+    const resetUrl = (process.env.APP_URL || 'https://etsy-money-finder-2-3ub5.onrender.com') + '/reset-password?token=' + token;
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: 'Finder Niche <noreply@finderniche.com>',
+      to: user.email,
+      subject: 'Reset your password',
+      html: \`
+        <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0a0a0a;color:#fff;border-radius:16px;">
+          <h2 style="margin-bottom:16px;">Reset your password</h2>
+          <p style="color:rgba(255,255,255,0.7);margin-bottom:24px;">Click the button below to reset your password. This link expires in 1 hour.</p>
+          <a href="\${resetUrl}" style="display:inline-block;padding:12px 28px;background:#22c55e;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;">Reset Password</a>
+          <p style="color:rgba(255,255,255,0.4);margin-top:24px;font-size:0.8rem;">If you didn't request this, ignore this email.</p>
+        </div>
+      \`
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Token and password required' });
+  if (password.length < 6)  return res.status(400).json({ error: 'Password too short (6+ chars)' });
+  try {
+    const user = await User.findOne({
+      resetPasswordToken:   token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+    if (!user) return res.status(400).json({ error: 'Invalid or expired link' });
+    user.password             = password;
+    user.resetPasswordToken   = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = { router, requireAuth };
