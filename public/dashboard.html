@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scout — Dashboard</title>
+  <title>Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -194,19 +194,19 @@
 <!-- AUTH GATE -->
 <div id="auth-gate">
   <div class="auth-tabs">
-    <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Connexion</button>
-    <button class="auth-tab"        id="tab-register" onclick="switchTab('register')">Inscription</button>
+    <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Connecting</button>
+    <button class="auth-tab"        id="tab-register" onclick="switchTab('register')">Register</button>
   </div>
   <input class="auth-field" id="auth-email"    type="email"    placeholder="Email" autocomplete="email" />
-  <input class="auth-field" id="auth-password" type="password" placeholder="Mot de passe" autocomplete="current-password" />
-  <button class="btn-auth" id="btn-auth-submit" onclick="submitAuth()">Se connecter</button>
+  <input class="auth-field" id="auth-password" type="password" placeholder="Password" autocomplete="current-password" />
+  <button class="btn-auth" id="btn-auth-submit" onclick="submitAuth()">Login</button>
   <div class="auth-error" id="auth-error"></div>
 </div>
 
 <!-- DASHBOARD -->
 <div id="dashboard">
   <div class="container">
-    <h1>Mes boutiques</h1>
+    <h1>My Shops</h1>
     <p class="subtitle" id="dash-subtitle">Loading...</p>
     <div class="shops-list" id="shops-list"></div>
   </div>
@@ -248,7 +248,7 @@
     currentTab = tab;
     document.getElementById('tab-login').classList.toggle('active', tab === 'login');
     document.getElementById('tab-register').classList.toggle('active', tab === 'register');
-    document.getElementById('btn-auth-submit').textContent = tab === 'login' ? 'Se connecter' : "S'inscrire";
+    document.getElementById('btn-auth-submit').textContent = tab === 'login' ? 'Login' : "Register";
     document.getElementById('auth-error').textContent = '';
   }
 
@@ -258,7 +258,7 @@
     const errEl    = document.getElementById('auth-error');
     const btn      = document.getElementById('btn-auth-submit');
     errEl.textContent = '';
-    if (!email || !password) { errEl.textContent = 'Remplissez tous les champs'; return; }
+    if (!email || !password) { errEl.textContent = 'Please fill in all fields'; return; }
     btn.disabled = true; btn.textContent = '...';
     try {
       const r = await fetch(currentTab === 'login' ? '/api/auth/login' : '/api/auth/register', {
@@ -274,7 +274,7 @@
       errEl.textContent = e.message;
     } finally {
       btn.disabled = false;
-      btn.textContent = currentTab === 'login' ? 'Se connecter' : "S'inscrire";
+      btn.textContent = currentTab === 'login' ? 'Login' : "Register";
     }
   }
 
@@ -301,7 +301,7 @@
     try {
       const r     = await apiFetch('/api/shops');
       const shops = await r.json();
-      sub.textContent = shops.length + ' boutique(s) sauvegardée(s)';
+      sub.textContent = shops.length + ' saved shop(s)';
       if (!shops.length) {
         list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved shops yet.<br>Run a search and click ♥ to add one.</div>';
         return;
@@ -381,9 +381,9 @@
     await apiFetch('/api/shops/' + id, { method: 'DELETE' });
     const row = document.getElementById('shop-row-' + id)?.closest('div');
     if (row) row.remove();
-    showToast('Boutique supprimée', 'success');
+    showToast('Shop deleted', 'success');
     const n = document.querySelectorAll('.shop-row').length;
-    document.getElementById('dash-subtitle').textContent = n + ' boutique(s) sauvegardée(s)';
+    document.getElementById('dash-subtitle').textContent = n + ' saved shop(s)';
     if (!n) loadShops();
   }
 
@@ -393,7 +393,7 @@
     const status = document.getElementById('find-status-' + shopId);
     const resDiv = document.getElementById('find-results-' + shopId);
     btn.disabled = true; btn.classList.add('running'); btn.textContent = '...';
-    status.textContent = 'Connexion...';
+    status.textContent = 'Connecting...';
     resDiv.innerHTML = '';
     try {
       const response = await apiFetch('/api/shops/' + shopId + '/find', { method: 'POST' });
@@ -414,7 +414,7 @@
             } else if (ev.step === 'match') {
               resDiv.innerHTML += renderFindResults([ev.result]);
             } else if (ev.step === 'complete') {
-              status.textContent = '✅ ' + ev.results.length + ' correspondance(s)';
+              status.textContent = '✅ ' + ev.results.length + ' match(es)';
               resDiv.innerHTML = renderFindResults(ev.results);
               showToast('Analyse terminée !', 'success');
             } else if (ev.step === 'error') {
