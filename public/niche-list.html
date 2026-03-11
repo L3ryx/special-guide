@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Saved Shops</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green: #22c55e; --orange: #f1641e;
+      --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12);
+      --text: #ffffff; --muted: rgba(255,255,255,0.55);
+    }
+    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
+
+    #bg-layer {
+      position: fixed; inset: 0; z-index: -1;
+      background: #0a0a0a url('/background.png') center/cover no-repeat;
+      animation: bgDrift 18s ease-in-out infinite alternate;
+    }
+    #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.6); }
+    @keyframes bgDrift {
+      0%   { transform: scale(1.08) translate(0,0); }
+      50%  { transform: scale(1.1) translate(-8px,-10px); }
+      100% { transform: scale(1.08) translate(8px,6px); }
+    }
+
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .nav-left { display: flex; align-items: center; gap: 12px; }
+    .btn-back {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.7);
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.8rem;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn-back:hover { background: rgba(255,255,255,0.13); color: #fff; }
+    .nav-title { font-family: 'Croissant One', cursive; font-size: 1rem; color: rgba(255,255,255,0.7); }
+
+    .container { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; }
+    h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
+    .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+
+    /* SHOP ROWS */
+    .shops-list { display: flex; flex-direction: column; gap: 12px; }
+    @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+    .shop-row {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: 16px; padding: 12px 14px;
+      backdrop-filter: blur(16px); animation: slideUp 0.4s ease;
+    }
+    .shop-thumb {
+      width: 70px; height: 70px; border-radius: 10px; object-fit: cover;
+      border: 1px solid var(--glass-border); flex-shrink: 0; cursor: pointer;
+    }
+    .shop-thumb:hover { opacity: 0.85; }
+    .shop-thumb-placeholder {
+      width: 70px; height: 70px; border-radius: 10px; flex-shrink: 0;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+      display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+    }
+    .shop-row-right { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: center; }
+    .shop-row-logo {
+      width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      border: 2px solid rgba(241,100,30,0.5);
+    }
+    .shop-row-logo-initial {
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(241,100,30,0.2); border: 2px solid rgba(241,100,30,0.4);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1rem; color: #fff;
+    }
+    .shop-row-info { flex: 1; min-width: 0; }
+    .shop-row-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .shop-row-btns { display: flex; gap: 7px; margin-top: 7px; align-items: center; flex-wrap: wrap; }
+    .btn-visit {
+      padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(241,100,30,0.35);
+      background: rgba(241,100,30,0.12); color: #fb923c;
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.75rem;
+      text-decoration: none; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-visit:hover { background: rgba(241,100,30,0.25); }
+    .btn-find {
+      padding: 6px 12px; border-radius: 8px; border: none;
+      background: var(--green); color: #fff;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.75rem;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+      box-shadow: 0 2px 10px rgba(34,197,94,0.3);
+    }
+    .btn-find:hover { background: #16a34a; }
+    .btn-find.running { animation: findPulse 0.6s ease-in-out infinite; }
+    @keyframes findPulse {
+      0%,100% { background:#dc2626; box-shadow:0 2px 12px rgba(220,38,38,0.5); }
+      50%     { background:#ff4444; box-shadow:0 0 20px rgba(255,50,50,0.9); }
+    }
+    .btn-delete {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 1px solid rgba(255,80,80,0.25); background: rgba(255,80,80,0.07);
+      color: #f87171; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; font-size: 0.8rem; transition: all 0.2s;
+      flex-shrink: 0; margin-left: auto;
+    }
+    .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.5); }
+
+    .shop-find-area { padding: 0 14px 12px 98px; }
+    .find-status { font-size: 0.74rem; color: var(--muted); min-height: 1.1em; }
+    .find-results { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+
+    /* Find result items */
+    .find-result-item {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px; padding: 8px 12px;
+    }
+    .fri-img { width: 44px; height: 44px; border-radius: 7px; object-fit: cover; flex-shrink: 0; }
+    .fri-img-placeholder { width: 44px; height: 44px; border-radius: 7px; background: rgba(255,255,255,0.06); flex-shrink: 0; }
+    .fri-info { flex: 1; min-width: 0; }
+    .fri-title { font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+    .fri-links { display: flex; gap: 6px; }
+    .fri-link { font-size: 0.7rem; font-weight: 600; padding: 3px 8px; border-radius: 5px; text-decoration: none; }
+    .fri-link.etsy { background: rgba(241,100,30,0.15); color: #fb923c; }
+    .fri-link.ali  { background: rgba(255,107,0,0.12);  color: #ff9c4a; }
+    .fri-score { font-size: 0.75rem; font-weight: 800; padding: 4px 8px; border-radius: 6px; flex-shrink: 0; }
+    .fri-score.high { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .fri-score.mid  { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .fri-score.low  { background: rgba(239,68,68,0.12);  color: #f87171; }
+
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .empty-state .emoji { font-size: 2.5rem; }
+
+    /* Toast */
+    .toast-msg {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
+      z-index: 9999; pointer-events: none; color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="bg-layer"></div>
+
+  <nav>
+    <div class="nav-left">
+      <a class="btn-back" href="/finder">← Finder Niche</a>
+      <span class="nav-title">Saved Shops</span>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1>My Saved Shops</h1>
+    <p class="subtitle" id="subtitle">Loading...</p>
+    <div class="shops-list" id="shops-list"></div>
+  </div>
+
+  <script>
+    const TOKEN = localStorage.getItem('scout_token');
+    if (!TOKEN) { window.location.href = '/finder'; }
+
+    function apiFetch(url, opts = {}) {
+      opts.headers = opts.headers || {};
+      opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+      return fetch(url, opts);
+    }
+
+    function showToast(msg, color) {
+      const t = document.createElement('div');
+      t.className = 'toast-msg';
+      t.textContent = msg;
+      t.style.background = color || '#222';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    async function loadShops() {
+      const list = document.getElementById('shops-list');
+      const sub  = document.getElementById('subtitle');
+      try {
+        const r     = await apiFetch('/api/shops');
+        const shops = await r.json();
+        sub.textContent = shops.length + ' saved shop(s)';
+        if (!shops.length) {
+          list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved shops yet.<br>Save shops from Finder Niche search results.</div>';
+          return;
+        }
+        list.innerHTML = '';
+        shops.forEach(shop => list.appendChild(buildShopRow(shop)));
+      } catch(e) {
+        list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
+      }
+    }
+
+    function buildShopRow(shop) {
+      const wrap = document.createElement('div');
+      const productImg = shop.productImage || shop.lastFind?.results?.[0]?.etsyImage || null;
+      const productUrl = shop.productUrl  || shop.shopUrl || '#';
+      const thumbHtml = productImg
+        ? `<a href="${productUrl}" target="_blank" rel="noopener"><img class="shop-thumb" src="${productImg}" alt="" loading="lazy" /></a>`
+        : `<a href="${productUrl}" target="_blank" rel="noopener"><div class="shop-thumb-placeholder">🛍</div></a>`;
+
+      const name = shop.shopName || shop.shopUrl?.split('/shop/')?.[1]?.split('/')?.[0] || 'Shop';
+      const logoHtml = shop.shopAvatar
+        ? `<img class="shop-row-logo" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
+        : `<div class="shop-row-logo-initial">${name.charAt(0).toUpperCase()}</div>`;
+
+      const hasResults = shop.lastFind?.results?.length > 0;
+
+      wrap.innerHTML = `
+        <div class="shop-row" id="shop-row-${shop._id}">
+          ${thumbHtml}
+          <div class="shop-row-right">
+            ${logoHtml}
+            <div class="shop-row-info">
+              <div class="shop-row-name">${name}</div>
+              <div class="shop-row-btns">
+                <a class="btn-visit" href="${shop.shopUrl}" target="_blank" rel="noopener">Visit shop ↗</a>
+                <button class="btn-find" id="find-btn-${shop._id}" onclick="runFind('${shop._id}')">FIND</button>
+              </div>
+            </div>
+            <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
+          </div>
+        </div>
+        <div class="shop-find-area" id="find-area-${shop._id}">
+          <div class="find-status" id="find-status-${shop._id}"></div>
+          <div class="find-results" id="find-results-${shop._id}">
+            ${hasResults ? renderFindResults(shop.lastFind.results) : ''}
+          </div>
+        </div>`;
+      return wrap;
+    }
+
+    function renderFindResults(results) {
+      if (!results?.length) return '';
+      return results.slice(0, 8).map(r => {
+        const score = r.similarity || 0;
+        const cls   = score >= 75 ? 'high' : score >= 50 ? 'mid' : 'low';
+        return `
+          <div class="find-result-item">
+            ${r.etsyImage ? `<img class="fri-img" src="${r.etsyImage}" alt="" onerror="this.style.display='none'" loading="lazy" />` : `<div class="fri-img-placeholder"></div>`}
+            <div class="fri-info">
+              <div class="fri-title">${r.etsyTitle || '—'}</div>
+              <div class="fri-links">
+                <a class="fri-link etsy" href="${r.etsyUrl}" target="_blank" rel="noopener">Etsy ↗</a>
+                ${r.aliUrl ? `<a class="fri-link ali" href="${r.aliUrl}" target="_blank" rel="noopener">AliExpress ↗</a>` : ''}
+              </div>
+            </div>
+            <div class="fri-score ${cls}">${score}%</div>
+          </div>`;
+      }).join('');
+    }
+
+    async function deleteShop(id) {
+      if (!confirm('Delete this shop?')) return;
+      await apiFetch('/api/shops/' + id, { method: 'DELETE' });
+      document.getElementById('shop-row-' + id)?.closest('div').remove();
+      showToast('Shop deleted', '#ef4444');
+      loadShops();
+    }
+
+    async function runFind(shopId) {
+      const btn    = document.getElementById('find-btn-' + shopId);
+      const status = document.getElementById('find-status-' + shopId);
+      const resDiv = document.getElementById('find-results-' + shopId);
+      btn.disabled = true; btn.classList.add('running'); btn.textContent = '...';
+      status.textContent = 'Connecting...'; resDiv.innerHTML = '';
+      try {
+        const response = await apiFetch('/api/shops/' + shopId + '/find', { method: 'POST' });
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n'); buf = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const ev = JSON.parse(line.slice(6));
+              if (ev.step === 'scraping' || ev.step === 'searching') { status.textContent = ev.message; }
+              else if (ev.step === 'match') { resDiv.innerHTML += renderFindResults([ev.result]); }
+              else if (ev.step === 'complete') {
+                status.textContent = '✅ ' + ev.results.length + ' match(es)';
+                resDiv.innerHTML = renderFindResults(ev.results);
+              } else if (ev.step === 'error') { status.textContent = '❌ ' + ev.message; }
+            } catch(e) {}
+          }
+        }
+      } catch(err) { status.textContent = '❌ ' + err.message; }
+      btn.disabled = false; btn.classList.remove('running'); btn.textContent = 'FIND';
+    }
+
+    loadShops();
+  </script>
+</body>
+</html>
