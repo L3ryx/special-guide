@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 
 // ── Connexion MongoDB (une seule fois) ──
 if (mongoose.connection.readyState === 0) {
-  mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/scout')
+  mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/finder_niche')
     .then(() => console.log('✅ MongoDB connecté'))
     .catch(err => console.error('❌ MongoDB:', err.message));
 }
