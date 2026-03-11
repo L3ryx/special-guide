@@ -14,7 +14,7 @@
       --text: #ffffff;
       --muted: rgba(255,255,255,0.55);
     }
-    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow: hidden; }
+    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow: hidden; background: #0a0a0a; }
     body { position: relative; }
     html.unlocked, html.unlocked body { overflow-y: auto; overflow-x: hidden; }
 
@@ -1161,7 +1161,7 @@
           btn.classList.add('saved');
           btn.textContent = '✔';
           updateDbCount();
-          showToast('Shop saved! ✅', '#22c55e');
+          
         } else {
           btn.classList.remove('saving');
           btn.textContent = '★';
