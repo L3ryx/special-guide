@@ -7,7 +7,7 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 
 // ── SAVE shop ──
 router.post('/save', requireAuth, async (req, res) => {
-  let { shopName, shopUrl, shopAvatar } = req.body;
+  let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
   if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
 
   // Nettoyer l'URL — garder seulement la partie boutique
@@ -22,7 +22,7 @@ router.post('/save', requireAuth, async (req, res) => {
   try {
     const shop = await SavedShop.findOneAndUpdate(
       { userId: req.user.id, shopUrl },
-      { $set: { shopName, shopAvatar: shopAvatar || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
+      { $set: { shopName, shopAvatar: shopAvatar || null, productImage: productImage || null, productUrl: productUrl || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ ok: true, shop });
