@@ -25,9 +25,18 @@
     #bg-layer {
       position: fixed; inset: 0; z-index: -3;
       background: #0a0a0a url('/background.png') center center / cover no-repeat;
+      animation: bgDrift 18s ease-in-out infinite alternate;
+      transform-origin: center; opacity: 1 !important;
+    }
+    @keyframes bgDrift {
+      0%   { transform: scale(1.08) translate(0px,0px); }
+      25%  { transform: scale(1.1)  translate(-12px,-8px); }
+      50%  { transform: scale(1.08) translate(8px,-14px); }
+      75%  { transform: scale(1.1)  translate(-6px,10px); }
+      100% { transform: scale(1.08) translate(10px,6px); }
     }
     #bg-layer::after {
-      content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.35);
+      content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.5);
     }
     #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -2; pointer-events: none; }
     #shooting-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
@@ -181,14 +190,39 @@
       .product-card { width: 150px; padding: 26px 0 22px; }
       .btn-product  { width: 116px; font-size: 0.82rem; }
     }
+    /* INTRO */
+    #intro {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #000; display: flex; align-items: center; justify-content: center;
+    }
+    #intro-text {
+      font-family: 'Croissant One', cursive;
+      font-size: clamp(2.8rem, 9vw, 6rem);
+      color: #fff; letter-spacing: 0.06em; text-align: center;
+      text-shadow: 0 0 40px rgba(255,255,255,0.3);
+      animation: introAppear 0.8s ease forwards;
+    }
+    @keyframes introAppear { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+    #intro-text span { display: inline-block; }
+    #intro-text span.blast { animation: blast 0.6s ease forwards; }
+    @keyframes blast { to { transform: translate(var(--tx), var(--ty)) scale(0) rotate(var(--tr)); opacity: 0; } }
+    #landing-content { transition: opacity 0.7s ease; }
   </style>
 </head>
 <body>
+
+  <!-- INTRO -->
+  <div id="intro">
+    <div id="intro-text">
+      <span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span>&nbsp;</span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span>
+    </div>
+  </div>
 
   <div id="bg-layer"></div>
   <canvas id="milkyway-canvas"></canvas>
   <canvas id="shooting-canvas"></canvas>
 
+  <div id="landing-content" style="opacity:0">
   <nav>
     <button class="btn-login" onclick="openAuth()">Login</button>
   </nav>
@@ -207,11 +241,11 @@
     <div class="products-row">
       <div class="product-card">
         <div class="product-icon">🏪</div>
-        <a class="btn-product" href="/shop-pricing">Shop</a>
+        <a class="btn-product" href="/shop-pricing" onclick="sessionStorage.setItem('skipIntro','1')">Shop</a>
       </div>
       <div class="product-card">
         <div class="product-icon">🔍</div>
-        <a class="btn-product" href="/finder-pricing">Finder Niche</a>
+        <a class="btn-product" href="/finder-pricing" onclick="sessionStorage.setItem('skipIntro','1')">Finder Niche</a>
       </div>
     </div>
 
@@ -254,6 +288,43 @@
       <div class="auth-msg" id="auth-msg"></div>
     </div>
   </div>
+
+  </div>
+  <script>
+    // ── INTRO ──
+    (function() {
+      try {
+        if (sessionStorage.getItem('skipIntro') === '1') {
+          sessionStorage.removeItem('skipIntro');
+          var intro = document.getElementById('intro');
+          if (intro) intro.style.display = 'none';
+          var content = document.getElementById('landing-content');
+          if (content) content.style.opacity = '1';
+          return;
+        }
+        setTimeout(function() {
+          try {
+            document.querySelectorAll('#intro-text span').forEach(function(el) {
+              var a = Math.random() * Math.PI * 2;
+              var d = 150 + Math.random() * 350;
+              el.style.setProperty('--tx', Math.cos(a)*d + 'px');
+              el.style.setProperty('--ty', Math.sin(a)*d + 'px');
+              el.style.setProperty('--tr', (Math.random()*600-300) + 'deg');
+              el.classList.add('blast');
+            });
+          } catch(e) {}
+          setTimeout(function() {
+            try {
+              var intro = document.getElementById('intro');
+              if (intro) intro.style.display = 'none';
+              var content = document.getElementById('landing-content');
+              if (content) { content.style.transition = 'opacity 0.7s ease'; content.style.opacity = '1'; }
+            } catch(e) {}
+          }, 650);
+        }, 2000);
+      } catch(e) {}
+    })();
+  </script>
 
   <script>
     // ── MILKY WAY ──
