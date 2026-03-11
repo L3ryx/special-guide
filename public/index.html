@@ -356,14 +356,16 @@
     /* DASHBOARD BUTTON */
     #dashboard-btn {
       position: fixed; top: 10px; right: 12px; z-index: 500;
-      display: flex; align-items: center; justify-content: center;
-      width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.2);
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 14px; border-radius: 20px;
+      border: 1.5px solid rgba(255,255,255,0.2);
       background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.85);
-      font-size: 1.15rem; cursor: pointer; text-decoration: none;
-      backdrop-filter: blur(10px); transition: all 0.2s; position: fixed;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      font-size: 0.8rem; font-weight: 700; font-family: 'Inter', sans-serif;
+      cursor: pointer; text-decoration: none;
+      backdrop-filter: blur(10px); transition: all 0.2s;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3); white-space: nowrap;
     }
-    #dashboard-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); color: #fff; transform: translateY(-1px); }
+    #dashboard-btn:hover { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.4); color: #fff; transform: translateY(-1px); }
     #dashboard-btn .db-count {
       position: absolute; top: -4px; right: -4px;
       background: var(--green); border-radius: 50%;
@@ -397,7 +399,8 @@
   <!-- AUTH MODAL -->
   <!-- BOUTON DASHBOARD -->
   <a id="dashboard-btn" href="/niche-list" title="Saved shops">
-    <span id="db-label">👤</span>
+    <span style="color:#f87171;font-size:1rem;">♥</span>
+    <span>Niche List</span>
     <span class="db-count" id="db-count">0</span>
   </a>
 
@@ -994,8 +997,6 @@
     function onLoggedIn(email) {
       SCOUT_TOKEN = localStorage.getItem('scout_token');
       unlockStart();
-      const label = document.getElementById('db-label');
-      if (label) label.textContent = '👤';
       initSavedShops();
     }
 
