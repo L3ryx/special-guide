@@ -3,7 +3,7 @@ const router  = express.Router();
 const jwt     = require('jsonwebtoken');
 const User    = require('../models/userModel');
 
-const JWT_SECRET  = process.env.JWT_SECRET || 'scout_secret_change_me';
+const JWT_SECRET  = process.env.JWT_SECRET || 'finder_niche_secret_change_me';
 const JWT_EXPIRES = '30d';
 
 function makeToken(userId) {
