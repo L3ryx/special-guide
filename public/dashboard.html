@@ -204,7 +204,7 @@
 <div id="dashboard">
   <div class="container">
     <h1>Mes boutiques</h1>
-    <p class="subtitle" id="dash-subtitle">Chargement...</p>
+    <p class="subtitle" id="dash-subtitle">Loading...</p>
     <div class="shops-list" id="shops-list"></div>
   </div>
 </div>
@@ -294,13 +294,13 @@
   async function loadShops() {
     const list = document.getElementById('shops-list');
     const sub  = document.getElementById('dash-subtitle');
-    list.innerHTML = '<div class="empty-state"><span class="emoji">⏳</span>Chargement...</div>';
+    list.innerHTML = '<div class="empty-state"><span class="emoji">⏳</span>Loading...</div>';
     try {
       const r     = await apiFetch('/api/shops');
       const shops = await r.json();
       sub.textContent = shops.length + ' boutique(s) sauvegardée(s)';
       if (!shops.length) {
-        list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>Aucune boutique sauvegardée.<br>Lancez une recherche sur Scout et cliquez sur ♥.</div>';
+        list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved shops yet.<br>Run a search and click ♥ to add one.</div>';
         return;
       }
       list.innerHTML = '';
@@ -323,7 +323,7 @@
       : `<div class="shop-thumb-placeholder">🏪</div>`;
 
     const lastRunStr = shop.lastFind?.runAt
-      ? 'Analysée le ' + new Date(shop.lastFind.runAt).toLocaleDateString('fr-FR')
+      ? 'Analyzed on ' + new Date(shop.lastFind.runAt).toLocaleDateString('fr-FR')
       : '';
 
     const hasResults = shop.lastFind?.results?.length > 0;
@@ -332,13 +332,13 @@
       <div class="shop-row" id="shop-row-${shop._id}">
         ${imgHtml}
         <div class="shop-row-info">
-          <div class="shop-row-name">${shop.shopName || 'Boutique'}</div>
+          <div class="shop-row-name">${shop.shopName || shop.shopUrl?.split('/')[4] || 'Shop'}</div>
           <div class="shop-row-sub">${lastRunStr}</div>
         </div>
         <div class="shop-row-actions">
-          <a class="btn-visit" href="${shop.shopUrl}" target="_blank" rel="noopener">Voir la boutique ↗</a>
+          <a class="btn-visit" href="${shop.shopUrl}" target="_blank" rel="noopener">Visit shop ↗</a>
           <button class="btn-find" id="find-btn-${shop._id}" onclick="runFind('${shop._id}')">FIND</button>
-          <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Supprimer">✕</button>
+          <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
         </div>
       </div>
       <div class="shop-find-area" id="find-area-${shop._id}">
@@ -374,7 +374,7 @@
 
   // ── DELETE ──
   async function deleteShop(id) {
-    if (!confirm('Supprimer cette boutique ?')) return;
+    if (!confirm('Delete cette boutique ?')) return;
     await apiFetch('/api/shops/' + id, { method: 'DELETE' });
     const row = document.getElementById('shop-row-' + id)?.closest('div');
     if (row) row.remove();
