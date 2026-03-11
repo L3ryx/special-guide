@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
+  resetPasswordToken:   { type: String },
+  resetPasswordExpires: { type: Date },
   email:     { type: String, required: true, unique: true, lowercase: true, trim: true },
   password:  { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
