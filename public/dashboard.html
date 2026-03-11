@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Finder Niche — Niche List</title>
+  <title>Finder Niche — Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -256,11 +256,9 @@
 <div id="bg-layer"></div>
 
 <nav>
-  <a href="/" class="nav-brand" onclick="sessionStorage.setItem('skipIntro','1')">Niche List</a>
+  <a href="/" class="nav-brand" onclick="sessionStorage.setItem('skipIntro','1')">Dashboard</a>
   <div id="nav-actions" style="display:none;gap:10px;align-items:center;">
-    <a href="/" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);font-size:1rem;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">🏠</a>
     <button class="btn-logout" onclick="logout()">Logout</button>
-    <a href="/" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);font-size:1.1rem;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">✕</a>
   </div>
 </nav>
 
@@ -278,12 +276,6 @@
 
 <!-- DASHBOARD -->
 <div id="dashboard">
-  <div class="container">
-    <h1>Niche List</h1>
-    <p class="subtitle" id="dash-subtitle">Loading...</p>
-    <div class="shops-list" id="shops-list"></div>
-  </div>
-
   <!-- ACCOUNT SECTION -->
   <div class="account-section">
 
@@ -373,11 +365,6 @@
   </div>
 </div>
 
-    <button class="settings-btn delete-acc" onclick="toggleSubform('del-form')">🗑 Delete my account</button>
-    <div class="settings-subform" id="del-form">
-      <input class="settings-field" id="del-pw" type="password" placeholder="Confirm your password" />
-      <button class="settings-confirm" style="background:#ef4444;" onclick="deleteAccount()">Permanently delete account</button>
-      <div class="settings-msg" id="del-msg"></div>
     </div>
   </div>
 </div>
@@ -411,8 +398,6 @@
     document.getElementById('auth-gate').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
     document.getElementById('nav-actions').style.display = 'flex';
-    document.getElementById('shops-list').innerHTML = '';
-    await loadShops();
   }
 
   // ── AUTH ──
@@ -466,205 +451,6 @@
     return fetch(url, opts);
   }
 
-  // ── LOAD SHOPS ──
-  async function loadShops() {
-    const list = document.getElementById('shops-list');
-    const sub  = document.getElementById('dash-subtitle');
-    list.innerHTML = '<div class="empty-state"><span class="emoji">⏳</span>Loading...</div>';
-    try {
-      const r     = await apiFetch('/api/shops');
-      const shops = await r.json();
-      sub.textContent = shops.length + ' saved shop(s)';
-      if (!shops.length) {
-        list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved shops yet.<br>Run a search and click ♥ to add one.</div>';
-        return;
-      }
-      list.innerHTML = '';
-      shops.forEach(shop => {
-        const row = buildShopRow(shop);
-        list.appendChild(row);
-      });
-    } catch (e) {
-      list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
-    }
-  }
-
-  function buildShopRow(shop) {
-    const wrap = document.createElement('div');
-
-    // Image : dernier résultat find ou avatar ou placeholder
-    const imgSrc = shop.lastFind?.results?.[0]?.etsyImage || shop.shopAvatar || null;
-    const imgHtml = imgSrc
-      ? `<img class="shop-thumb" src="${imgSrc}" alt="" onerror="this.src=''; this.className='shop-thumb-placeholder'; this.textContent='🏪'" loading="lazy" />`
-      : `<div class="shop-thumb-placeholder">🏪</div>`;
-
-    const lastRunStr = shop.lastFind?.runAt
-      ? 'Analyzed on ' + new Date(shop.lastFind.runAt).toLocaleDateString('fr-FR')
-      : '';
-
-    const hasResults = shop.lastFind?.results?.length > 0;
-
-    wrap.innerHTML = `
-      <div class="shop-row" id="shop-row-${shop._id}">
-        ${imgHtml}
-        <div class="shop-row-info">
-          <div class="shop-row-name">${shop.shopName || shop.shopUrl?.split('/')[4] || 'Shop'}</div>
-          <div class="shop-row-sub">${lastRunStr}</div>
-        </div>
-        <div class="shop-row-actions">
-          <a class="btn-visit" href="${shop.shopUrl}" target="_blank" rel="noopener">Visit shop ↗</a>
-          <button class="btn-find" id="find-btn-${shop._id}" onclick="runFind('${shop._id}')">FIND</button>
-          <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
-        </div>
-      </div>
-      <div class="shop-find-area" id="find-area-${shop._id}">
-        <div class="find-status" id="find-status-${shop._id}"></div>
-        <div class="find-results" id="find-results-${shop._id}">
-          ${hasResults ? renderFindResults(shop.lastFind.results) : ''}
-        </div>
-      </div>`;
-    return wrap;
-  }
-
-  function renderFindResults(results) {
-    if (!results?.length) return '';
-    return results.slice(0, 8).map(r => {
-      const score = r.similarity || 0;
-      const cls   = score >= 75 ? 'high' : score >= 50 ? 'mid' : 'low';
-      return `
-        <div class="find-result-item">
-          ${r.etsyImage
-            ? `<img class="fri-img" src="${r.etsyImage}" alt="" onerror="this.style.display='none'" loading="lazy" />`
-            : `<div class="fri-img-placeholder"></div>`}
-          <div class="fri-info">
-            <div class="fri-title">${r.etsyTitle || '—'}</div>
-            <div class="fri-links">
-              <a class="fri-link etsy" href="${r.etsyUrl}" target="_blank" rel="noopener">Etsy ↗</a>
-              ${r.aliUrl ? `<a class="fri-link ali" href="${r.aliUrl}" target="_blank" rel="noopener">AliExpress ↗</a>` : ''}
-            </div>
-          </div>
-          <div class="fri-score ${cls}">${score}%</div>
-        </div>`;
-    }).join('');
-  }
-
-  // ── DELETE ──
-  async function deleteShop(id) {
-    if (!confirm('Delete cette boutique ?')) return;
-    await apiFetch('/api/shops/' + id, { method: 'DELETE' });
-    const row = document.getElementById('shop-row-' + id)?.closest('div');
-    if (row) row.remove();
-    showToast('Shop deleted', 'success');
-    const n = document.querySelectorAll('.shop-row').length;
-    document.getElementById('dash-subtitle').textContent = n + ' saved shop(s)';
-    if (!n) loadShops();
-  }
-
-  // ── FIND ──
-  async function runFind(shopId) {
-    const btn    = document.getElementById('find-btn-' + shopId);
-    const status = document.getElementById('find-status-' + shopId);
-    const resDiv = document.getElementById('find-results-' + shopId);
-    btn.disabled = true; btn.classList.add('running'); btn.textContent = '...';
-    status.textContent = 'Connecting...';
-    resDiv.innerHTML = '';
-    try {
-      const response = await apiFetch('/api/shops/' + shopId + '/find', { method: 'POST' });
-      const reader   = response.body.getReader();
-      const decoder  = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n'); buf = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const ev = JSON.parse(line.slice(6));
-            if (ev.step === 'scraping' || ev.step === 'searching') {
-              status.textContent = ev.message;
-            } else if (ev.step === 'match') {
-              resDiv.innerHTML += renderFindResults([ev.result]);
-            } else if (ev.step === 'complete') {
-              status.textContent = '✅ ' + ev.results.length + ' match(es)';
-              resDiv.innerHTML = renderFindResults(ev.results);
-              showToast('Analyse terminée !', 'success');
-            } else if (ev.step === 'error') {
-              status.textContent = '❌ ' + ev.message;
-            }
-          } catch(e) {}
-        }
-      }
-    } catch (e) {
-      status.textContent = '❌ ' + e.message;
-    } finally {
-      btn.disabled = false; btn.classList.remove('running'); btn.textContent = 'FIND';
-    }
-  }
-
-  function showToast(msg, type = 'success') {
-    const t = document.createElement('div');
-    t.className = 'toast ' + type; t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
-  }
-
-  // ── SETTINGS ──
-  function openSettings() {
-    document.getElementById('settings-overlay').style.display = 'flex';
-    // reset subforms
-    document.getElementById('pw-form').classList.remove('active');
-    document.getElementById('del-form').classList.remove('active');
-    document.getElementById('pw-msg').textContent = '';
-    document.getElementById('del-msg').textContent = '';
-  }
-  function closeSettings() {
-    document.getElementById('settings-overlay').style.display = 'none';
-  }
-  function toggleSubform(id) {
-    const el = document.getElementById(id);
-    const isOpen = el.classList.contains('active');
-    document.querySelectorAll('.settings-subform').forEach(s => s.classList.remove('active'));
-    if (!isOpen) el.classList.add('active');
-  }
-
-  async function changePassword() {
-    const current = document.getElementById('pw-current').value;
-    const newPw   = document.getElementById('pw-new').value;
-    const msg     = document.getElementById('pw-msg');
-    msg.textContent = ''; msg.className = 'settings-msg';
-    if (!current || !newPw) { msg.textContent = 'Fill in both fields'; msg.classList.add('err'); return; }
-    if (newPw.length < 6)   { msg.textContent = 'Password too short (6+ chars)'; msg.classList.add('err'); return; }
-    try {
-      const r = await apiFetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword: current, newPassword: newPw })
-      });
-      const data = await r.json();
-      if (r.ok) { msg.textContent = 'Password updated ✅'; msg.classList.add('ok'); document.getElementById('pw-current').value=''; document.getElementById('pw-new').value=''; }
-      else      { msg.textContent = data.error || 'Error'; msg.classList.add('err'); }
-    } catch(e) { msg.textContent = 'Network error'; msg.classList.add('err'); }
-  }
-
-  async function deleteAccount() {
-    const pw  = document.getElementById('del-pw').value;
-    const msg = document.getElementById('del-msg');
-    msg.textContent = ''; msg.className = 'settings-msg';
-    if (!pw) { msg.textContent = 'Enter your password to confirm'; msg.classList.add('err'); return; }
-    if (!confirm('This will permanently delete your account and all saved shops. Continue?')) return;
-    try {
-      const r = await apiFetch('/api/auth/delete-account', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw })
-      });
-      const data = await r.json();
-      if (r.ok) { localStorage.removeItem('scout_token'); window.location.href = '/'; }
-      else      { msg.textContent = data.error || 'Error'; msg.classList.add('err'); }
-    } catch(e) { msg.textContent = 'Network error'; msg.classList.add('err'); }
-  }
 
   // ── ACCOUNT FORMS ──
   function toggleAccForm(id) {
