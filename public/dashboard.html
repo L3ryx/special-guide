@@ -39,6 +39,14 @@
       cursor: pointer; transition: all 0.2s;
     }
     .btn-logout:hover { background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.4); color: #f87171; }
+    .btn-close-nav {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(239,68,68,0.12); border: 1.5px solid rgba(239,68,68,0.35);
+      color: #f87171; font-size: 1rem; font-weight: 700;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn-close-nav:hover { background: rgba(239,68,68,0.25); border-color: #f87171; color: #fff; transform: scale(1.08); }
 
     /* ── AUTH GATE ── */
     #auth-gate { position: relative; z-index: 10;
@@ -277,8 +285,8 @@
   <a href="/" class="nav-brand" onclick="sessionStorage.setItem('skipIntro','1')">Dashboard</a>
   <div id="nav-actions" style="display:none;gap:10px;align-items:center;">
     <button class="btn-logout" onclick="logout()">Logout</button>
-    <a href="/" onclick="sessionStorage.setItem('skipIntro','1')" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);font-size:1.1rem;text-decoration:none;transition:all 0.2s;flex-shrink:0;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">✕</a>
   </div>
+  <a href="/" class="btn-close-nav" onclick="sessionStorage.setItem('skipIntro','1')" title="Back to home">✕</a>
 </nav>
 
 <!-- AUTH GATE -->
