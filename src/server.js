@@ -1,19 +1,21 @@
 require('dotenv').config();
 const express = require('express');
-const axios = require('axios');
-const cors = require('cors');
-const path = require('path');
+const axios   = require('axios');
+const cors    = require('cors');
+const path    = require('path');
 
 const scrapeRoutes = require('./routes/scrape');
+const { router: authRouter } = require('./routes/auth');
+const shopRoutes   = require('./routes/shopRoutes');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-// ── Proxy image (contourne CORS AliExpress/Etsy dans le navigateur)
+// ── Proxy image
 app.get('/proxy-image', async (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).send('Missing url');
@@ -36,11 +38,13 @@ app.get('/proxy-image', async (req, res) => {
   }
 });
 
-// Routes API
+// ── Routes API
 app.use('/api', scrapeRoutes);
+app.use('/api/auth', authRouter);
+app.use('/api/shops', shopRoutes);
 
-// Frontend
-app.get('/', (req, res) => {
+// ── Frontend
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
