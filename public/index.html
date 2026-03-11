@@ -14,7 +14,7 @@
       --text: #ffffff;
       --muted: rgba(255,255,255,0.55);
     }
-    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow: hidden; background: #0a0a0a; }
+    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
     body { position: relative; }
     html.unlocked, html.unlocked body { overflow-y: auto; overflow-x: hidden; }
 
@@ -370,7 +370,7 @@
     .btn-home-top:hover { background: rgba(255,255,255,0.13); color: #fff; border-color: rgba(255,255,255,0.35); }
     /* ── BACKGROUND ── */
     #bg-layer {
-      position: fixed; inset: 0; z-index: -10;
+      position: fixed; inset: 0; z-index: 0;
       background: #0a0a0a url('/background.png') center center / cover no-repeat;
       animation: bgDrift 18s ease-in-out infinite alternate;
       transform-origin: center;
@@ -383,8 +383,8 @@
       100% { transform: scale(1.08) translate(10px,6px); }
     }
     #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.55); }
-    #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -9; pointer-events: none; }
-    #shooting-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -8; pointer-events: none; }
+    #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+    #shooting-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
   </style>
 </head>
 <body>
