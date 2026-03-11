@@ -14,14 +14,18 @@
     }
     html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
 
-    #bg-layer {
-      position: fixed; inset: 0; z-index: -1;
-      background: #0a0a0a url('/background.png') center/cover no-repeat;
+#bg-layer {
+      position: fixed; inset: 0; z-index: 0;
+      background: #0a0a0a url('/background.png') center center / cover no-repeat;
       animation: bgDrift 18s ease-in-out infinite alternate;
+      transform-origin: center;
     }
-    #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.6); }
-    @keyframes bgDrift {
-      0%   { transform: scale(1.08) translate(0,0); }
+      25%  { transform: scale(1.1)  translate(-12px,-8px); }
+      50%  { transform: scale(1.08) translate(8px,-14px); }
+      75%  { transform: scale(1.1)  translate(-6px,10px); }
+      100% { transform: scale(1.08) translate(10px,6px); }
+    }
+    #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.55); }
       50%  { transform: scale(1.1) translate(-8px,-10px); }
       100% { transform: scale(1.08) translate(8px,6px); }
     }
@@ -149,7 +153,9 @@
   </style>
 </head>
 <body>
-  <div id="bg-layer"></div>
+    <div id="bg-layer"></div>
+  <canvas id="milkyway-canvas"></canvas>
+  <canvas id="shooting-canvas"></canvas>
 
   <nav>
     <div class="nav-left">
@@ -305,6 +311,76 @@
       if (!TOKEN) { window.location.href = '/finder'; return; }
       loadShops();
     });
+  </script>
+  <script>
+    // ── MILKY WAY ──
+    (function() {
+      const canvas = document.getElementById('milkyway-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let W, H, stars = [];
+      function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        stars = Array.from({length: 220}, () => ({
+          x: Math.random()*W, y: Math.random()*H,
+          r: Math.random()*1.4+0.2,
+          a: Math.random()*0.7+0.15,
+          speed: Math.random()*0.003+0.001,
+          phase: Math.random()*Math.PI*2
+        }));
+      }
+      function draw(t) {
+        ctx.clearRect(0,0,W,H);
+        stars.forEach(s => {
+          const alpha = s.a*(0.6+0.4*Math.sin(t*s.speed+s.phase));
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+          ctx.fill();
+        });
+        requestAnimationFrame(draw);
+      }
+      resize();
+      window.addEventListener('resize', resize);
+      requestAnimationFrame(draw);
+    })();
+
+    // ── SHOOTING STARS ──
+    (function() {
+      const canvas = document.getElementById('shooting-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let W, H, shots = [];
+      function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+      function newShot() {
+        return { x: Math.random()*W*0.7, y: Math.random()*H*0.4,
+          len: 80+Math.random()*120, speed: 6+Math.random()*8,
+          angle: Math.PI/4+Math.random()*0.3,
+          alpha: 0.8+Math.random()*0.2, life: 1 };
+      }
+      function draw() {
+        ctx.clearRect(0,0,W,H);
+        if (Math.random()<0.012) shots.push(newShot());
+        shots = shots.filter(s=>s.life>0);
+        shots.forEach(s => {
+          s.x += Math.cos(s.angle)*s.speed;
+          s.y += Math.sin(s.angle)*s.speed;
+          s.life -= 0.022;
+          const grd = ctx.createLinearGradient(s.x,s.y, s.x-Math.cos(s.angle)*s.len, s.y-Math.sin(s.angle)*s.len);
+          grd.addColorStop(0, `rgba(255,255,255,${s.alpha*s.life})`);
+          grd.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.beginPath();
+          ctx.moveTo(s.x,s.y);
+          ctx.lineTo(s.x-Math.cos(s.angle)*s.len, s.y-Math.sin(s.angle)*s.len);
+          ctx.strokeStyle = grd; ctx.lineWidth = 1.5; ctx.stroke();
+        });
+        requestAnimationFrame(draw);
+      }
+      resize();
+      window.addEventListener('resize', resize);
+      requestAnimationFrame(draw);
+    })();
   </script>
 </body>
 </html>
