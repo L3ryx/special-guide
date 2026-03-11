@@ -283,10 +283,10 @@
 
 <nav>
   <a href="/" class="nav-brand" onclick="sessionStorage.setItem('skipIntro','1')">Dashboard</a>
-  <div id="nav-actions" style="display:none;gap:10px;align-items:center;">
-    <button class="btn-logout" onclick="logout()">Logout</button>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <button class="btn-logout" id="btn-logout" onclick="logout()" style="display:none;">Logout</button>
+    <a href="/" class="btn-close-nav" onclick="sessionStorage.setItem('skipIntro','1')" title="Back to home">✕</a>
   </div>
-  <a href="/" class="btn-close-nav" onclick="sessionStorage.setItem('skipIntro','1')" title="Back to home">✕</a>
 </nav>
 
 <!-- AUTH GATE -->
@@ -425,7 +425,7 @@
   async function showDashboard() {
     document.getElementById('auth-gate').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
-    document.getElementById('nav-actions').style.display = 'flex';
+    const lb = document.getElementById('btn-logout'); if(lb) lb.style.display = 'inline-flex';
   }
 
   // ── AUTH ──
@@ -471,7 +471,7 @@
 
   function logout() {
     TOKEN = null; localStorage.removeItem('scout_token');
-    document.getElementById('nav-actions').style.display = 'none';
+    const lb2 = document.getElementById('btn-logout'); if(lb2) lb2.style.display = 'none';
     showAuthGate();
   }
 
