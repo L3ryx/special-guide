@@ -290,6 +290,7 @@
   <input class="auth-field" id="auth-password" type="password" placeholder="Password" autocomplete="current-password" />
   <button class="btn-auth" id="btn-auth-submit" onclick="submitAuth()">Login</button>
   <div class="auth-error" id="auth-error"></div>
+  <a id="forgot-link" href="/reset-password" style="display:block;text-align:center;margin-top:12px;color:rgba(255,255,255,0.45);font-size:0.8rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='rgba(255,255,255,0.8)'" onmouseout="this.style.color='rgba(255,255,255,0.45)'">Forgot password?</a>
 </div>
 
 <!-- DASHBOARD -->
@@ -420,9 +421,11 @@
 
   // ── AUTH ──
   function switchTab(tab) {
+    const forgotLink = document.getElementById('forgot-link');
     currentTab = tab;
     document.getElementById('tab-login').classList.toggle('active', tab === 'login');
     document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+    if (forgotLink) forgotLink.style.display = tab === 'login' ? 'block' : 'none';
     document.getElementById('btn-auth-submit').textContent = tab === 'login' ? 'Login' : "Register";
     document.getElementById('auth-error').textContent = '';
   }
