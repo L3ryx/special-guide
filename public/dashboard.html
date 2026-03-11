@@ -26,17 +26,17 @@
 
     /* ── NAV ── */
     nav {
-      position: sticky; top: 0; z-index: 200;
+      position: sticky; top: 0; z-index: 500;
       display: flex; align-items: center; justify-content: space-between;
       padding: 14px 28px;
-      background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+      background: rgba(0,0,0,0.85); backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--glass-border);
     }
-    .nav-brand { font-family: 'Croissant One', cursive; font-size: 0.95rem; color: rgba(255,255,255,0.7); text-decoration: none; letter-spacing: 0.02em; }
+    .nav-brand { font-family: 'Croissant One', cursive; font-size: 1.1rem; color: #ffffff; text-decoration: none; letter-spacing: 0.02em; font-weight: 700; }
     .btn-logout {
       padding: 8px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);
       background: rgba(255,255,255,0.07); color: var(--muted); font-size: 0.82rem;
-      cursor: pointer; transition: all 0.2s;
+      cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif;
     }
     .btn-logout:hover { background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.4); color: #f87171; }
     .btn-close-nav {
@@ -292,7 +292,7 @@
 <!-- AUTH GATE -->
 <div id="auth-gate">
   <div class="auth-tabs">
-    <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Connecting</button>
+    <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Login</button>
     <button class="auth-tab"        id="tab-register" onclick="switchTab('register')">Register</button>
   </div>
   <input class="auth-field" id="auth-email"    type="email"    placeholder="Email" autocomplete="email" />
