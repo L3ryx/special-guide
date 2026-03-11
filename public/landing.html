@@ -374,8 +374,8 @@
         const d = await r.json();
         if (r.ok) {
           localStorage.setItem('scout_token', d.token);
-          setMsg('Account created! Redirecting…', true);
-          setTimeout(() => { window.location.href='/dashboard'; }, 800);
+          setMsg('Account created! ✅', true);
+          setTimeout(() => { closeAuth(); }, 1200);
         } else { setMsg(d.error || 'Registration failed'); }
       } catch(e) { setMsg('Network error'); }
     }
