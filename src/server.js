@@ -49,6 +49,7 @@ app.get('/finder',         (req, res) => res.sendFile(path.join(__dirname, '../p
 app.get('/dashboard',      (req, res) => res.sendFile(path.join(__dirname, '../public/dashboard.html')));
 app.get('/shop-pricing',   (req, res) => res.sendFile(path.join(__dirname, '../public/shop-pricing.html')));
 app.get('/finder-pricing', (req, res) => res.sendFile(path.join(__dirname, '../public/finder-pricing.html')));
+app.get('/niche-list',    (req, res) => res.sendFile(path.join(__dirname, '../public/niche-list.html')));
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
