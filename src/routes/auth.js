@@ -141,14 +141,14 @@ router.post('/forgot-password', async (req, res) => {
       from: 'Finder Niche <noreply@finderniche.com>',
       to: user.email,
       subject: 'Reset your password',
-      html: \`
+      html: `
         <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0a0a0a;color:#fff;border-radius:16px;">
           <h2 style="margin-bottom:16px;">Reset your password</h2>
           <p style="color:rgba(255,255,255,0.7);margin-bottom:24px;">Click the button below to reset your password. This link expires in 1 hour.</p>
-          <a href="\${resetUrl}" style="display:inline-block;padding:12px 28px;background:#22c55e;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;">Reset Password</a>
+          <a href="${resetUrl}" style="display:inline-block;padding:12px 28px;background:#22c55e;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;">Reset Password</a>
           <p style="color:rgba(255,255,255,0.4);margin-top:24px;font-size:0.8rem;">If you didn't request this, ignore this email.</p>
         </div>
-      \`
+      `
     });
 
     res.json({ ok: true });
