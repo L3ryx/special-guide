@@ -98,3 +98,22 @@ router.delete('/delete-account', requireAuth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// POST /api/auth/change-email
+router.post('/change-email', requireAuth, async (req, res) => {
+  const { newEmail, password } = req.body;
+  if (!newEmail || !password) return res.status(400).json({ error: 'Both fields required' });
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const ok = await user.comparePassword(password);
+    if (!ok) return res.status(401).json({ error: 'Incorrect password' });
+    const exists = await User.findOne({ email: newEmail });
+    if (exists) return res.status(409).json({ error: 'Email already in use' });
+    user.email = newEmail;
+    await user.save();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
