@@ -79,68 +79,72 @@
 
     /* ── SHOP LIST ── */
     .shops-list { display: flex; flex-direction: column; gap: 14px; }
-
-    .shop-row {
-      display: flex; align-items: center; gap: 16px;
-      background: var(--glass); border: 1px solid var(--glass-border);
-      border-radius: 16px; padding: 14px 16px;
-      backdrop-filter: blur(16px); animation: slideUp 0.4s ease;
-    }
     @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 
-    /* Image produit */
+    .shop-row {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: 16px; padding: 12px 14px;
+      backdrop-filter: blur(16px); animation: slideUp 0.4s ease;
+    }
+
+    /* Image produit à gauche */
     .shop-thumb {
-      width: 60px; height: 60px; border-radius: 10px; object-fit: cover;
-      border: 1px solid var(--glass-border); flex-shrink: 0; background: rgba(255,255,255,0.05);
+      width: 70px; height: 70px; border-radius: 10px; object-fit: cover;
+      border: 1px solid var(--glass-border); flex-shrink: 0;
     }
     .shop-thumb-placeholder {
-      width: 60px; height: 60px; border-radius: 10px; flex-shrink: 0;
+      width: 70px; height: 70px; border-radius: 10px; flex-shrink: 0;
       background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+      display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+    }
+
+    /* Logo + infos + actions à droite */
+    .shop-row-right { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: center; }
+    .shop-row-logo {
+      width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      border: 2px solid rgba(241,100,30,0.5);
+    }
+    .shop-row-logo-initial {
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(241,100,30,0.2); border: 2px solid rgba(241,100,30,0.4);
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.4rem;
+      font-weight: 800; font-size: 1rem; color: #fff;
     }
-
-    /* Infos */
     .shop-row-info { flex: 1; min-width: 0; }
-    .shop-row-name {
-      font-weight: 700; font-size: 1rem;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .shop-row-sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .shop-row-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .shop-row-btns { display: flex; gap: 7px; margin-top: 7px; align-items: center; flex-wrap: wrap; }
 
-    /* Actions */
-    .shop-row-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .btn-visit {
-      padding: 8px 16px; border-radius: 9px; border: 1px solid rgba(241,100,30,0.35);
+      padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(241,100,30,0.35);
       background: rgba(241,100,30,0.12); color: #fb923c;
-      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.8rem;
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.75rem;
       text-decoration: none; transition: all 0.2s; white-space: nowrap;
     }
     .btn-visit:hover { background: rgba(241,100,30,0.25); border-color: rgba(241,100,30,0.6); }
     .btn-find {
-      padding: 8px 16px; border-radius: 9px; border: none;
+      padding: 6px 12px; border-radius: 8px; border: none;
       background: var(--green); color: #fff;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.8rem;
-      cursor: pointer; transition: all 0.2s; letter-spacing: 0.06em; white-space: nowrap;
-      box-shadow: 0 2px 12px rgba(34,197,94,0.3);
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.75rem;
+      cursor: pointer; transition: all 0.2s; letter-spacing: 0.05em; white-space: nowrap;
+      box-shadow: 0 2px 10px rgba(34,197,94,0.3);
     }
-    .btn-find:hover { background: #16a34a; transform: translateY(-1px); }
-    .btn-find:disabled { opacity:1; cursor:not-allowed; transform:none; }
+    .btn-find:hover { background: #16a34a; }
+    .btn-find:disabled { opacity:1; cursor:not-allowed; }
     .btn-find.running { animation: findPulse 0.6s ease-in-out infinite; }
     @keyframes findPulse {
       0%,100% { background:#dc2626; box-shadow:0 2px 12px rgba(220,38,38,0.5); }
       50%     { background:#ff4444; box-shadow:0 0 20px rgba(255,50,50,0.9); }
     }
     .btn-delete {
-      width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(255,80,80,0.25);
+      width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(255,80,80,0.25);
       background: rgba(255,80,80,0.07); color: #f87171; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
-      transition: all 0.2s; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+      transition: all 0.2s; flex-shrink: 0; margin-left: auto;
     }
     .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.5); }
 
-    /* Status + résultats find */
-    .shop-find-area { padding: 0 16px 14px 92px; }
+    .shop-find-area { padding: 0 14px 12px 98px; }
     .find-status { font-size: 0.74rem; color: var(--muted); min-height: 1.1em; }
     .find-results { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
     .find-result-item {
@@ -164,6 +168,73 @@
     .empty-state { text-align:center; padding:60px 20px; color:var(--muted); font-size:0.9rem; }
     .empty-state .emoji { font-size:3rem; display:block; margin-bottom:12px; }
 
+    /* ── SETTINGS MODAL ── */
+    #settings-overlay {
+      position: fixed; inset: 0; z-index: 3000;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+    }
+    #settings-modal {
+      width: 100%; max-width: 340px; margin: 20px;
+      background: rgba(12,12,12,0.95); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px; padding: 28px 24px 22px;
+      backdrop-filter: blur(20px); box-shadow: 0 16px 60px rgba(0,0,0,0.6);
+      animation: modalUp 0.3s ease;
+    }
+    @keyframes modalUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+    #settings-modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: #fff; }
+    .settings-btn {
+      width: 100%; padding: 13px 16px; border-radius: 10px; border: none;
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.92rem;
+      cursor: pointer; transition: all 0.2s; text-align: left; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .settings-btn.change-pw {
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: #fff;
+    }
+    .settings-btn.change-pw:hover { background: rgba(255,255,255,0.13); }
+    .settings-btn.delete-acc {
+      background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); color: #f87171;
+    }
+    .settings-btn.delete-acc:hover { background: rgba(239,68,68,0.18); border-color: rgba(239,68,68,0.5); }
+    .settings-close {
+      position: absolute; top: 14px; right: 14px;
+      width: 28px; height: 28px; border-radius: 50%; border: none;
+      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.5);
+      cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;
+    }
+    .settings-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    #settings-modal { position: relative; }
+
+    /* sub-form inside settings */
+    .settings-subform { display: none; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px; }
+    .settings-subform.active { display: block; }
+    .settings-field {
+      width: 100%; padding: 11px 14px; margin-bottom: 9px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 9px; color: #fff; font-family: 'Inter', sans-serif; font-size: 0.88rem;
+      outline: none; transition: border-color 0.2s; box-sizing: border-box;
+    }
+    .settings-field:focus { border-color: var(--green); }
+    .settings-field::placeholder { color: rgba(255,255,255,0.25); }
+    .settings-confirm {
+      width: 100%; padding: 11px; border: none; border-radius: 9px;
+      background: var(--green); color: #fff; font-family: 'Inter', sans-serif;
+      font-weight: 700; font-size: 0.88rem; cursor: pointer; transition: all 0.2s;
+    }
+    .settings-confirm:hover { background: #16a34a; }
+    .settings-msg { font-size: 0.78rem; margin-top: 8px; min-height: 1em; text-align: center; }
+    .settings-msg.ok  { color: var(--green); }
+    .settings-msg.err { color: #f87171; }
+
+    .btn-settings {
+      width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.6);
+      cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-settings:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
     .toast {
       position: fixed; bottom: 24px; right: 24px; z-index: 9999;
       padding: 12px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 600;
@@ -186,6 +257,7 @@
 <nav>
   <a href="/" class="nav-brand" onclick="sessionStorage.setItem('skipIntro','1')">Dashboard</a>
   <div style="display:flex;gap:10px;align-items:center;">
+    <button class="btn-settings" onclick="openSettings()" title="Settings">⚙</button>
     <button class="btn-logout" onclick="logout()">Logout</button>
     <a href="/" onclick="sessionStorage.setItem('skipIntro','1')" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);font-size:1.1rem;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">✕</a>
   </div>
@@ -209,6 +281,29 @@
     <h1>My Shops</h1>
     <p class="subtitle" id="dash-subtitle">Loading...</p>
     <div class="shops-list" id="shops-list"></div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-overlay" onclick="if(event.target===this)closeSettings()">
+  <div id="settings-modal">
+    <button class="settings-close" onclick="closeSettings()">✕</button>
+    <h3>⚙ Settings</h3>
+
+    <button class="settings-btn change-pw" onclick="toggleSubform('pw-form')">🔑 Change password</button>
+    <div class="settings-subform" id="pw-form">
+      <input class="settings-field" id="pw-current" type="password" placeholder="Current password" />
+      <input class="settings-field" id="pw-new"     type="password" placeholder="New password (6+ chars)" />
+      <button class="settings-confirm" onclick="changePassword()">Update password</button>
+      <div class="settings-msg" id="pw-msg"></div>
+    </div>
+
+    <button class="settings-btn delete-acc" onclick="toggleSubform('del-form')">🗑 Delete my account</button>
+    <div class="settings-subform" id="del-form">
+      <input class="settings-field" id="del-pw" type="password" placeholder="Confirm your password" />
+      <button class="settings-confirm" style="background:#ef4444;" onclick="deleteAccount()">Permanently delete account</button>
+      <div class="settings-msg" id="del-msg"></div>
+    </div>
   </div>
 </div>
 
@@ -437,6 +532,62 @@
     t.className = 'toast ' + type; t.textContent = msg;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3000);
+  }
+
+  // ── SETTINGS ──
+  function openSettings() {
+    document.getElementById('settings-overlay').style.display = 'flex';
+    // reset subforms
+    document.getElementById('pw-form').classList.remove('active');
+    document.getElementById('del-form').classList.remove('active');
+    document.getElementById('pw-msg').textContent = '';
+    document.getElementById('del-msg').textContent = '';
+  }
+  function closeSettings() {
+    document.getElementById('settings-overlay').style.display = 'none';
+  }
+  function toggleSubform(id) {
+    const el = document.getElementById(id);
+    const isOpen = el.classList.contains('active');
+    document.querySelectorAll('.settings-subform').forEach(s => s.classList.remove('active'));
+    if (!isOpen) el.classList.add('active');
+  }
+
+  async function changePassword() {
+    const current = document.getElementById('pw-current').value;
+    const newPw   = document.getElementById('pw-new').value;
+    const msg     = document.getElementById('pw-msg');
+    msg.textContent = ''; msg.className = 'settings-msg';
+    if (!current || !newPw) { msg.textContent = 'Fill in both fields'; msg.classList.add('err'); return; }
+    if (newPw.length < 6)   { msg.textContent = 'Password too short (6+ chars)'; msg.classList.add('err'); return; }
+    try {
+      const r = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: current, newPassword: newPw })
+      });
+      const data = await r.json();
+      if (r.ok) { msg.textContent = 'Password updated ✅'; msg.classList.add('ok'); document.getElementById('pw-current').value=''; document.getElementById('pw-new').value=''; }
+      else      { msg.textContent = data.error || 'Error'; msg.classList.add('err'); }
+    } catch(e) { msg.textContent = 'Network error'; msg.classList.add('err'); }
+  }
+
+  async function deleteAccount() {
+    const pw  = document.getElementById('del-pw').value;
+    const msg = document.getElementById('del-msg');
+    msg.textContent = ''; msg.className = 'settings-msg';
+    if (!pw) { msg.textContent = 'Enter your password to confirm'; msg.classList.add('err'); return; }
+    if (!confirm('This will permanently delete your account and all saved shops. Continue?')) return;
+    try {
+      const r = await apiFetch('/api/auth/delete-account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      });
+      const data = await r.json();
+      if (r.ok) { localStorage.removeItem('scout_token'); window.location.href = '/'; }
+      else      { msg.textContent = data.error || 'Error'; msg.classList.add('err'); }
+    } catch(e) { msg.textContent = 'Network error'; msg.classList.add('err'); }
   }
 </script>
 </body>
