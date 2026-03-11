@@ -1,6 +1,14 @@
-const express = require('express');
-const router  = express.Router();
-const axios   = require('axios');
+const express  = require('express');
+const router   = express.Router();
+const axios    = require('axios');
+const mongoose = require('mongoose');
+
+// ── Connexion MongoDB (une seule fois) ──
+if (mongoose.connection.readyState === 0) {
+  mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/scout')
+    .then(() => console.log('✅ MongoDB connecté'))
+    .catch(err => console.error('❌ MongoDB:', err.message));
+}
 
 const { scrapeEtsy, debugEtsyHtml }              = require('../services/etsyScraper');
 const { reverseImageSearch }                      = require('../services/reverseImageSearch');
@@ -246,5 +254,11 @@ router.get('/health', (req, res) => {
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
+
+// ── AUTH + SHOPS ──
+const { router: authRouter }  = require('./auth');
+const shopRouter               = require('./shopRoutes');
+router.use('/auth',  authRouter);
+router.use('/shops', shopRouter);
 
 module.exports = router;
