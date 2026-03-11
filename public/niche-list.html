@@ -165,8 +165,7 @@
   </div>
 
   <script>
-    const TOKEN = localStorage.getItem('scout_token');
-    if (!TOKEN) { window.location.href = '/finder'; }
+    let TOKEN = null;
 
     function apiFetch(url, opts = {}) {
       opts.headers = opts.headers || {};
@@ -301,7 +300,11 @@
       btn.disabled = false; btn.classList.remove('running'); btn.textContent = 'FIND';
     }
 
-    loadShops();
+    document.addEventListener('DOMContentLoaded', function() {
+      TOKEN = localStorage.getItem('scout_token');
+      if (!TOKEN) { window.location.href = '/finder'; return; }
+      loadShops();
+    });
   </script>
 </body>
 </html>
