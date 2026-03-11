@@ -319,9 +319,42 @@
     @keyframes blast { to { transform: translate(var(--tx), var(--ty)) scale(0) rotate(var(--tr)); opacity: 0; } }
 
     #bg-layer, #milkyway-canvas, #title-outer, #main-view { transition: opacity 0.7s ease; }
+
+    /* ── BOUTON DASHBOARD ── */
+    #dashboard-btn {
+      position: fixed; top: 18px; right: 20px; z-index: 500;
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 12px; border: none;
+      background: var(--green); color: #fff;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.85rem;
+      cursor: pointer; text-decoration: none;
+      box-shadow: 0 4px 20px rgba(34,197,94,0.4); transition: all 0.2s;
+    }
+    #dashboard-btn:hover { background: #16a34a; transform: translateY(-1px); }
+    #dashboard-btn .db-count {
+      background: rgba(0,0,0,0.25); border-radius: 6px;
+      padding: 1px 6px; font-size: 0.75rem; display: none;
+    }
+    /* ── BOUTON COEUR ── */
+    .btn-heart {
+      width: 100%; padding: 9px; border-radius: 10px; border: 1px solid rgba(239,68,68,0.25);
+      background: rgba(239,68,68,0.1); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      color: #f87171; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+    .btn-heart:hover { background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.5); }
+    .btn-heart.saved { background: rgba(239,68,68,0.22); border-color: rgba(239,68,68,0.6); }
+    .btn-heart.saving { opacity: 0.6; cursor: not-allowed; }
   </style>
 </head>
 <body>
+
+  <!-- BOUTON DASHBOARD -->
+  <a id="dashboard-btn" href="/dashboard.html">
+    <span>✦</span> Mon espace
+    <span class="db-count" id="db-count">0</span>
+  </a>
 
   <!-- INTRO -->
   <div id="intro">
@@ -625,6 +658,7 @@
             '</div>' +
             etsyPriceHtml +
             '<a class="prod-link etsy-link" href="' + etsy.link + '" target="_blank" rel="noopener">🛍 Etsy ↗</a>' +
+            '<button class="btn-heart" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + JSON.stringify(JSON.stringify({shopUrl, shopName, shopAvatar})) + ', this)" title="Sauvegarder la boutique">❤ Sauvegarder la boutique</button>' +
           '</div>' +
           '<div class="divider-line"></div>' +
           '<div class="product-panel">' +
@@ -861,7 +895,69 @@
       document.getElementById('keyword-input').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') startSearch();
       });
+      initSavedShops();
     });
+
+    // ── DASHBOARD / SAVE SHOP ──
+    const SCOUT_TOKEN = localStorage.getItem('scout_token');
+    let _savedShopUrls = new Set();
+
+    function encodeShopKey(url) {
+      return (url || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40);
+    }
+
+    async function initSavedShops() {
+      if (!SCOUT_TOKEN) return;
+      try {
+        const r = await fetch('/api/shops', { headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } });
+        if (!r.ok) return;
+        const shops = await r.json();
+        shops.forEach(function(s) { _savedShopUrls.add(s.shopUrl); });
+        updateDbCount();
+      } catch(e) {}
+    }
+
+    function updateDbCount() {
+      const badge = document.getElementById('db-count');
+      if (!badge) return;
+      const n = _savedShopUrls.size;
+      badge.textContent = n;
+      badge.style.display = n > 0 ? 'inline' : 'none';
+    }
+
+    async function saveShop(jsonStr, btn) {
+      if (!SCOUT_TOKEN) {
+        window.location.href = '/dashboard.html';
+        return;
+      }
+      const data = JSON.parse(jsonStr);
+      if (_savedShopUrls.has(data.shopUrl)) {
+        window.location.href = '/dashboard.html';
+        return;
+      }
+      btn.classList.add('saving');
+      btn.textContent = '⏳ Sauvegarde...';
+      try {
+        const r = await fetch('/api/shops/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SCOUT_TOKEN },
+          body: JSON.stringify(data)
+        });
+        if (r.ok) {
+          _savedShopUrls.add(data.shopUrl);
+          btn.classList.remove('saving');
+          btn.classList.add('saved');
+          btn.innerHTML = '✅ Sauvegardée';
+          updateDbCount();
+        } else {
+          btn.classList.remove('saving');
+          btn.textContent = '❤ Réessayer';
+        }
+      } catch(e) {
+        btn.classList.remove('saving');
+        btn.textContent = '❤ Réessayer';
+      }
+    }
   </script>
 </body>
 </html>
