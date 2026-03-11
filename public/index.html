@@ -145,6 +145,23 @@
     #winner-card .winner-stat { display: flex; flex-direction: column; align-items: center; gap: 4px; }
     #winner-card .winner-stat-val { font-size: 1.4rem; font-weight: 800; color: var(--green); }
     #winner-card .winner-stat-lbl { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+    #winner-card .winner-revenue {
+      margin-top: 20px; padding: 16px 20px;
+      background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25);
+      border-radius: 12px; text-align: center;
+    }
+    #winner-card .revenue-amount {
+      font-size: 2.2rem; font-weight: 900; color: var(--green);
+      text-shadow: 0 0 20px rgba(34,197,94,0.4);
+      letter-spacing: -0.02em;
+    }
+    #winner-card .revenue-label {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--muted); margin-top: 4px;
+    }
+    #winner-card .revenue-detail {
+      font-size: 0.78rem; color: rgba(255,255,255,0.45); margin-top: 6px;
+    }
     #winner-card .winner-link {
       display: inline-block; margin-top: 16px; padding: 10px 28px; border-radius: 10px;
       background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.4);
@@ -696,6 +713,24 @@
       const yearStr = created ? created.getFullYear().toString() : '—';
       const dateStr = created ? created.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '—';
 
+      // Bénéfice brut estimé = prix moyen boutique × ventes totales
+      let revenueHtml = '';
+      if (winner.avgPrice != null && winner.sales != null) {
+        const revenue = winner.avgPrice * winner.sales;
+        const revenueStr = revenue >= 1000000
+          ? '$' + (revenue / 1000000).toFixed(1) + 'M'
+          : revenue >= 1000
+          ? '$' + (revenue / 1000).toFixed(0) + 'K'
+          : '$' + revenue.toFixed(0);
+        const avgPriceStr = '$' + winner.avgPrice.toFixed(2);
+        revenueHtml =
+          '<div class="winner-revenue">' +
+            '<div class="revenue-amount">' + revenueStr + '</div>' +
+            '<div class="revenue-label">Chiffre d\'affaires estimé</div>' +
+            '<div class="revenue-detail">Prix moyen boutique : ' + avgPriceStr + ' × ' + winner.sales.toLocaleString('fr-FR') + ' ventes</div>' +
+          '</div>';
+      }
+
       card.innerHTML =
         '<div class="winner-label">🏆 Boutique la plus performante</div>' +
         '<div class="winner-name">' + (winner.shopName || 'Boutique') + '</div>' +
@@ -717,6 +752,7 @@
             '<span class="winner-stat-lbl">Année création</span>' +
           '</div>' +
         '</div>' +
+        revenueHtml +
         '<div style="font-size:0.75rem;color:var(--muted);margin-top:10px;">Créée en ' + dateStr + '</div>' +
         (winner.shopUrl ? '<a class="winner-link" href="' + winner.shopUrl + '" target="_blank" rel="noopener">Voir la boutique ↗</a>' : '');
       card.style.display = 'block';
