@@ -712,6 +712,9 @@
       }
     }
 
+    // Store shop data for saveShop lookup
+    if (!window._shopDataMap) window._shopDataMap = {};
+
     function renderMatch(m) {
       const etsy = m.etsy;
       const aliexpress = m.aliexpress;
@@ -722,6 +725,9 @@
       const _shopNameFromUrl = shopUrl ? shopUrl.split('/shop/')[1]?.split('/')[0] || shopUrl.split('/')[3] || '' : '';
       const shopName = etsy.shopName || _shopNameFromUrl || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
+      // Store shop data for mobile-safe onclick
+      const _shopIndex = Object.keys(window._shopDataMap).length;
+      window._shopDataMap[_shopIndex] = { shopUrl, shopName, shopAvatar };
       const etsyPriceHtml = etsy.price ? '<div class="price-tag etsy-price">💰 ' + etsy.price + '</div>' : '';
       const aliPriceHtml  = aliexpress.price ? '<div class="price-tag ali-price">💰 ' + aliexpress.price + '</div>' : '';
       const initial = shopName.charAt(0).toUpperCase();
@@ -738,7 +744,7 @@
                   ? '<img src="' + shopAvatar + '" alt="' + shopName + '" onerror="this.style.display=\'none\'" />'
                   : '<span class="side-initial">' + initial + '</span>') +
               '</a>' +
-              '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + JSON.stringify(JSON.stringify({shopUrl, shopName, shopAvatar})) + ', this)">★</button>' +
+              '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + _shopIndex + ', this)">★</button>' +
             '</div>' +
               '<div class="img-wrap"><div class="img-box">' +
                 (etsySrc ? '<img src="' + etsySrc + '" loading="lazy" alt="" onerror="this.style.display=\'none\'" />' : '') +
@@ -1120,12 +1126,17 @@
       setTimeout(() => t.remove(), 3000);
     }
 
-    async function saveShop(jsonStr, btn) {
+    async function saveShop(indexOrJson, btn) {
       const token = localStorage.getItem('scout_token');
       if (!token) { showAuthModal(); showToast('Please log in first', '#ef4444'); return; }
 
       let data;
-      try { data = JSON.parse(jsonStr); } catch(e) { showToast('Data error', '#ef4444'); return; }
+      if (typeof indexOrJson === 'number' || (typeof indexOrJson === 'string' && !indexOrJson.startsWith('{'))) {
+        data = window._shopDataMap && window._shopDataMap[indexOrJson];
+        if (!data) { showToast('Shop data not found', '#ef4444'); return; }
+      } else {
+        try { data = JSON.parse(indexOrJson); } catch(e) { showToast('Data error', '#ef4444'); return; }
+      }
 
       if (_savedShopUrls.has(data.shopUrl)) {
         btn.classList.add('saved');
