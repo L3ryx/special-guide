@@ -12,18 +12,26 @@
       --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12);
       --text: #ffffff; --muted: rgba(255,255,255,0.55);
     }
-    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
-
-
+    /* ── BACKGROUND ── */
+    #bg-layer {
+      position: fixed; inset: 0; z-index: 0;
+      background: #0a0a0a url('/background.png') center center / cover no-repeat;
+      animation: bgDrift 18s ease-in-out infinite alternate;
+      transform-origin: center;
+    }
+    @keyframes bgDrift {
+      0%   { transform: scale(1.08) translate(0px,0px); }
       25%  { transform: scale(1.1)  translate(-12px,-8px); }
       50%  { transform: scale(1.08) translate(8px,-14px); }
       75%  { transform: scale(1.1)  translate(-6px,10px); }
       100% { transform: scale(1.08) translate(10px,6px); }
     }
-    
-      50%  { transform: scale(1.1) translate(-8px,-10px); }
-      100% { transform: scale(1.08) translate(8px,6px); }
-    }
+    #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.55); }
+    #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+    #shooting-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
+
+    /* ── BACKGROUND ── */
 
     nav {
       position: sticky; top: 0; z-index: 200;
@@ -43,7 +51,7 @@
     .btn-back:hover { background: rgba(255,255,255,0.13); color: #fff; }
     .nav-title { font-family: 'Croissant One', cursive; font-size: 1rem; color: rgba(255,255,255,0.7); }
 
-    .container { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; }
+    .container { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; position: relative; z-index: 10; }
     h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
     .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
 
@@ -146,22 +154,6 @@
       z-index: 9999; pointer-events: none; color: #fff;
     }
     /* ── BACKGROUND ── */
-    #bg-layer {
-      position: fixed; inset: 0; z-index: 0;
-      background: #0a0a0a url('/background.png') center center / cover no-repeat;
-      animation: bgDrift 18s ease-in-out infinite alternate;
-      transform-origin: center;
-    }
-    @keyframes bgDrift {
-      0%   { transform: scale(1.08) translate(0px,0px); }
-      25%  { transform: scale(1.1)  translate(-12px,-8px); }
-      50%  { transform: scale(1.08) translate(8px,-14px); }
-      75%  { transform: scale(1.1)  translate(-6px,10px); }
-      100% { transform: scale(1.08) translate(10px,6px); }
-    }
-    #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.55); }
-    #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
-    #shooting-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
   </style>
 </head>
 <body>
