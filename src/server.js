@@ -43,10 +43,12 @@ app.use('/api', scrapeRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
 
-// ── Frontend
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
-});
+// ── Pages
+app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/landing.html')));
+app.get('/finder',         (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+app.get('/dashboard',      (req, res) => res.sendFile(path.join(__dirname, '../public/dashboard.html')));
+app.get('/shop-pricing',   (req, res) => res.sendFile(path.join(__dirname, '../public/shop-pricing.html')));
+app.get('/finder-pricing', (req, res) => res.sendFile(path.join(__dirname, '../public/finder-pricing.html')));
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
