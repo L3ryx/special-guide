@@ -216,3 +216,217 @@ async function compareWithClaude(etsyImgUrl, aliImgUrl) {
 }
 
 module.exports = router;
+
+// ── COMPETITION ──
+router.post('/:id/competition', requireAuth, async (req, res) => {
+  const shop = await SavedShop.findOne({ _id: req.params.id, userId: req.user.id });
+  if (!shop) return res.status(404).json({ error: 'Shop not found' });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  const send = d => res.write('data: ' + JSON.stringify(d) + '\n\n');
+
+  try {
+    // ── STEP 1 : Scrape shop "About" page ──
+    send({ step: 'status', message: '🏪 Fetching shop About page...' });
+
+    const apiKey = process.env.SCRAPINGBEE_KEY;
+    if (!apiKey) { send({ step: 'error', message: '❌ SCRAPINGBEE_KEY missing' }); return res.end(); }
+    if (!process.env.ANTHROPIC_API_KEY) { send({ step: 'error', message: '❌ ANTHROPIC_API_KEY missing' }); return res.end(); }
+
+    const aboutUrl = shop.shopUrl.replace(/\/?$/, '') + '/about';
+    let aboutHtml = '';
+    try {
+      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+        params: { api_key: apiKey, url: aboutUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000' },
+        timeout: 120000,
+      });
+      aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+    } catch (e) {
+      send({ step: 'error', message: '❌ Could not fetch About page: ' + e.message });
+      return res.end();
+    }
+
+    // Extract text from About section
+    const description = extractAboutText(aboutHtml);
+    if (!description || description.length < 20) {
+      send({ step: 'error', message: '❌ No shop description found on About page' });
+      return res.end();
+    }
+    send({ step: 'status', message: '📝 Description found (' + description.length + ' chars). Analyzing with AI...' });
+
+    // ── STEP 2 : Ask Claude/GPT for keyword ──
+    let keyword = '';
+    try {
+      const aiRes = await axios.post('https://api.anthropic.com/v1/messages', {
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 60,
+        messages: [{
+          role: 'user',
+          content: `Here is the "About" description of an Etsy shop:\n\n"${description.slice(0, 1200)}"\n\nWhat is the main product sold by this shop? Respond with ONLY a single short English keyword (1-3 words max) that best defines the niche of this shop. No explanation, no punctuation, just the keyword.`
+        }]
+      }, {
+        headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+        timeout: 20000
+      });
+      keyword = (aiRes.data.content?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+    } catch (e) {
+      send({ step: 'error', message: '❌ AI analysis failed: ' + e.message });
+      return res.end();
+    }
+
+    if (!keyword) { send({ step: 'error', message: '❌ AI could not determine a keyword' }); return res.end(); }
+    send({ step: 'keyword', message: '🔑 Keyword identified: "' + keyword + '"', keyword });
+
+    // ── STEP 3 : Scrape all Etsy shop names for this keyword ──
+    send({ step: 'status', message: '🔍 Searching Etsy for "' + keyword + '"...' });
+
+    const { scrapeEtsyShopNames } = require('../services/etsyScraper');
+    let allShopNames = [];
+    let pagesDone = 0;
+
+    // We wrap scrapeEtsyShopNames to emit progress
+    const etsyUrl = keyword;
+    allShopNames = await scrapeEtsyAllShops(apiKey, etsyUrl, (page, count) => {
+      pagesDone = page;
+      send({ step: 'scraping', message: '📄 Page ' + page + ' scraped — ' + count + ' unique shops so far...' });
+    });
+
+    send({ step: 'status', message: '✅ Scraping complete — ' + allShopNames.length + ' unique shops found' });
+
+    // ── STEP 4 : Compute competition score ──
+    const totalShops = allShopNames.length;
+    const score = computeCompetitionScore(totalShops);
+
+    send({
+      step: 'complete',
+      keyword,
+      totalShops,
+      score,
+      label: score.label,
+      color: score.color,
+      description: score.description,
+      shopNames: allShopNames,
+    });
+    res.end();
+
+  } catch (err) {
+    send({ step: 'error', message: '❌ ' + (err.message || 'Unexpected error') });
+    res.end();
+  }
+});
+
+// Scrape all pages of Etsy search and collect unique shop names, with progress callback
+async function scrapeEtsyAllShops(apiKey, keyword, onPage) {
+  const allShops = new Set();
+  let page = 1;
+
+  while (page <= 20) {
+    const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&page=${page}`;
+    let html = '';
+    try {
+      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+        params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2000', block_ads: 'true', timeout: '45000' },
+        timeout: 120000,
+      });
+      html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+    } catch (e) {
+      console.warn('scrapeEtsyAllShops page', page, e.message);
+      break;
+    }
+
+    // Extract shop names from JSON-LD and data attributes
+    const shops = extractShopNamesFromHtml(html);
+    if (shops.length === 0) break;
+
+    shops.forEach(s => allShops.add(s));
+    onPage(page, allShops.size);
+
+    // Check for next page
+    const hasNext = html.includes('pagination-next') ||
+                    html.includes(`page=${page + 1}`) ||
+                    shops.length >= 40;
+    if (!hasNext) break;
+
+    page++;
+    await new Promise(r => setTimeout(r, 800));
+  }
+
+  return Array.from(allShops);
+}
+
+function extractShopNamesFromHtml(html) {
+  const shops = new Set();
+
+  // JSON-LD seller names
+  const jsonBlocks = [...html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
+  for (const b of jsonBlocks) {
+    try {
+      const data = JSON.parse(b[1]);
+      const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
+      for (const item of items) {
+        const seller = item.seller?.name || item.brand?.name;
+        if (seller) shops.add(seller);
+      }
+    } catch {}
+  }
+
+  // data-shop-name attributes
+  const shopAttrs = [...html.matchAll(/data-shop-name="([^"]+)"/gi)];
+  shopAttrs.forEach(m => shops.add(m[1]));
+
+  // /shop/ URLs
+  const shopUrls = [...html.matchAll(/etsy\.com\/shop\/([A-Za-z0-9_]+)/g)];
+  shopUrls.forEach(m => shops.add(m[1]));
+
+  return Array.from(shops).filter(s => s && s.length > 1);
+}
+
+function extractAboutText(html) {
+  // Try to find the About section text
+  const patterns = [
+    // Common Etsy About section containers
+    /<div[^>]*class="[^"]*shop-about[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<section[^>]*id="about"[^>]*>([\s\S]*?)<\/section>/i,
+    /<div[^>]*data-region="about"[^>]*>([\s\S]*?)<\/div>/i,
+    // JSON embedded description
+    /"description"\s*:\s*"([^"]{30,1500})"/,
+    /"about"\s*:\s*"([^"]{30,1500})"/,
+    /"shopDescription"\s*:\s*"([^"]{30,1500})"/,
+    // Meta description fallback
+    /<meta[^>]+name="description"[^>]+content="([^"]{30,500})"/i,
+    /<meta[^>]+content="([^"]{30,500})"[^>]+name="description"/i,
+  ];
+
+  for (const pattern of patterns) {
+    const m = html.match(pattern);
+    if (m) {
+      // Strip HTML tags and decode entities
+      let text = m[1]
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+        .replace(/\\n/g, ' ').replace(/\\"/g, '"')
+        .replace(/\s+/g, ' ').trim();
+      if (text.length > 30) return text;
+    }
+  }
+
+  // Last resort: grab all paragraph text
+  const paras = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+  const combined = paras
+    .map(p => p[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(t => t.length > 30)
+    .join(' ');
+  return combined.slice(0, 1500);
+}
+
+function computeCompetitionScore(totalShops) {
+  // Scoring: based on number of unique competing shops
+  if (totalShops <= 20) return { label: 'Very Low', color: '#22c55e', description: 'Excellent niche — very few competitors. Great opportunity!', score: 1 };
+  if (totalShops <= 60) return { label: 'Low', color: '#86efac', description: 'Good niche — limited competition. Solid opportunity.', score: 2 };
+  if (totalShops <= 150) return { label: 'Moderate', color: '#fbbf24', description: 'Medium competition. Differentiation is key.', score: 3 };
+  if (totalShops <= 350) return { label: 'High', color: '#f97316', description: 'High competition. Need a strong unique angle.', score: 4 };
+  return { label: 'Very High', color: '#ef4444', description: 'Extremely saturated niche. Hard to stand out.', score: 5 };
+}
