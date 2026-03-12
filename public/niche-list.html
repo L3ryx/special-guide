@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Saved Shops</title>
+  <title>Niche List</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -180,7 +180,7 @@
 
   <nav>
     <div class="nav-left">
-      <button type="button" class="btn-back" onclick="goBack()">← Finder Niche</button>
+      <button type="button" class="btn-back" onclick="goBack()">← Back</button>
       <span class="nav-title">Saved Shops</span>
     </div>
   </nav>
@@ -347,32 +347,34 @@
     }
 
     function renderCompetitionResult(ev) {
-      const scoreMap = { 1: 20, 2: 40, 3: 60, 4: 80, 5: 100 };
-      const pct = scoreMap[ev.score?.score] || 50;
-      const color = ev.color || '#f97316';
-      const total = ev.totalShops || 0;
-      const perPage = Math.round(total / Math.max(1, Math.ceil(total / 48)));
-      const pages = Math.ceil(total / 48);
-
-      // Saturation index: shops per 1000 searches (estimated)
-      const satIndex = total > 0 ? Math.min(100, Math.round((total / 500) * 100)) : 0;
-
-      return \`<div class="comp-panel">
-        <div class="comp-keyword">Niche keyword: <span>"\${ev.keyword}"</span></div>
-        <div class="comp-score-row">
-          <div class="comp-badge" style="background:\${color}22;color:\${color};border:2px solid \${color}55;">\${ev.label}</div>
-          <div class="comp-desc">\${ev.description}</div>
-        </div>
-        <div class="comp-stats">
-          <div class="comp-stat"><span class="comp-stat-val" style="color:\${color}">\${total.toLocaleString()}</span><span class="comp-stat-lbl">Competing shops</span></div>
-          <div class="comp-stat"><span class="comp-stat-val">\${pages}</span><span class="comp-stat-lbl">Pages scraped</span></div>
-          <div class="comp-stat"><span class="comp-stat-val">\${satIndex}%</span><span class="comp-stat-lbl">Saturation index</span></div>
-        </div>
-        <div class="comp-bar-wrap">
-          <div class="comp-bar-track"><div class="comp-bar-fill" style="width:0%;background:linear-gradient(90deg,#22c55e,\${color})" id="comp-bar-\${Date.now()}"></div></div>
-          <div class="comp-bar-labels"><span>Low</span><span>Medium</span><span>High</span></div>
-        </div>
-      </div>\`;
+      var scoreMap = { 1: 20, 2: 40, 3: 80, 4: 80, 5: 100 };
+      var color = ev.color || '#f97316';
+      var total = ev.totalShops || 0;
+      var pages = Math.ceil(total / 48) || 1;
+      var satIndex = total > 0 ? Math.min(100, Math.round((total / 500) * 100)) : 0;
+      var barId = 'comp-bar-' + Date.now();
+      var html = '<div class="comp-panel">'
+        + '<div class="comp-keyword">Niche keyword: <span>"' + (ev.keyword || '') + '"</span></div>'
+        + '<div class="comp-score-row">'
+        +   '<div class="comp-badge" style="background:' + color + '22;color:' + color + ';border:2px solid ' + color + '55;">' + (ev.label || '') + '</div>'
+        +   '<div class="comp-desc">' + (ev.description || '') + '</div>'
+        + '</div>'
+        + '<div class="comp-stats">'
+        +   '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + total.toLocaleString() + '</span><span class="comp-stat-lbl">Competing shops</span></div>'
+        +   '<div class="comp-stat"><span class="comp-stat-val">' + pages + '</span><span class="comp-stat-lbl">Pages scraped</span></div>'
+        +   '<div class="comp-stat"><span class="comp-stat-val">' + satIndex + '%</span><span class="comp-stat-lbl">Saturation index</span></div>'
+        + '</div>'
+        + '<div class="comp-bar-wrap">'
+        +   '<div class="comp-bar-track"><div class="comp-bar-fill" style="width:0%;background:linear-gradient(90deg,#22c55e,' + color + ')" id="' + barId + '"></div></div>'
+        +   '<div class="comp-bar-labels"><span>Low</span><span>Medium</span><span>High</span></div>'
+        + '</div>'
+        + '</div>';
+      // Animate bar after insert
+      setTimeout(function() {
+        var bar = document.getElementById(barId);
+        if (bar) bar.style.width = Math.min(100, satIndex) + '%';
+      }, 100);
+      return html;
     }
 
     // ── BACK without intro ──
