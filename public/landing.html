@@ -375,20 +375,16 @@
       } catch(e) { setMsg('Network error'); }
     }
 
-    // Already logged in → show name in nav instead
+    // Already logged in → redirect to dashboard
     (async () => {
       const token = localStorage.getItem('scout_token');
       if (!token) return;
       try {
         const r = await fetch('/api/auth/me', { headers:{'Authorization':'Bearer '+token} });
         if (r.ok) {
-          const d = await r.json();
-          const btn = document.querySelector('.btn-login');
-          btn.innerHTML = '👤';
-          btn.style.fontSize = '1.1rem';
-          btn.style.padding = '6px 10px';
-          btn.title = d.email;
-          btn.onclick = () => { window.location.href='/dashboard'; };
+          window.location.href = '/dashboard';
+        } else {
+          localStorage.removeItem('scout_token');
         }
       } catch(e) {}
     })();
