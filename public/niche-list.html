@@ -33,67 +33,7 @@
 
     /* ── BACKGROUND ── */
 
-    .nav-right { position: relative; display: flex; align-items: center; }
-    #user-avatar-btn {
-      width: 38px; height: 38px; border-radius: 50%;
-      border: 2px solid rgba(59,130,246,0.6);
-      background: rgba(59,130,246,0.18);
-      color: #60a5fa; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s; padding: 0;
-    }
-    #user-avatar-btn svg { width: 20px; height: 20px; }
-    #user-avatar-btn:hover { background: rgba(59,130,246,0.35); border-color: #60a5fa; color: #fff; }
-    .user-menu {
-      position: absolute; top: calc(100% + 10px); right: 0;
-      background: rgba(10,10,10,0.97); border: 1px solid rgba(255,255,255,0.13);
-      border-radius: 16px; padding: 8px; min-width: 220px;
-      box-shadow: 0 16px 48px rgba(0,0,0,0.7); backdrop-filter: blur(20px);
-      display: none; flex-direction: column; gap: 2px; z-index: 600;
-      animation: menuPop 0.15s ease;
-    }
-    .user-menu.open { display: flex; }
-    @keyframes menuPop { from{opacity:0;transform:translateY(-6px)scale(0.97)} to{opacity:1;transform:none} }
-    .user-menu-email { font-size: 0.75rem; color: rgba(255,255,255,0.4); padding: 6px 12px 8px; word-break: break-all; }
-    .user-menu-sep { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 4px 0; }
-    .user-menu-item {
-      display: flex; align-items: center; gap: 8px;
-      padding: 10px 14px; border-radius: 10px; border: none;
-      background: transparent; color: rgba(255,255,255,0.8);
-      font-family: 'Inter', sans-serif; font-size: 0.85rem; font-weight: 500;
-      cursor: pointer; text-align: left; transition: all 0.15s;
-    }
-    .user-menu-item:hover { background: rgba(255,255,255,0.09); color: #fff; }
-    .user-menu-item.danger { color: #f87171; }
-    .user-menu-item.danger:hover { background: rgba(248,113,113,0.1); color: #fca5a5; }
-    /* Inline modal for change email / password */
-    .acct-modal-overlay {
-      position: fixed; inset: 0; z-index: 9000; background: rgba(0,0,0,0.75);
-      backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center;
-    }
-    .acct-modal-overlay.open { display: flex; }
-    .acct-modal {
-      background: rgba(12,12,12,0.97); border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 20px; padding: 30px 28px; width: 100%; max-width: 380px; margin: 20px;
-      display: flex; flex-direction: column; gap: 16px;
-    }
-    .acct-modal-title { font-size: 1.05rem; font-weight: 700; color: #fff; }
-    .acct-input {
-      width: 100%; padding: 13px 16px; background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1); border-radius: 11px;
-      color: #fff; font-family: 'Inter', sans-serif; font-size: 0.95rem; outline: none;
-    }
-    .acct-input:focus { border-color: #3b82f6; }
-    .acct-input::placeholder { color: rgba(255,255,255,0.3); }
-    .acct-modal-btns { display: flex; gap: 10px; }
-    .acct-btn {
-      flex: 1; padding: 12px; border-radius: 10px; border: none;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.9rem; cursor: pointer;
-    }
-    .acct-btn.primary { background: #3b82f6; color: #fff; }
-    .acct-btn.primary:hover { background: #2563eb; }
-    .acct-btn.cancel { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.1); }
-    .acct-btn.cancel:hover { background: rgba(255,255,255,0.12); color: #fff; }
-    .acct-msg { font-size: 0.8rem; min-height: 1.1em; text-align: center; }
+
     nav {
       position: sticky; top: 0; z-index: 200;
       display: flex; align-items: center; justify-content: space-between;
@@ -240,22 +180,8 @@
 
   <nav>
     <div class="nav-left">
-      <button class="btn-back" onclick="goBack()">← Finder Niche</button>
+      <button type="button" class="btn-back" onclick="goBack()">← Finder Niche</button>
       <span class="nav-title">Saved Shops</span>
-    </div>
-    <div class="nav-right">
-      <button id="user-avatar-btn" onclick="toggleUserMenu()" title="Account">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      </button>
-      <div id="user-menu" class="user-menu">
-        <div class="user-menu-email" id="user-menu-email">—</div>
-        <hr class="user-menu-sep"/>
-        <button class="user-menu-item" onclick="showChangeEmail()">✉️ Change email</button>
-        <button class="user-menu-item" onclick="showChangePassword()">🔑 Change password</button>
-        <hr class="user-menu-sep"/>
-        <button class="user-menu-item" onclick="doLogout()">🚪 Log out</button>
-        <button class="user-menu-item danger" onclick="doDeleteAccount()">🗑 Delete account</button>
-      </div>
     </div>
   </nav>
 
@@ -455,101 +381,12 @@
       window.location.href = '/finder';
     }
 
-    // ── USER MENU ──
-    function toggleUserMenu() {
-      document.getElementById('user-menu').classList.toggle('open');
-    }
-    document.addEventListener('click', function(e) {
-      const btn = document.getElementById('user-avatar-btn');
-      const menu = document.getElementById('user-menu');
-      if (!btn.contains(e.target) && !menu.contains(e.target)) menu.classList.remove('open');
-    });
 
-    function doLogout() {
-      localStorage.removeItem('scout_token');
-      sessionStorage.setItem('skipIntro', '1');
-      window.location.href = '/finder';
-    }
-
-    async function doDeleteAccount() {
-      if (!confirm('⚠️ Delete your account and all saved data? This cannot be undone.')) return;
-      const token = localStorage.getItem('scout_token');
-      try {
-        const r = await fetch('/api/auth/delete-account', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
-        if (r.ok) { localStorage.removeItem('scout_token'); window.location.href = '/finder'; }
-        else { const d = await r.json().catch(() => ({})); alert('Error: ' + (d.error || r.status)); }
-      } catch(e) { alert('Error: ' + e.message); }
-    }
-
-    // ── CHANGE EMAIL modal ──
-    function showChangeEmail() {
-      document.getElementById('user-menu').classList.remove('open');
-      document.getElementById('modal-email').classList.add('open');
-      document.getElementById('email-msg').textContent = '';
-      document.getElementById('new-email-input').value = '';
-      document.getElementById('email-password-input').value = '';
-    }
-    async function submitChangeEmail() {
-      const email = document.getElementById('new-email-input').value.trim();
-      const password = document.getElementById('email-password-input').value;
-      const msg = document.getElementById('email-msg');
-      if (!email || !password) { msg.style.color='#f87171'; msg.textContent='Fill in all fields'; return; }
-      try {
-        const r = await fetch('/api/auth/change-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('scout_token') },
-          body: JSON.stringify({ email, password })
-        });
-        const d = await r.json();
-        if (r.ok) {
-          msg.style.color='#22c55e'; msg.textContent='Email updated!';
-          document.getElementById('user-menu-email').textContent = email;
-          setTimeout(closeModals, 1200);
-        } else { msg.style.color='#f87171'; msg.textContent = d.error || 'Error'; }
-      } catch(e) { msg.style.color='#f87171'; msg.textContent = e.message; }
-    }
-
-    // ── CHANGE PASSWORD modal ──
-    function showChangePassword() {
-      document.getElementById('user-menu').classList.remove('open');
-      document.getElementById('modal-password').classList.add('open');
-      document.getElementById('password-msg').textContent = '';
-      document.getElementById('old-password-input').value = '';
-      document.getElementById('new-password-input').value = '';
-    }
-    async function submitChangePassword() {
-      const oldPwd = document.getElementById('old-password-input').value;
-      const newPwd = document.getElementById('new-password-input').value;
-      const msg = document.getElementById('password-msg');
-      if (!oldPwd || !newPwd) { msg.style.color='#f87171'; msg.textContent='Fill in all fields'; return; }
-      try {
-        const r = await fetch('/api/auth/change-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('scout_token') },
-          body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd })
-        });
-        const d = await r.json();
-        if (r.ok) { msg.style.color='#22c55e'; msg.textContent='Password updated!'; setTimeout(closeModals, 1200); }
-        else { msg.style.color='#f87171'; msg.textContent = d.error || 'Error'; }
-      } catch(e) { msg.style.color='#f87171'; msg.textContent = e.message; }
-    }
-
-    function closeModals() {
-      document.querySelectorAll('.acct-modal-overlay').forEach(m => m.classList.remove('open'));
-    }
-    document.querySelectorAll('.acct-modal-overlay').forEach(function(el) {
-      el.addEventListener('click', function(e) { if (e.target === el) closeModals(); });
-    });
 
     document.addEventListener('DOMContentLoaded', function() {
       TOKEN = localStorage.getItem('scout_token');
       if (!TOKEN) { window.location.href = '/finder'; return; }
       loadShops();
-      // Set email in user menu
-      fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d?.email) document.getElementById('user-menu-email').textContent = d.email; })
-        .catch(() => {});
     });
   </script>
   
@@ -624,31 +461,6 @@
     })();
   </script>
   
-  <!-- Account modals -->
-  <div class="acct-modal-overlay" id="modal-email">
-    <div class="acct-modal">
-      <div class="acct-modal-title">✉️ Change email</div>
-      <input class="acct-input" id="new-email-input" type="email" placeholder="New email address"/>
-      <input class="acct-input" id="email-password-input" type="password" placeholder="Current password"/>
-      <div class="acct-msg" id="email-msg"></div>
-      <div class="acct-modal-btns">
-        <button class="acct-btn cancel" onclick="closeModals()">Cancel</button>
-        <button class="acct-btn primary" onclick="submitChangeEmail()">Save</button>
-      </div>
-    </div>
-  </div>
-  <div class="acct-modal-overlay" id="modal-password">
-    <div class="acct-modal">
-      <div class="acct-modal-title">🔑 Change password</div>
-      <input class="acct-input" id="old-password-input" type="password" placeholder="Current password"/>
-      <input class="acct-input" id="new-password-input" type="password" placeholder="New password"/>
-      <div class="acct-msg" id="password-msg"></div>
-      <div class="acct-modal-btns">
-        <button class="acct-btn cancel" onclick="closeModals()">Cancel</button>
-        <button class="acct-btn primary" onclick="submitChangePassword()">Save</button>
-      </div>
-    </div>
-  </div>
 
   <script>
     // Animate competition bars after render
