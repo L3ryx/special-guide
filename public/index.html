@@ -682,8 +682,8 @@
       { key: 'scraping_etsy', label: 'Etsy' },
       { key: 'reverse_search', label: 'Reverse' },
       { key: 'aliexpress_found', label: 'AliExpress' },
-      { key: 'comparing', label: 'IA' },
-      { key: 'finalizing', label: 'Résultats' },
+      { key: 'comparing', label: 'AI' },
+      { key: 'finalizing', label: 'Results' },
     ];
 
     function initProgress(keyword) {
@@ -928,7 +928,7 @@
       const status = document.getElementById('find-status');
       const winnerCard = document.getElementById('winner-card');
       if (!_lastResults.length) { status.textContent = 'No results.'; return; }
-      btn.disabled = true; btn.classList.add('searching'); btn.textContent = 'Analyse...';
+      btn.disabled = true; btn.classList.add('searching'); btn.textContent = 'Analyzing...';
       status.textContent = 'Connecting...'; winnerCard.style.display = 'none';
       function resetBtn() { btn.disabled = false; btn.classList.remove('searching'); btn.textContent = '🔍 Find'; }
       try {
@@ -955,18 +955,18 @@
     function showWinner(w) {
       const card = document.getElementById('winner-card');
       if (!w) { document.getElementById('find-status').textContent = 'Insufficient data.'; showErrorPopup('No winner could be determined — insufficient sales data for the scraped shops.'); return; }
-      const sales = w.sales != null ? w.sales.toLocaleString('fr-FR') : '—';
+      const sales = w.sales != null ? w.sales.toLocaleString('en-US') : '—';
       const created = w.createdAt ? new Date(w.createdAt) : null;
       const ageDays = created ? Math.max(Math.floor((Date.now() - created.getTime()) / 86400000), 1) : 0;
       const ageStr = ageDays ? (ageDays < 365 ? ageDays + ' j' : Math.floor(ageDays / 365) + ' ans') : '—';
       const perDay = (w.sales && ageDays) ? (w.sales / ageDays).toFixed(2) : '—';
       const yearStr = created ? created.getFullYear().toString() : '—';
-      const dateStr = created ? created.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '—';
+      const dateStr = created ? created.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—';
       let revHtml = '';
       if (w.avgPrice != null && w.sales != null) {
         const rev = w.avgPrice * w.sales;
         const revStr = rev >= 1e6 ? '$' + (rev / 1e6).toFixed(1) + 'M' : rev >= 1000 ? '$' + (rev / 1000).toFixed(0) + 'K' : '$' + rev.toFixed(0);
-        revHtml = '<div class="winner-revenue"><div class="revenue-amount">' + revStr + '</div><div class="revenue-label">CA estimé</div><div class="revenue-detail">$' + w.avgPrice.toFixed(2) + ' × ' + w.sales.toLocaleString('fr-FR') + ' ventes</div></div>';
+        revHtml = '<div class="winner-revenue"><div class="revenue-amount">' + revStr + '</div><div class="revenue-label">Est. Revenue</div><div class="revenue-detail">$' + w.avgPrice.toFixed(2) + ' × ' + w.sales.toLocaleString('en-US') + ' sales</div></div>';
       }
       const winnerShopIdx = Object.keys(window._shopDataMap).length;
       window._shopDataMap[winnerShopIdx] = { shopUrl: w.shopUrl || '', shopName: w.shopName || '', shopAvatar: '', productImage: '', productUrl: w.shopUrl || '' };
@@ -1018,7 +1018,7 @@
         });
         if (r.ok) {
           _savedShopUrls.add(data.shopUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
-          updateNlCount(); showToast('Saved! ❤️', '#22c55e');
+          updateNlCount(); showToast('Saved! ♥', '#22c55e');
         } else {
           const json = await r.json().catch(() => ({})); btn.classList.remove('saving'); btn.textContent = '★';
           showToast('Error: ' + (json.error || r.status), '#ef4444');
