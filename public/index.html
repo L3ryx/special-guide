@@ -50,10 +50,34 @@
     #auth-forgot-msg { text-align:center; font-size:0.82rem; color:var(--green); min-height:1.2em; }
 
     /* ── USER BADGE (top right) ── */
-    #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; align-items:center; gap:8px; padding:7px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.55); backdrop-filter:blur(12px); }
-    #user-badge .user-email { font-size:0.78rem; color:rgba(255,255,255,0.7); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    #user-badge .btn-logout { background:none; border:none; color:#f87171; font-size:0.75rem; cursor:pointer; font-family:'Inter',sans-serif; padding:0; }
-    #user-badge .btn-logout:hover { color:#fff; }
+    #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; }
+    #user-avatar-btn { width:40px; height:40px; border-radius:50%; border:2px solid rgba(59,130,246,0.6); background:rgba(59,130,246,0.18); color:#60a5fa; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; padding:0; }
+    #user-avatar-btn svg { width:22px; height:22px; }
+    #user-avatar-btn:hover { background:rgba(59,130,246,0.35); border-color:#60a5fa; color:#fff; }
+    .user-dropdown { position:absolute; top:calc(100% + 10px); right:0; background:rgba(10,10,10,0.97); border:1px solid rgba(255,255,255,0.13); border-radius:16px; padding:8px; min-width:220px; box-shadow:0 16px 48px rgba(0,0,0,0.7); backdrop-filter:blur(20px); display:none; flex-direction:column; gap:2px; z-index:600; animation:menuPop 0.15s ease; }
+    .user-dropdown.open { display:flex; }
+    @keyframes menuPop { from{opacity:0;transform:translateY(-6px)scale(0.97)} to{opacity:1;transform:none} }
+    .user-dropdown-email { font-size:0.73rem; color:rgba(255,255,255,0.4); padding:6px 12px 8px; word-break:break-all; }
+    .user-dropdown-sep { border:none; border-top:1px solid rgba(255,255,255,0.08); margin:4px 0; }
+    .user-dropdown-item { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:10px; border:none; background:transparent; color:rgba(255,255,255,0.8); font-family:'Inter',sans-serif; font-size:0.85rem; font-weight:500; cursor:pointer; text-align:left; transition:all 0.15s; width:100%; }
+    .user-dropdown-item:hover { background:rgba(255,255,255,0.09); color:#fff; }
+    .user-dropdown-item.danger { color:#f87171; }
+    .user-dropdown-item.danger:hover { background:rgba(248,113,113,0.1); color:#fca5a5; }
+    /* Account modals */
+    .acct-overlay { position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; }
+    .acct-overlay.open { display:flex; }
+    .acct-box { background:rgba(12,12,12,0.97); border:1px solid rgba(255,255,255,0.12); border-radius:20px; padding:30px 28px; width:100%; max-width:380px; margin:20px; display:flex; flex-direction:column; gap:16px; }
+    .acct-box-title { font-size:1.05rem; font-weight:700; color:#fff; }
+    .acct-field { width:100%; padding:13px 16px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:11px; color:#fff; font-family:'Inter',sans-serif; font-size:0.95rem; outline:none; }
+    .acct-field:focus { border-color:#3b82f6; }
+    .acct-field::placeholder { color:rgba(255,255,255,0.3); }
+    .acct-box-btns { display:flex; gap:10px; }
+    .acct-box-btn { flex:1; padding:12px; border-radius:10px; border:none; font-family:'Inter',sans-serif; font-weight:700; font-size:0.9rem; cursor:pointer; }
+    .acct-box-btn.primary { background:#3b82f6; color:#fff; }
+    .acct-box-btn.primary:hover { background:#2563eb; }
+    .acct-box-btn.cancel { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.1); }
+    .acct-box-btn.cancel:hover { background:rgba(255,255,255,0.12); color:#fff; }
+    .acct-box-msg { font-size:0.8rem; min-height:1.1em; text-align:center; }
 
     /* ── NICHE LIST BTN ── */
     #niche-list-btn { position:fixed; top:10px; left:12px; z-index:500; display:none; align-items:center; gap:6px; padding:7px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.8); font-size:0.82rem; font-weight:600; font-family:'Inter',sans-serif; text-decoration:none; backdrop-filter:blur(12px); transition:all 0.2s; }
@@ -193,10 +217,42 @@
     #winner-card .winner-link { display:inline-block; margin-top:16px; padding:10px 28px; border-radius:10px; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.4); color:var(--green); font-weight:600; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
 
     @media(max-width:640px){#main-view{padding:70px 14px 20px}.input-row input{font-size:0.95rem;padding:14px 16px}#add-keyword-btn{width:46px;height:46px}.match-body{display:flex;flex-direction:row}.divider-line{width:1px;flex-shrink:0}.product-panel{flex:1;min-width:0;padding:10px 6px;gap:6px}.prod-link{font-size:0.65rem;padding:6px 4px}.price-tag{font-size:0.7rem;padding:4px 6px}}
+
+    /* ── ERROR POPUP ── */
+    #error-popup { position:fixed; inset:0; z-index:99999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); backdrop-filter:blur(6px); padding:20px; }
+    #error-popup.open { display:flex; animation:epFade 0.2s ease; }
+    @keyframes epFade { from{opacity:0} to{opacity:1} }
+    .ep-box { background:#0f0f0f; border:1px solid rgba(239,68,68,0.35); border-radius:20px; padding:28px 28px 22px; max-width:440px; width:100%; display:flex; flex-direction:column; gap:14px; box-shadow:0 0 0 1px rgba(239,68,68,0.1),0 20px 60px rgba(0,0,0,0.8); animation:epSlide 0.22s ease; }
+    @keyframes epSlide { from{transform:translateY(12px)scale(0.97);opacity:0} to{transform:none;opacity:1} }
+    .ep-header { display:flex; align-items:flex-start; gap:12px; }
+    .ep-icon { width:40px; height:40px; flex-shrink:0; border-radius:50%; background:rgba(239,68,68,0.15); border:1.5px solid rgba(239,68,68,0.35); display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
+    .ep-title { font-size:1rem; font-weight:700; color:#fff; margin-bottom:4px; }
+    .ep-api-badge { display:inline-block; padding:3px 10px; border-radius:6px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; font-size:0.72rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }
+    .ep-message { font-size:0.85rem; color:rgba(255,255,255,0.65); line-height:1.6; background:rgba(255,255,255,0.04); border-radius:10px; padding:12px 14px; border:1px solid rgba(255,255,255,0.07); word-break:break-word; font-family:'Menlo','Courier New',monospace; }
+    .ep-hint { font-size:0.78rem; color:rgba(255,255,255,0.38); line-height:1.5; }
+    .ep-close { align-self:flex-end; padding:10px 24px; border-radius:10px; border:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; font-family:'Inter',sans-serif; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s; }
+    .ep-close:hover { background:rgba(239,68,68,0.28); color:#fff; }
+
   </style>
 </head>
 <body>
   <!-- INTRO -->
+  <!-- ERROR POPUP -->
+  <div id="error-popup" onclick="closeErrorPopup(event)">
+    <div class="ep-box">
+      <div class="ep-header">
+        <div class="ep-icon">⚠️</div>
+        <div>
+          <div class="ep-title">Search error</div>
+          <span class="ep-api-badge" id="ep-api-badge" style="display:none"></span>
+        </div>
+      </div>
+      <div class="ep-message" id="ep-message">An error occurred.</div>
+      <div class="ep-hint" id="ep-hint"></div>
+      <button class="ep-close" onclick="closeErrorPopupBtn()">Close</button>
+    </div>
+  </div>
+
   <div id="intro"><div id="intro-text"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span>&nbsp;</span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div></div>
   <div id="bg-layer"></div>
   <canvas id="milkyway-canvas"></canvas>
@@ -206,7 +262,7 @@
   <div id="auth-overlay" style="display:none;">
     <div id="auth-box">
       <div id="auth-logo">Finder Niche</div>
-      <div id="auth-subtitle">Connecte-toi pour accéder à l'outil</div>
+      <div id="auth-subtitle">Sign in to access the tool</div>
       <div class="auth-tabs">
         <button class="auth-tab active" onclick="authSwitchTab('login')">Login</button>
         <button class="auth-tab" onclick="authSwitchTab('register')">Register</button>
@@ -229,7 +285,45 @@
 
   <!-- FIXED BUTTONS -->
   <a id="niche-list-btn" href="/niche-list"><span style="color:#f87171;">♥</span><span>Niche List</span><span class="nl-count" id="nl-count">0</span></a>
-  <div id="user-badge"><span class="user-email" id="user-email-display"></span><button class="btn-logout" onclick="logout()">Logout</button></div>
+  <div id="user-badge">
+    <button id="user-avatar-btn" onclick="toggleUserDropdown()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    </button>
+    <div class="user-dropdown" id="user-dropdown">
+      <div class="user-dropdown-email" id="user-email-display">—</div>
+      <hr class="user-dropdown-sep"/>
+      <button class="user-dropdown-item" onclick="openAcctModal('email')">✉️ Change email</button>
+      <button class="user-dropdown-item" onclick="openAcctModal('password')">🔑 Change password</button>
+      <hr class="user-dropdown-sep"/>
+      <button class="user-dropdown-item" onclick="logout()">🚪 Log out</button>
+      <button class="user-dropdown-item danger" onclick="deleteAccount()">🗑 Delete account</button>
+    </div>
+  </div>
+  <!-- Account modals -->
+  <div class="acct-overlay" id="acct-modal-email">
+    <div class="acct-box">
+      <div class="acct-box-title">✉️ Change email</div>
+      <input class="acct-field" id="acct-new-email" type="email" placeholder="New email address"/>
+      <input class="acct-field" id="acct-email-pwd" type="password" placeholder="Current password"/>
+      <div class="acct-box-msg" id="acct-email-msg"></div>
+      <div class="acct-box-btns">
+        <button class="acct-box-btn cancel" onclick="closeAcctModals()">Cancel</button>
+        <button class="acct-box-btn primary" onclick="submitChangeEmail()">Save</button>
+      </div>
+    </div>
+  </div>
+  <div class="acct-overlay" id="acct-modal-password">
+    <div class="acct-box">
+      <div class="acct-box-title">🔑 Change password</div>
+      <input class="acct-field" id="acct-old-pwd" type="password" placeholder="Current password"/>
+      <input class="acct-field" id="acct-new-pwd" type="password" placeholder="New password"/>
+      <div class="acct-box-msg" id="acct-pwd-msg"></div>
+      <div class="acct-box-btns">
+        <button class="acct-box-btn cancel" onclick="closeAcctModals()">Cancel</button>
+        <button class="acct-box-btn primary" onclick="submitChangePassword()">Save</button>
+      </div>
+    </div>
+  </div>
 
   <!-- TITLE -->
   <div id="title-outer"><div id="title-wrap"><div id="niche-title"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span class="title-space"></span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div></div></div>
@@ -281,6 +375,14 @@
   <script>
     (function(){
       var ids=['bg-layer','milkyway-canvas','main-view'];
+      // Skip intro if coming back from niche-list
+      if (sessionStorage.getItem('skipIntro')) {
+        sessionStorage.removeItem('skipIntro');
+        document.getElementById('intro').style.display='none';
+        ids.forEach(function(id){var el=document.getElementById(id);if(el)el.style.opacity='1';});
+        checkAuth();
+        return;
+      }
       ids.forEach(function(id){var el=document.getElementById(id);if(el){el.style.opacity='0';}});
       setTimeout(function(){
         document.querySelectorAll('#intro-text span').forEach(function(el){
@@ -354,18 +456,142 @@
     function onLoggedIn(email) {
       _currentUser = email;
       hideAuthModal();
-      document.getElementById('user-email-display').textContent = email;
+      document.getElementById('user-email-display').textContent = email || '—';
       document.getElementById('user-badge').style.display = 'flex';
       document.getElementById('niche-list-btn').style.display = 'flex';
       initSavedShops();
     }
+
+    // ── ERROR POPUP ──
+    const API_HINTS = {
+      'SCRAPINGBEE':     'Check your SCRAPINGBEE_KEY in Render → Environment Variables. Credits may be exhausted.',
+      'SERPER':          'Check your SERPER_API_KEY in Render → Environment Variables. Free plan limit may be reached (1000 req/month).',
+      'ANTHROPIC':       'Check your ANTHROPIC_API_KEY in Render → Environment Variables. Account credits may be depleted.',
+      'IMGBB':           'Check your IMGBB_API_KEY in Render → Environment Variables.',
+      'SCRAPEAPI':       'Check your SCRAPEAPI_KEY in Render → Environment Variables.',
+      'MONGODB':         'MongoDB connection failed. Check MONGODB_URI in Render → Environment Variables.',
+      '401':             'API authentication failed — the key is invalid or expired.',
+      '429':             'Rate limit or quota exceeded on this API.',
+      '403':             'Access forbidden — the API key may not have the required permissions.',
+      '500':             'Internal server error. Check Render logs for details.',
+      'ECONNREFUSED':    'Connection refused — the service may be down.',
+      'ETIMEDOUT':       'Request timed out — the external service took too long to respond.',
+      'ENOTFOUND':       'DNS lookup failed — check your internet connection or the API URL.',
+    };
+
+    function detectApiFromMessage(msg) {
+      const m = msg.toUpperCase();
+      if (m.includes('SCRAPINGBEE') || m.includes('SCRAPING BEE')) return 'ScrapingBee';
+      if (m.includes('SERPER')) return 'Serper';
+      if (m.includes('ANTHROPIC') || m.includes('CLAUDE')) return 'Anthropic';
+      if (m.includes('IMGBB')) return 'ImgBB';
+      if (m.includes('SCRAPEAPI')) return 'ScrapeAPI';
+      if (m.includes('MONGODB') || m.includes('MONGO')) return 'MongoDB';
+      if (m.includes('ALIEXPRESS')) return 'AliExpress';
+      if (m.includes('ETSY')) return 'Etsy';
+      return null;
+    }
+
+    function getHintForMessage(msg) {
+      const m = msg.toUpperCase();
+      for (const [key, hint] of Object.entries(API_HINTS)) {
+        if (m.includes(key)) return hint;
+      }
+      return 'Check the Render logs for more details.';
+    }
+
+    function showErrorPopup(rawMsg) {
+      const msg = (rawMsg || 'An unknown error occurred.').replace(/^❌\s*/, '');
+      const api = detectApiFromMessage(msg);
+      const hint = getHintForMessage(msg);
+
+      const badge = document.getElementById('ep-api-badge');
+      if (api) { badge.textContent = api; badge.style.display = 'inline-block'; }
+      else { badge.style.display = 'none'; }
+
+      document.getElementById('ep-message').textContent = msg;
+      document.getElementById('ep-hint').textContent = hint;
+      document.getElementById('error-popup').classList.add('open');
+    }
+
+    function closeErrorPopup(e) {
+      if (e.target === document.getElementById('error-popup')) closeErrorPopupBtn();
+    }
+    function closeErrorPopupBtn() {
+      document.getElementById('error-popup').classList.remove('open');
+    }
+
+    function toggleUserDropdown() {
+      document.getElementById('user-dropdown').classList.toggle('open');
+    }
+    document.addEventListener('click', function(e) {
+      const btn = document.getElementById('user-avatar-btn');
+      const dd = document.getElementById('user-dropdown');
+      if (btn && dd && !btn.contains(e.target) && !dd.contains(e.target)) dd.classList.remove('open');
+    });
 
     function logout() {
       localStorage.removeItem('scout_token');
       SCOUT_TOKEN = null; _currentUser = null;
       document.getElementById('user-badge').style.display = 'none';
       document.getElementById('niche-list-btn').style.display = 'none';
+      document.getElementById('user-dropdown').classList.remove('open');
       showAuthModal();
+    }
+
+    async function deleteAccount() {
+      if (!confirm('⚠️ Delete your account and all saved data? This cannot be undone.')) return;
+      try {
+        const r = await fetch('/api/auth/delete-account', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } });
+        if (r.ok) { logout(); }
+        else { const d = await r.json().catch(()=>({})); showToast('Error: ' + (d.error || r.status), '#ef4444'); }
+      } catch(e) { showToast('Error: ' + e.message, '#ef4444'); }
+    }
+
+    function openAcctModal(type) {
+      document.getElementById('user-dropdown').classList.remove('open');
+      document.getElementById('acct-modal-' + type).classList.add('open');
+      document.getElementById(type === 'email' ? 'acct-email-msg' : 'acct-pwd-msg').textContent = '';
+    }
+    function closeAcctModals() {
+      document.querySelectorAll('.acct-overlay').forEach(m => m.classList.remove('open'));
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.acct-overlay').forEach(function(el) {
+        el.addEventListener('click', function(e) { if (e.target === el) closeAcctModals(); });
+      });
+    });
+
+    async function submitChangeEmail() {
+      const email = document.getElementById('acct-new-email').value.trim();
+      const password = document.getElementById('acct-email-pwd').value;
+      const msg = document.getElementById('acct-email-msg');
+      if (!email || !password) { msg.style.color='#f87171'; msg.textContent='Fill in all fields'; return; }
+      try {
+        const r = await fetch('/api/auth/change-email', {
+          method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+SCOUT_TOKEN},
+          body: JSON.stringify({ email, password })
+        });
+        const d = await r.json();
+        if (r.ok) { msg.style.color='#22c55e'; msg.textContent='Email updated!'; document.getElementById('user-email-display').textContent = email; setTimeout(closeAcctModals, 1200); }
+        else { msg.style.color='#f87171'; msg.textContent = d.error || 'Error'; }
+      } catch(e) { msg.style.color='#f87171'; msg.textContent = e.message; }
+    }
+
+    async function submitChangePassword() {
+      const oldPwd = document.getElementById('acct-old-pwd').value;
+      const newPwd = document.getElementById('acct-new-pwd').value;
+      const msg = document.getElementById('acct-pwd-msg');
+      if (!oldPwd || !newPwd) { msg.style.color='#f87171'; msg.textContent='Fill in all fields'; return; }
+      try {
+        const r = await fetch('/api/auth/change-password', {
+          method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+SCOUT_TOKEN},
+          body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd })
+        });
+        const d = await r.json();
+        if (r.ok) { msg.style.color='#22c55e'; msg.textContent='Password updated!'; setTimeout(closeAcctModals, 1200); }
+        else { msg.style.color='#f87171'; msg.textContent = d.error || 'Error'; }
+      } catch(e) { msg.style.color='#f87171'; msg.textContent = e.message; }
     }
 
     function showForgot() {
@@ -556,7 +782,9 @@
           const ct = response.headers.get('content-type') || '';
           if (!ct.includes('text/event-stream')) {
             const data = await response.json();
-            document.getElementById('progress-msg').textContent = '❌ ' + (data.error || 'Erreur serveur');
+            const errMsg = data.error || 'Server error';
+            document.getElementById('progress-msg').textContent = '❌ ' + errMsg;
+            showErrorPopup(errMsg);
             if (tag) tag.className = 'keyword-tag error';
             hasError = true; continue;
           }
@@ -585,6 +813,7 @@
                   if (tag) tag.className = 'keyword-tag done';
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
+                  showErrorPopup(ev.message);
                   if (tag) tag.className = 'keyword-tag error';
                   hasError = true;
                 } else {
@@ -595,6 +824,7 @@
           }
         } catch(err) {
           document.getElementById('progress-msg').textContent = '❌ ' + err.message;
+          showErrorPopup(err.message);
           if (tag) tag.className = 'keyword-tag error';
           hasError = true;
         }
@@ -702,16 +932,16 @@
               if (ev.step === 'scraping') { const tot = ev.total || _lastResults.length; status.innerHTML = '<span style="color:#fff;font-weight:700;">' + ev.shopName + '</span> <span style="color:var(--muted);font-size:0.75rem;">(' + (ev.index + 1) + ' / ' + tot + ')</span> <span style="color:var(--muted);">— scanning...</span>'; }
               else if (ev.step === 'done') { status.innerHTML = '<span style="color:#22c55e;font-weight:700;">✓ ' + ev.shopName + '</span> <span style="color:var(--muted);font-size:0.75rem;">— ' + (ev.stats?.sales != null ? ev.stats.sales.toLocaleString('en-US') + ' sales' : 'no data') + '</span>'; }
               else if (ev.step === 'complete') { resetBtn(); status.textContent = ''; showWinner(ev.winner); }
-              else if (ev.step === 'error') { status.textContent = '❌ ' + ev.message; resetBtn(); }
+              else if (ev.step === 'error') { status.textContent = '❌ ' + ev.message; showErrorPopup(ev.message); resetBtn(); }
             } catch(e) {}
           }
         }
-      } catch(err) { status.textContent = '❌ ' + err.message; resetBtn(); }
+      } catch(err) { status.textContent = '❌ ' + err.message; showErrorPopup(err.message); resetBtn(); }
     }
 
     function showWinner(w) {
       const card = document.getElementById('winner-card');
-      if (!w) { document.getElementById('find-status').textContent = 'Insufficient data.'; return; }
+      if (!w) { document.getElementById('find-status').textContent = 'Insufficient data.'; showErrorPopup('No winner could be determined — insufficient sales data for the scraped shops.'); return; }
       const sales = w.sales != null ? w.sales.toLocaleString('fr-FR') : '—';
       const created = w.createdAt ? new Date(w.createdAt) : null;
       const ageDays = created ? Math.max(Math.floor((Date.now() - created.getTime()) / 86400000), 1) : 0;
