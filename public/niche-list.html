@@ -175,10 +175,11 @@
   </div>
 
   <script>
-    let TOKEN = null;
+    let TOKEN = localStorage.getItem('scout_token') || null;
 
     function apiFetch(url, opts = {}) {
       opts.headers = opts.headers || {};
+      TOKEN = localStorage.getItem('scout_token') || TOKEN;
       opts.headers['Authorization'] = 'Bearer ' + TOKEN;
       return fetch(url, opts);
     }
