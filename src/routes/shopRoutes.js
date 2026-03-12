@@ -196,7 +196,7 @@ async function compareWithClaude(etsyImgUrl, aliImgUrl) {
   const aliMime  = aliBuf.headers['content-type']  || 'image/jpeg';
 
   const claudeRes = await axios.post('https://api.anthropic.com/v1/messages', {
-    model: 'claude-opus-4-5',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 10,
     messages: [{
       role: 'user',
@@ -260,7 +260,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     let keyword = '';
     try {
       const aiRes = await axios.post('https://api.anthropic.com/v1/messages', {
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5',
         max_tokens: 60,
         messages: [{
           role: 'user',
