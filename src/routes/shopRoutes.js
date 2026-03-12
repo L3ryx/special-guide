@@ -5,7 +5,7 @@ const { requireAuth } = require('./auth');
 const SavedShop    = require('../models/shopModel');
 const { uploadToImgBB } = require('../services/imgbbUploader');
 
-// ── SAVE shop ──
+// ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
   let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
   if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
@@ -26,7 +26,7 @@ router.post('/save', requireAuth, async (req, res) => {
   }
 });
 
-// ── LIST shops ──
+// ── LIST SHOPS ──
 router.get('/', requireAuth, async (req, res) => {
   try {
     const shops = await SavedShop.find({ userId: req.user.id }).sort({ savedAt: -1 });
@@ -36,7 +36,7 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// ── DELETE shop ──
+// ── DELETE SHOP ──
 router.delete('/:id', requireAuth, async (req, res) => {
   await SavedShop.deleteOne({ _id: req.params.id, userId: req.user.id });
   res.json({ ok: true });
@@ -52,7 +52,7 @@ router.post('/:id/find', requireAuth, async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   const send = d => res.write('data: ' + JSON.stringify(d) + '\n\n');
 
-  // Vérification des clés API
+  // API key check
   if (!process.env.SERPER_API_KEY) {
     send({ step: 'error', message: '❌ SERPER_API_KEY manquante dans Render → Environment' });
     return res.end();
@@ -62,10 +62,10 @@ router.post('/:id/find', requireAuth, async (req, res) => {
     send({ step: 'scraping', message: '🔍 Fetching listings...' });
     const listings = await scrapeShopListings(shop.shopUrl);
     if (!listings.length) {
-      send({ step: 'error', message: 'Aucun listing trouvé pour cette boutique' });
+      send({ step: 'error', message: 'No listings found for this shop' });
       return res.end();
     }
-    send({ step: 'scraping', message: `✅ ${listings.length} listings trouvés` });
+    send({ step: 'scraping', message: `✅ ${listings.length} listings found` });
 
     const results = [];
     for (let i = 0; i < listings.length; i++) {
@@ -90,7 +90,7 @@ router.post('/:id/find', requireAuth, async (req, res) => {
         } catch (serperErr) {
           const status = serperErr.response?.status;
           if (status === 401) {
-            send({ step: 'error', message: '❌ Serper API key invalide (401) — vérifie SERPER_API_KEY sur Render' });
+            send({ step: 'error', message: '❌ Serper API key invalid (401) — check SERPER_API_KEY in Render' });
             return res.end();
           }
           console.warn(`Listing ${i} Serper error ${status}:`, serperErr.message);
@@ -123,7 +123,7 @@ router.post('/:id/find', requireAuth, async (req, res) => {
         send({ step: 'match', result: results[results.length - 1], total: results.length });
       } catch (e) {
         console.warn(`Listing ${i} error:`, e.message);
-        // Ne pas couper — on continue les autres listings
+        // Don't abort — continue other listings
       }
     }
 
