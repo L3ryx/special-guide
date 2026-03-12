@@ -195,23 +195,21 @@ async function compareWithClaude(etsyImgUrl, aliImgUrl) {
   const etsyMime = etsyBuf.headers['content-type'] || 'image/jpeg';
   const aliMime  = aliBuf.headers['content-type']  || 'image/jpeg';
 
-  const openaiRes = await axios.post('https://api.openai.com/v1/chat/completions', {
-    model: 'gpt-4o-mini',
-    max_tokens: 10,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: `data:${etsyMime};base64,${etsyB64}` } },
-        { type: 'image_url', image_url: { url: `data:${aliMime};base64,${aliB64}` } },
-        { type: 'text', text: 'Are these two product images showing the same or very similar product? Reply with ONLY a number from 0 to 100 representing similarity percentage.' }
-      ]
-    }]
-  }, {
-    headers: { 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY, 'Content-Type': 'application/json' },
-    timeout: 30000
-  });
+  const geminiVisionRes = await axios.post(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: etsyMime, data: etsyB64 } },
+          { inline_data: { mime_type: aliMime,  data: aliB64  } },
+          { text: 'Are these two product images showing the same or very similar product? Reply with ONLY a number from 0 to 100 representing similarity percentage.' }
+        ]
+      }]
+    },
+    { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
+  );
 
-  const txt = openaiRes.data.choices?.[0]?.message?.content?.trim() || '75';
+  const txt = geminiVisionRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '75';
   return Math.min(100, Math.max(0, parseInt(txt) || 75));
 }
 
@@ -233,7 +231,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
     const apiKey = process.env.SCRAPINGBEE_KEY;
     if (!apiKey) { send({ step: 'error', message: '❌ SCRAPINGBEE_KEY missing' }); return res.end(); }
-    if (!process.env.OPENAI_API_KEY) { send({ step: 'error', message: '❌ OPENAI_API_KEY missing — add it in Render Environment Variables' }); return res.end(); }
+    if (!process.env.GEMINI_API_KEY) { send({ step: 'error', message: '❌ GEMINI_API_KEY missing — add it in Render Environment Variables' }); return res.end(); }
 
     const aboutUrl = shop.shopUrl.replace(/\/?$/, '') + '/about';
     let aboutHtml = '';
@@ -259,21 +257,19 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     // ── STEP 2 : Ask Claude/GPT for keyword ──
     let keyword = '';
     try {
-      const aiRes = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-4o-mini',
-        max_tokens: 60,
-        messages: [{
-          role: 'user',
-          content: `Here is the "About" description of an Etsy shop:\n\n"${description.slice(0, 1200)}"\n\nWhat is the main product sold by this shop? Respond with ONLY a single short English keyword (1-3 words max) that best defines the niche of this shop. No explanation, no punctuation, just the keyword.`
-        }]
-      }, {
-        headers: { 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY, 'Content-Type': 'application/json' },
-        timeout: 20000
-      });
-      keyword = (aiRes.data.choices?.[0]?.message?.content || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      const aiRes = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          contents: [{
+            parts: [{ text: `Here is the "About" description of an Etsy shop:\n\n"${description.slice(0, 1200)}"\n\nWhat is the main product sold by this shop? Respond with ONLY a single short English keyword (1-3 words max) that best defines the niche of this shop. No explanation, no punctuation, just the keyword.` }]
+          }]
+        },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
+      );
+      keyword = (aiRes.data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
     } catch (e) {
       const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-      send({ step: 'error', message: '❌ OpenAI analysis failed (' + (e.response?.status || '') + '): ' + detail });
+      send({ step: 'error', message: '❌ Gemini analysis failed (' + (e.response?.status || '') + '): ' + detail });
       return res.end();
     }
 
