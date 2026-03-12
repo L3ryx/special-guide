@@ -102,10 +102,11 @@
     .input-row input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Inter',sans-serif; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
     .input-row input::placeholder { color:var(--muted); }
     .input-row input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
-    #add-keyword-btn { width:48px; height:48px; flex-shrink:0; background:var(--green); border:none; border-radius:14px; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(34,197,94,0.4); }
+    #add-keyword-btn { width:48px; height:48px; flex-shrink:0; background:var(--green); border:none; border-radius:14px; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(34,197,94,0.4); position:relative; }
     #add-keyword-btn:hover { background:#16a34a; transform:translateY(-1px); }
     #add-keyword-btn:active { transform:translateY(0); }
-    #keywords-list { display:contents; }
+    #kw-count-badge { position:absolute; top:-7px; right:-7px; min-width:18px; height:18px; padding:0 4px; background:#f97316; color:#fff; font-size:0.6rem; font-weight:800; border-radius:9px; display:none; align-items:center; justify-content:center; pointer-events:none; border:2px solid #0a0a0a; }
+    #keywords-list { display:none; }
     .keyword-tag { display:inline-flex; align-items:center; gap:5px; padding:7px 11px; background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.35); border-radius:10px; font-size:0.82rem; font-weight:600; color:var(--green); animation:slideUp 0.2s ease; height:48px; }
     .keyword-tag .tag-text { max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .keyword-tag .tag-remove { background:none; border:none; color:rgba(255,255,255,0.35); cursor:pointer; font-size:0.95rem; line-height:1; padding:0; transition:color 0.2s; }
@@ -333,10 +334,10 @@
       <!-- Input + tags + add + trash, all inline -->
       <div class="input-row">
         <input type="text" id="keyword-input" placeholder="Enter keyword" />
-        <div id="keywords-list"></div>
-        <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword">+</button>
+        <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword">+<span id="kw-count-badge"></span></button>
         <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords">🗑</button>
       </div>
+      <div id="keywords-list" style="display:none;"></div>
       <!-- Number of images -->
       <div class="selects-row">
         <div class="select-wrap">
