@@ -30,7 +30,7 @@
       position: relative; z-index: 10;
       min-height: 100vh;
       display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-      padding: 120px 20px 20px; gap: 0px;
+      padding: 20px 20px 80px; gap: 0px;
     }
     .search-card { width: 100%; max-width: 660px; display: flex; flex-direction: column; align-items: center; gap: 36px; }
     .input-wrap { width: 100%; }
@@ -63,22 +63,19 @@
       background: var(--green); border: none; border-radius: 16px;
       color: #fff; font-family: 'Inter', sans-serif; font-weight: 700;
       font-size: 1.25rem; letter-spacing: 0.12em; cursor: pointer;
-      transition: all 0.25s ease; position: relative; overflow: hidden;
+      position: relative; overflow: hidden;
       box-shadow: 0 4px 32px rgba(34,197,94,0.45);
+      transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
     }
-    #start-btn::before {
-      content: ''; position: absolute; inset: 0;
-      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%);
-      transform: translateX(-100%); transition: transform 0.6s ease;
-    }
-    #start-btn:hover::before { transform: translateX(100%); }
     #start-btn:hover { background: #16a34a; transform: translateY(-1px); box-shadow: 0 6px 32px rgba(34,197,94,0.45); }
     #start-btn:active { transform: translateY(0); }
-    #start-btn:disabled { cursor: not-allowed; transform: none; }
-    #start-btn.loading { animation: btnBlink 0.7s ease-in-out infinite; }
+    #start-btn.loading {
+      cursor: not-allowed; transition: none;
+      animation: btnBlink 0.7s ease-in-out infinite;
+    }
     @keyframes btnBlink {
-      0%,100% { background: #dc2626; box-shadow: 0 4px 32px rgba(220,38,38,0.6); }
-      50%     { background: #ff6b6b; box-shadow: 0 0 48px rgba(220,38,38,0.9); }
+      0%,100% { background: #dc2626; box-shadow: 0 4px 32px rgba(220,38,38,0.6); transform: none; }
+      50%     { background: #ff6b6b; box-shadow: 0 0 48px rgba(220,38,38,0.9); transform: none; }
     }
     #start-btn.retry {
       animation: btnRetry 0.8s ease-in-out infinite;
@@ -257,7 +254,7 @@
     
 
     /* TITLE */
-    #title-outer { width: 100%; display: flex; justify-content: center; margin-top: 60px; margin-bottom: 50px; }
+    #title-outer { width: 100%; display: flex; justify-content: center; margin-top: 80px; margin-bottom: 50px; }
     #title-wrap { position: relative; display: inline-block; padding: 36px 40px 8px; }
     #niche-title { position: relative; z-index: 101; text-align: center; user-select: none; }
     #niche-title span {
@@ -319,15 +316,7 @@
     .modal-submit:hover { background: #16a34a; }
     .modal-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 
-    /* START btn locked */
-    #start-btn.locked {
-      background: #dc2626 !important;
-      color: #fff !important;
-      box-shadow: 0 4px 24px rgba(220,38,38,0.45) !important;
-      cursor: pointer !important;
-      border: none;
-    }
-    #start-btn.locked:hover { background: #b91c1c !important; transform: translateY(-1px) !important; }
+
 
     /* DASHBOARD BUTTON */
     #dashboard-btn {
@@ -399,15 +388,13 @@
     <span>Niche List</span>
     <span class="db-count" id="db-count">0</span>
   </a>
-</div>
-
-  <div id="title-outer">
-    <div id="title-wrap">
-      <div id="niche-title"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span class="title-space"></span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div>
-    </div>
-  </div>
 
   <div id="main-view">
+    <div id="title-outer">
+      <div id="title-wrap">
+        <div id="niche-title"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span class="title-space"></span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div>
+      </div>
+    </div>
     <div class="search-card">
       <div class="input-wrap">
         <input type="text" id="keyword-input" placeholder="Enter keyword" />
@@ -518,18 +505,31 @@
     // ── Search ──
     let _lastResults = [];
 
+    let _searching = false;
     async function startSearch() {
+      if (_searching) return;
       const keyword = document.getElementById('keyword-input').value.trim();
       const maxCount = parseInt(document.getElementById('count-select').value) || 10;
       const threshold = 40;
 
       if (!keyword) { document.getElementById('keyword-input').focus(); return; }
 
+      _searching = true;
       const btn = document.getElementById('start-btn');
-      btn.disabled = true;
       btn.textContent = 'LOADING';
       btn.classList.remove('retry');
-      btn.classList.add('loading');
+      // Force red blinking via direct style — no CSS cascade issues
+      btn.style.background = '#dc2626';
+      btn.style.boxShadow = '0 4px 32px rgba(220,38,38,0.6)';
+      btn.style.cursor = 'not-allowed';
+      btn.style.transition = 'none';
+      // Animate via JS interval instead of CSS animation
+      let _blinkOn = true;
+      window._loadingBlink = setInterval(() => {
+        btn.style.background = _blinkOn ? '#ff6b6b' : '#dc2626';
+        btn.style.boxShadow = _blinkOn ? '0 0 48px rgba(220,38,38,0.9)' : '0 4px 32px rgba(220,38,38,0.6)';
+        _blinkOn = !_blinkOn;
+      }, 350);
       document.getElementById('keyword-input').disabled = true;
       document.getElementById('count-select').disabled = true;
 
@@ -597,8 +597,12 @@
       }
 
       function finalize(count) {
-        btn.disabled = false;
-        btn.classList.remove('loading');
+        _searching = false;
+        clearInterval(window._loadingBlink);
+        btn.style.background = '';
+        btn.style.boxShadow = '';
+        btn.style.cursor = '';
+        btn.style.transition = '';
         document.getElementById('keyword-input').disabled = false;
         document.getElementById('count-select').disabled = false;
 
@@ -929,28 +933,13 @@
         localStorage.removeItem('scout_token');
       }
       // Not logged in — lock START, do not open modal
-      lockStart();
     }
 
     function onLoggedIn(email) {
       SCOUT_TOKEN = localStorage.getItem('scout_token');
-      unlockStart();
       initSavedShops();
     }
 
-    function lockStart() {
-      const btn = document.getElementById('start-btn');
-      if (!btn) return;
-      btn.classList.add('locked');
-    }
-
-    function unlockStart() {
-      const btn = document.getElementById('start-btn');
-      if (!btn) return;
-      btn.textContent = 'START';
-      btn.classList.remove('locked');
-      btn.onclick = startSearch;
-    }
 
 
 
