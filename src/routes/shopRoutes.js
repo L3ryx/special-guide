@@ -196,7 +196,7 @@ async function compareWithClaude(etsyImgUrl, aliImgUrl) {
   const aliMime  = aliBuf.headers['content-type']  || 'image/jpeg';
 
   const geminiVisionRes = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       contents: [{
         parts: [
@@ -258,7 +258,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     let keyword = '';
     try {
       const aiRes = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
         {
           contents: [{
             parts: [{ text: `Here is the "About" description of an Etsy shop:\n\n"${description.slice(0, 1200)}"\n\nWhat is the main product sold by this shop? Respond with ONLY a single short English keyword (1-3 words max) that best defines the niche of this shop. No explanation, no punctuation, just the keyword.` }]
