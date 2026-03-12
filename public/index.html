@@ -374,35 +374,6 @@
 
   <!-- INTRO SCRIPT -->
   <script>
-    (function(){
-      var ids=['bg-layer','milkyway-canvas','main-view'];
-      // Skip intro if coming back from niche-list
-      if (sessionStorage.getItem('skipIntro')) {
-        sessionStorage.removeItem('skipIntro');
-        document.getElementById('intro').style.display='none';
-        ids.forEach(function(id){var el=document.getElementById(id);if(el)el.style.opacity='1';});
-        checkAuth();
-        return;
-      }
-      ids.forEach(function(id){var el=document.getElementById(id);if(el){el.style.opacity='0';}});
-      setTimeout(function(){
-        document.querySelectorAll('#intro-text span').forEach(function(el){
-          var a=Math.random()*Math.PI*2,d=150+Math.random()*350;
-          el.style.setProperty('--tx',Math.cos(a)*d+'px');
-          el.style.setProperty('--ty',Math.sin(a)*d+'px');
-          el.style.setProperty('--tr',(Math.random()*600-300)+'deg');
-          el.classList.add('blast');
-        });
-        setTimeout(function(){
-          document.getElementById('intro').style.display='none';
-          ids.forEach(function(id){var el=document.getElementById(id);if(el)el.style.opacity='1';});
-          checkAuth();
-        },650);
-      },2200);
-    })();
-  </script>
-
-  <script>
     // ── AUTH ──
     let SCOUT_TOKEN = localStorage.getItem('scout_token') || null;
     let _currentUser = null;
@@ -563,6 +534,33 @@
       });
     });
 
+    // ── INTRO / SKIP INTRO ──
+    (function(){
+      var ids=['bg-layer','milkyway-canvas','main-view'];
+      if (sessionStorage.getItem('skipIntro')) {
+        sessionStorage.removeItem('skipIntro');
+        document.getElementById('intro').style.display='none';
+        ids.forEach(function(id){var el=document.getElementById(id);if(el)el.style.opacity='1';});
+        checkAuth();
+        return;
+      }
+      ids.forEach(function(id){var el=document.getElementById(id);if(el){el.style.opacity='0';}});
+      setTimeout(function(){
+        document.querySelectorAll('#intro-text span').forEach(function(el){
+          var a=Math.random()*Math.PI*2,d=150+Math.random()*350;
+          el.style.setProperty('--tx',Math.cos(a)*d+'px');
+          el.style.setProperty('--ty',Math.sin(a)*d+'px');
+          el.style.setProperty('--tr',(Math.random()*600-300)+'deg');
+          el.classList.add('blast');
+        });
+        setTimeout(function(){
+          document.getElementById('intro').style.display='none';
+          ids.forEach(function(id){var el=document.getElementById(id);if(el)el.style.opacity='1';});
+          checkAuth();
+        },650);
+      },2200);
+    })();
+
     async function submitChangeEmail() {
       const email = document.getElementById('acct-new-email').value.trim();
       const password = document.getElementById('acct-email-pwd').value;
@@ -645,15 +643,29 @@
     }
 
     function renderKeywords() {
+      // Hidden tags for status tracking during search
       const list = document.getElementById('keywords-list');
       list.innerHTML = '';
       _keywords.forEach(function(kw) {
         const tag = document.createElement('div');
         tag.className = 'keyword-tag';
         tag.id = 'tag-' + encodeKw(kw);
-        tag.innerHTML = '<span class="tag-text">' + escHtml(kw) + '</span><button class="tag-remove" onclick="removeKeyword(\'' + escHtml(kw).replace(/'/g,"&#39;") + '\')" title="Remove">×</button>';
         list.appendChild(tag);
       });
+      // Counter badge on + button
+      const badge = document.getElementById('kw-count-badge');
+      if (badge) {
+        badge.textContent = _keywords.length;
+        badge.style.display = _keywords.length > 0 ? 'inline-flex' : 'none';
+      }
+      // Trash button
+      const trash = document.getElementById('clear-keywords-btn');
+      if (trash) trash.style.display = _keywords.length > 0 ? 'flex' : 'none';
+    }
+
+    function clearKeywords() {
+      _keywords = [];
+      renderKeywords();
     }
 
     function encodeKw(kw) { return kw.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30); }
