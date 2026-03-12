@@ -260,7 +260,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     let keyword = '';
     try {
       const aiRes = await axios.post('https://api.anthropic.com/v1/messages', {
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 60,
         messages: [{
           role: 'user',
@@ -272,7 +272,8 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       });
       keyword = (aiRes.data.content?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
     } catch (e) {
-      send({ step: 'error', message: '❌ AI analysis failed: ' + e.message });
+      const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+      send({ step: 'error', message: '❌ AI analysis failed (' + (e.response?.status || '') + '): ' + detail });
       return res.end();
     }
 
