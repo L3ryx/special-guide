@@ -5,7 +5,7 @@ function extractStatsFromListingHtml(html) {
   let createdAt = null;
   let avgPrice  = null;
 
-  // ── VENTES ──
+  // ── SALES ──
   const salesPatterns = [
     /"sales_count"\s*:\s*(\d+)/i,
     /"salesCount"\s*:\s*(\d+)/i,
@@ -48,13 +48,13 @@ function extractStatsFromListingHtml(html) {
     if (d && !isNaN(d.getTime()) && d.getFullYear() >= 2005) { createdAt = d; break; }
   }
 
-  // ── PRIX DES LISTINGS (page boutique) ──
+  // ── LISTING PRICES (shop page) ──
   // Etsy embarque les prix dans le JSON __NEXT_DATA__ ou en data-attributes
   // Format typique : "price":{"amount":2500,"divisor":100,"currency_code":"USD"}
   // ou "price":"25.00" ou data-price="25.00"
   const prices = [];
 
-  // JSON structuré : "amount":XXXX,"divisor":100
+  // Structured JSON: "amount":XXXX,"divisor":100
   const priceStructured = [...html.matchAll(/"amount"\s*:\s*(\d+)\s*,\s*"divisor"\s*:\s*(\d+)/g)];
   for (const m of priceStructured) {
     const val = parseInt(m[1]) / parseInt(m[2]);
@@ -80,14 +80,14 @@ function extractStatsFromListingHtml(html) {
   }
 
   if (prices.length > 0) {
-    // Dédupliquer et limiter les outliers (enlever les 10% extrêmes)
+    // Deduplicate and trim outliers (remove top/bottom 10%)
     prices.sort((a, b) => a - b);
     const trim = Math.floor(prices.length * 0.1);
     const trimmed = prices.slice(trim, prices.length - trim || undefined);
     avgPrice = trimmed.reduce((s, v) => s + v, 0) / trimmed.length;
-    console.log(`  💰 ${prices.length} prix trouvés → moyenne: $${avgPrice.toFixed(2)}`);
+    console.log(`  💰 ${prices.length} prices found → average: $${avgPrice.toFixed(2)}`);
   } else {
-    console.log(`  ❌ prix non trouvés`);
+    console.log(`  ❌ prices not found`);
   }
 
   return { sales, createdAt, avgPrice };
@@ -112,7 +112,7 @@ async function scrapeShopPage(shopUrl, retries = 2) {
 
     } catch (err) {
       const status = err.response?.status;
-      console.warn(`  ⚠️ scrapeShopPage tentative ${attempt}/${retries + 1}: ${err.message}`);
+      console.warn(`  ⚠️ scrapeShopPage attempt ${attempt}/${retries + 1}: ${err.message}`);
       if (attempt <= retries && (status === 500 || status === 429 || err.code === 'ECONNABORTED')) {
         await new Promise(r => setTimeout(r, attempt * 2000));
         continue;
@@ -129,15 +129,15 @@ async function scrapeShopStats(shopUrl, listingHtml = null) {
   if (listingHtml) {
     const stats = extractStatsFromListingHtml(listingHtml);
     if (stats.sales && stats.createdAt) {
-      console.log(`  ✅ listing: ventes=${stats.sales}, créée=${stats.createdAt.toLocaleDateString('fr-FR')}`);
-      // Même si listing suffit pour les stats de base, on scrape quand même la boutique pour les prix
+      console.log(`  ✅ listing: sales=${stats.sales}, created=${stats.createdAt.toLocaleDateString('en-US')}`);
+      // Even if listing is enough for base stats, still scrape shop for prices
     }
   }
 
-  // Toujours scraper la page boutique pour récupérer les prix des listings
+  // Always scrape shop page to get listing prices
   const html = await scrapeShopPage(shopUrl);
   if (!html) {
-    console.log(`  ❌ scraping boutique échoué`);
+    console.log(`  ❌ shop scraping failed`);
     // Fallback sur le listingHtml si dispo
     if (listingHtml) {
       const stats = extractStatsFromListingHtml(listingHtml);
@@ -155,7 +155,7 @@ async function scrapeShopStats(shopUrl, listingHtml = null) {
     if (!stats.createdAt && fallback.createdAt) stats.createdAt = fallback.createdAt;
   }
 
-  console.log(`  → FINAL: ventes=${stats.sales ?? 'null'}, créée=${stats.createdAt?.toLocaleDateString('fr-FR') ?? 'null'}, prixMoyen=${stats.avgPrice ? '$'+stats.avgPrice.toFixed(2) : 'null'}\n`);
+  console.log(`  → FINAL: sales=${stats.sales ?? 'null'}, created=${stats.createdAt?.toLocaleDateString('en-US') ?? 'null'}, avgPrice=${stats.avgPrice ? '$'+stats.avgPrice.toFixed(2) : 'null'}\n`);
   return { shopUrl, ...stats };
 }
 
