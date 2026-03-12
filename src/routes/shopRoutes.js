@@ -9,16 +9,11 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 router.post('/save', requireAuth, async (req, res) => {
   let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
   if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
-
-  // Nettoyer l'URL — garder seulement la partie boutique
   shopUrl = shopUrl.split('/listing/')[0].replace(/\/$/, '');
-
-  // Extraire le nom depuis l'URL si absent
   if (!shopName || shopName === 'Shop' || shopName === 'Boutique') {
     const m = shopUrl.match(/\/shop\/([^/?#]+)/);
     shopName = m ? m[1] : shopUrl.split('/').filter(Boolean).pop() || 'Shop';
   }
-
   try {
     const shop = await SavedShop.findOneAndUpdate(
       { userId: req.user.id, shopUrl },
@@ -57,25 +52,51 @@ router.post('/:id/find', requireAuth, async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   const send = d => res.write('data: ' + JSON.stringify(d) + '\n\n');
 
+  // Vérification des clés API
+  if (!process.env.SERPER_API_KEY) {
+    send({ step: 'error', message: '❌ SERPER_API_KEY manquante dans Render → Environment' });
+    return res.end();
+  }
+
   try {
     send({ step: 'scraping', message: '🔍 Fetching listings...' });
     const listings = await scrapeShopListings(shop.shopUrl);
     if (!listings.length) {
-      send({ step: 'error', message: 'No listings found in this shop' });
+      send({ step: 'error', message: 'Aucun listing trouvé pour cette boutique' });
       return res.end();
     }
-    send({ step: 'scraping', message: `✅ ${listings.length} listings found` });
+    send({ step: 'scraping', message: `✅ ${listings.length} listings trouvés` });
 
     const results = [];
     for (let i = 0; i < listings.length; i++) {
       const listing = listings[i];
+      if (!listing.image) continue;
       send({ step: 'searching', index: i, total: listings.length, message: `🔎 ${i+1}/${listings.length} — ${listing.title?.slice(0,40) || ''}` });
       try {
+        // Upload sur ImgBB pour URL publique (Serper a besoin d'une URL accessible)
         const publicUrl = await uploadToImgBB(listing.image);
-        const lensRes = await axios.post('https://google.serper.dev/lens',
-          { url: publicUrl, gl: 'us', hl: 'en' },
-          { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
-        );
+        if (!publicUrl || !publicUrl.startsWith('http')) {
+          console.warn(`Listing ${i}: ImgBB upload failed, skipping`);
+          continue;
+        }
+
+        // Appel Serper Lens
+        let lensRes;
+        try {
+          lensRes = await axios.post('https://google.serper.dev/lens',
+            { url: publicUrl, gl: 'us', hl: 'en' },
+            { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
+          );
+        } catch (serperErr) {
+          const status = serperErr.response?.status;
+          if (status === 401) {
+            send({ step: 'error', message: '❌ Serper API key invalide (401) — vérifie SERPER_API_KEY sur Render' });
+            return res.end();
+          }
+          console.warn(`Listing ${i} Serper error ${status}:`, serperErr.message);
+          continue; // skip ce listing, continue les autres
+        }
+
         const all = [...(lensRes.data.visual_matches || []), ...(lensRes.data.organic || [])];
         const aliMatch = all.find(m => (m.link || m.url || '').includes('aliexpress.com/item/'));
         if (!aliMatch) continue;
@@ -84,7 +105,7 @@ router.post('/:id/find', requireAuth, async (req, res) => {
         if (!aliUrl) continue;
 
         const aliImgUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl || null;
-        let similarity  = 75;
+        let similarity = 75;
         if (aliImgUrl) {
           try { similarity = await compareWithClaude(listing.image, aliImgUrl); }
           catch (e) { console.warn('Claude Vision unavailable:', e.message); }
@@ -99,10 +120,10 @@ router.post('/:id/find', requireAuth, async (req, res) => {
           aliImage:  aliImgUrl,
           similarity,
         });
-
         send({ step: 'match', result: results[results.length - 1], total: results.length });
       } catch (e) {
         console.warn(`Listing ${i} error:`, e.message);
+        // Ne pas couper — on continue les autres listings
       }
     }
 
@@ -111,7 +132,10 @@ router.post('/:id/find', requireAuth, async (req, res) => {
     send({ step: 'complete', results, shopId: shop._id });
     res.end();
   } catch (err) {
-    send({ step: 'error', message: err.message });
+    const msg = err.response
+      ? `Erreur API ${err.response.status}: ${JSON.stringify(err.response.data)}`
+      : err.message;
+    send({ step: 'error', message: msg });
     res.end();
   }
 });
