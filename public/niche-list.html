@@ -285,7 +285,17 @@
       btn.disabled = true; btn.classList.add('running'); btn.textContent = '...';
       status.textContent = 'Connecting...'; resDiv.innerHTML = '';
       try {
-        const response = await apiFetch('/api/shops/' + shopId + '/find', { method: 'POST' });
+        const token = localStorage.getItem('scout_token');
+        console.log('[FIND] token=', token ? token.slice(0,30)+'...' : 'NULL');
+        console.log('[FIND] shopId=', shopId);
+        if (!token) { window.location.href = '/dashboard'; return; }
+        const response = await fetch('/api/shops/' + shopId + '/find', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+        });
+        console.log('[FIND] response.status=', response.status);
+        if (response.status === 401) { status.textContent = '❌ Session expirée — reconnecte-toi'; window.location.href = '/dashboard'; return; }
+        if (!response.ok) { const d = await response.json().catch(() => ({})); status.textContent = '❌ Erreur ' + response.status + ': ' + (d.error || ''); return; }
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buf = '';
