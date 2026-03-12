@@ -3,10 +3,10 @@ const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
 
-// ── Connexion MongoDB (une seule fois) ──
+// ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
   mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/finder_niche')
-    .then(() => console.log('✅ MongoDB connecté'))
+    .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB:', err.message));
 }
 
@@ -30,7 +30,7 @@ async function parallel(items, concurrency, fn) {
   return results;
 }
 
-// ── DEBUG CLÉS ──
+// ── DEBUG KEYS ──
 router.get('/debug', (req, res) => {
   const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY', 'SCRAPINGBEE_KEY'];
   const status = {};
@@ -41,10 +41,10 @@ router.get('/debug', (req, res) => {
   res.json({ keys: status });
 });
 
-// ── DEBUG HTML BOUTIQUE ──
+// ── DEBUG SHOP HTML ──
 router.get('/debug-shop', async (req, res) => {
   const shopUrl = req.query.url;
-  if (!shopUrl) return res.status(400).json({ error: 'Paramètre ?url= requis' });
+  if (!shopUrl) return res.status(400).json({ error: 'Parameter ?url= required' });
   const apiKey = process.env.SCRAPINGBEE_KEY;
   if (!apiKey) return res.status(500).json({ error: 'SCRAPINGBEE_KEY manquant' });
   try {
@@ -53,7 +53,7 @@ router.get('/debug-shop', async (req, res) => {
       + `&render_js=true&premium_proxy=true&country_code=us&wait=2000&timeout=45000`;
     const response = await axios.get(reqUrl, { timeout: 120000 });
     const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-    const keywords = ['sales', 'since', 'joined', 'creation', 'member', 'ventes', 'created'];
+    const keywords = ['sales', 'since', 'joined', 'creation', 'member', 'sales', 'created'];
     const excerpts = {};
     for (const kw of keywords) {
       const idx = html.toLowerCase().indexOf(kw);
@@ -68,11 +68,11 @@ router.get('/debug-shop', async (req, res) => {
 // ── SEARCH ──
 router.post('/search', async (req, res) => {
   const { keyword, maxCount = 10 } = req.body;
-  if (!keyword?.trim()) return res.status(400).json({ error: 'Mot-clé requis' });
+  if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   const missing = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY']
     .filter(k => !process.env[k]);
-  if (missing.length) return res.status(500).json({ error: 'Clés manquantes: ' + missing.join(', ') });
+  if (missing.length) return res.status(500).json({ error: 'Missing keys: ' + missing.join(', ') });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -83,12 +83,12 @@ router.post('/search', async (req, res) => {
   const sendComplete = r   => { res.write('data: ' + JSON.stringify({ step: 'complete', results: r }) + '\n\n'); res.end(); };
 
   try {
-    send('scraping_etsy', `🔍 Scraping Etsy pour "${keyword}"...`);
+    send('scraping_etsy', `🔍 Scraping Etsy for "${keyword}"...`);
     const listings = await scrapeEtsy(keyword, maxCount);
-    if (!listings.length) return sendError('Aucune annonce Etsy trouvée');
-    send('etsy_done', `✅ ${listings.length} annonces trouvées`);
+    if (!listings.length) return sendError('No Etsy listings found');
+    send('etsy_done', `✅ ${listings.length} listings found`);
 
-    send('reverse_search', `🏪 Récupération des infos boutiques...`);
+    send('reverse_search', `🏪 Fetching shop info...`);
     await parallel(listings, 5, async (listing) => {
       try {
         const shopInfo = await getShopInfo(listing);
@@ -98,7 +98,7 @@ router.post('/search', async (req, res) => {
       } catch {}
     });
 
-    send('reverse_search', `🔎 Analyse de ${listings.length} annonces en parallèle...`);
+    send('reverse_search', `🔎 Analyzing ${listings.length} listings in parallel...`);
 
     let done = 0;
     const allResults = [];
@@ -110,7 +110,7 @@ router.post('/search', async (req, res) => {
         try {
           const matches = await reverseImageSearch(listing.image, listing.title || '');
           done++;
-          send('comparing', `🤖 ${done}/${listings.length} analysées`);
+          send('comparing', `🤖 ${done}/${listings.length} analyzed`);
           if (!matches.length) return;
           const comparisons = await compareEtsyWithAliexpress(listing, matches);
           if (comparisons.length > 0) {
@@ -124,7 +124,7 @@ router.post('/search', async (req, res) => {
       }
     );
 
-    send('finalizing', `📊 Terminé — ${allResults.length} résultat(s)`);
+    send('finalizing', `📊 Done — ${allResults.length} result(s)`);
 
     const seen = new Set();
     const deduped = allResults
@@ -166,7 +166,7 @@ router.get('/debug-etsy', async (req, res) => {
 // ── SHOP STATS ──
 router.post('/shop-stats', async (req, res) => {
   const { results } = req.body;
-  if (!results?.length) return res.status(400).json({ error: 'Aucun résultat fourni' });
+  if (!results?.length) return res.status(400).json({ error: 'No results provided' });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -175,13 +175,13 @@ router.post('/shop-stats', async (req, res) => {
   const send = (data) => res.write('data: ' + JSON.stringify(data) + '\n\n');
 
   try {
-    // Dédupliquer les boutiques
+    // Deduplicate shops
     const shops = [...new Map(
       results.map(r => [r.etsy.shopUrl || r.etsy.shopName, {
         shopUrl:     r.etsy.shopUrl,
         shopName:    r.etsy.shopName,
         listingUrl:  r.etsy.link,
-        // On passe le HTML listing si disponible pour éviter un appel ScrapingBee
+        // Pass listing HTML if available to avoid extra ScrapingBee call
         listingHtml: r.etsy.listingHtml || null,
       }])
     ).values()].filter(s => s.shopUrl);
