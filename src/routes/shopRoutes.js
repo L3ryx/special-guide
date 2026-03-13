@@ -9,16 +9,7 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 router.post('/save', requireAuth, async (req, res) => {
   let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
   if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
-  if (shopUrl.includes('/listing/')) {
-    const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/);
-    shopUrl = m
-      ? `https://www.etsy.com/shop/${m[1]}`
-      : shopName
-        ? `https://www.etsy.com/shop/${shopName}`
-        : shopUrl.split('/listing/')[0].replace(/\/$/, '');
-  } else {
-    shopUrl = shopUrl.replace(/\/$/, '');
-  }
+  shopUrl = shopUrl.split('/listing/')[0].replace(/\/$/, '');
   if (!shopName || shopName === 'Shop' || shopName === 'Boutique') {
     const m = shopUrl.match(/\/shop\/([^/?#]+)/);
     shopName = m ? m[1] : shopUrl.split('/').filter(Boolean).pop() || 'Shop';
@@ -222,8 +213,6 @@ async function compareWithClaude(etsyImgUrl, aliImgUrl) {
   return Math.min(100, Math.max(0, parseInt(txt) || 75));
 }
 
-module.exports = router;
-
 // ── COMPETITION ──
 router.post('/:id/competition', requireAuth, async (req, res) => {
   const shop = await SavedShop.findOne({ _id: req.params.id, userId: req.user.id });
@@ -294,31 +283,25 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
     // We wrap scrapeEtsyShopNames to emit progress
     const etsyUrl = keyword;
-    const scrapeResult = await scrapeEtsyAllShops(apiKey, etsyUrl, (page, count) => {
+    allShopNames = await scrapeEtsyAllShops(apiKey, etsyUrl, (page, count) => {
       pagesDone = page;
       send({ step: 'scraping', message: '📄 Page ' + page + ' scraped — ' + count + ' unique shops so far...' });
-    }, keyword);
-    allShopNames = scrapeResult.shops;
+    });
 
     send({ step: 'status', message: '✅ Scraping complete — ' + allShopNames.length + ' unique shops found' });
 
     // ── STEP 4 : Compute competition score ──
-    const totalShops    = allShopNames.length;
-    const totalListings = scrapeResult.totalListings;
-    const similarTitles = scrapeResult.similarTitles;
-    const score = computeCompetitionScore(totalShops, totalListings, similarTitles);
+    const totalShops = allShopNames.length;
+    const score = computeCompetitionScore(totalShops);
 
     send({
       step: 'complete',
       keyword,
       totalShops,
-      totalListings,
-      similarTitles,
       score,
       label: score.label,
       color: score.color,
       description: score.description,
-      saturation: score.saturation,
       shopNames: allShopNames,
     });
     res.end();
@@ -330,11 +313,9 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 });
 
 // Scrape all pages of Etsy search and collect unique shop names, with progress callback
-async function scrapeEtsyAllShops(apiKey, keyword, onPage, rawKeyword) {
+async function scrapeEtsyAllShops(apiKey, keyword, onPage) {
   const allShops = new Set();
   let page = 1;
-  let totalListings = 0;
-  let similarTitles = 0;
 
   while (page <= 20) {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&page=${page}`;
@@ -350,30 +331,7 @@ async function scrapeEtsyAllShops(apiKey, keyword, onPage, rawKeyword) {
       break;
     }
 
-    // On page 1 only: extract total listings count displayed by Etsy
-    if (page === 1) {
-      const listingMatch = html.match(/([0-9][0-9,]*)\s*results?/i) ||
-                           html.match(/"totalResults"\s*:\s*(\d+)/) ||
-                           html.match(/(\d[\d,]*)\s*résultats?/i);
-      if (listingMatch) {
-        totalListings = parseInt(listingMatch[1].replace(/,/g, ''), 10) || 0;
-      }
-    }
-
-    // Count listing titles that contain the keyword words
-    const kw = (rawKeyword || keyword).toLowerCase();
-    const kwWords = kw.split(/\s+/).filter(w => w.length > 2);
-    const titleMatches = [
-      ...html.matchAll(/data-listing-title="([^"]+)"/gi),
-      ...html.matchAll(/"title"\s*:\s*"([^"]{5,120})"/g),
-      ...html.matchAll(/<h3[^>]*>\s*([^<]{5,120})\s*<\/h3>/gi),
-    ];
-    for (const m of titleMatches) {
-      const title = m[1].toLowerCase();
-      if (kwWords.some(w => title.includes(w))) similarTitles++;
-    }
-
-    // Extract shop names
+    // Extract shop names from JSON-LD and data attributes
     const shops = extractShopNamesFromHtml(html);
     if (shops.length === 0) break;
 
@@ -390,7 +348,7 @@ async function scrapeEtsyAllShops(apiKey, keyword, onPage, rawKeyword) {
     await new Promise(r => setTimeout(r, 800));
   }
 
-  return { shops: Array.from(allShops), totalListings, similarTitles };
+  return Array.from(allShops);
 }
 
 function extractShopNamesFromHtml(html) {
@@ -459,25 +417,13 @@ function extractAboutText(html) {
   return combined.slice(0, 1500);
 }
 
-function computeCompetitionScore(totalShops, totalListings, similarTitles) {
-  // 4-metric weighted score (0–100)
-  const shopScore    = Math.min(100, (totalShops    / 500)   * 100); // 30%
-  const listingScore = Math.min(100, (totalListings / 50000) * 100); // 30%
-  const ratioScore   = totalShops > 0
-    ? Math.min(100, (totalListings / totalShops) / 2)                // 25%
-    : 0;
-  const similarScore = Math.min(100, (similarTitles / 200)   * 100); // 15%
-
-  const saturation = Math.round(
-    shopScore    * 0.30 +
-    listingScore * 0.30 +
-    ratioScore   * 0.25 +
-    similarScore * 0.15
-  );
-
-  if (saturation <= 20)  return { label: 'Very Low',  color: '#22c55e', description: 'Excellent niche — very few competitors. Great opportunity!',      saturation };
-  if (saturation <= 40)  return { label: 'Low',       color: '#86efac', description: 'Good niche — limited competition. Solid opportunity.',             saturation };
-  if (saturation <= 60)  return { label: 'Moderate',  color: '#fbbf24', description: 'Medium competition. Differentiation is key.',                      saturation };
-  if (saturation <= 80)  return { label: 'High',      color: '#f97316', description: 'High competition. Need a strong unique angle.',                    saturation };
-  return                        { label: 'Very High', color: '#ef4444', description: 'Extremely saturated niche. Hard to stand out.',                    saturation };
+function computeCompetitionScore(totalShops) {
+  // Scoring: based on number of unique competing shops
+  if (totalShops <= 20) return { label: 'Very Low', color: '#22c55e', description: 'Excellent niche — very few competitors. Great opportunity!', score: 1 };
+  if (totalShops <= 60) return { label: 'Low', color: '#86efac', description: 'Good niche — limited competition. Solid opportunity.', score: 2 };
+  if (totalShops <= 150) return { label: 'Moderate', color: '#fbbf24', description: 'Medium competition. Differentiation is key.', score: 3 };
+  if (totalShops <= 350) return { label: 'High', color: '#f97316', description: 'High competition. Need a strong unique angle.', score: 4 };
+  return { label: 'Very High', color: '#ef4444', description: 'Extremely saturated niche. Hard to stand out.', score: 5 };
 }
+
+module.exports = router;
