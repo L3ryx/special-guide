@@ -45,10 +45,22 @@ function parseShopInfo(html) {
     if (shopName) break;
   }
 
-  // HTML fallback
+  // HTML / JS patterns (multiple fallbacks)
   if (!shopName) {
-    const m = html.match(/data-shop-name="([^"]+)"/i) || html.match(/"shopName"\s*:\s*"([^"]+)"/i);
-    if (m) shopName = m[1];
+    const patterns = [
+      /data-shop-name="([^"]+)"/i,
+      /"shopName"\s*:\s*"([^"]+)"/i,
+      /"shop_name"\s*:\s*"([^"]+)"/i,
+      /etsy\.com\/shop\/([A-Za-z0-9]+)/i,
+      /"ownerName"\s*:\s*"([^"]+)"/i,
+      /class="[^"]*shop-name[^"]*"[^>]*>([A-Za-z0-9]+)</i,
+      /"name"\s*:\s*"([^"]+)"[^}]*"@type"\s*:\s*"Store"/i,
+      /"@type"\s*:\s*"Store"[^}]*"name"\s*:\s*"([^"]+)"/i,
+    ];
+    for (const pat of patterns) {
+      const m = html.match(pat);
+      if (m && m[1] && m[1].length > 1) { shopName = m[1]; break; }
+    }
   }
 
   // Avatar
