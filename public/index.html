@@ -199,9 +199,7 @@
 
     /* FIND */
     #find-wrap { display:none; flex-direction:column; align-items:center; gap:16px; padding:10px 0 20px; width:100%; }
-    #find-btn { padding:16px 48px; background:var(--green); border:none; border-radius:14px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1.1rem; letter-spacing:0.1em; cursor:pointer; transition:all 0.25s; box-shadow:0 4px 24px rgba(34,197,94,0.4); }
-    #find-btn:hover { background:#16a34a; transform:translateY(-1px); }
-    #find-btn.searching { animation:findBlink 0.6s ease-in-out infinite; cursor:not-allowed; }
+
     @keyframes findBlink { 0%,100%{background:#dc2626;box-shadow:0 4px 32px rgba(220,38,38,0.7)} 50%{background:#ff3333;box-shadow:0 0 48px rgba(255,50,50,1)} }
     #find-status { font-size:0.82rem; color:var(--muted); text-align:center; }
     #winner-card { display:none; width:100%; max-width:600px; background:linear-gradient(135deg,rgba(34,197,94,0.12),rgba(16,163,74,0.06)); border:1px solid rgba(34,197,94,0.4); border-radius:18px; padding:24px; backdrop-filter:blur(16px); text-align:center; }
@@ -364,7 +362,6 @@
         <div class="results-count-bar" id="results-count"></div>
         <div id="results-container"></div>
         <div id="find-wrap">
-          <button id="find-btn" onclick="startFind()">🔍 Find</button>
           <div id="find-status"></div>
           <div id="winner-card"></div>
         </div>
@@ -885,7 +882,7 @@
       const etsy = m.etsy, ali = m.aliexpress;
       const etsySrc = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc  = ali.image || '';
-      const shopUrl = etsy.shopUrl || (etsy.shopName ? 'https://www.etsy.com/shop/' + etsy.shopName : '') || (etsy.link || '');
+      const shopUrl = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0] : '') || '';
       const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
@@ -924,13 +921,11 @@
     // Use _allResults as source for find
     async function startFind() {
       _lastResults = _allResults;
-      const btn = document.getElementById('find-btn');
       const status = document.getElementById('find-status');
       const winnerCard = document.getElementById('winner-card');
       if (!_lastResults.length) { status.textContent = 'No results.'; return; }
-      btn.disabled = true; btn.classList.add('searching'); btn.textContent = 'Analyzing...';
       status.textContent = 'Connecting...'; winnerCard.style.display = 'none';
-      function resetBtn() { btn.disabled = false; btn.classList.remove('searching'); btn.textContent = '🔍 Find'; }
+      function resetBtn() { status.textContent = ''; }
       try {
         const response = await fetch('/api/shop-stats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ results: _lastResults }) });
         const reader = response.body.getReader(), decoder = new TextDecoder(); let buf = '';
