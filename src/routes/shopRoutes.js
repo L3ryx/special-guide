@@ -231,26 +231,43 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     if (!apiKey) { send({ step: 'error', message: '❌ SCRAPINGBEE_KEY missing' }); return res.end(); }
     if (!process.env.GEMINI_API_KEY) { send({ step: 'error', message: '❌ GEMINI_API_KEY missing — add it in Render Environment Variables' }); return res.end(); }
 
-    const aboutUrl = shop.shopUrl.replace(/\/?$/, '') + '/about';
+    // Try /about page, then shop homepage, then fallback to shop name
     let aboutHtml = '';
-    try {
-      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params: { api_key: apiKey, url: aboutUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000' },
-        timeout: 120000,
-      });
-      aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-    } catch (e) {
-      send({ step: 'error', message: '❌ Could not fetch About page: ' + e.message });
-      return res.end();
+    let description = '';
+
+    const urlsToTry = [
+      shop.shopUrl.replace(/\/?$/, '') + '/about',
+      shop.shopUrl.replace(/\/?$/, ''),
+    ];
+
+    for (const tryUrl of urlsToTry) {
+      try {
+        const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+          params: { api_key: apiKey, url: tryUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000' },
+          timeout: 120000,
+        });
+        aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+        description = extractAboutText(aboutHtml);
+        if (description && description.length >= 20) break;
+      } catch (e) {
+        console.warn('Could not fetch', tryUrl, ':', e.message);
+        // continue to next URL
+      }
     }
 
-    // Extract text from About section
-    const description = extractAboutText(aboutHtml);
+    // Last resort: use shop name as keyword directly
     if (!description || description.length < 20) {
-      send({ step: 'error', message: '❌ No shop description found on About page' });
-      return res.end();
+      const shopNameKeyword = (shop.shopName || '').replace(/([A-Z])/g, ' $1').trim().toLowerCase();
+      if (shopNameKeyword.length >= 2) {
+        description = shopNameKeyword;
+        send({ step: 'status', message: '📝 No About page found — using shop name as keyword hint...' });
+      } else {
+        send({ step: 'error', message: '❌ Could not find any description for this shop' });
+        return res.end();
+      }
+    } else {
+      send({ step: 'status', message: '📝 Description found (' + description.length + ' chars). Analyzing with AI...' });
     }
-    send({ step: 'status', message: '📝 Description found (' + description.length + ' chars). Analyzing with AI...' });
 
     // ── STEP 2 : Ask Claude/GPT for keyword ──
     let keyword = '';
