@@ -143,18 +143,6 @@ router.post('/search', async (req, res) => {
         result.etsy.shopUrl    = shop.shopUrl    || result.etsy.shopUrl    || null;
         result.etsy.shopAvatar = shop.shopAvatar || null;
       } catch {}
-
-      // Fallback: si shopName toujours null, l'extraire depuis l'URL listing
-      if (!result.etsy.shopName && result.etsy.link) {
-        const m = result.etsy.link.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
-        if (m) { result.etsy.shopName = m[1]; }
-      }
-      // Fallback: construire shopUrl depuis shopName
-      if (result.etsy.shopName && !result.etsy.shopUrl) {
-        result.etsy.shopUrl = 'https://www.etsy.com/shop/' + result.etsy.shopName;
-      }
-      // Log pour debug
-      console.log('[shop]', result.etsy.shopName || 'NULL', '->', result.etsy.shopUrl || 'NULL');
     });
 
     sendComplete(deduped);
