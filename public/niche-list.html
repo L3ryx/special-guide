@@ -103,29 +103,45 @@
       font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.75rem;
       cursor: pointer; transition: all 0.2s; white-space: nowrap;
       box-shadow: 0 2px 10px rgba(168,85,247,0.35);
+      display: inline-flex; align-items: center; gap: 6px;
     }
     .btn-find:hover { background: linear-gradient(135deg,#6d28d9,#9333ea); transform: translateY(-1px); }
-    .btn-find.running { animation: findPulse 0.6s ease-in-out infinite; }
-    @keyframes findPulse {
-      0%,100% { background:linear-gradient(135deg,#7c3aed,#a855f7); box-shadow:0 2px 20px rgba(168,85,247,0.7); }
-      50%     { background:linear-gradient(135deg,#a855f7,#c084fc); box-shadow:0 0 30px rgba(192,132,252,0.9); }
+    .btn-find.running { background: linear-gradient(135deg,#6d28d9,#9333ea); box-shadow: 0 2px 20px rgba(168,85,247,0.6); cursor: not-allowed; }
+    .btn-find .spinner {
+      display: none; width: 12px; height: 12px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin 0.7s linear infinite;
     }
+    .btn-find.running .spinner { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     /* Competition result panel */
     .comp-panel { margin-top: 14px; padding: 18px 20px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.25); border-radius: 16px; animation: slideUp 0.4s ease; }
-    @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
-    .comp-keyword { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-bottom: 12px; }
+    .comp-keyword { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-bottom: 14px; }
     .comp-keyword span { color: #c084fc; font-weight: 700; }
-    .comp-score-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .comp-badge { padding: 8px 20px; border-radius: 50px; font-weight: 800; font-size: 1rem; letter-spacing: 0.04em; }
-    .comp-desc { font-size: 0.82rem; color: rgba(255,255,255,0.65); line-height: 1.5; flex: 1; min-width: 160px; }
-    .comp-stats { display: flex; gap: 20px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.07); flex-wrap: wrap; }
+
+    /* Top row: gauge + badge */
+    .comp-top-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+    .comp-gauge-wrap { flex-shrink: 0; }
+    .comp-badge-block { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .comp-badge { display: inline-block; padding: 7px 18px; border-radius: 50px; font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; width: fit-content; }
+    .comp-desc { font-size: 0.82rem; color: rgba(255,255,255,0.65); line-height: 1.5; }
+
+    /* Stats grid */
+    .comp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; padding: 14px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }
     .comp-stat { text-align: center; }
-    .comp-stat-val { display: block; font-size: 1.3rem; font-weight: 800; color: #fff; }
-    .comp-stat-lbl { display: block; font-size: 0.65rem; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
-    .comp-bar-wrap { margin-top: 14px; }
+    .comp-stat-val { display: block; font-size: 1.15rem; font-weight: 800; color: #fff; }
+    .comp-stat-lbl { display: block; font-size: 0.62rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+
+    /* Bar */
+    .comp-bar-wrap { }
     .comp-bar-track { width: 100%; height: 8px; background: rgba(255,255,255,0.07); border-radius: 8px; overflow: hidden; }
     .comp-bar-fill { height: 100%; border-radius: 8px; transition: width 1s ease; }
-    .comp-bar-labels { display: flex; justify-content: space-between; margin-top: 4px; font-size: 0.6rem; color: rgba(255,255,255,0.3); }
+
+    /* Breakdown mini labels */
+    .comp-breakdown { display: flex; justify-content: space-between; margin-top: 8px; flex-wrap: wrap; gap: 4px; }
+    .comp-breakdown span { font-size: 0.62rem; color: rgba(255,255,255,0.3); }
+    .comp-breakdown b { color: rgba(255,255,255,0.6); }
     .btn-delete {
       width: 26px; height: 26px; border-radius: 50%;
       border: 1px solid rgba(255,80,80,0.25); background: rgba(255,80,80,0.07);
@@ -252,7 +268,7 @@
               <div class="shop-row-name">${name}</div>
               <div class="shop-row-btns">
                 <a class="btn-visit" href="${shop.shopUrl}" target="_blank" rel="noopener">Visit shop ↗</a>
-                <button class="btn-find" id="find-btn-${shop._id}" onclick="runCompetition('${shop._id}')">⚔️ Competition</button>
+                <button class="btn-find" id="find-btn-${shop._id}" onclick="runCompetition('${shop._id}')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>
               </div>
             </div>
             <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
@@ -297,9 +313,12 @@
 
     async function runCompetition(shopId) {
       const btn    = document.getElementById('find-btn-' + shopId);
+      const label  = btn.querySelector('.btn-label');
       const status = document.getElementById('find-status-' + shopId);
       const resDiv = document.getElementById('find-results-' + shopId);
-      btn.disabled = true; btn.classList.add('running'); btn.textContent = '...';
+      btn.disabled = true;
+      btn.classList.add('running');
+      label.textContent = 'Analyse...';
       status.textContent = '⚔️ Starting competition analysis...';
       resDiv.innerHTML = '';
 
@@ -343,37 +362,103 @@
         }
       } catch(err) { status.textContent = '❌ ' + err.message; }
 
-      btn.disabled = false; btn.classList.remove('running'); btn.textContent = '⚔️ Competition';
+      btn.disabled = false; btn.classList.remove('running'); label.textContent = '⚔️ Competition';
     }
 
     function renderCompetitionResult(ev) {
-      var scoreMap = { 1: 20, 2: 40, 3: 80, 4: 80, 5: 100 };
-      var color = ev.color || '#f97316';
-      var total = ev.totalShops || 0;
-      var pages = Math.ceil(total / 48) || 1;
-      var satIndex = total > 0 ? Math.min(100, Math.round((total / 500) * 100)) : 0;
-      var barId = 'comp-bar-' + Date.now();
-      var html = '<div class="comp-panel">'
-        + '<div class="comp-keyword">Niche keyword: <span>"' + (ev.keyword || '') + '"</span></div>'
-        + '<div class="comp-score-row">'
-        +   '<div class="comp-badge" style="background:' + color + '22;color:' + color + ';border:2px solid ' + color + '55;">' + (ev.label || '') + '</div>'
-        +   '<div class="comp-desc">' + (ev.description || '') + '</div>'
-        + '</div>'
-        + '<div class="comp-stats">'
-        +   '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + total.toLocaleString() + '</span><span class="comp-stat-lbl">Competing shops</span></div>'
-        +   '<div class="comp-stat"><span class="comp-stat-val">' + pages + '</span><span class="comp-stat-lbl">Pages scraped</span></div>'
-        +   '<div class="comp-stat"><span class="comp-stat-val">' + satIndex + '%</span><span class="comp-stat-lbl">Saturation index</span></div>'
-        + '</div>'
-        + '<div class="comp-bar-wrap">'
-        +   '<div class="comp-bar-track"><div class="comp-bar-fill" style="width:0%;background:linear-gradient(90deg,#22c55e,' + color + ')" id="' + barId + '"></div></div>'
-        +   '<div class="comp-bar-labels"><span>Low</span><span>Medium</span><span>High</span></div>'
-        + '</div>'
-        + '</div>';
-      // Animate bar after insert
-      setTimeout(function() {
-        var bar = document.getElementById(barId);
-        if (bar) bar.style.width = Math.min(100, satIndex) + '%';
-      }, 100);
+      var color       = ev.color || '#f97316';
+      var saturation  = ev.saturation || 0;
+      var totalShops  = ev.totalShops  || 0;
+      var totalListings = ev.totalListings || 0;
+      var similarTitles = ev.similarTitles || 0;
+      var avgPerShop  = totalShops > 0 ? Math.round(totalListings / totalShops) : 0;
+      var barId       = 'comp-bar-' + Date.now();
+
+      // Gauge arc SVG
+      var r = 54, cx = 70, cy = 70;
+      var startAngle = 200, endAngle = 340;
+      var arcSpan    = endAngle - startAngle; // 140°
+      var fillAngle  = startAngle + (arcSpan * saturation / 100);
+      function polar(cx, cy, r, deg) {
+        var rad = (deg - 90) * Math.PI / 180;
+        return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+      }
+      function arcPath(cx, cy, r, a1, a2) {
+        var s = polar(cx, cy, r, a1), e = polar(cx, cy, r, a2);
+        var large = (a2 - a1) > 180 ? 1 : 0;
+        return 'M ' + s.x + ' ' + s.y + ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + e.x + ' ' + e.y;
+      }
+      var trackPath = arcPath(cx, cy, r, startAngle, endAngle);
+      var fillPath  = saturation > 0 ? arcPath(cx, cy, r, startAngle, Math.min(fillAngle, endAngle)) : '';
+
+      var html =
+        '<div class="comp-panel">' +
+          // Header keyword
+          '<div class="comp-keyword">Niche keyword : <span>"' + (ev.keyword || '') + '"</span></div>' +
+
+          // Top row: gauge + badge + description
+          '<div class="comp-top-row">' +
+            // Gauge
+            '<div class="comp-gauge-wrap">' +
+              '<svg viewBox="0 0 140 110" width="140" height="110">' +
+                '<path d="' + trackPath + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" stroke-linecap="round"/>' +
+                (fillPath ? '<path d="' + fillPath + '" fill="none" stroke="' + color + '" stroke-width="10" stroke-linecap="round" opacity="0.9"/>' : '') +
+                '<text x="' + cx + '" y="72" text-anchor="middle" font-size="22" font-weight="800" fill="' + color + '">' + saturation + '%</text>' +
+                '<text x="' + cx + '" y="86" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1">SATURATION</text>' +
+              '</svg>' +
+            '</div>' +
+            // Badge + desc
+            '<div class="comp-badge-block">' +
+              '<div class="comp-badge" style="background:' + color + '22;color:' + color + ';border:2px solid ' + color + '55;">' + (ev.label || '') + '</div>' +
+              '<div class="comp-desc">' + (ev.description || '') + '</div>' +
+            '</div>' +
+          '</div>' +
+
+          // Stats grid
+          '<div class="comp-stats">' +
+            '<div class="comp-stat">' +
+              '<span class="comp-stat-val" style="color:' + color + '">' + totalShops.toLocaleString() + '</span>' +
+              '<span class="comp-stat-lbl">🏪 Boutiques</span>' +
+            '</div>' +
+            '<div class="comp-stat">' +
+              '<span class="comp-stat-val">' + (totalListings > 0 ? totalListings.toLocaleString() : '—') + '</span>' +
+              '<span class="comp-stat-lbl">📋 Annonces totales</span>' +
+            '</div>' +
+            '<div class="comp-stat">' +
+              '<span class="comp-stat-val">' + (avgPerShop > 0 ? '~' + avgPerShop : '—') + '</span>' +
+              '<span class="comp-stat-lbl">📊 Annonces / boutique</span>' +
+            '</div>' +
+            '<div class="comp-stat">' +
+              '<span class="comp-stat-val">' + similarTitles.toLocaleString() + '</span>' +
+              '<span class="comp-stat-lbl">🎯 Titres similaires</span>' +
+            '</div>' +
+          '</div>' +
+
+          // Saturation bar
+          '<div class="comp-bar-wrap">' +
+            '<div style="display:flex;justify-content:space-between;font-size:0.65rem;color:rgba(255,255,255,0.35);margin-bottom:5px;">' +
+              '<span>Low</span><span>Moderate</span><span>High</span>' +
+            '</div>' +
+            '<div class="comp-bar-track">' +
+              '<div class="comp-bar-fill" style="width:0%;background:linear-gradient(90deg,#22c55e,' + color + ')" id="' + barId + '"></div>' +
+            '</div>' +
+            // Score breakdown
+            '<div class="comp-breakdown">' +
+              '<span>Boutiques <b>' + Math.round(Math.min(100,(totalShops/500)*100)) + '%</b></span>' +
+              '<span>Annonces <b>' + Math.round(Math.min(100,(totalListings/50000)*100)) + '%</b></span>' +
+              '<span>Ratio <b>' + Math.round(Math.min(100,(totalShops>0?(totalListings/totalShops)/2:0))) + '%</b></span>' +
+              '<span>Similarité <b>' + Math.round(Math.min(100,(similarTitles/200)*100)) + '%</b></span>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      // Double rAF ensures the DOM is fully painted before we trigger the CSS transition
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          var bar = document.getElementById(barId);
+          if (bar) bar.style.width = Math.min(100, saturation) + '%';
+        });
+      });
       return html;
     }
 
@@ -461,24 +546,6 @@
         requestAnimationFrame(drawS);
       }
     })();
-  </script>
-  
-
-  <script>
-    // Animate competition bars after render
-    function animateCompBars() {
-      document.querySelectorAll('[id^="comp-bar-"]').forEach(function(bar) {
-        if (!bar._animated) {
-          bar._animated = true;
-          const target = bar.style.width;
-          bar.style.width = '0%';
-          setTimeout(function() { bar.style.width = target; }, 100);
-        }
-      });
-    }
-    // Re-trigger on DOM mutations
-    const obs = new MutationObserver(animateCompBars);
-    obs.observe(document.body, { childList: true, subtree: true });
   </script>
 </body>
 </html>
