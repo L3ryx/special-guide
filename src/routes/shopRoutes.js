@@ -9,7 +9,16 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 router.post('/save', requireAuth, async (req, res) => {
   let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
   if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
-  shopUrl = shopUrl.split('/listing/')[0].replace(/\/$/, '');
+  if (shopUrl.includes('/listing/')) {
+    const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/);
+    shopUrl = m
+      ? `https://www.etsy.com/shop/${m[1]}`
+      : shopName
+        ? `https://www.etsy.com/shop/${shopName}`
+        : shopUrl.split('/listing/')[0].replace(/\/$/, '');
+  } else {
+    shopUrl = shopUrl.replace(/\/$/, '');
+  }
   if (!shopName || shopName === 'Shop' || shopName === 'Boutique') {
     const m = shopUrl.match(/\/shop\/([^/?#]+)/);
     shopName = m ? m[1] : shopUrl.split('/').filter(Boolean).pop() || 'Shop';
