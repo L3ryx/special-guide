@@ -242,23 +242,33 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     if (!process.env.IMGBB_API_KEY)  { send({ step: 'error', message: '❌ IMGBB_API_KEY missing' });  return res.end(); }
 
     // ── STEP 1 : Scrape shop About page → description ──
-    send({ step: 'status', message: '🏪 Fetching shop About page...' });
-    const aboutUrl = shop.shopUrl.replace(/\/?$/, '') + '/about';
+    send({ step: 'status', message: '🏪 Fetching shop page...' });
+    const shopBase = shop.shopUrl.replace(/\/?$/, '');
+    const urlsToTry = [shopBase + '/about', shopBase];
     let aboutHtml = '';
-    try {
-      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params: { api_key: apiKey, url: aboutUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000' },
-        timeout: 120000,
-      });
-      aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-    } catch (e) {
-      send({ step: 'error', message: '❌ Could not fetch About page: ' + e.message });
-      return res.end();
+
+    for (const tryUrl of urlsToTry) {
+      try {
+        const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+          params: { api_key: apiKey, url: tryUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000' },
+          timeout: 120000,
+        });
+        aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+        if (aboutHtml.length > 500) break; // got something useful
+      } catch (e) {
+        const status = e.response?.status;
+        const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 200) : e.message;
+        console.warn('ScrapingBee', tryUrl, status, detail);
+        if (tryUrl === urlsToTry[urlsToTry.length - 1]) {
+          send({ step: 'error', message: '❌ Could not fetch shop page (HTTP ' + (status || '?') + '): ' + detail });
+          return res.end();
+        }
+      }
     }
 
     const description = extractAboutText(aboutHtml);
     if (!description || description.length < 20) {
-      send({ step: 'error', message: '❌ No shop description found on About page' });
+      send({ step: 'error', message: '❌ No shop description found — try a shop with an About section' });
       return res.end();
     }
     send({ step: 'status', message: '📝 Description found (' + description.length + ' chars). Analyzing with AI...' });
