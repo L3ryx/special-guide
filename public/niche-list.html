@@ -12,7 +12,6 @@
       --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12);
       --text: #ffffff; --muted: rgba(255,255,255,0.55);
     }
-    /* ── BACKGROUND ── */
     #bg-layer {
       position: fixed; inset: 0; z-index: 0;
       background: #0a0a0a url('/background.png') center center / cover no-repeat;
@@ -30,9 +29,6 @@
     #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
     #shooting-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
     html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
-
-    /* ── BACKGROUND ── */
-
 
     nav {
       position: sticky; top: 0; z-index: 200;
@@ -56,7 +52,6 @@
     h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
     .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
 
-    /* SHOP ROWS */
     .shops-list { display: flex; flex-direction: column; gap: 12px; }
     @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 
@@ -115,33 +110,27 @@
     }
     .btn-find.running .spinner { display: inline-block; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
     /* Competition result panel */
     .comp-panel { margin-top: 14px; padding: 18px 20px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.25); border-radius: 16px; animation: slideUp 0.4s ease; }
     .comp-keyword { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-bottom: 14px; }
     .comp-keyword span { color: #c084fc; font-weight: 700; }
-
-    /* Top row: gauge + badge */
     .comp-top-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
     .comp-gauge-wrap { flex-shrink: 0; }
     .comp-badge-block { flex: 1; display: flex; flex-direction: column; gap: 8px; }
     .comp-badge { display: inline-block; padding: 7px 18px; border-radius: 50px; font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; width: fit-content; }
     .comp-desc { font-size: 0.82rem; color: rgba(255,255,255,0.65); line-height: 1.5; }
-
-    /* Stats grid */
     .comp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; padding: 14px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }
     .comp-stat { text-align: center; }
     .comp-stat-val { display: block; font-size: 1.15rem; font-weight: 800; color: #fff; }
     .comp-stat-lbl { display: block; font-size: 0.62rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
 
-    /* Bar */
-    .comp-bar-wrap { }
-    .comp-bar-track { width: 100%; height: 8px; background: rgba(255,255,255,0.07); border-radius: 8px; overflow: hidden; }
-    .comp-bar-fill { height: 100%; border-radius: 8px; transition: width 1s ease; }
 
-    /* Breakdown mini labels */
-    .comp-breakdown { display: flex; justify-content: space-between; margin-top: 8px; flex-wrap: wrap; gap: 4px; }
-    .comp-breakdown span { font-size: 0.62rem; color: rgba(255,255,255,0.3); }
-    .comp-breakdown b { color: rgba(255,255,255,0.6); }
+    /* Competition status area */
+    .comp-area { padding: 0 14px 12px 14px; }
+    .comp-status { font-size: 0.74rem; color: var(--muted); min-height: 1.1em; margin-top: 8px; }
+    .comp-results { margin-top: 4px; }
+
     .btn-delete {
       width: 26px; height: 26px; border-radius: 50%;
       border: 1px solid rgba(255,80,80,0.25); background: rgba(255,80,80,0.07);
@@ -151,42 +140,17 @@
     }
     .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.5); }
 
-    .shop-find-area { padding: 0 14px 12px 98px; }
-    .find-status { font-size: 0.74rem; color: var(--muted); min-height: 1.1em; }
-    .find-results { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
-
-    /* Find result items */
-    .find-result-item {
-      display: flex; align-items: center; gap: 10px;
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 10px; padding: 8px 12px;
-    }
-    .fri-img { width: 44px; height: 44px; border-radius: 7px; object-fit: cover; flex-shrink: 0; }
-    .fri-img-placeholder { width: 44px; height: 44px; border-radius: 7px; background: rgba(255,255,255,0.06); flex-shrink: 0; }
-    .fri-info { flex: 1; min-width: 0; }
-    .fri-title { font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
-    .fri-links { display: flex; gap: 6px; }
-    .fri-link { font-size: 0.7rem; font-weight: 600; padding: 3px 8px; border-radius: 5px; text-decoration: none; }
-    .fri-link.etsy { background: rgba(241,100,30,0.15); color: #fb923c; }
-    .fri-link.ali  { background: rgba(255,107,0,0.12);  color: #ff9c4a; }
-    .fri-score { font-size: 0.75rem; font-weight: 800; padding: 4px 8px; border-radius: 6px; flex-shrink: 0; }
-    .fri-score.high { background: rgba(34,197,94,0.15); color: #22c55e; }
-    .fri-score.mid  { background: rgba(251,191,36,0.15); color: #fbbf24; }
-    .fri-score.low  { background: rgba(239,68,68,0.12);  color: #f87171; }
-
     .empty-state {
       text-align: center; padding: 60px 20px; color: var(--muted);
       display: flex; flex-direction: column; align-items: center; gap: 12px;
     }
     .empty-state .emoji { font-size: 2.5rem; }
 
-    /* Toast */
     .toast-msg {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
       padding: 12px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
       z-index: 9999; pointer-events: none; color: #fff;
     }
-    /* ── BACKGROUND ── */
   </style>
 </head>
 <body>
@@ -246,7 +210,7 @@
 
     function buildShopRow(shop) {
       const wrap = document.createElement('div');
-      const productImg = shop.productImage || shop.lastFind?.results?.[0]?.etsyImage || null;
+      const productImg = shop.productImage || null;
       const productUrl = shop.productUrl  || shop.shopUrl || '#';
       const thumbHtml = productImg
         ? `<a href="${productUrl}" target="_blank" rel="noopener"><img class="shop-thumb" src="${productImg}" alt="" loading="lazy" /></a>`
@@ -256,8 +220,6 @@
       const logoHtml = shop.shopAvatar
         ? `<img class="shop-row-logo" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
         : `<div class="shop-row-logo-initial">${name.charAt(0).toUpperCase()}</div>`;
-
-      const hasResults = shop.lastFind?.results?.length > 0;
 
       wrap.innerHTML = `
         <div class="shop-row" id="shop-row-${shop._id}">
@@ -274,33 +236,11 @@
             <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
           </div>
         </div>
-        <div class="shop-find-area" id="find-area-${shop._id}">
-          <div class="find-status" id="find-status-${shop._id}"></div>
-          <div class="find-results" id="find-results-${shop._id}">
-            ${hasResults ? renderFindResults(shop.lastFind.results) : ''}
-          </div>
+        <div class="comp-area" id="comp-area-${shop._id}">
+          <div class="comp-status" id="comp-status-${shop._id}"></div>
+          <div class="comp-results" id="comp-results-${shop._id}"></div>
         </div>`;
       return wrap;
-    }
-
-    function renderFindResults(results) {
-      if (!results?.length) return '';
-      return results.slice(0, 8).map(r => {
-        const score = r.similarity || 0;
-        const cls   = score >= 75 ? 'high' : score >= 50 ? 'mid' : 'low';
-        return `
-          <div class="find-result-item">
-            ${r.etsyImage ? `<img class="fri-img" src="${r.etsyImage}" alt="" onerror="this.style.display='none'" loading="lazy" />` : `<div class="fri-img-placeholder"></div>`}
-            <div class="fri-info">
-              <div class="fri-title">${r.etsyTitle || '—'}</div>
-              <div class="fri-links">
-                <a class="fri-link etsy" href="${r.etsyUrl}" target="_blank" rel="noopener">Etsy ↗</a>
-                ${r.aliUrl ? `<a class="fri-link ali" href="${r.aliUrl}" target="_blank" rel="noopener">AliExpress ↗</a>` : ''}
-              </div>
-            </div>
-            <div class="fri-score ${cls}">${score}%</div>
-          </div>`;
-      }).join('');
     }
 
     async function deleteShop(id) {
@@ -314,8 +254,8 @@
     async function runCompetition(shopId) {
       const btn    = document.getElementById('find-btn-' + shopId);
       const label  = btn.querySelector('.btn-label');
-      const status = document.getElementById('find-status-' + shopId);
-      const resDiv = document.getElementById('find-results-' + shopId);
+      const status = document.getElementById('comp-status-' + shopId);
+      const resDiv = document.getElementById('comp-results-' + shopId);
       btn.disabled = true;
       btn.classList.add('running');
       label.textContent = 'Analyse...';
@@ -332,7 +272,12 @@
         });
 
         if (response.status === 401) { status.textContent = '❌ Session expired'; window.location.href = '/finder'; return; }
-        if (!response.ok) { const d = await response.json().catch(() => ({})); status.textContent = '❌ Error ' + response.status + ': ' + (d.error || ''); btn.disabled = false; btn.classList.remove('running'); btn.textContent = '⚔️ Competition'; return; }
+        if (!response.ok) {
+          const d = await response.json().catch(() => ({}));
+          status.textContent = '❌ Error ' + response.status + ': ' + (d.error || '');
+          btn.disabled = false; btn.classList.remove('running'); label.textContent = '⚔️ Competition';
+          return;
+        }
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -366,18 +311,17 @@
     }
 
     function renderCompetitionResult(ev) {
-      var color       = ev.color || '#f97316';
-      var saturation  = ev.saturation || 0;
-      var totalShops  = ev.totalShops  || 0;
+      var color         = ev.color || '#f97316';
+      var saturation    = ev.saturation || 0;
+      var totalShops    = ev.totalShops    || 0;
       var totalListings = ev.totalListings || 0;
       var similarTitles = ev.similarTitles || 0;
-      var avgPerShop  = totalShops > 0 ? Math.round(totalListings / totalShops) : 0;
-      var barId       = 'comp-bar-' + Date.now();
+      var avgPerShop    = totalShops > 0 ? Math.round(totalListings / totalShops) : 0;
 
       // Gauge arc SVG
       var r = 54, cx = 70, cy = 70;
       var startAngle = 200, endAngle = 340;
-      var arcSpan    = endAngle - startAngle; // 140°
+      var arcSpan    = endAngle - startAngle;
       var fillAngle  = startAngle + (arcSpan * saturation / 100);
       function polar(cx, cy, r, deg) {
         var rad = (deg - 90) * Math.PI / 180;
@@ -393,12 +337,8 @@
 
       var html =
         '<div class="comp-panel">' +
-          // Header keyword
           '<div class="comp-keyword">Niche keyword : <span>"' + (ev.keyword || '') + '"</span></div>' +
-
-          // Top row: gauge + badge + description
           '<div class="comp-top-row">' +
-            // Gauge
             '<div class="comp-gauge-wrap">' +
               '<svg viewBox="0 0 140 110" width="140" height="110">' +
                 '<path d="' + trackPath + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" stroke-linecap="round"/>' +
@@ -407,68 +347,27 @@
                 '<text x="' + cx + '" y="86" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1">SATURATION</text>' +
               '</svg>' +
             '</div>' +
-            // Badge + desc
             '<div class="comp-badge-block">' +
               '<div class="comp-badge" style="background:' + color + '22;color:' + color + ';border:2px solid ' + color + '55;">' + (ev.label || '') + '</div>' +
               '<div class="comp-desc">' + (ev.description || '') + '</div>' +
             '</div>' +
           '</div>' +
-
-          // Stats grid
           '<div class="comp-stats">' +
-            '<div class="comp-stat">' +
-              '<span class="comp-stat-val" style="color:' + color + '">' + totalShops.toLocaleString() + '</span>' +
-              '<span class="comp-stat-lbl">🏪 Boutiques</span>' +
-            '</div>' +
-            '<div class="comp-stat">' +
-              '<span class="comp-stat-val">' + (totalListings > 0 ? totalListings.toLocaleString() : '—') + '</span>' +
-              '<span class="comp-stat-lbl">📋 Annonces totales</span>' +
-            '</div>' +
-            '<div class="comp-stat">' +
-              '<span class="comp-stat-val">' + (avgPerShop > 0 ? '~' + avgPerShop : '—') + '</span>' +
-              '<span class="comp-stat-lbl">📊 Annonces / boutique</span>' +
-            '</div>' +
-            '<div class="comp-stat">' +
-              '<span class="comp-stat-val">' + similarTitles.toLocaleString() + '</span>' +
-              '<span class="comp-stat-lbl">🎯 Titres similaires</span>' +
-            '</div>' +
+            '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + totalShops.toLocaleString() + '</span><span class="comp-stat-lbl">🏪 Boutiques</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + (totalListings > 0 ? totalListings.toLocaleString() : '—') + '</span><span class="comp-stat-lbl">📋 Annonces totales</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + (avgPerShop > 0 ? '~' + avgPerShop : '—') + '</span><span class="comp-stat-lbl">📊 Annonces / boutique</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + similarTitles.toLocaleString() + '</span><span class="comp-stat-lbl">🎯 Titres similaires</span></div>' +
           '</div>' +
 
-          // Saturation bar
-          '<div class="comp-bar-wrap">' +
-            '<div style="display:flex;justify-content:space-between;font-size:0.65rem;color:rgba(255,255,255,0.35);margin-bottom:5px;">' +
-              '<span>Low</span><span>Moderate</span><span>High</span>' +
-            '</div>' +
-            '<div class="comp-bar-track">' +
-              '<div class="comp-bar-fill" style="width:0%;background:linear-gradient(90deg,#22c55e,' + color + ')" id="' + barId + '"></div>' +
-            '</div>' +
-            // Score breakdown
-            '<div class="comp-breakdown">' +
-              '<span>Boutiques <b>' + Math.round(Math.min(100,(totalShops/500)*100)) + '%</b></span>' +
-              '<span>Annonces <b>' + Math.round(Math.min(100,(totalListings/50000)*100)) + '%</b></span>' +
-              '<span>Ratio <b>' + Math.round(Math.min(100,(totalShops>0?(totalListings/totalShops)/2:0))) + '%</b></span>' +
-              '<span>Similarité <b>' + Math.round(Math.min(100,(similarTitles/200)*100)) + '%</b></span>' +
-            '</div>' +
-          '</div>' +
         '</div>';
 
-      // Double rAF ensures the DOM is fully painted before we trigger the CSS transition
-      requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-          var bar = document.getElementById(barId);
-          if (bar) bar.style.width = Math.min(100, saturation) + '%';
-        });
-      });
       return html;
     }
 
-    // ── BACK without intro ──
     function goBack() {
       sessionStorage.setItem('skipIntro', '1');
       window.location.href = '/finder';
     }
-
-
 
     document.addEventListener('DOMContentLoaded', function() {
       TOKEN = localStorage.getItem('scout_token');
@@ -476,10 +375,9 @@
       loadShops();
     });
   </script>
-  
+
   <script>
     (function() {
-      // MILKY WAY
       const mCanvas = document.getElementById('milkyway-canvas');
       if (mCanvas) {
         const ctx = mCanvas.getContext('2d');
@@ -511,7 +409,6 @@
         requestAnimationFrame(drawM);
       }
 
-      // SHOOTING STARS
       const sCanvas = document.getElementById('shooting-canvas');
       if (sCanvas) {
         const ctx2 = sCanvas.getContext('2d');
