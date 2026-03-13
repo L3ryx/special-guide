@@ -885,7 +885,9 @@
       const etsy = m.etsy, ali = m.aliexpress;
       const etsySrc = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc  = ali.image || '';
-      const shopUrl = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0] : '') || '';
+      const shopUrl = etsy.shopUrl ||
+        (etsy.shopName ? 'https://www.etsy.com/shop/' + etsy.shopName : '') ||
+        '';
       const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
