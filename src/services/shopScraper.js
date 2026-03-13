@@ -6,7 +6,7 @@ async function getShopInfo(listing) {
   const key = listing.shopName || listing.link;
   if (cache.has(key)) return cache.get(key);
 
-  // Si on a déjà le shopName depuis ScrapingBee, on construit juste les infos sans re-scraper
+  // Already have shopName — just build the info
   if (listing.shopName) {
     const info = {
       shopName:   listing.shopName,
@@ -18,9 +18,20 @@ async function getShopInfo(listing) {
   }
 
   try {
-    const url = `http://api.scraperapi.com?api_key=${process.env.SCRAPEAPI_KEY}&url=${encodeURIComponent(listing.link)}&render=false`;
-    const res  = await axios.get(url, { timeout: 20000 });
-    const html = res.data;
+    // Use ScrapingBee with JS rendering for reliable extraction
+    const res = await axios.get('https://app.scrapingbee.com/api/v1/', {
+      params: {
+        api_key:       process.env.SCRAPINGBEE_KEY,
+        url:           listing.link,
+        render_js:     'true',
+        premium_proxy: 'true',
+        country_code:  'us',
+        wait:          '2000',
+        timeout:       '30000',
+      },
+      timeout: 60000,
+    });
+    const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
     const info = parseShopInfo(html);
     cache.set(key, info);
     if (info.shopName) cache.set(info.shopName, info);
@@ -34,7 +45,7 @@ async function getShopInfo(listing) {
 function parseShopInfo(html) {
   let shopName = null, shopAvatar = null;
 
-  // JSON-LD
+  // Strategy 1: JSON-LD
   for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
       const items = [].concat(JSON.parse(raw)?.['@graph'] || JSON.parse(raw));
@@ -45,21 +56,26 @@ function parseShopInfo(html) {
     if (shopName) break;
   }
 
-  // HTML / JS patterns (multiple fallbacks)
+  // Strategy 2: multiple HTML/JS patterns
   if (!shopName) {
     const patterns = [
+      // Direct href to shop page — most reliable
+      /href="https:\/\/www\.etsy\.com\/shop\/([A-Za-z0-9_-]+)/i,
+      // Data attributes
       /data-shop-name="([^"]+)"/i,
+      // JSON in page JS
       /"shopName"\s*:\s*"([^"]+)"/i,
       /"shop_name"\s*:\s*"([^"]+)"/i,
-      /etsy\.com\/shop\/([A-Za-z0-9]+)/i,
-      /"ownerName"\s*:\s*"([^"]+)"/i,
-      /class="[^"]*shop-name[^"]*"[^>]*>([A-Za-z0-9]+)</i,
-      /"name"\s*:\s*"([^"]+)"[^}]*"@type"\s*:\s*"Store"/i,
-      /"@type"\s*:\s*"Store"[^}]*"name"\s*:\s*"([^"]+)"/i,
+      /"owner_name"\s*:\s*"([^"]+)"/i,
+      // Schema.org Store
+      /"@type"\s*:\s*"Store"[^}]{0,200}"name"\s*:\s*"([^"]+)"/i,
+      /"name"\s*:\s*"([^"]+)"[^}]{0,200}"@type"\s*:\s*"Store"/i,
+      // Etsy internal JS state
+      /"shopId"[^}]{0,300}"shopName"\s*:\s*"([^"]+)"/i,
     ];
     for (const pat of patterns) {
       const m = html.match(pat);
-      if (m && m[1] && m[1].length > 1) { shopName = m[1]; break; }
+      if (m?.[1]?.length > 1) { shopName = m[1]; break; }
     }
   }
 
@@ -77,7 +93,7 @@ function parseShopInfo(html) {
 
   return {
     shopName,
-    shopUrl:    shopName ? `https://www.etsy.com/shop/${shopName}` : null,
+    shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null,
     shopAvatar
   };
 }
