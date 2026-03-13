@@ -18,7 +18,6 @@
     #milkyway-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-2; pointer-events:none; }
     #shooting-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
 
-    /* ── INTRO ── */
     #intro { position:fixed; inset:0; z-index:9999; background:#000; display:flex; align-items:center; justify-content:center; }
     #intro-text { font-family:'Croissant One',cursive; font-size:clamp(2.8rem,9vw,6rem); color:#fff; letter-spacing:0.06em; text-align:center; text-shadow:0 0 40px rgba(255,255,255,0.3); animation:introAppear 0.8s ease forwards; }
     @keyframes introAppear { from{opacity:0;transform:scale(0.8)} to{opacity:1;transform:scale(1)} }
@@ -27,7 +26,6 @@
     @keyframes blast { to{transform:translate(var(--tx),var(--ty))scale(0)rotate(var(--tr));opacity:0} }
     #bg-layer,#milkyway-canvas,#main-view { transition:opacity 0.7s ease; }
 
-    /* ── AUTH MODAL ── */
     #auth-overlay { position:fixed; inset:0; z-index:8000; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; }
     #auth-box { width:100%; max-width:420px; margin:20px; background:rgba(15,15,15,0.95); border:1px solid rgba(255,255,255,0.12); border-radius:24px; padding:36px 32px; display:flex; flex-direction:column; gap:20px; }
     #auth-logo { text-align:center; font-family:'Croissant One',cursive; font-size:1.6rem; color:#fff; letter-spacing:0.05em; }
@@ -49,7 +47,6 @@
     #auth-forgot-back:hover { color:#fff; }
     #auth-forgot-msg { text-align:center; font-size:0.82rem; color:var(--green); min-height:1.2em; }
 
-    /* ── USER BADGE (top right) ── */
     #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; }
     #user-avatar-btn { width:40px; height:40px; border-radius:50%; border:2px solid rgba(59,130,246,0.6); background:rgba(59,130,246,0.18); color:#60a5fa; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; padding:0; }
     #user-avatar-btn svg { width:22px; height:22px; }
@@ -63,7 +60,6 @@
     .user-dropdown-item:hover { background:rgba(255,255,255,0.09); color:#fff; }
     .user-dropdown-item.danger { color:#f87171; }
     .user-dropdown-item.danger:hover { background:rgba(248,113,113,0.1); color:#fca5a5; }
-    /* Account modals */
     .acct-overlay { position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; }
     .acct-overlay.open { display:flex; }
     .acct-box { background:rgba(12,12,12,0.97); border:1px solid rgba(255,255,255,0.12); border-radius:20px; padding:30px 28px; width:100%; max-width:380px; margin:20px; display:flex; flex-direction:column; gap:16px; }
@@ -79,12 +75,10 @@
     .acct-box-btn.cancel:hover { background:rgba(255,255,255,0.12); color:#fff; }
     .acct-box-msg { font-size:0.8rem; min-height:1.1em; text-align:center; }
 
-    /* ── NICHE LIST BTN ── */
     #niche-list-btn { position:fixed; top:10px; left:12px; z-index:500; display:none; align-items:center; gap:6px; padding:7px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.8); font-size:0.82rem; font-weight:600; font-family:'Inter',sans-serif; text-decoration:none; backdrop-filter:blur(12px); transition:all 0.2s; }
     #niche-list-btn:hover { background:rgba(255,255,255,0.13); color:#fff; }
     #niche-list-btn .nl-count { background:var(--green); border-radius:50%; width:16px; height:16px; font-size:0.6rem; font-weight:700; display:none; align-items:center; justify-content:center; color:#fff; }
 
-    /* ── TITLE ── */
     #title-outer { width:100%; display:flex; justify-content:center; }
     #title-wrap { position:relative; display:inline-block; padding:90px 40px 8px; }
     #niche-title { position:relative; z-index:101; text-align:center; user-select:none; }
@@ -93,11 +87,9 @@
     .title-space { display:inline-block; width:0.35em; }
     @keyframes wave3d { 0%,100%{transform:translateY(0)rotateX(0deg)scale(1)} 25%{transform:translateY(-18px)rotateX(20deg)scale(1.08)} 50%{transform:translateY(0)rotateX(0deg)scale(1)} }
 
-    /* ── MAIN ── */
     #main-view { position:relative; z-index:10; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:80px 20px 20px; gap:20px; }
     .search-card { width:100%; max-width:660px; display:flex; flex-direction:column; align-items:center; gap:14px; }
 
-    /* Input row: input + add btn + tags inline + trash */
     .input-row { width:100%; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .input-row input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Inter',sans-serif; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
     .input-row input::placeholder { color:var(--muted); }
@@ -137,7 +129,6 @@
     #start-btn.retry { animation:btnRetry 0.8s ease-in-out infinite; letter-spacing:0.18em; }
     @keyframes btnRetry { 0%,100%{background:#ca8a04;box-shadow:0 4px 32px rgba(202,138,4,0.6)} 50%{background:#fbbf24;box-shadow:0 0 48px rgba(251,191,36,0.9);color:#422006} }
 
-    /* ── PROGRESS ── */
     #progress-wrap { width:100%; max-width:660px; display:none; flex-direction:column; gap:12px; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
     .progress-steps { display:flex; justify-content:space-between; gap:4px; }
@@ -155,7 +146,6 @@
     @keyframes flicker { 0%{transform:translateY(-55%)scale(1)rotate(-3deg)} 100%{transform:translateY(-60%)scale(1.08)rotate(3deg)} }
     .progress-msg { text-align:center; font-size:0.78rem; color:var(--muted); min-height:1.2em; }
 
-    /* ── RESULTS ── */
     #results-section { position:relative; z-index:10; padding:0 20px 80px; display:none; }
     .results-grid { max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:20px; }
     .keyword-section-title { font-size:0.75rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#f97316; padding:8px 0 4px; border-bottom:1px solid rgba(249,115,22,0.2); }
@@ -166,7 +156,6 @@
     .divider-line { background:var(--glass-border); align-self:stretch; }
     .product-panel { display:flex; flex-direction:column; align-items:center; padding:16px 14px; gap:10px; min-width:0; box-sizing:border-box; }
 
-    /* electric border */
     .img-wrap { position:relative; width:100%; padding:3px; border-radius:14px; box-sizing:border-box; }
     .img-wrap::before { content:''; position:absolute; inset:-2px; border-radius:15px; background:conic-gradient(from var(--angle,0deg),#00f0ff 0%,#0066ff 10%,transparent 20%,transparent 45%,#a855f7 50%,#00f0ff 60%,transparent 70%,transparent 90%,#0066ff 95%,#00f0ff 100%); animation:electric-spin 1.8s linear infinite; z-index:0; }
     .img-wrap::after { content:''; position:absolute; inset:-4px; border-radius:16px; background:conic-gradient(from var(--angle,0deg),#00f0ff 0%,#0066ff 10%,transparent 20%,transparent 45%,#a855f7 50%,#00f0ff 60%,transparent 70%,transparent 90%,#0066ff 95%,#00f0ff 100%); animation:electric-spin 1.8s linear infinite; filter:blur(8px); opacity:0.6; z-index:0; }
@@ -176,7 +165,6 @@
     .img-box img { width:100%; height:100%; object-fit:cover; transition:transform 0.4s; display:block; }
     .img-box:hover img { transform:scale(1.04); }
 
-    /* shop side col */
     .etsy-img-container { position:relative; width:100%; }
     .shop-side-col { position:absolute; top:0; left:0; bottom:0; width:42px; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:10px 0; background:rgba(0,0,0,0.45); border-right:1px solid rgba(255,255,255,0.08); border-radius:11px 0 0 11px; }
     .shop-side-btn { display:flex; align-items:center; justify-content:center; text-decoration:none; }
@@ -197,7 +185,6 @@
     .price-tag.ali-price  { color:#f87171; border:1px solid rgba(227,24,55,0.3); background:rgba(227,24,55,0.08); }
     .empty { text-align:center; padding:40px 20px; color:var(--muted); }
 
-    /* FIND */
     #find-wrap { display:none; flex-direction:column; align-items:center; gap:16px; padding:10px 0 20px; width:100%; }
     #find-btn { padding:16px 48px; background:var(--green); border:none; border-radius:14px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1.1rem; letter-spacing:0.1em; cursor:pointer; transition:all 0.25s; box-shadow:0 4px 24px rgba(34,197,94,0.4); }
     #find-btn:hover { background:#16a34a; transform:translateY(-1px); }
@@ -219,7 +206,6 @@
 
     @media(max-width:640px){#main-view{padding:70px 14px 20px}.input-row input{font-size:0.95rem;padding:14px 16px}#add-keyword-btn{width:46px;height:46px}.match-body{display:flex;flex-direction:row}.divider-line{width:1px;flex-shrink:0}.product-panel{flex:1;min-width:0;padding:10px 6px;gap:6px}.prod-link{font-size:0.65rem;padding:6px 4px}.price-tag{font-size:0.7rem;padding:4px 6px}}
 
-    /* ── ERROR POPUP ── */
     #error-popup { position:fixed; inset:0; z-index:99999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); backdrop-filter:blur(6px); padding:20px; }
     #error-popup.open { display:flex; animation:epFade 0.2s ease; }
     @keyframes epFade { from{opacity:0} to{opacity:1} }
@@ -233,12 +219,9 @@
     .ep-hint { font-size:0.78rem; color:rgba(255,255,255,0.38); line-height:1.5; }
     .ep-close { align-self:flex-end; padding:10px 24px; border-radius:10px; border:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; font-family:'Inter',sans-serif; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s; }
     .ep-close:hover { background:rgba(239,68,68,0.28); color:#fff; }
-
   </style>
 </head>
 <body>
-  <!-- INTRO -->
-  <!-- ERROR POPUP -->
   <div id="error-popup" onclick="closeErrorPopup(event)">
     <div class="ep-box">
       <div class="ep-header">
@@ -259,7 +242,6 @@
   <canvas id="milkyway-canvas"></canvas>
   <canvas id="shooting-canvas"></canvas>
 
-  <!-- AUTH MODAL -->
   <div id="auth-overlay" style="display:none;">
     <div id="auth-box">
       <div id="auth-logo">Finder Niche</div>
@@ -284,7 +266,6 @@
     </div>
   </div>
 
-  <!-- FIXED BUTTONS -->
   <a id="niche-list-btn" href="/niche-list"><span style="color:#f87171;">♥</span><span>Niche List</span><span class="nl-count" id="nl-count">0</span></a>
   <div id="user-badge">
     <button id="user-avatar-btn" onclick="toggleUserDropdown()">
@@ -300,7 +281,6 @@
       <button class="user-dropdown-item danger" onclick="deleteAccount()">🗑 Delete account</button>
     </div>
   </div>
-  <!-- Account modals -->
   <div class="acct-overlay" id="acct-modal-email">
     <div class="acct-box">
       <div class="acct-box-title">✉️ Change email</div>
@@ -326,19 +306,16 @@
     </div>
   </div>
 
-  <!-- TITLE -->
   <div id="title-outer"><div id="title-wrap"><div id="niche-title"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span class="title-space"></span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div></div></div>
 
   <div id="main-view">
     <div class="search-card">
-      <!-- Input + tags + add + trash, all inline -->
       <div class="input-row">
         <input type="text" id="keyword-input" placeholder="Enter keyword" />
         <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword">+<span id="kw-count-badge"></span></button>
         <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords">🗑</button>
       </div>
       <div id="keywords-list" style="display:none;"></div>
-      <!-- Number of images -->
       <div class="selects-row">
         <div class="select-wrap">
           <select id="count-select">
@@ -372,9 +349,7 @@
     </section>
   </div>
 
-  <!-- INTRO SCRIPT -->
   <script>
-    // ── AUTH ──
     let SCOUT_TOKEN = localStorage.getItem('scout_token') || null;
     let _currentUser = null;
     let _authTab = 'login';
@@ -390,12 +365,8 @@
         }).catch(function() { showAuthModal(); });
     }
 
-    function showAuthModal() {
-      document.getElementById('auth-overlay').style.display = 'flex';
-    }
-    function hideAuthModal() {
-      document.getElementById('auth-overlay').style.display = 'none';
-    }
+    function showAuthModal() { document.getElementById('auth-overlay').style.display = 'flex'; }
+    function hideAuthModal() { document.getElementById('auth-overlay').style.display = 'none'; }
 
     function authSwitchTab(tab) {
       _authTab = tab;
@@ -434,21 +405,20 @@
       initSavedShops();
     }
 
-    // ── ERROR POPUP ──
     const API_HINTS = {
-      'SCRAPINGBEE':     'Check your SCRAPINGBEE_KEY in Render → Environment Variables. Credits may be exhausted.',
-      'SERPER':          'Check your SERPER_API_KEY in Render → Environment Variables. Free plan limit may be reached (1000 req/month).',
-      'ANTHROPIC':       'Check your ANTHROPIC_API_KEY in Render → Environment Variables. Account credits may be depleted.',
-      'IMGBB':           'Check your IMGBB_API_KEY in Render → Environment Variables.',
-      'SCRAPEAPI':       'Check your SCRAPEAPI_KEY in Render → Environment Variables.',
-      'MONGODB':         'MongoDB connection failed. Check MONGODB_URI in Render → Environment Variables.',
-      '401':             'API authentication failed — the key is invalid or expired.',
-      '429':             'Rate limit or quota exceeded on this API.',
-      '403':             'Access forbidden — the API key may not have the required permissions.',
-      '500':             'Internal server error. Check Render logs for details.',
-      'ECONNREFUSED':    'Connection refused — the service may be down.',
-      'ETIMEDOUT':       'Request timed out — the external service took too long to respond.',
-      'ENOTFOUND':       'DNS lookup failed — check your internet connection or the API URL.',
+      'SCRAPINGBEE': 'Check your SCRAPINGBEE_KEY in Render → Environment Variables. Credits may be exhausted.',
+      'SERPER': 'Check your SERPER_API_KEY in Render → Environment Variables. Free plan limit may be reached (1000 req/month).',
+      'ANTHROPIC': 'Check your ANTHROPIC_API_KEY in Render → Environment Variables. Account credits may be depleted.',
+      'IMGBB': 'Check your IMGBB_API_KEY in Render → Environment Variables.',
+      'SCRAPEAPI': 'Check your SCRAPEAPI_KEY in Render → Environment Variables.',
+      'MONGODB': 'MongoDB connection failed. Check MONGODB_URI in Render → Environment Variables.',
+      '401': 'API authentication failed — the key is invalid or expired.',
+      '429': 'Rate limit or quota exceeded on this API.',
+      '403': 'Access forbidden — the API key may not have the required permissions.',
+      '500': 'Internal server error. Check Render logs for details.',
+      'ECONNREFUSED': 'Connection refused — the service may be down.',
+      'ETIMEDOUT': 'Request timed out — the external service took too long to respond.',
+      'ENOTFOUND': 'DNS lookup failed — check your internet connection or the API URL.',
     };
 
     function detectApiFromMessage(msg) {
@@ -476,26 +446,18 @@
       const msg = (rawMsg || 'An unknown error occurred.').replace(/^❌\s*/, '');
       const api = detectApiFromMessage(msg);
       const hint = getHintForMessage(msg);
-
       const badge = document.getElementById('ep-api-badge');
       if (api) { badge.textContent = api; badge.style.display = 'inline-block'; }
       else { badge.style.display = 'none'; }
-
       document.getElementById('ep-message').textContent = msg;
       document.getElementById('ep-hint').textContent = hint;
       document.getElementById('error-popup').classList.add('open');
     }
 
-    function closeErrorPopup(e) {
-      if (e.target === document.getElementById('error-popup')) closeErrorPopupBtn();
-    }
-    function closeErrorPopupBtn() {
-      document.getElementById('error-popup').classList.remove('open');
-    }
+    function closeErrorPopup(e) { if (e.target === document.getElementById('error-popup')) closeErrorPopupBtn(); }
+    function closeErrorPopupBtn() { document.getElementById('error-popup').classList.remove('open'); }
 
-    function toggleUserDropdown() {
-      document.getElementById('user-dropdown').classList.toggle('open');
-    }
+    function toggleUserDropdown() { document.getElementById('user-dropdown').classList.toggle('open'); }
     document.addEventListener('click', function(e) {
       const btn = document.getElementById('user-avatar-btn');
       const dd = document.getElementById('user-dropdown');
@@ -525,24 +487,20 @@
       document.getElementById('acct-modal-' + type).classList.add('open');
       document.getElementById(type === 'email' ? 'acct-email-msg' : 'acct-pwd-msg').textContent = '';
     }
-    function closeAcctModals() {
-      document.querySelectorAll('.acct-overlay').forEach(m => m.classList.remove('open'));
-    }
+    function closeAcctModals() { document.querySelectorAll('.acct-overlay').forEach(m => m.classList.remove('open')); }
     document.addEventListener('DOMContentLoaded', function() {
       document.querySelectorAll('.acct-overlay').forEach(function(el) {
         el.addEventListener('click', function(e) { if (e.target === el) closeAcctModals(); });
       });
     });
 
-    // ── INTRO / SKIP INTRO ──
     (function(){
       var ids=['bg-layer','milkyway-canvas','main-view'];
       if (sessionStorage.getItem('skipIntro')) {
         sessionStorage.removeItem('skipIntro');
         document.getElementById('intro').style.display='none';
         ids.forEach(function(id){var el=document.getElementById(id);if(el)el.style.opacity='1';});
-        checkAuth();
-        return;
+        checkAuth(); return;
       }
       ids.forEach(function(id){var el=document.getElementById(id);if(el){el.style.opacity='0';}});
       setTimeout(function(){
@@ -615,7 +573,6 @@
       } catch(e) { msg.style.color = '#f87171'; msg.textContent = e.message; }
     }
 
-    // Enter key on auth inputs
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && document.getElementById('auth-overlay').style.display !== 'none') {
         if (document.getElementById('auth-forgot-form').style.display !== 'none') sendForgot();
@@ -623,7 +580,6 @@
       }
     });
 
-    // ── KEYWORDS ──
     let _keywords = [];
 
     function addKeyword() {
@@ -643,7 +599,6 @@
     }
 
     function renderKeywords() {
-      // Hidden tags for status tracking during search
       const list = document.getElementById('keywords-list');
       list.innerHTML = '';
       _keywords.forEach(function(kw) {
@@ -652,22 +607,16 @@
         tag.id = 'tag-' + encodeKw(kw);
         list.appendChild(tag);
       });
-      // Counter badge on + button
       const badge = document.getElementById('kw-count-badge');
       if (badge) {
         badge.textContent = _keywords.length;
         badge.style.display = _keywords.length > 0 ? 'inline-flex' : 'none';
       }
-      // Trash button
       const trash = document.getElementById('clear-keywords-btn');
       if (trash) trash.style.display = _keywords.length > 0 ? 'flex' : 'none';
     }
 
-    function clearKeywords() {
-      _keywords = [];
-      renderKeywords();
-    }
-
+    function clearKeywords() { _keywords = []; renderKeywords(); }
     function encodeKw(kw) { return kw.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30); }
     function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -677,7 +626,6 @@
       });
     });
 
-    // ── PROGRESS ──
     const STEPS = [
       { key: 'scraping_etsy', label: 'Etsy' },
       { key: 'reverse_search', label: 'Reverse' },
@@ -724,14 +672,11 @@
       setProgress(100);
     }
 
-    // ── SEARCH ──
     let _allResults = [];
     let _searching = false;
 
     async function startSearch() {
       if (_searching) return;
-
-      // Si pas de mots dans la liste, utilise le champ
       const inputVal = document.getElementById('keyword-input').value.trim();
       if (_keywords.length === 0 && inputVal) {
         _keywords.push(inputVal);
@@ -763,7 +708,6 @@
       let totalMatches = 0;
       let hasError = false;
 
-      // Marquer tous les tags comme "en attente"
       _keywords.forEach(function(kw) {
         const tag = document.getElementById('tag-' + encodeKw(kw));
         if (tag) tag.className = 'keyword-tag';
@@ -776,7 +720,6 @@
 
         initProgress(keyword + ' (' + (ki + 1) + '/' + _keywords.length + ')');
 
-        // Section titre dans les résultats
         if (_keywords.length > 1) {
           const sec = document.createElement('div');
           sec.className = 'keyword-section-title';
@@ -842,7 +785,6 @@
           hasError = true;
         }
 
-        // Montre les résultats au fur et à mesure
         if (totalMatches > 0) {
           document.getElementById('results-section').style.display = 'block';
           document.documentElement.classList.add('unlocked');
@@ -851,7 +793,6 @@
         }
       }
 
-      // Fin
       _searching = false;
       btn.disabled = false; btn.classList.remove('loading');
       document.getElementById('keyword-input').disabled = false;
@@ -876,16 +817,15 @@
       }
     }
 
-    // ── RENDER MATCH ──
     window._shopDataMap = {};
-
     function encodeShopKey(u) { return (u || '').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40); }
 
     function renderMatch(m) {
       const etsy = m.etsy, ali = m.aliexpress;
       const etsySrc = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc  = ali.image || '';
-      const shopUrl = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0] : '') || '';
+      // ── FIX: reconstruit l'URL boutique depuis shopName si shopUrl manquant ──
+      const shopUrl = etsy.shopUrl || (etsy.shopName ? 'https://www.etsy.com/shop/' + etsy.shopName : '') || '';
       const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
@@ -919,9 +859,7 @@
       }
     }
 
-    // ── FIND ──
     let _lastResults = [];
-    // Use _allResults as source for find
     async function startFind() {
       _lastResults = _allResults;
       const btn = document.getElementById('find-btn');
@@ -975,7 +913,6 @@
       setTimeout(function() { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
     }
 
-    // ── SAVE SHOP ──
     let _savedShopUrls = new Set();
 
     async function initSavedShops() {
@@ -1026,10 +963,8 @@
       } catch(e) { btn.classList.remove('saving'); btn.textContent = '★'; showToast(e.message, '#ef4444'); }
     }
 
-    // ── MILKY WAY ──
     (function(){const canvas=document.getElementById('milkyway-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H,cx,cy;const bandAngle=Math.PI/5,bandW=600,rand=function(a,b){return Math.random()*(b-a)+a;};let nebulae=[];function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;cx=W/2;cy=H/2;buildNebulae();}window.addEventListener('resize',resize);resize();function buildNebulae(){nebulae=[];const colors=[[180,100,200],[100,120,255],[255,120,80],[80,200,255],[200,80,255]];for(var i=0;i<5;i++){const col=colors[i],along=rand(-bandW*0.4,bandW*0.4),spread=rand(-60,60);nebulae.push({x:cx+Math.cos(bandAngle)*along-Math.sin(bandAngle)*spread,y:cy+Math.sin(bandAngle)*along+Math.cos(bandAngle)*spread,rx:rand(80,220),ry:rand(40,120),angle:bandAngle+rand(-0.3,0.3),r:col[0],g:col[1],b:col[2],alpha:rand(0.04,0.1),pulse:rand(0.001,0.003),pulseDir:1});}}var driftAngle=0;function draw(){ctx.clearRect(0,0,W,H);driftAngle+=0.00008;ctx.save();ctx.translate(W/2,H/2);ctx.rotate(driftAngle);ctx.translate(-W/2,-H/2);nebulae.forEach(function(n){n.alpha+=n.pulse*n.pulseDir;if(n.alpha>0.12||n.alpha<0.03)n.pulseDir*=-1;ctx.save();ctx.translate(n.x,n.y);ctx.rotate(n.angle);const g=ctx.createRadialGradient(0,0,0,0,0,n.rx);g.addColorStop(0,'rgba('+n.r+','+n.g+','+n.b+','+n.alpha+')');g.addColorStop(0.5,'rgba('+n.r+','+n.g+','+n.b+','+(n.alpha*0.4)+')');g.addColorStop(1,'rgba('+n.r+','+n.g+','+n.b+',0)');ctx.scale(1,n.ry/n.rx);ctx.beginPath();ctx.arc(0,0,n.rx,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();ctx.restore();});ctx.restore();requestAnimationFrame(draw);}draw();})();
 
-    // ── SHOOTING STARS ──
     (function(){const canvas=document.getElementById('shooting-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H;function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}window.addEventListener('resize',resize);resize();const rand=function(a,b){return Math.random()*(b-a)+a;};function mkStar(){const angle=rand(25,50)*Math.PI/180,spd=rand(6,16);return{x:rand(-100,W*0.8),y:rand(-60,H*0.4),vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,alpha:rand(0.6,1),w:rand(1,2.5),tail:rand(12,28),decay:rand(0.991,0.997)};}var stars=[mkStar(),mkStar(),mkStar(),mkStar()];function draw(){ctx.clearRect(0,0,W,H);if(Math.random()<0.02&&stars.length<10)stars.push(mkStar());stars=stars.filter(function(s){const grad=ctx.createLinearGradient(s.x,s.y,s.x-s.vx*s.tail,s.y-s.vy*s.tail);grad.addColorStop(0,'rgba(255,255,255,'+s.alpha+')');grad.addColorStop(0.4,'rgba(200,220,255,'+(s.alpha*0.5)+')');grad.addColorStop(1,'rgba(180,200,255,0)');ctx.beginPath();ctx.strokeStyle=grad;ctx.lineWidth=s.w;ctx.lineCap='round';ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx*s.tail,s.y-s.vy*s.tail);ctx.stroke();ctx.beginPath();ctx.arc(s.x,s.y,s.w*1.2,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+(s.alpha*0.8)+')';ctx.fill();s.x+=s.vx;s.y+=s.vy;s.alpha*=s.decay;return s.x<W+200&&s.y<H+200&&s.alpha>0.03;});requestAnimationFrame(draw);}draw();})();
   </script>
 </body>
