@@ -140,7 +140,8 @@ router.post('/search', async (req, res) => {
       try {
         const shop = await getShopInfo(result.etsy);
         result.etsy.shopName   = shop.shopName   || result.etsy.shopName   || null;
-        result.etsy.shopUrl    = shop.shopUrl    || result.etsy.shopUrl    || null;
+        result.etsy.shopUrl    = shop.shopUrl    || result.etsy.shopUrl
+                                  || (result.etsy.shopName ? `https://www.etsy.com/shop/${result.etsy.shopName}` : null);
         result.etsy.shopAvatar = shop.shopAvatar || null;
       } catch {}
     });
