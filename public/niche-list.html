@@ -311,18 +311,16 @@
     }
 
     function renderCompetitionResult(ev) {
-      var color         = ev.color || '#f97316';
-      var saturation    = ev.saturation || 0;
-      var totalShops    = ev.totalShops    || 0;
-      var totalListings = ev.totalListings || 0;
-      var similarTitles = ev.similarTitles || 0;
-      var avgPerShop    = totalShops > 0 ? Math.round(totalListings / totalShops) : 0;
+      var color        = ev.color || '#f97316';
+      var saturation   = ev.saturation || 0;
+      var totalShops   = ev.totalShops   || 0;
+      var dropshippers = ev.dropshippers || 0;
 
       // Gauge arc SVG
       var r = 54, cx = 70, cy = 70;
       var startAngle = 200, endAngle = 340;
-      var arcSpan    = endAngle - startAngle;
-      var fillAngle  = startAngle + (arcSpan * saturation / 100);
+      var arcSpan   = endAngle - startAngle;
+      var fillAngle = startAngle + (arcSpan * saturation / 100);
       function polar(cx, cy, r, deg) {
         var rad = (deg - 90) * Math.PI / 180;
         return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
@@ -337,14 +335,14 @@
 
       var html =
         '<div class="comp-panel">' +
-          '<div class="comp-keyword">Niche keyword : <span>"' + (ev.keyword || '') + '"</span></div>' +
+          '<div class="comp-keyword">Niche keyword: <span>"' + (ev.keyword || '') + '"</span></div>' +
           '<div class="comp-top-row">' +
             '<div class="comp-gauge-wrap">' +
               '<svg viewBox="0 0 140 110" width="140" height="110">' +
                 '<path d="' + trackPath + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" stroke-linecap="round"/>' +
                 (fillPath ? '<path d="' + fillPath + '" fill="none" stroke="' + color + '" stroke-width="10" stroke-linecap="round" opacity="0.9"/>' : '') +
                 '<text x="' + cx + '" y="72" text-anchor="middle" font-size="22" font-weight="800" fill="' + color + '">' + saturation + '%</text>' +
-                '<text x="' + cx + '" y="86" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1">SATURATION</text>' +
+                '<text x="' + cx + '" y="86" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1">DROPSHIPPERS</text>' +
               '</svg>' +
             '</div>' +
             '<div class="comp-badge-block">' +
@@ -353,12 +351,10 @@
             '</div>' +
           '</div>' +
           '<div class="comp-stats">' +
-            '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + totalShops.toLocaleString() + '</span><span class="comp-stat-lbl">🏪 Boutiques</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + (totalListings > 0 ? totalListings.toLocaleString() : '—') + '</span><span class="comp-stat-lbl">📋 Annonces totales</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + (avgPerShop > 0 ? '~' + avgPerShop : '—') + '</span><span class="comp-stat-lbl">📊 Annonces / boutique</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + similarTitles.toLocaleString() + '</span><span class="comp-stat-lbl">🎯 Titres similaires</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + dropshippers + '</span><span class="comp-stat-lbl">🛒 Dropshippers</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + totalShops + '</span><span class="comp-stat-lbl">🏪 Shops analyzed</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + saturation + '%</span><span class="comp-stat-lbl">📊 Dropship rate</span></div>' +
           '</div>' +
-
         '</div>';
 
       return html;
