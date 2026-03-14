@@ -551,29 +551,38 @@
 
     // ── INTRO / SKIP INTRO ──
     (function(){
-      var ids=['bg-layer','milkyway-canvas','main-view'];
+      var ids = ['bg-layer','milkyway-canvas','main-view'];
+
+      function showApp() {
+        var intro = document.getElementById('intro');
+        if (intro) intro.style.display = 'none';
+        ids.forEach(function(id){ var el=document.getElementById(id); if(el) el.style.opacity='1'; });
+        checkAuth();
+      }
+
+      // Always make sure bg and main-view are visible regardless
+      ids.forEach(function(id){ var el=document.getElementById(id); if(el) el.style.opacity='0'; });
+
       if (sessionStorage.getItem('skipIntro')) {
         sessionStorage.removeItem('skipIntro');
-        document.getElementById('intro').style.display='none';
-        ids.forEach(function(id){var el=document.getElementById(id);if(el)el.style.opacity='1';});
-        checkAuth();
+        showApp();
         return;
       }
-      ids.forEach(function(id){var el=document.getElementById(id);if(el){el.style.opacity='0';}});
+
+      // Animate intro text then show app
       setTimeout(function(){
         document.querySelectorAll('#intro-text span').forEach(function(el){
-          var a=Math.random()*Math.PI*2,d=150+Math.random()*350;
-          el.style.setProperty('--tx',Math.cos(a)*d+'px');
-          el.style.setProperty('--ty',Math.sin(a)*d+'px');
-          el.style.setProperty('--tr',(Math.random()*600-300)+'deg');
+          var a=Math.random()*Math.PI*2, d=150+Math.random()*350;
+          el.style.setProperty('--tx', Math.cos(a)*d+'px');
+          el.style.setProperty('--ty', Math.sin(a)*d+'px');
+          el.style.setProperty('--tr', (Math.random()*600-300)+'deg');
           el.classList.add('blast');
         });
-        setTimeout(function(){
-          document.getElementById('intro').style.display='none';
-          ids.forEach(function(id){var el=document.getElementById(id);if(el)el.style.opacity='1';});
-          checkAuth();
-        },650);
-      },2200);
+        setTimeout(showApp, 650);
+      }, 2200);
+
+      // Hard fallback — force show after 4s no matter what
+      setTimeout(showApp, 4000);
     })();
 
     async function submitChangeEmail() {
@@ -1018,3 +1027,4 @@
   </script>
 </body>
 </html>
+
