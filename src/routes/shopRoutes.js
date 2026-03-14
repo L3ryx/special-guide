@@ -155,14 +155,68 @@ function cleanAliUrl(raw) {
   return m ? `https://www.aliexpress.com/item/${m[1]}.html` : null;
 }
 
-async function scrapeShopListings(shopUrl) {
-  const apiKey = process.env.SCRAPINGBEE_KEY;
-  const reqUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}`
-    + `&url=${encodeURIComponent(shopUrl)}`
-    + `&render_js=true&premium_proxy=true&country_code=us&wait=2000&timeout=45000`;
+// ════════════════════════════════════════════════════════════════════════
+// HELPER : Scraping avec fallback ZenRows si ScrapingBee échoue
+// ScrapingBee est essayé en premier. En cas d'erreur (401, 500, timeout),
+// ZenRows prend le relais automatiquement.
+// ════════════════════════════════════════════════════════════════════════
+async function scrapingbeeFetch(targetUrl, sbParams = {}) {
+  const sbKey = process.env.SCRAPINGBEE_KEY;
 
-  const res  = await axios.get(reqUrl, { timeout: 120000 });
-  const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+  // ── Tentative ScrapingBee ──
+  if (sbKey) {
+    try {
+      const params = {
+        api_key:      sbKey,
+        url:          targetUrl,
+        render_js:    'true',
+        country_code: 'us',
+        timeout:      '45000',
+        ...sbParams,
+      };
+      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+        params,
+        timeout: 120000,
+      });
+      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      if (html.length > 500) {
+        return html;
+      }
+    } catch (e) {
+      const status = e.response?.status;
+      console.warn('ScrapingBee failed (' + status + ') — trying ZenRows:', e.message.slice(0, 80));
+      // 401 = crédits épuisés, 429 = rate limit, 500 = erreur serveur → fallback
+    }
+  }
+
+  // ── Fallback ZenRows ──
+  const zrKey = process.env.ZENROWS_API_KEY;
+  if (!zrKey) throw new Error('ScrapingBee failed and ZENROWS_API_KEY is not set');
+
+  console.log('ZenRows fallback:', targetUrl);
+  const zrParams = {
+    apikey:          zrKey,
+    url:             targetUrl,
+    js_render:       'true',     // équivalent render_js
+    premium_proxy:   'true',
+    wait_for:        '2000',     // équivalent wait
+  };
+  const r = await axios.get('https://api.zenrows.com/v1/', {
+    params: zrParams,
+    timeout: 120000,
+  });
+  const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+  if (html.length < 500) throw new Error('ZenRows returned empty response');
+  console.log('ZenRows OK —', html.length, 'chars');
+  return html;
+}
+
+async function scrapeShopListings(shopUrl) {
+  // ScrapingBee avec fallback ZenRows automatique
+  const html = await scrapingbeeFetch(shopUrl, {
+    premium_proxy: 'true',
+    wait:          '2000',
+  });
   const listings = [];
 
   const listingPattern = /"listing_id"\s*:\s*(\d+)[^}]*?"title"\s*:\s*"([^"]+)"[^}]*?"price"[^}]*?"amount"\s*:\s*(\d+)[^}]*?"divisor"\s*:\s*(\d+)/g;
@@ -563,13 +617,12 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&page=${page}`;
     let html = '';
     try {
-      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '3000', timeout: '45000', block_resources: false },
-        timeout: 120000,
+      html = await scrapingbeeFetch(etsyUrl, {
+        stealth_proxy: 'true',
+        wait:          '3000',
       });
-      html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
     } catch (e) {
-      console.warn('Competition scrape page', page, e.message);
+      console.warn('Competition scrape page', page, '— both ScrapingBee and ZenRows failed:', e.message);
       break;
     }
 
