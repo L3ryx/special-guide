@@ -476,6 +476,39 @@ function parseSearchResultListings(html) {
   return results;
 }
 
+
+function extractAboutText(html) {
+  const patterns = [
+    /<div[^>]*class="[^"]*shop-about[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<section[^>]*id="about"[^>]*>([\s\S]*?)<\/section>/i,
+    /<div[^>]*data-region="about"[^>]*>([\s\S]*?)<\/div>/i,
+    /"description"\s*:\s*"([^"]{30,1500})"/,
+    /"about"\s*:\s*"([^"]{30,1500})"/,
+    /"shopDescription"\s*:\s*"([^"]{30,1500})"/,
+    /<meta[^>]+name="description"[^>]+content="([^"]{30,500})"/i,
+    /<meta[^>]+content="([^"]{30,500})"[^>]+name="description"/i,
+  ];
+  for (const pattern of patterns) {
+    const m = html.match(pattern);
+    if (m) {
+      const text = m[1]
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+        .replace(/\n/g, ' ').replace(/\"/g, '"')
+        .replace(/\s+/g, ' ').trim();
+      if (text.length > 30) return text;
+    }
+  }
+  // Last resort: all paragraph text
+  const paras = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+  const combined = paras
+    .map(p => p[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(t => t.length > 30)
+    .join(' ');
+  return combined.slice(0, 1500);
+}
+
 function computeDropshipScore(dropshippers, totalShops) {
   const pct = totalShops > 0 ? Math.round((dropshippers / totalShops) * 100) : 0;
   const saturation = pct;
