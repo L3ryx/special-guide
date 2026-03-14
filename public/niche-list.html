@@ -201,7 +201,10 @@
           return;
         }
         list.innerHTML = '';
-        shops.forEach(shop => list.appendChild(buildShopRow(shop)));
+        shops.forEach(shop => {
+          console.log('[Shop]', shop.shopName, '| lastCompetition:', JSON.stringify(shop.lastCompetition));
+          list.appendChild(buildShopRow(shop));
+        });
       } catch(e) {
         list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
       }
@@ -510,5 +513,6 @@
   </script>
 </body>
 </html>
+
 
 
