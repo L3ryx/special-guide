@@ -1015,7 +1015,7 @@
           _savedShopUrls.add(data.shopUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
           updateNlCount(); showToast('Saved! ♥', '#22c55e');
         } else {
-          const json = await r.json().catch(() => ({})); btn.classList.remove('saving'); btn.textContent = '★';
+          const json = await r.json().catch(() => ({})); btn.classList.remove('saving'); btn.textContent = '❤️';
           showToast('Error: ' + (json.error || r.status), '#ef4444');
         }
       } catch(e) { btn.classList.remove('saving'); btn.textContent = '★'; showToast(e.message, '#ef4444'); }
