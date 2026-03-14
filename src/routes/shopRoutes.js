@@ -54,7 +54,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 // ── FIND ──
 router.post('/:id/find', requireAuth, async (req, res) => {
   const shop = await SavedShop.findOne({ _id: req.params.id, userId: req.user.id });
-  if (!shop) return res.status(404).json({ error: 'Boutique introuvable' });
+  if (!shop) return res.status(404).json({ error: 'Shop not found' });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -63,7 +63,7 @@ router.post('/:id/find', requireAuth, async (req, res) => {
 
   // API key check
   if (!process.env.SERPER_API_KEY) {
-    send({ step: 'error', message: '❌ SERPER_API_KEY manquante dans Render → Environment' });
+    send({ step: 'error', message: '❌ SERPER_API_KEY missing in Render environment' });
     return res.end();
   }
 
@@ -406,9 +406,7 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
       break;
     }
 
-    console.log('Competition page', page, '- HTML:', html.length, 'chars');
     const rawListings = parseSearchResultListings(html);
-    console.log('  → raw listings:', rawListings.length);
 
     let addedOnPage = 0;
     for (const l of rawListings) {
@@ -567,4 +565,4 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 45) return { label: 'Moderate',   color: '#fbbf24', description: 'Some dropshipping presence. Stand out with quality.',         saturation };
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
-    }
+}
