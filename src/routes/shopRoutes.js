@@ -268,18 +268,19 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
         const r = await axios.get('https://app.scrapingbee.com/api/v1/', { params, timeout: 90000 });
         aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-        if (aboutHtml.length > 1000) {
-          console.log('Shop fetch OK — HTML:', aboutHtml.length, 'chars');
+        console.log('Shop fetch result — length:', aboutHtml.length, '| preview:', aboutHtml.slice(0, 200));
+        if (aboutHtml.length > 500) {
+          console.log('Shop fetch OK');
           break;
         }
       } catch (e) {
         const status = e.response?.status;
-        const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 150) : e.message;
+        const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 200) : e.message;
         console.warn('Shop fetch failed:', status, detail);
       }
     }
 
-    if (!aboutHtml || aboutHtml.length < 1000) {
+    if (!aboutHtml || aboutHtml.length < 100) {
       send({ step: 'error', message: '❌ Could not fetch shop page — ScrapingBee returned empty response.' });
       return res.end();
     }
