@@ -9,7 +9,16 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 router.post('/save', requireAuth, async (req, res) => {
   let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
   if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
-  shopUrl = shopUrl.split('/listing/')[0].replace(/\/$/, '');
+  if (shopUrl.includes('/listing/')) {
+    const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/);
+    shopUrl = m
+      ? `https://www.etsy.com/shop/${m[1]}`
+      : shopName
+        ? `https://www.etsy.com/shop/${shopName}`
+        : shopUrl.split('/listing/')[0].replace(/\/$/, '');
+  } else {
+    shopUrl = shopUrl.replace(/\/$/, '');
+  }
   if (!shopName || shopName === 'Shop' || shopName === 'Boutique') {
     const m = shopUrl.match(/\/shop\/([^/?#]+)/);
     shopName = m ? m[1] : shopUrl.split('/').filter(Boolean).pop() || 'Shop';
@@ -45,7 +54,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 // ── FIND ──
 router.post('/:id/find', requireAuth, async (req, res) => {
   const shop = await SavedShop.findOne({ _id: req.params.id, userId: req.user.id });
-  if (!shop) return res.status(404).json({ error: 'Boutique introuvable' });
+  if (!shop) return res.status(404).json({ error: 'Shop not found' });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -54,7 +63,7 @@ router.post('/:id/find', requireAuth, async (req, res) => {
 
   // API key check
   if (!process.env.SERPER_API_KEY) {
-    send({ step: 'error', message: '❌ SERPER_API_KEY manquante dans Render → Environment' });
+    send({ step: 'error', message: '❌ SERPER_API_KEY missing in Render environment' });
     return res.end();
   }
 
@@ -213,6 +222,8 @@ async function compareWithClaude(etsyImgUrl, aliImgUrl) {
   return Math.min(100, Math.max(0, parseInt(txt) || 75));
 }
 
+module.exports = router;
+
 // ── COMPETITION ──
 router.post('/:id/competition', requireAuth, async (req, res) => {
   const shop = await SavedShop.findOne({ _id: req.params.id, userId: req.user.id });
@@ -224,108 +235,239 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
   const send = d => res.write('data: ' + JSON.stringify(d) + '\n\n');
 
   try {
-    // ── STEP 1 : Scrape shop "About" page ──
-    send({ step: 'status', message: '🏪 Fetching shop About page...' });
-
     const apiKey = process.env.SCRAPINGBEE_KEY;
     if (!apiKey) { send({ step: 'error', message: '❌ SCRAPINGBEE_KEY missing' }); return res.end(); }
-    if (!process.env.GEMINI_API_KEY) { send({ step: 'error', message: '❌ GEMINI_API_KEY missing — add it in Render Environment Variables' }); return res.end(); }
+    if (!process.env.GEMINI_API_KEY) { send({ step: 'error', message: '❌ GEMINI_API_KEY missing' }); return res.end(); }
+    if (!process.env.SERPER_API_KEY) { send({ step: 'error', message: '❌ SERPER_API_KEY missing' }); return res.end(); }
+    if (!process.env.IMGBB_API_KEY)  { send({ step: 'error', message: '❌ IMGBB_API_KEY missing' });  return res.end(); }
 
-    // Try /about page, then shop homepage, then fallback to shop name
+    // ── STEP 1 : Scrape shop About page → description ──
+    send({ step: 'status', message: '🏪 Fetching shop page...' });
+    const shopBase = shop.shopUrl.replace(/\/?$/, '');
+
+    // Fetch shop page — try ScrapingBee up to 3 times
     let aboutHtml = '';
-    let description = '';
-
-    const urlsToTry = [
-      shop.shopUrl.replace(/\/?$/, '') + '/about',
-      shop.shopUrl.replace(/\/?$/, ''),
-    ];
-
-    for (const tryUrl of urlsToTry) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
+        send({ step: 'status', message: '🏪 Fetching shop page (attempt ' + attempt + '/3)...' });
+        console.log('ScrapingBee shop fetch attempt', attempt, ':', shopBase);
         const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-          params: { api_key: apiKey, url: tryUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000' },
+          params: {
+            api_key:         apiKey,
+            url:             shopBase,
+            render_js:       'true',
+            premium_proxy:   'true',
+            country_code:    'us',
+            block_resources: 'false',
+            wait:            '2000',
+            timeout:         '45000',
+          },
           timeout: 120000,
         });
         aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-        description = extractAboutText(aboutHtml);
-        if (description && description.length >= 20) break;
+        if (aboutHtml.length > 500) {
+          console.log('ScrapingBee OK on attempt', attempt, '—', aboutHtml.length, 'chars');
+          break;
+        }
       } catch (e) {
-        console.warn('Could not fetch', tryUrl, ':', e.message);
-        // continue to next URL
+        const status = e.response?.status;
+        const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 100) : e.message;
+        console.warn('ScrapingBee attempt', attempt, 'failed:', status, detail);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 4000));
       }
     }
 
-    // Last resort: use shop name as keyword directly
+    let description = '';
+    if (aboutHtml && aboutHtml.length >= 500) {
+      description = extractAboutText(aboutHtml);
+    }
+
+    // Fallback: use titles of first 10 listings if no description found
     if (!description || description.length < 20) {
-      const shopNameKeyword = (shop.shopName || '').replace(/([A-Z])/g, ' $1').trim().toLowerCase();
-      if (shopNameKeyword.length >= 2) {
-        description = shopNameKeyword;
-        send({ step: 'status', message: '📝 No About page found — using shop name as keyword hint...' });
-      } else {
-        send({ step: 'error', message: '❌ Could not find any description for this shop' });
+      send({ step: 'status', message: '📝 No About page — fetching shop listings as fallback...' });
+      try {
+        const fallbackListings = await scrapeShopListings(shop.shopUrl);
+        const titles = fallbackListings
+          .slice(0, 10)
+          .map(l => l.title)
+          .filter(t => t && t.length > 3)
+          .join(', ');
+        if (titles.length > 10) {
+          description = titles;
+          send({ step: 'status', message: '📝 Using listing titles as description (' + fallbackListings.length + ' listings found). Analyzing with AI...' });
+        } else {
+          send({ step: 'error', message: '❌ Could not find any description or listings for this shop. Please try again.' });
+          return res.end();
+        }
+      } catch (e) {
+        send({ step: 'error', message: '❌ Could not fetch shop listings: ' + e.message });
         return res.end();
       }
     } else {
       send({ step: 'status', message: '📝 Description found (' + description.length + ' chars). Analyzing with AI...' });
     }
 
-    // ── STEP 2 : Ask Claude/GPT for keyword ──
+    // ── STEP 2 : Gemini → keyword ──
     let keyword = '';
     try {
       const aiRes = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        {
-          contents: [{
-            parts: [{ text: `Here is the "About" description of an Etsy shop:\n\n"${description.slice(0, 1200)}"\n\nWhat is the main product sold by this shop? Respond with ONLY a single short English keyword (1-3 words max) that best defines the niche of this shop. No explanation, no punctuation, just the keyword.` }]
-          }]
-        },
+        { contents: [{ parts: [{ text: `Here is the "About" description of an Etsy shop:\n\n"${description.slice(0, 1200)}"\n\nWhat is the main product sold by this shop? Respond with ONLY a single short English keyword (1-3 words max) that best defines the niche of this shop. No explanation, no punctuation, just the keyword.` }] }] },
         { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
       );
       keyword = (aiRes.data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
     } catch (e) {
       const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-      send({ step: 'error', message: '❌ Gemini analysis failed (' + (e.response?.status || '') + '): ' + detail });
+      send({ step: 'error', message: '❌ Gemini failed (' + (e.response?.status || '') + '): ' + detail });
       return res.end();
     }
 
     if (!keyword) { send({ step: 'error', message: '❌ AI could not determine a keyword' }); return res.end(); }
-    send({ step: 'keyword', message: '🔑 Keyword identified: "' + keyword + '"', keyword });
+    send({ step: 'keyword', message: '🔑 Keyword: "' + keyword + '"', keyword });
 
-    // ── STEP 3 : Scrape all Etsy shop names for this keyword ──
-    send({ step: 'status', message: '🔍 Searching Etsy for "' + keyword + '"...' });
+    // ── STEP 3 : Scrape Etsy listings (1 per unique shop) ──
+    send({ step: 'status', message: '🔍 Scraping Etsy listings for "' + keyword + '"...' });
 
-    const { scrapeEtsyShopNames } = require('../services/etsyScraper');
-    let allShopNames = [];
-    let pagesDone = 0;
-
-    // We wrap scrapeEtsyShopNames to emit progress
-    const etsyUrl = keyword;
-    const scrapeResult = await scrapeEtsyAllShops(apiKey, etsyUrl, (page, count) => {
-      pagesDone = page;
-      send({ step: 'scraping', message: '📄 Page ' + page + ' scraped — ' + count + ' unique shops so far...' });
+    const listings = await scrapeEtsyListingsForCompetition(apiKey, keyword, (page, count) => {
+      send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + '/400 listings collected...' });
     });
-    allShopNames = scrapeResult.shops;
-    const totalListings = scrapeResult.totalListings;
-    const similarTitles = scrapeResult.similarTitles;
 
-    send({ step: 'status', message: '✅ Scraping complete — ' + allShopNames.length + ' unique shops found' });
+    const totalShops = listings.length;
+    if (totalShops === 0) {
+      send({ step: 'error', message: '❌ No listings found on Etsy for this keyword' });
+      return res.end();
+    }
+    send({ step: 'status', message: '✅ ' + totalShops + ' unique shops found. Starting reverse image search...' });
 
-    // ── STEP 4 : Compute competition score ──
-    const totalShops = allShopNames.length;
-    const score = computeCompetitionScore(totalShops, totalListings, similarTitles);
+    // ── STEP 4 : Serper text search + image comparison — parallel concurrency 10 ──
+    const { uploadToImgBB } = require('../services/imgbbUploader');
+    let dropshippers = 0;
+    let analyzed = 0;
+    const dropshipperShops = [];
+    const CONCURRENCY = 10;
+    const SIMILARITY_THRESHOLD = 0.55; // 55% minimum to count as dropshipper
+
+    async function analyzeOne(listing) {
+      try {
+        // 1. Serper text search with AliExpress filter
+        const title = (listing.title || '').replace(/[^a-zA-Z0-9\s]/g, ' ').trim().slice(0, 80);
+        const query = title ? title + ' site:aliexpress.com' : 'product site:aliexpress.com';
+
+        const searchRes = await axios.post('https://google.serper.dev/search',
+          { q: query, gl: 'us', hl: 'en', num: 3 },
+          { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 20000 }
+        );
+
+        // Find first AliExpress result with an image
+        const aliResult = (searchRes.data.organic || []).find(r => {
+          const url = r.link || '';
+          return url.includes('aliexpress.com') && url.includes('/item/') && r.imageUrl;
+        });
+
+        if (!aliResult) return; // no AliExpress match found
+
+        // 2. Upload both images to ImgBB for Gemini vision
+        let etsyPublicUrl, aliPublicUrl;
+        try {
+          [etsyPublicUrl, aliPublicUrl] = await Promise.all([
+            uploadToImgBB(listing.image),
+            uploadToImgBB(aliResult.imageUrl),
+          ]);
+        } catch (e) {
+          console.warn('ImgBB upload failed:', e.message);
+          return;
+        }
+
+        // 3. Fetch both images as base64
+        const fetchB64 = async (url) => {
+          const r = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
+          const ct = r.headers['content-type'] || 'image/jpeg';
+          return { data: Buffer.from(r.data).toString('base64'), mime: ct.split(';')[0] };
+        };
+
+        let etsyImg, aliImg;
+        try {
+          [etsyImg, aliImg] = await Promise.all([fetchB64(etsyPublicUrl), fetchB64(aliPublicUrl)]);
+        } catch (e) {
+          console.warn('Image fetch failed:', e.message);
+          return;
+        }
+
+        // 4. Gemini Vision — compare images
+        const geminiRes = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          {
+            contents: [{
+              parts: [
+                { inline_data: { mime_type: etsyImg.mime, data: etsyImg.data } },
+                { inline_data: { mime_type: aliImg.mime,  data: aliImg.data  } },
+                { text: 'Compare these two product images. Could one be a dropshipped or wholesale version of the other?\nScore: same product+design→0.85-1.0 | same type+similar→0.65-0.84 | same category→0.35-0.64 | different→0.0-0.34\nIgnore background, watermarks, angle, lighting.\nReply with ONLY a decimal number (e.g. 0.82).' }
+              ]
+            }]
+          },
+          { headers: { 'Content-Type': 'application/json' }, timeout: 25000 }
+        );
+
+        const txt   = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '0';
+        const match = txt.match(/(?:0\.\d+|1(?:\.0+)?)/);
+        const score = match ? parseFloat(match[0]) : 0;
+
+        if (score >= SIMILARITY_THRESHOLD) {
+          dropshippers++;
+          dropshipperShops.push({
+            shopName:  listing.shopName || 'Unknown',
+            shopUrl:   listing.shopName ? 'https://www.etsy.com/shop/' + listing.shopName : (listing.link || '#'),
+            aliUrl:    aliResult.link,
+            similarity: Math.round(score * 100),
+          });
+          send({ step: 'match', message: '🛒 Match ' + Math.round(score * 100) + '% — ' + (listing.shopName || 'shop') + ' (' + dropshippers + ' dropshippers)' });
+        }
+      } catch (e) {
+        console.warn('analyzeOne failed for', listing.shopName, e.message);
+      }
+      analyzed++;
+      send({ step: 'analyzing', message: '🔎 ' + analyzed + '/' + totalShops + ' analyzed — ' + dropshippers + ' dropshippers found' });
+    }
+
+    // Run with concurrency limit
+    const queue = [...listings];
+    async function worker() {
+      while (queue.length > 0) {
+        const listing = queue.shift();
+        if (listing) await analyzeOne(listing);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, listings.length) }, worker));
+
+    // ── STEP 5 : Compute score ──
+    const score = computeDropshipScore(dropshippers, totalShops);
+
+    // Save competition result to MongoDB
+    await SavedShop.findByIdAndUpdate(req.params.id, {
+      lastCompetition: {
+        runAt:            new Date(),
+        keyword,
+        totalShops,
+        dropshippers,
+        dropshipperShops,
+        label:            score.label,
+        color:            score.color,
+        description:      score.description,
+        saturation:       score.saturation,
+      }
+    });
 
     send({
       step: 'complete',
       keyword,
       totalShops,
-      totalListings,
-      similarTitles,
+      dropshippers,
+      dropshipperShops,
       score,
-      label: score.label,
-      color: score.color,
+      label:       score.label,
+      color:       score.color,
       description: score.description,
-      saturation: score.saturation,
-      shopNames: allShopNames,
+      saturation:  score.saturation,
     });
     res.end();
 
@@ -335,125 +477,175 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
   }
 });
 
-// Scrape all pages of Etsy search and collect unique shop names, with progress callback
-async function scrapeEtsyAllShops(apiKey, keyword, onPage) {
-  const allShops = new Set();
+// Scrape Etsy search results — all listings, skip if shop already seen, max 400 total
+async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
+  const MAX_LISTINGS = 400;
+  const shopsSeen   = new Set(); // shops already analyzed
+  const listings    = [];
   let page = 1;
-  let totalListings = 0;
-  let similarTitles = 0;
-  const kwWords = keyword.toLowerCase().split(/\s+/).filter(w => w.length > 2);
 
-  while (page <= 20) {
+  while (listings.length < MAX_LISTINGS) {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&page=${page}`;
     let html = '';
     try {
       const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2000', block_ads: 'true', timeout: '45000' },
+        params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '3000', timeout: '45000', block_resources: false },
         timeout: 120000,
       });
       html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
     } catch (e) {
-      console.warn('scrapeEtsyAllShops page', page, e.message);
+      console.warn('Competition scrape page', page, e.message);
       break;
     }
 
-    // Extract total listings count on page 1
-    if (page === 1) {
-      const m = html.match(/([0-9][0-9,]*)\s*results?/i) ||
-                html.match(/"totalResults"\s*:\s*(\d+)/) ||
-                html.match(/(\d[\d,]*)\s*résultats?/i);
-      if (m) totalListings = parseInt(m[1].replace(/,/g, ''), 10) || 0;
+    const rawListings = parseSearchResultListings(html);
+
+    let addedOnPage = 0;
+    for (const l of rawListings) {
+      if (listings.length >= MAX_LISTINGS) break;
+      if (!l.image) continue;
+
+      // Skip if this shop was already analyzed
+      if (l.shopName && shopsSeen.has(l.shopName)) continue;
+
+      // Mark shop as seen, add listing
+      if (l.shopName) shopsSeen.add(l.shopName);
+      listings.push({ shopName: l.shopName || null, image: l.image, link: l.link });
+      addedOnPage++;
     }
 
-    // Count titles matching keyword words
-    const titleMatches = [
-      ...html.matchAll(/data-listing-title="([^"]+)"/gi),
-      ...html.matchAll(/"title"\s*:\s*"([^"]{5,120})"/g),
-      ...html.matchAll(/<h3[^>]*>\s*([^<]{5,120})\s*<\/h3>/gi),
-    ];
-    for (const m of titleMatches) {
-      const title = m[1].toLowerCase();
-      if (kwWords.some(w => title.includes(w))) similarTitles++;
-    }
+    onPage(page, listings.length);
 
-    // Extract shop names from JSON-LD and data attributes
-    const shops = extractShopNamesFromHtml(html);
-    if (shops.length === 0) break;
-
-    shops.forEach(s => allShops.add(s));
-    onPage(page, allShops.size);
-
-    // Check for next page
-    const hasNext = html.includes('pagination-next') ||
-                    html.includes(`page=${page + 1}`) ||
-                    shops.length >= 40;
-    if (!hasNext) break;
-
+    // Stop if nothing new, no next page, or limit reached
+    const hasNext = html.includes('pagination-next') || html.includes(`page=${page + 1}`);
+    if (!hasNext || addedOnPage === 0 || listings.length >= MAX_LISTINGS) break;
     page++;
     await new Promise(r => setTimeout(r, 800));
   }
 
-  return { shops: Array.from(allShops), totalListings, similarTitles };
+  console.log('Competition: total listings to analyze:', listings.length);
+  return listings;
 }
 
-function extractShopNamesFromHtml(html) {
-  const shops = new Set();
+// Extract listings from Etsy search result HTML (covers all 3 strategies)
+function parseSearchResultListings(html) {
+  const results = [];
+  const seen = new Set();
 
-  // JSON-LD seller names
-  const jsonBlocks = [...html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
-  for (const b of jsonBlocks) {
+  // Strategy 1: JSON-LD
+  for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
-      const data = JSON.parse(b[1]);
+      const data  = JSON.parse(raw);
       const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
       for (const item of items) {
-        const seller = item.seller?.name || item.brand?.name;
-        if (seller) shops.add(seller);
+        const url  = item.url || item['@id'];
+        const img  = item.image?.[0] || item.image;
+        const name = item.name;
+        if (!url || !url.includes('/listing/') || !img || !name) continue;
+        const cleanUrl = url.split('?')[0];
+        if (seen.has(cleanUrl)) continue;
+        seen.add(cleanUrl);
+        // Try all possible shopName fields in JSON-LD
+        const shopName = item.seller?.name
+          || item.brand?.name
+          || item.offers?.seller?.name
+          || item.manufacturer?.name
+          || item.provider?.name
+          || null;
+        // Also try to extract shopName from the listing URL context in full HTML
+        let resolvedShop = shopName;
+        if (!resolvedShop) {
+          const idx = html.indexOf(cleanUrl.split('/listing/')[1]?.split('/')[0] || '');
+          if (idx > -1) {
+            const ctx = html.slice(Math.max(0, idx - 2000), idx + 2000);
+            const m = ctx.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i)
+                   || ctx.match(/"shopName"\s*:\s*"([^"]+)"/i);
+            if (m) resolvedShop = m[1];
+          }
+        }
+        const shopUrl = resolvedShop ? `https://www.etsy.com/shop/${resolvedShop}` : null;
+        results.push({ title: name, link: cleanUrl, image: img, shopName: resolvedShop, shopUrl });
       }
     } catch {}
   }
+  if (results.filter(r => r.shopName).length >= 2) return results;
 
-  // data-shop-name attributes
-  const shopAttrs = [...html.matchAll(/data-shop-name="([^"]+)"/gi)];
-  shopAttrs.forEach(m => shops.add(m[1]));
+  // Strategy 2: data-listing-id blocks
+  const blocks = [...html.matchAll(/(<(?:li|div)[^>]*data-listing-id[^>]*>[\s\S]*?<\/(?:li|div)>)/gi)];
+  for (const block of blocks) {
+    const b = block[1];
+    const linkM = b.match(/href="(https:\/\/www\.etsy\.com\/listing\/\d+\/[^"?#]+)/);
+    const imgM  = b.match(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+)"/i);
+    const shopM = b.match(/data-shop-name="([^"]+)"/i);
+    if (linkM && imgM && shopM && !seen.has(linkM[1])) {
+      seen.add(linkM[1]);
+      const shopName = shopM[1];
+      results.push({ link: linkM[1], image: imgM[1].split('?')[0], shopName, shopUrl: `https://www.etsy.com/shop/${shopName}` });
+    }
+  }
+  if (results.length >= 2) return results;
 
-  // /shop/ URLs
-  const shopUrls = [...html.matchAll(/etsy\.com\/shop\/([A-Za-z0-9_]+)/g)];
-  shopUrls.forEach(m => shops.add(m[1]));
+  // Strategy 3: proximity (links + images near each other in HTML)
+  const allLinks  = [...html.matchAll(/href="(https:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"?#]+)/g)];
+  const allImages = [...html.matchAll(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+\.(?:jpg|jpeg|png|webp))/gi)];
+  const linkPos   = allLinks.map(m  => ({ url: m[1].split('?')[0], pos: m.index }));
+  const imgPos    = allImages.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
 
-  return Array.from(shops).filter(s => s && s.length > 1);
+  for (const link of linkPos) {
+    if (seen.has(link.url)) continue;
+    let closest = null, minDist = Infinity;
+    for (const img of imgPos) {
+      const d = Math.abs(img.pos - link.pos);
+      if (d < minDist && d < 5000) { minDist = d; closest = img; }
+    }
+    if (closest) {
+      seen.add(link.url);
+      // Extract shopName from nearby HTML — wider context window
+      const ctx = html.slice(Math.max(0, link.pos - 2000), link.pos + 2000);
+      const shopM = ctx.match(/data-shop-name="([^"]+)"/i)
+                 || ctx.match(/href="https:\/\/www\.etsy\.com\/shop\/([A-Za-z0-9_-]+)"/i)
+                 || ctx.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i)
+                 || ctx.match(/"shopName"\s*:\s*"([^"]+)"/i)
+                 || ctx.match(/"shop_name"\s*:\s*"([^"]+)"/i);
+      const shopName = shopM ? shopM[1] : null;
+      results.push({ link: link.url, image: closest.url, shopName, shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null });
+    }
+  }
+
+  return results;
 }
 
+
 function extractAboutText(html) {
-  // Try to find the About section text
   const patterns = [
-    // Common Etsy About section containers
+    // Etsy JSON data embedded in page
+    /"shop_description"\s*:\s*"([^"]{30,1500})"/i,
+    /"shopDescription"\s*:\s*"([^"]{30,1500})"/i,
+    /"description"\s*:\s*"([^"]{30,1500})"/i,
+    /"about_text"\s*:\s*"([^"]{30,1500})"/i,
+    /"about"\s*:\s*\{[^}]*"text"\s*:\s*"([^"]{30,1500})"/i,
+    // HTML sections
     /<div[^>]*class="[^"]*shop-about[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
     /<section[^>]*id="about"[^>]*>([\s\S]*?)<\/section>/i,
     /<div[^>]*data-region="about"[^>]*>([\s\S]*?)<\/div>/i,
-    // JSON embedded description
-    /"description"\s*:\s*"([^"]{30,1500})"/,
-    /"about"\s*:\s*"([^"]{30,1500})"/,
-    /"shopDescription"\s*:\s*"([^"]{30,1500})"/,
-    // Meta description fallback
+    /<div[^>]*id="about"[^>]*>([\s\S]*?)<\/div>/i,
+    // Meta fallback
     /<meta[^>]+name="description"[^>]+content="([^"]{30,500})"/i,
     /<meta[^>]+content="([^"]{30,500})"[^>]+name="description"/i,
   ];
-
   for (const pattern of patterns) {
     const m = html.match(pattern);
     if (m) {
-      // Strip HTML tags and decode entities
-      let text = m[1]
+      const text = m[1]
         .replace(/<[^>]+>/g, ' ')
         .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-        .replace(/\\n/g, ' ').replace(/\\"/g, '"')
+        .replace(/\n/g, ' ').replace(/\"/g, '"')
         .replace(/\s+/g, ' ').trim();
       if (text.length > 30) return text;
     }
   }
-
-  // Last resort: grab all paragraph text
+  // Last resort: all paragraph text
   const paras = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
   const combined = paras
     .map(p => p[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
@@ -462,21 +654,14 @@ function extractAboutText(html) {
   return combined.slice(0, 1500);
 }
 
-function computeCompetitionScore(totalShops, totalListings = 0, similarTitles = 0) {
-  const shopScore    = Math.min(100, (totalShops    / 500)   * 100);
-  const listingScore = Math.min(100, (totalListings / 50000) * 100);
-  const ratioScore   = totalShops > 0 ? Math.min(100, (totalListings / totalShops) / 2) : 0;
-  const similarScore = Math.min(100, (similarTitles / 200)   * 100);
-  const saturation   = Math.round(shopScore * 0.30 + listingScore * 0.30 + ratioScore * 0.25 + similarScore * 0.15);
+function computeDropshipScore(dropshippers, totalShops) {
+  const pct = totalShops > 0 ? Math.round((dropshippers / totalShops) * 100) : 0;
+  const saturation = pct;
 
-  // Keep existing label logic but add saturation
-  // Scoring: based on number of unique competing shops
-  if (saturation <= 20)  return { label: 'Very Low',  color: '#22c55e', description: 'Excellent niche — very few competitors. Great opportunity!', score: 1, saturation };
-  if (saturation <= 40)  return { label: 'Low',       color: '#86efac', description: 'Good niche — limited competition. Solid opportunity.', score: 2, saturation };
-  if (saturation <= 60)  return { label: 'Moderate',  color: '#fbbf24', description: 'Medium competition. Differentiation is key.', score: 3, saturation };
-  if (saturation <= 80)  return { label: 'High',      color: '#f97316', description: 'High competition. Need a strong unique angle.', score: 4, saturation };
-  return { label: 'Very High', color: '#ef4444', description: 'Extremely saturated niche. Hard to stand out.', score: 5, saturation };
-}
-
-module.exports = router;
+  if (pct <= 10) return { label: 'Very Low',  color: '#22c55e', description: 'Almost no dropshippers — excellent original niche!',          saturation };
+  if (pct <= 25) return { label: 'Low',        color: '#86efac', description: 'Few dropshippers — good opportunity with differentiation.',   saturation };
+  if (pct <= 45) return { label: 'Moderate',   color: '#fbbf24', description: 'Some dropshipping presence. Stand out with quality.',         saturation };
+  if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
+  return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
+    }
 
