@@ -245,40 +245,56 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     send({ step: 'status', message: '🏪 Fetching shop page...' });
     const shopBase = shop.shopUrl.replace(/\/?$/, '');
 
-    // Fetch shop page — try ScrapingBee up to 3 times
+    // Fetch shop page — try ScraperAPI first, then ScrapingBee as fallback
     let aboutHtml = '';
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    send({ step: 'status', message: '🏪 Fetching shop page...' });
+
+    // Try 1: ScraperAPI (more reliable for Etsy shop pages)
+    if (process.env.SCRAPEAPI_KEY) {
       try {
-        send({ step: 'status', message: '🏪 Fetching shop page (attempt ' + attempt + '/3)...' });
-        console.log('ScrapingBee shop fetch attempt', attempt, ':', shopBase);
-        const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-          params: {
-            api_key:         apiKey,
-            url:             shopBase,
-            render_js:       'true',
-            premium_proxy:   'true',
-            country_code:    'us',
-            block_resources: 'false',
-            wait:            '2000',
-            timeout:         '45000',
-          },
-          timeout: 120000,
-        });
-        aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-        if (aboutHtml.length > 500) {
-          console.log('ScrapingBee OK on attempt', attempt, '—', aboutHtml.length, 'chars');
-          break;
+        console.log('ScraperAPI shop fetch:', shopBase);
+        const scraperUrl = `http://api.scraperapi.com?api_key=${process.env.SCRAPEAPI_KEY}&url=${encodeURIComponent(shopBase)}&render=false&country_code=us`;
+        const r = await axios.get(scraperUrl, { timeout: 60000 });
+        const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+        if (html.length > 500) {
+          aboutHtml = html;
+          console.log('ScraperAPI OK —', aboutHtml.length, 'chars');
         }
       } catch (e) {
-        const status = e.response?.status;
-        const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 100) : e.message;
-        console.warn('ScrapingBee attempt', attempt, 'failed:', status, detail);
-        // If quota exhausted — stop retrying immediately
-        if (status === 401 || (detail && detail.includes('limit reached'))) {
-          console.warn('ScrapingBee quota exhausted — skipping to fallback');
-          break;
+        console.warn('ScraperAPI failed:', e.response?.status, e.message?.slice(0, 100));
+      }
+    }
+
+    // Try 2: ScrapingBee if ScraperAPI failed
+    if (!aboutHtml && apiKey) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          console.log('ScrapingBee shop fetch attempt', attempt, ':', shopBase);
+          const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+            params: {
+              api_key:         apiKey,
+              url:             shopBase,
+              render_js:       'true',
+              premium_proxy:   'true',
+              country_code:    'us',
+              block_resources: 'false',
+              wait:            '2000',
+              timeout:         '45000',
+            },
+            timeout: 120000,
+          });
+          aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+          if (aboutHtml.length > 500) {
+            console.log('ScrapingBee OK —', aboutHtml.length, 'chars');
+            break;
+          }
+        } catch (e) {
+          const status = e.response?.status;
+          const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 80) : e.message;
+          console.warn('ScrapingBee attempt', attempt, 'failed:', status, detail);
+          if (status === 401) break; // quota exhausted
+          if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
         }
-        if (attempt < 3) await new Promise(r => setTimeout(r, 4000));
       }
     }
 
