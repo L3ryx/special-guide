@@ -21,11 +21,23 @@ async function lensSearch(imgUrl) {
     );
     const all = [...(res.data.visual_matches || []), ...(res.data.organic || [])];
     console.log(`🔍 Lens: ${(res.data.visual_matches||[]).length} visual + ${(res.data.organic||[]).length} organic`);
-    return all
+    const aliMatches = all
       .filter(m => isAliUrl(m.link || m.url))
       .slice(0, 2)
       .map(m => ({ link: cleanAliUrl(m.link || m.url), image: m.imageUrl || m.thumbnailUrl || null, source: 'lens' }))
       .filter(m => m.link);
+
+    // Upload AliExpress thumbnail to ImgBB for reliable display
+    for (const match of aliMatches) {
+      if (match.image) {
+        try {
+          match.image = await uploadToImgBB(match.image);
+        } catch {
+          // Keep original URL as fallback
+        }
+      }
+    }
+    return aliMatches;
   } catch (err) {
     console.error('Lens error:', err.message);
     return [];
