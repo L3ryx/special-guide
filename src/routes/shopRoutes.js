@@ -305,32 +305,26 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     }
     send({ step: 'status', message: '✅ ' + totalShops + ' unique shops found. Starting reverse image search...' });
 
-    // ── STEP 4 : Reverse image search for each listing ──
+    // ── STEP 4 : Reverse image search — parallel with concurrency 10 ──
     const { uploadToImgBB } = require('../services/imgbbUploader');
     let dropshippers = 0;
     let analyzed = 0;
-    const dropshipperShops = []; // list of { shopName, shopUrl }
+    const dropshipperShops = [];
 
-    for (const listing of listings) {
-      analyzed++;
-      send({ step: 'analyzing', message: '🔎 Analyzing ' + analyzed + '/' + totalShops + ' — ' + (listing.shopName || '...') });
+    const CONCURRENCY = 10;
 
+    async function analyzeOne(listing) {
       try {
-        // Upload image to ImgBB
         const publicUrl = await uploadToImgBB(listing.image);
-
-        // Serper Lens reverse image search
         const lensRes = await axios.post('https://google.serper.dev/lens',
           { url: publicUrl, gl: 'us', hl: 'en' },
           { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
         );
-
         const allMatches = [...(lensRes.data.visual_matches || []), ...(lensRes.data.organic || [])];
         const hasAli = allMatches.some(m => {
           const url = m.link || m.url || '';
           return url.includes('aliexpress.com') && url.includes('/item/');
         });
-
         if (hasAli) {
           dropshippers++;
           dropshipperShops.push({
@@ -342,10 +336,19 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       } catch (e) {
         console.warn('Reverse image search failed for', listing.shopName, e.message);
       }
-
-      // Small delay to avoid rate limits
-      await new Promise(r => setTimeout(r, 300));
+      analyzed++;
+      send({ step: 'analyzing', message: '🔎 ' + analyzed + '/' + totalShops + ' analyzed — ' + dropshippers + ' dropshippers found' });
     }
+
+    // Run with concurrency limit
+    const queue = [...listings];
+    async function worker() {
+      while (queue.length > 0) {
+        const listing = queue.shift();
+        if (listing) await analyzeOne(listing);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, listings.length) }, worker));
 
     // ── STEP 5 : Compute score ──
     const score = computeDropshipScore(dropshippers, totalShops);
@@ -565,4 +568,4 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 45) return { label: 'Moderate',   color: '#fbbf24', description: 'Some dropshipping presence. Stand out with quality.',         saturation };
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
-}
+    }
