@@ -221,35 +221,32 @@
         ? `<img class="shop-row-logo" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
         : `<div class="shop-row-logo-initial">${name.charAt(0).toUpperCase()}</div>`;
 
-      const hasComp = shop.lastCompetition && shop.lastCompetition.saturation != null;
-      const compBtnHtml = hasComp
-        ? '' // hide button if already analyzed
-        : `<button class="btn-find" id="find-btn-${shop._id}" onclick="runCompetition('${shop._id}')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>`;
+      var hasComp = shop.lastCompetition && shop.lastCompetition.saturation != null;
+      var compBtnHtml = hasComp ? '' : '<button class="btn-find" id="find-btn-' + shop._id + '" onclick="runCompetition('' + shop._id + '')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>';
 
-      wrap.innerHTML = `
-        <div class="shop-row" id="shop-row-${shop._id}">
-          ${thumbHtml}
-          <div class="shop-row-right">
-            ${logoHtml}
-            <div class="shop-row-info">
-              <div class="shop-row-name">${name}</div>
-              <div class="shop-row-btns">
-                <a class="btn-visit" href="${shop.shopUrl}" target="_blank" rel="noopener">Visit shop ↗</a>
-                ${compBtnHtml}
-              </div>
-            </div>
-            <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
-          </div>
-        </div>
-        <div class="comp-area" id="comp-area-${shop._id}">
-          <div class="comp-status" id="comp-status-${shop._id}"></div>
-          <div class="comp-results" id="comp-results-${shop._id}"></div>
-        </div>`;
+      wrap.innerHTML =
+        '<div class="shop-row" id="shop-row-' + shop._id + '">' +
+          thumbHtml +
+          '<div class="shop-row-right">' +
+            logoHtml +
+            '<div class="shop-row-info">' +
+              '<div class="shop-row-name">' + name + '</div>' +
+              '<div class="shop-row-btns">' +
+                '<a class="btn-visit" href="' + shop.shopUrl + '" target="_blank" rel="noopener">Visit shop ↗</a>' +
+                compBtnHtml +
+              '</div>' +
+            '</div>' +
+            '<button class="btn-delete" onclick="deleteShop('' + shop._id + '')" title="Delete">✕</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="comp-area" id="comp-area-' + shop._id + '">' +
+          '<div class="comp-status" id="comp-status-' + shop._id + '"></div>' +
+          '<div class="comp-results" id="comp-results-' + shop._id + '"></div>' +
+        '</div>';
 
-      // Show saved competition result immediately if exists
       if (hasComp) {
-        setTimeout(() => {
-          const resDiv = document.getElementById('comp-results-' + shop._id);
+        setTimeout(function() {
+          var resDiv = document.getElementById('comp-results-' + shop._id);
           if (resDiv) resDiv.innerHTML = renderCompetitionResult(shop.lastCompetition);
         }, 0);
       }
@@ -312,12 +309,8 @@
               } else if (ev.step === 'complete') {
                 status.textContent = '';
                 resDiv.innerHTML = renderCompetitionResult(ev);
-                // Hide competition button — result is now saved
-                const compBtn = document.getElementById('find-btn-' + shopId);
+                var compBtn = document.getElementById('find-btn-' + shopId);
                 if (compBtn) compBtn.remove();
-                // Store dropshipper list for List button
-                window._dropshipperData = window._dropshipperData || {};
-                window._dropshipperData[shopId] = ev.dropshipperShops || [];
               } else if (ev.step === 'error') {
                 status.textContent = '❌ ' + ev.message;
               }
@@ -330,18 +323,16 @@
     }
 
     function renderCompetitionResult(ev) {
-      var color         = ev.color || '#f97316';
-      var saturation    = ev.saturation || 0;
-      var totalShops    = ev.totalShops    || 0;
-      var totalListings = ev.totalListings || 0;
-      var similarTitles = ev.similarTitles || 0;
-      var avgPerShop    = totalShops > 0 ? Math.round(totalListings / totalShops) : 0;
+      var color        = ev.color || '#f97316';
+      var saturation   = ev.saturation != null ? ev.saturation : 0;
+      var totalShops   = ev.totalShops   || 0;
+      var dropshippers = ev.dropshippers || 0;
+      var shops        = ev.dropshipperShops || [];
 
-      // Gauge arc SVG
       var r = 54, cx = 70, cy = 70;
       var startAngle = 200, endAngle = 340;
-      var arcSpan    = endAngle - startAngle;
-      var fillAngle  = startAngle + (arcSpan * saturation / 100);
+      var arcSpan = endAngle - startAngle;
+      var fillAngle = startAngle + (arcSpan * saturation / 100);
       function polar(cx, cy, r, deg) {
         var rad = (deg - 90) * Math.PI / 180;
         return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
@@ -354,16 +345,21 @@
       var trackPath = arcPath(cx, cy, r, startAngle, endAngle);
       var fillPath  = saturation > 0 ? arcPath(cx, cy, r, startAngle, Math.min(fillAngle, endAngle)) : '';
 
-      var html =
+      // Store shops data for List button
+      var dataId = 'comp-shops-' + Math.random().toString(36).slice(2);
+      window._compShopsStore = window._compShopsStore || {};
+      window._compShopsStore[dataId] = shops;
+
+      return '' +
         '<div class="comp-panel">' +
-          '<div class="comp-keyword">Niche keyword : <span>"' + (ev.keyword || '') + '"</span></div>' +
+          '<div class="comp-keyword">Niche keyword: <span>"' + (ev.keyword || '') + '"</span></div>' +
           '<div class="comp-top-row">' +
             '<div class="comp-gauge-wrap">' +
               '<svg viewBox="0 0 140 110" width="140" height="110">' +
                 '<path d="' + trackPath + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" stroke-linecap="round"/>' +
                 (fillPath ? '<path d="' + fillPath + '" fill="none" stroke="' + color + '" stroke-width="10" stroke-linecap="round" opacity="0.9"/>' : '') +
                 '<text x="' + cx + '" y="72" text-anchor="middle" font-size="22" font-weight="800" fill="' + color + '">' + saturation + '%</text>' +
-                '<text x="' + cx + '" y="86" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1">SATURATION</text>' +
+                '<text x="' + cx + '" y="86" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1">DROPSHIPPERS</text>' +
               '</svg>' +
             '</div>' +
             '<div class="comp-badge-block">' +
@@ -371,50 +367,43 @@
               '<div class="comp-desc">' + (ev.description || '') + '</div>' +
             '</div>' +
           '</div>' +
-          '<div style="margin:10px 0 4px;">' +
-            '<button onclick='showDropshipList(' + JSON.stringify(ev.dropshipperShops || []).replace(/'/g, "&#39;") + ')' style="padding:8px 20px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;font-weight:600;font-size:0.82rem;cursor:pointer;font-family:Inter,sans-serif;">📋 List (' + (ev.dropshippers || 0) + ' shops)</button>' +
-          '</div>' +
           '<div class="comp-stats">' +
-            '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + totalShops.toLocaleString() + '</span><span class="comp-stat-lbl">🏪 Boutiques</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + (totalListings > 0 ? totalListings.toLocaleString() : '—') + '</span><span class="comp-stat-lbl">📋 Annonces totales</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + (avgPerShop > 0 ? '~' + avgPerShop : '—') + '</span><span class="comp-stat-lbl">📊 Annonces / boutique</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + similarTitles.toLocaleString() + '</span><span class="comp-stat-lbl">🎯 Titres similaires</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + dropshippers + '</span><span class="comp-stat-lbl">🛒 Dropshippers</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + totalShops + '</span><span class="comp-stat-lbl">🏪 Shops analyzed</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + saturation + '%</span><span class="comp-stat-lbl">📊 Dropship rate</span></div>' +
           '</div>' +
-
+          '<div style="margin-top:12px;">' +
+            '<button onclick="showDropshipList(window._compShopsStore['' + dataId + ''])" style="padding:8px 20px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;font-weight:600;font-size:0.82rem;cursor:pointer;font-family:Inter,sans-serif;">📋 List (' + dropshippers + ' shops)</button>' +
+          '</div>' +
         '</div>';
-
-      return html;
     }
 
+
     function showDropshipList(shops) {
-      // Build modal overlay
       var existing = document.getElementById('dropship-modal');
       if (existing) existing.remove();
-
       var rows = '';
       if (!shops || shops.length === 0) {
-        rows = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:20px;">No dropshippers found</div>';
+        rows = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:24px;">No dropshippers found</div>';
       } else {
         shops.forEach(function(s) {
-          rows += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.07);">' +
-            '<span style="color:#fff;font-weight:600;font-size:0.9rem;">' + (s.shopName || '—') + '</span>' +
+          rows += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.07);">' +
+            '<span style="color:#fff;font-weight:600;font-size:0.88rem;">' + (s.shopName || '—') + '</span>' +
             '<a href="' + (s.shopUrl || '#') + '" target="_blank" rel="noopener" style="padding:6px 14px;border-radius:8px;background:rgba(241,100,30,0.15);border:1px solid rgba(241,100,30,0.3);color:#fb923c;font-size:0.78rem;font-weight:600;text-decoration:none;">Visit ↗</a>' +
           '</div>';
         });
       }
-
       var modal = document.createElement('div');
       modal.id = 'dropship-modal';
-      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;padding:20px;';
       modal.innerHTML =
         '<div style="background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">' +
             '<span style="color:#fff;font-weight:700;font-size:1rem;">🛒 Dropshipping shops (' + shops.length + ')</span>' +
-            '<button onclick="document.getElementById('dropship-modal').remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.2rem;cursor:pointer;">✕</button>' +
+            '<button onclick="document.getElementById('dropship-modal').remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.3rem;cursor:pointer;line-height:1;">✕</button>' +
           '</div>' +
           '<div style="overflow-y:auto;flex:1;">' + rows + '</div>' +
         '</div>';
-
       modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
       document.body.appendChild(modal);
     }
