@@ -89,7 +89,7 @@ router.post('/search', async (req, res) => {
     send('etsy_done', `✅ ${listings.length} listings found`);
 
     send('reverse_search', `🏪 Fetching shop info...`);
-    await parallel(listings, 5, async (listing) => {
+    await parallel(listings, 15, async (listing) => {
       try {
         const shopInfo = await getShopInfo(listing);
         listing.shopName   = shopInfo.shopName   || listing.shopName;
@@ -105,7 +105,7 @@ router.post('/search', async (req, res) => {
 
     await parallel(
       listings.filter(l => l.image),
-      5,
+      15,
       async (listing) => {
         try {
           const matches = await reverseImageSearch(listing.image, listing.title || '');
@@ -136,12 +136,11 @@ router.post('/search', async (req, res) => {
         return true;
       });
 
-    await parallel(deduped, 3, async (result) => {
+    await parallel(deduped, 8, async (result) => {
       try {
         const shop = await getShopInfo(result.etsy);
         result.etsy.shopName   = shop.shopName   || result.etsy.shopName   || null;
-        result.etsy.shopUrl    = shop.shopUrl    || result.etsy.shopUrl
-                                  || (result.etsy.shopName ? `https://www.etsy.com/shop/${result.etsy.shopName}` : null);
+        result.etsy.shopUrl    = shop.shopUrl    || result.etsy.shopUrl    || null;
         result.etsy.shopAvatar = shop.shopAvatar || null;
       } catch {}
     });
@@ -192,7 +191,7 @@ router.post('/shop-stats', async (req, res) => {
     // ── PARALLÉLISATION (max 3 en simultané) ──
     const statsArr = new Array(shops.length);
 
-    await parallel(shops, 3, async (shop, i) => {
+    await parallel(shops, 8, async (shop, i) => {
       send({ step: 'scraping', index: i, shopName: shop.shopName, message: `Scraping ${shop.shopName}...` });
 
       const stats      = await scrapeShopStats(shop.shopUrl, shop.listingHtml);
