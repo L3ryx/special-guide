@@ -265,35 +265,37 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       }
     }
 
-    // Try 2: ScrapingBee if ScraperAPI failed
+    // Try 2: ScrapingBee si ScraperAPI a echoue
+    // 3 combinaisons : sans JS (moins de credits), JS+stealth, JS+premium
     if (!aboutHtml && apiKey) {
-      for (let attempt = 1; attempt <= 2; attempt++) {
+      const sbAttempts = [
+        { render_js: 'false', stealth_proxy: true,  premium_proxy: false, wait: null,   label: 'no-JS+stealth' },
+        { render_js: 'true',  stealth_proxy: true,  premium_proxy: false, wait: '2000', label: 'JS+stealth'    },
+        { render_js: 'true',  stealth_proxy: false, premium_proxy: true,  wait: '3000', label: 'JS+premium'    },
+      ];
+      for (let i = 0; i < sbAttempts.length; i++) {
+        const cfg = sbAttempts[i];
         try {
-          console.log('ScrapingBee shop fetch attempt', attempt, ':', shopBase);
-          const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-            params: {
-              api_key:         apiKey,
-              url:             shopBase,
-              render_js:       'true',
-              premium_proxy:   'true',
-              country_code:    'us',
-              block_resources: 'false',
-              wait:            '2000',
-              timeout:         '45000',
-            },
-            timeout: 120000,
-          });
-          aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-          if (aboutHtml.length > 500) {
-            console.log('ScrapingBee OK —', aboutHtml.length, 'chars');
+          console.log('ScrapingBee shop fetch attempt', i + 1, '(' + cfg.label + '):', shopBase);
+          const params = { api_key: apiKey, url: shopBase, render_js: cfg.render_js, country_code: 'us', timeout: '45000' };
+          if (cfg.stealth_proxy) params.stealth_proxy = 'true';
+          if (cfg.premium_proxy) params.premium_proxy = 'true';
+          if (cfg.wait)          params.wait          = cfg.wait;
+          const r = await axios.get('https://app.scrapingbee.com/api/v1/', { params, timeout: 120000 });
+          const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+          if (html.length > 500) {
+            aboutHtml = html;
+            console.log('ScrapingBee OK (' + cfg.label + ') -', aboutHtml.length, 'chars');
             break;
           }
         } catch (e) {
           const status = e.response?.status;
           const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 80) : e.message;
-          console.warn('ScrapingBee attempt', attempt, 'failed:', status, detail);
-          if (status === 401) break; // quota exhausted
-          if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
+          console.warn('ScrapingBee attempt', i + 1, '(' + cfg.label + ') failed:', status, detail);
+          if (status === 401) break;
+          // 429 = rate limit -> attendre plus longtemps
+          const delay = status === 429 ? 8000 : 3000;
+          if (i < sbAttempts.length - 1) await new Promise(r => setTimeout(r, delay));
         }
       }
     }
