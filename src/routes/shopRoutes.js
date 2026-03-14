@@ -262,99 +262,66 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     if (!process.env.SERPER_API_KEY) { send({ step: 'error', message: '❌ SERPER_API_KEY missing' }); return res.end(); }
     if (!process.env.IMGBB_API_KEY)  { send({ step: 'error', message: '❌ IMGBB_API_KEY missing' });  return res.end(); }
 
-    // ── STEP 1 : Scrape shop About page → description ──
-    send({ step: 'status', message: '🏪 Fetching shop page...' });
+    // ── STEP 1 : Récupérer les titres des 5 premières annonces → keyword via Gemini ──
+    send({ step: 'status', message: '🏪 Fetching shop listings...' });
     const shopBase = shop.shopUrl.replace(/\/?$/, '');
 
-    // Fetch shop page — try ScraperAPI first, then ScrapingBee as fallback
-    let aboutHtml = '';
-    send({ step: 'status', message: '🏪 Fetching shop page...' });
+    // Scraper les listings de la boutique pour récupérer les 5 premiers titres
+    let shopTitles = [];
+    try {
+      const shopListings = await scrapeShopListings(shopBase);
+      shopTitles = shopListings
+        .slice(0, 5)
+        .map(l => l.title)
+        .filter(t => t && t.length > 3);
+      console.log('Shop titles found:', shopTitles);
+    } catch (e) {
+      console.warn('scrapeShopListings failed:', e.message);
+    }
 
-    // Try 1: ScraperAPI (more reliable for Etsy shop pages)
-    if (process.env.SCRAPEAPI_KEY) {
+    // Si on n'a pas pu récupérer les titres, essayer ScraperAPI en fallback
+    if (shopTitles.length === 0 && process.env.SCRAPEAPI_KEY) {
       try {
+        send({ step: 'status', message: '🏪 Trying ScraperAPI fallback...' });
         console.log('ScraperAPI shop fetch:', shopBase);
-        const scraperUrl = `http://api.scraperapi.com?api_key=${process.env.SCRAPEAPI_KEY}&url=${encodeURIComponent(shopBase)}&render=false&country_code=us`;
+        const scraperUrl = 'http://api.scraperapi.com?api_key=' + process.env.SCRAPEAPI_KEY + '&url=' + encodeURIComponent(shopBase) + '&render=false&country_code=us';
         const r = await axios.get(scraperUrl, { timeout: 60000 });
         const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
         if (html.length > 500) {
-          aboutHtml = html;
-          console.log('ScraperAPI OK —', aboutHtml.length, 'chars');
+          // Extraire les titres depuis le HTML ScraperAPI
+          const titleMatches = [...html.matchAll(/"title"\s*:\s*"([^"]{5,150})"/g)];
+          shopTitles = titleMatches
+            .map(m => m[1].replace(/\\u[0-9a-f]{4}/gi, '').trim())
+            .filter(t => t.length > 5)
+            .slice(0, 5);
+          console.log('ScraperAPI titles:', shopTitles);
         }
       } catch (e) {
-        console.warn('ScraperAPI failed:', e.response?.status, e.message?.slice(0, 100));
+        console.warn('ScraperAPI fallback failed:', e.message);
       }
     }
 
-    // Try 2: ScrapingBee if ScraperAPI failed
-    if (!aboutHtml && apiKey) {
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          console.log('ScrapingBee shop fetch attempt', attempt, ':', shopBase);
-          const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-            params: {
-              api_key:         apiKey,
-              url:             shopBase,
-              render_js:       'true',
-              premium_proxy:   'true',
-              country_code:    'us',
-              block_resources: 'false',
-              wait:            '2000',
-              timeout:         '45000',
-            },
-            timeout: 120000,
-          });
-          aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-          if (aboutHtml.length > 500) {
-            console.log('ScrapingBee OK —', aboutHtml.length, 'chars');
-            break;
-          }
-        } catch (e) {
-          const status = e.response?.status;
-          const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 80) : e.message;
-          console.warn('ScrapingBee attempt', attempt, 'failed:', status, detail);
-          if (status === 401) break; // quota exhausted
-          if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
-        }
-      }
+    if (shopTitles.length === 0) {
+      send({ step: 'error', message: '❌ Could not fetch any listing titles from this shop. Please try again.' });
+      return res.end();
     }
 
-    let description = '';
-    if (aboutHtml && aboutHtml.length >= 500) {
-      description = extractAboutText(aboutHtml);
-    }
+    send({ step: 'status', message: '📝 ' + shopTitles.length + ' listing titles found. Analyzing with AI...' });
+    console.log('Titles sent to Gemini:', shopTitles);
 
-    // Fallback: use titles of first 10 listings if no description found
-    if (!description || description.length < 20) {
-      send({ step: 'status', message: '📝 No About page — fetching shop listings as fallback...' });
-      try {
-        const fallbackListings = await scrapeShopListings(shop.shopUrl);
-        const titles = fallbackListings
-          .slice(0, 10)
-          .map(l => l.title)
-          .filter(t => t && t.length > 3)
-          .join(', ');
-        if (titles.length > 10) {
-          description = titles;
-          send({ step: 'status', message: '📝 Using listing titles as description (' + fallbackListings.length + ' listings found). Analyzing with AI...' });
-        } else {
-          send({ step: 'error', message: '❌ Could not find any description or listings for this shop. Please try again.' });
-          return res.end();
-        }
-      } catch (e) {
-        send({ step: 'error', message: '❌ Could not fetch shop listings: ' + e.message });
-        return res.end();
-      }
-    } else {
-      send({ step: 'status', message: '📝 Description found (' + description.length + ' chars). Analyzing with AI...' });
-    }
-
-    // ── STEP 2 : Gemini → keyword ──
+    // ── STEP 2 : Gemini → keyword à partir des titres ──
     let keyword = '';
     try {
+      const titlesText = shopTitles.map((t, i) => (i + 1) + '. ' + t).join('\n');
       const aiRes = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        { contents: [{ parts: [{ text: `Here is the "About" description of an Etsy shop:\n\n"${description.slice(0, 1200)}"\n\nWhat is the main product sold by this shop? Respond with ONLY a single short English keyword (1-3 words max) that best defines the niche of this shop. No explanation, no punctuation, just the keyword.` }] }] },
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + process.env.GEMINI_API_KEY,
+        {
+          contents: [{
+            parts: [{
+              text: 'Here are the first 5 product listing titles from an Etsy shop:\n\n' + titlesText + '\n\nWhat is the main type of product sold by this shop? Respond with ONLY a single short English keyword (1-3 words max) that best defines the niche. No explanation, no punctuation, just the keyword.'
+            }]
+          }]
+        },
         { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
       );
       keyword = (aiRes.data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
@@ -381,47 +348,94 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     }
     send({ step: 'status', message: '✅ ' + totalShops + ' unique shops found. Starting reverse image search...' });
 
-    // ── STEP 4 : Serper text search + image comparison — parallel concurrency 10 ──
+    // ── STEP 4 : Recherche image Google Lens + comparaison Gemini ──
     const { uploadToImgBB } = require('../services/imgbbUploader');
     let dropshippers = 0;
     let analyzed = 0;
     const dropshipperShops = [];
-    const CONCURRENCY = 1; // 1 seul worker à la fois pour eviter Gemini 429
-    const SIMILARITY_THRESHOLD = 0.55; // 55% minimum to count as dropshipper
+    const SIMILARITY_THRESHOLD = 0.55;
+
+    // Set des boutiques déjà analysées — on saute si déjà vue
+    const shopsAnalyzed = new Set();
 
     async function analyzeOne(listing) {
       try {
-        // 1. Serper text search with AliExpress filter
-        const title = (listing.title || '').replace(/[^a-zA-Z0-9\s]/g, ' ').trim().slice(0, 80);
-        const query = title ? title + ' site:aliexpress.com' : 'product site:aliexpress.com';
+        // ── Sauter si boutique déjà analysée ──────────────────────────
+        const shopKey = listing.shopName || listing.link;
+        if (shopKey && shopsAnalyzed.has(shopKey)) {
+          console.log('Skip (already analyzed):', shopKey);
+          return;
+        }
+        if (shopKey) shopsAnalyzed.add(shopKey);
 
-        await new Promise(r => setTimeout(r, 300)); // avoid Serper 429
-        const searchRes = await axios.post('https://google.serper.dev/search',
-          { q: query, gl: 'us', hl: 'en', num: 3 },
-          { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 20000 }
-        );
+        // ── 1. Upload image Etsy sur ImgBB pour URL publique ──────────
+        // Serper Lens a besoin d'une URL publique accessible
+        if (!listing.image) return;
 
-        // Find first AliExpress result with an image
-        const aliResult = (searchRes.data.organic || []).find(r => {
-          const url = r.link || '';
-          return url.includes('aliexpress.com') && url.includes('/item/') && r.imageUrl;
-        });
-
-        if (!aliResult) return; // no AliExpress match found
-
-        // 2. Upload both images to ImgBB for Gemini vision
-        let etsyPublicUrl, aliPublicUrl;
+        let etsyPublicUrl;
         try {
-          [etsyPublicUrl, aliPublicUrl] = await Promise.all([
-            uploadToImgBB(listing.image),
-            uploadToImgBB(aliResult.imageUrl),
-          ]);
+          etsyPublicUrl = await uploadToImgBB(listing.image);
         } catch (e) {
-          console.warn('ImgBB upload failed:', e.message);
+          console.warn('ImgBB upload (Etsy) failed:', e.message);
+          return;
+        }
+        if (!etsyPublicUrl) return;
+
+        // ── 2. Serper Google Lens — recherche par image ───────────────
+        // On envoie l'image Etsy à Google Lens et on cherche
+        // un résultat AliExpress parmi les correspondances visuelles
+        await new Promise(r => setTimeout(r, 300)); // éviter Serper 429
+        let aliResult = null;
+        try {
+          const lensRes = await axios.post(
+            'https://google.serper.dev/lens',
+            { url: etsyPublicUrl, gl: 'us', hl: 'en' },
+            { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
+          );
+
+          // Chercher AliExpress dans visual_matches d'abord, puis organic
+          const allResults = [
+            ...(lensRes.data.visual_matches || []),
+            ...(lensRes.data.organic        || []),
+          ];
+
+          console.log('🔍 Lens:', (lensRes.data.visual_matches || []).length, 'visual +', (lensRes.data.organic || []).length, 'organic');
+
+          aliResult = allResults.find(r => {
+            const url = r.link || r.url || '';
+            return url.includes('aliexpress.com') && url.includes('/item/') && (r.imageUrl || r.thumbnailUrl);
+          });
+
+        } catch (e) {
+          const status = e.response?.status;
+          if (status === 401) {
+            send({ step: 'error', message: '❌ Serper API key invalid (401)' });
+            throw new Error('Serper 401 — abort');
+          }
+          console.warn('Serper Lens error:', e.message);
           return;
         }
 
-        // 3. Fetch both images as base64
+        if (!aliResult) {
+          console.log('🛒 Result: none');
+          return;
+        }
+
+        const aliImageUrl = aliResult.imageUrl || aliResult.thumbnailUrl;
+        const aliUrl      = aliResult.link || aliResult.url;
+        console.log('🛒 Result:', aliUrl);
+
+        // ── 3. Upload image AliExpress sur ImgBB ─────────────────────
+        let aliPublicUrl;
+        try {
+          aliPublicUrl = await uploadToImgBB(aliImageUrl);
+        } catch (e) {
+          console.warn('ImgBB upload (Ali) failed:', e.message);
+          return;
+        }
+        if (!aliPublicUrl) return;
+
+        // ── 4. Récupérer les deux images en base64 ────────────────────
         const fetchB64 = async (url) => {
           const r = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
           const ct = r.headers['content-type'] || 'image/jpeg';
@@ -430,47 +444,56 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
         let etsyImg, aliImg;
         try {
-          [etsyImg, aliImg] = await Promise.all([fetchB64(etsyPublicUrl), fetchB64(aliPublicUrl)]);
+          [etsyImg, aliImg] = await Promise.all([
+            fetchB64(etsyPublicUrl),
+            fetchB64(aliPublicUrl),
+          ]);
         } catch (e) {
-          console.warn('Image fetch failed:', e.message);
+          console.warn('Image fetch (base64) failed:', e.message);
           return;
         }
 
-        // Délai minimum entre appels Gemini pour rester sous le rate limit
-        await new Promise(r => setTimeout(r, 1500));
-        // 4. Gemini Vision — compare images (avec retry auto sur 429)
+        // ── 5. Gemini Vision — l'objet Etsy correspond-il à AliExpress ?
+        await new Promise(r => setTimeout(r, 1500)); // délai rate limit Gemini
         const geminiRes = await callGeminiWithRetry({
           contents: [{
             parts: [
               { inline_data: { mime_type: etsyImg.mime, data: etsyImg.data } },
               { inline_data: { mime_type: aliImg.mime,  data: aliImg.data  } },
-              { text: 'Compare these two product images. Could one be a dropshipped or wholesale version of the other?\nScore: same product+design→0.85-1.0 | same type+similar→0.65-0.84 | same category→0.35-0.64 | different→0.0-0.34\nIgnore background, watermarks, angle, lighting.\nReply with ONLY a decimal number (e.g. 0.82).' }
+              { text: 'Compare these two product images. Does the Etsy product look like a dropshipped or wholesale version of the AliExpress product?\nScore: same product+design→0.85-1.0 | same type+similar→0.65-0.84 | same category→0.35-0.64 | different→0.0-0.34\nIgnore background, watermarks, angle, lighting.\nReply with ONLY a decimal number (e.g. 0.82).' }
             ]
           }]
         });
 
         const txt   = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '0';
         const match = txt.match(/(?:0\.\d+|1(?:\.0+)?)/);
-        const score = match ? parseFloat(match[0]) : 0;
+        const gemScore = match ? parseFloat(match[0]) : 0;
 
-        if (score >= SIMILARITY_THRESHOLD) {
+        console.log('🤖 Gemini vision:', Math.round(gemScore * 100) + '%');
+
+        if (gemScore >= SIMILARITY_THRESHOLD) {
           dropshippers++;
           dropshipperShops.push({
-            shopName:  listing.shopName || 'Unknown',
-            shopUrl:   listing.shopName ? 'https://www.etsy.com/shop/' + listing.shopName : (listing.link || '#'),
-            aliUrl:    aliResult.link,
-            similarity: Math.round(score * 100),
+            shopName:   listing.shopName || 'Unknown',
+            shopUrl:    listing.shopName ? 'https://www.etsy.com/shop/' + listing.shopName : (listing.link || '#'),
+            aliUrl:     aliUrl,
+            similarity: Math.round(gemScore * 100),
           });
-          send({ step: 'match', message: '🛒 Match ' + Math.round(score * 100) + '% — ' + (listing.shopName || 'shop') + ' (' + dropshippers + ' dropshippers)' });
+          console.log('✅ Similarity:', Math.round(gemScore * 100) + '% —', aliUrl);
+          send({ step: 'match', message: '🛒 Match ' + Math.round(gemScore * 100) + '% — ' + (listing.shopName || 'shop') + ' (' + dropshippers + ' dropshippers)' });
         }
+
       } catch (e) {
+        // Si erreur fatale (ex: Serper 401), propager pour stopper le pipeline
+        if (e.message.includes('abort')) throw e;
         console.warn('analyzeOne failed for', listing.shopName, e.message);
       }
+
       analyzed++;
       send({ step: 'analyzing', message: '🔎 ' + analyzed + '/' + totalShops + ' analyzed — ' + dropshippers + ' dropshippers found' });
     }
 
-    // Run with concurrency limit
+    // Séquentiel (1 worker) pour éviter les 429 Gemini et Serper
     const queue = [...listings];
     async function worker() {
       while (queue.length > 0) {
@@ -478,7 +501,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         if (listing) await analyzeOne(listing);
       }
     }
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, listings.length) }, worker));
+    await Promise.all(Array.from({ length: 1 }, worker));
 
     // ── STEP 5 : Compute score ──
     const score = computeDropshipScore(dropshippers, totalShops);
