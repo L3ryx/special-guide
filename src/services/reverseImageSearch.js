@@ -47,6 +47,8 @@ async function reverseImageSearch(etsyImageUrl, title = '') {
     console.log(`🔗 ImgBB Etsy: ${publicUrl.substring(0, 60)}`);
 
     // Lens only — text search removed (too many false positives)
+    // Small delay to avoid Serper rate limit (429)
+    await new Promise(r => setTimeout(r, 1000));
     const results = await lensSearch(publicUrl);
 
     console.log(`🛒 Result: ${results[0]?.link || 'none'} (${results.length} matches)`);
