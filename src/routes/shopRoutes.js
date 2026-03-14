@@ -309,6 +309,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     const { uploadToImgBB } = require('../services/imgbbUploader');
     let dropshippers = 0;
     let analyzed = 0;
+    const dropshipperShops = []; // list of { shopName, shopUrl }
 
     for (const listing of listings) {
       analyzed++;
@@ -332,7 +333,11 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
         if (hasAli) {
           dropshippers++;
-          send({ step: 'match', message: '🛒 AliExpress match found for ' + (listing.shopName || 'shop') + ' (' + dropshippers + ' dropshippers so far)' });
+          dropshipperShops.push({
+            shopName: listing.shopName || 'Unknown',
+            shopUrl:  listing.shopName ? 'https://www.etsy.com/shop/' + listing.shopName : (listing.link || '#'),
+          });
+          send({ step: 'match', message: '🛒 AliExpress match: ' + (listing.shopName || 'shop') + ' (' + dropshippers + ' so far)' });
         }
       } catch (e) {
         console.warn('Reverse image search failed for', listing.shopName, e.message);
@@ -345,16 +350,32 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     // ── STEP 5 : Compute score ──
     const score = computeDropshipScore(dropshippers, totalShops);
 
+    // Save competition result to MongoDB
+    await SavedShop.findByIdAndUpdate(req.params.id, {
+      lastCompetition: {
+        runAt:            new Date(),
+        keyword,
+        totalShops,
+        dropshippers,
+        dropshipperShops,
+        label:            score.label,
+        color:            score.color,
+        description:      score.description,
+        saturation:       score.saturation,
+      }
+    });
+
     send({
       step: 'complete',
       keyword,
       totalShops,
       dropshippers,
+      dropshipperShops,
       score,
-      label: score.label,
-      color: score.color,
+      label:       score.label,
+      color:       score.color,
       description: score.description,
-      saturation: score.saturation,
+      saturation:  score.saturation,
     });
     res.end();
 
@@ -546,4 +567,4 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 45) return { label: 'Moderate',   color: '#fbbf24', description: 'Some dropshipping presence. Stand out with quality.',         saturation };
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
-}
+    }
