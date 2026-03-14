@@ -276,7 +276,7 @@
   </div>
 
   <!-- FIXED BUTTONS -->
-  <a id="niche-list-btn" href="/niche-list"><span style="color:#f87171;">♥</span><span>Niche List</span><span class="nl-count" id="nl-count">0</span></a>
+  <a id="niche-list-btn" href="/niche-list"><span style="color:#f87171;">❤️</span><span>Shop</span><span class="nl-count" id="nl-count">0</span></a>
   <div id="user-badge">
     <button id="user-avatar-btn" onclick="toggleUserDropdown()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -323,13 +323,15 @@
   <div id="main-view">
     <div class="search-card">
       <!-- Input + tags + add + trash, all inline -->
-      <div class="input-row">
+      <div class="input-row" style="align-items:stretch;">
         <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:8px;">
           <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;" />
           <button id="dice-btn" onclick="rollNiche()"><span class="dice-icon">🎲</span>Generate</button>
         </div>
-        <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword">+<span id="kw-count-badge"></span></button>
-        <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords">🗑</button>
+        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+          <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword">+<span id="kw-count-badge"></span></button>
+          <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords">🗑</button>
+        </div>
       </div>
       <div id="keywords-list" style="display:none;"></div>
       <!-- Number of images -->
