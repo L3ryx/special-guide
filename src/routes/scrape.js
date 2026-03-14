@@ -30,6 +30,24 @@ async function parallel(items, concurrency, fn) {
   return results;
 }
 
+// ── NICHE KEYWORD (dice button) ──
+router.post('/niche-keyword', async (req, res) => {
+  if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
+  try {
+    const r = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      { contents: [{ parts: [{ text: 'Give me a single short English niche keyword (2-4 words) for an Etsy product search. It should be a specific, trending, or profitable niche for PHYSICAL products only. Do NOT suggest digital products, printables, SVG files, digital downloads, templates, or any non-physical items. Respond with ONLY the keyword, no punctuation, no explanation.' }] }] },
+      { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+    );
+    const keyword = (r.data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+    if (!keyword) return res.status(500).json({ error: 'No keyword generated' });
+    res.json({ keyword });
+  } catch(e) {
+    const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+    res.status(500).json({ error: detail });
+  }
+});
+
 // ── DEBUG KEYS ──
 router.get('/debug', (req, res) => {
   const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY', 'SCRAPINGBEE_KEY'];
@@ -269,3 +287,4 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
