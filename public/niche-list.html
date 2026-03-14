@@ -115,18 +115,18 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* Competition result panel */
-    .comp-panel { margin-top: 14px; padding: 18px 20px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.25); border-radius: 16px; animation: slideUp 0.4s ease; }
-    .comp-keyword { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-bottom: 14px; }
+    .comp-panel { margin-top: 14px; padding: 14px 20px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.25); border-radius: 14px; animation: slideUp 0.4s ease; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .comp-keyword { font-size: 0.78rem; color: rgba(255,255,255,0.5); white-space: nowrap; }
     .comp-keyword span { color: #c084fc; font-weight: 700; }
     .comp-top-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
     .comp-gauge-wrap { flex-shrink: 0; }
     .comp-badge-block { flex: 1; display: flex; flex-direction: column; gap: 8px; }
     .comp-badge { display: inline-block; padding: 7px 18px; border-radius: 50px; font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; width: fit-content; }
     .comp-desc { font-size: 0.82rem; color: rgba(255,255,255,0.65); line-height: 1.5; }
-    .comp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; padding: 14px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }
-    .comp-stat { text-align: center; }
-    .comp-stat-val { display: block; font-size: 1.15rem; font-weight: 800; color: #fff; }
-    .comp-stat-lbl { display: block; font-size: 0.62rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+    .comp-stats { display: flex; align-items: center; gap: 20px; flex: 1; }
+    .comp-stat { display: flex; align-items: center; gap: 6px; }
+    .comp-stat-val { font-size: 1rem; font-weight: 800; color: #fff; }
+    .comp-stat-lbl { font-size: 0.72rem; color: rgba(255,255,255,0.45); }
 
 
     /* Competition status area */
@@ -230,39 +230,6 @@
       if (dropshippers.length > 0) {
         window._dropListData = window._dropListData || {};
         window._dropListData[shop._id] = dropshippers;
-      }
-      const dropListBtnHtml = (hasComp && dropshippers.length > 0)
-        ? '<button class="btn-drop-list" onclick="showDropshipList(window._dropListData[\"' + shop._id + '\"])">🛒 Drop List (' + dropshippers.length + ')</button>'
-        : '';
-      wrap.innerHTML = `
-        <div class="shop-row" id="shop-row-${shop._id}">
-          ${thumbHtml}
-          <div class="shop-row-right">
-            ${logoHtml}
-            <div class="shop-row-info">
-              <div class="shop-row-name">${name}</div>
-              <div class="shop-row-btns">
-                <a class="btn-visit" href="${shop.shopUrl}" target="_blank" rel="noopener">Visit shop ↗</a>
-                ${compBtnHtml}
-                ${dropListBtnHtml}
-              </div>
-            </div>
-            <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
-          </div>
-        </div>
-        <div class="comp-area" id="comp-area-${shop._id}">
-          <div class="comp-status" id="comp-status-${shop._id}"></div>
-          <div class="comp-results" id="comp-results-${shop._id}"></div>
-        </div>`;
-      if (hasComp) {
-        setTimeout(() => {
-          const resDiv = document.getElementById('comp-results-' + shop._id);
-          if (resDiv) resDiv.innerHTML = renderCompetitionResult(shop.lastCompetition, shop._id);
-          if (dropshippers.length > 0) {
-            window._dropListData = window._dropListData || {};
-            window._dropListData[shop._id] = dropshippers;
-          }
-        }, 0);
       }
       return wrap;
     }
@@ -373,30 +340,47 @@
       window._dropListData = window._dropListData || {};
       if (shopId) window._dropListData[shopId] = shops;
 
+      window._dropListData = window._dropListData || {};
+      if (shopId) window._dropListData[shopId] = shops;
+
+      // Gauge — dropship rate %
+      var pct = totalShops > 0 ? Math.round((dropshippers / totalShops) * 100) : 0;
+      var gaugeColor = pct <= 10 ? '#22c55e' : pct <= 25 ? '#86efac' : pct <= 45 ? '#fbbf24' : pct <= 65 ? '#f97316' : '#ef4444';
+      var gaugeLabel = pct <= 10 ? 'Very Low' : pct <= 25 ? 'Low' : pct <= 45 ? 'Moderate' : pct <= 65 ? 'High' : 'Very High';
+
+      // Arc SVG gauge
+      var gR = 36, gCx = 48, gCy = 48;
+      var gStart = 200, gEnd = 340, gSpan = gEnd - gStart;
+      var gFill  = gStart + (gSpan * pct / 100);
+      function gPolar(cx, cy, r, deg) {
+        var rad = (deg - 90) * Math.PI / 180;
+        return { x: (cx + r * Math.cos(rad)).toFixed(2), y: (cy + r * Math.sin(rad)).toFixed(2) };
+      }
+      function gArc(cx, cy, r, a1, a2) {
+        var s = gPolar(cx, cy, r, a1), e = gPolar(cx, cy, r, a2);
+        return 'M ' + s.x + ' ' + s.y + ' A ' + r + ' ' + r + ' 0 ' + ((a2-a1)>180?1:0) + ' 1 ' + e.x + ' ' + e.y;
+      }
+      var gTrack = gArc(gCx, gCy, gR, gStart, gEnd);
+      var gPath  = pct > 0 ? gArc(gCx, gCy, gR, gStart, Math.min(gFill, gEnd)) : '';
+
       return '<div class="comp-panel">' +
-          '<div class="comp-keyword">Niche keyword: <span>"' + (ev.keyword || '') + '"</span></div>' +
-          '<div class="comp-top-row">' +
-            '<div class="comp-gauge-wrap">' +
-              '<svg viewBox="0 0 140 110" width="140" height="110">' +
-                '<path d="' + trackPath + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" stroke-linecap="round"/>' +
-                (fillPath ? '<path d="' + fillPath + '" fill="none" stroke="' + color + '" stroke-width="10" stroke-linecap="round" opacity="0.9"/>' : '') +
-                '<text x="' + cx + '" y="72" text-anchor="middle" font-size="22" font-weight="800" fill="' + color + '">' + saturation + '%</text>' +
-                '<text x="' + cx + '" y="86" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1">DROPSHIPPERS</text>' +
-              '</svg>' +
+          // Gauge
+          '<svg viewBox="0 0 96 72" width="72" height="54" style="flex-shrink:0;">' +
+            '<path d="' + gTrack + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round"/>' +
+            (gPath ? '<path d="' + gPath + '" fill="none" stroke="' + gaugeColor + '" stroke-width="8" stroke-linecap="round" opacity="0.9"/>' : '') +
+            '<text x="' + gCx + '" y="47" text-anchor="middle" font-size="13" font-weight="800" fill="' + gaugeColor + '" font-family="Inter,sans-serif">' + pct + '%</text>' +
+          '</svg>' +
+          // Info
+          '<div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;">' +
+            '<div class="comp-keyword" style="margin:0;">🔑 <span>"' + (ev.keyword || '') + '"</span> — <span style="color:' + gaugeColor + ';font-weight:700;">' + gaugeLabel + '</span></div>' +
+            '<div class="comp-stats" style="gap:14px;">' +
+              '<div class="comp-stat"><span class="comp-stat-val">' + totalShops + '</span><span class="comp-stat-lbl"> shops</span></div>' +
+              '<div style="width:1px;height:20px;background:rgba(255,255,255,0.1);"></div>' +
+              '<div class="comp-stat"><span class="comp-stat-val" style="color:#f87171;">' + dropshippers + '</span><span class="comp-stat-lbl"> dropshippers</span></div>' +
             '</div>' +
-            '<div class="comp-badge-block">' +
-              '<div class="comp-badge" style="background:' + color + '22;color:' + color + ';border:2px solid ' + color + '55;">' + (ev.label || '') + '</div>' +
-              '<div class="comp-desc">' + (ev.description || '') + '</div>' +
-            '</div>' +
           '</div>' +
-          '<div class="comp-stats">' +
-            '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + dropshippers + '</span><span class="comp-stat-lbl">🛒 Dropshippers</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + totalShops + '</span><span class="comp-stat-lbl">🏪 Shops analyzed</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + saturation + '%</span><span class="comp-stat-lbl">📊 Dropship rate</span></div>' +
-          '</div>' +
-          '<div style="margin:10px 0 4px;">' +
-            (shops.length > 0 ? '<button onclick="showDropshipList(window._dropListData[\''+shopId+'\'])" style="padding:8px 20px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;font-weight:600;font-size:0.82rem;cursor:pointer;font-family:Inter,sans-serif;">📋 List (' + dropshippers + ' shops)</button>' : '') +
-          '</div>' +
+          // Drop List button
+          (shops.length > 0 ? '<button onclick="showDropshipList(window._dropListData[\'' + shopId + '\'])" style="flex-shrink:0;padding:6px 12px;border-radius:8px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-weight:600;font-size:0.72rem;cursor:pointer;font-family:Inter,sans-serif;white-space:nowrap;">🛒 Drop List (' + dropshippers + ')</button>' : '') +
         '</div>';
     }
 
@@ -511,4 +495,3 @@
   </script>
 </body>
 </html>
-
