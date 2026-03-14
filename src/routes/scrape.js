@@ -124,7 +124,7 @@ router.post('/search', async (req, res) => {
 
     await parallel(
       listings.filter(l => l.image),
-      3,
+      2,
       async (listing) => {
         try {
           const matches = await reverseImageSearch(listing.image, listing.title || '');
