@@ -484,19 +484,21 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     const score = computeDropshipScore(dropshippers, totalShops);
 
     // Save competition result to MongoDB
+    // Utiliser $set avec les champs pointés pour forcer la mise à jour du sous-document
     await SavedShop.findByIdAndUpdate(req.params.id, {
-      lastCompetition: {
-        runAt:            new Date(),
-        keyword,
-        totalShops,
-        dropshippers,
-        dropshipperShops,
-        label:            score.label,
-        color:            score.color,
-        description:      score.description,
-        saturation:       score.saturation,
+      $set: {
+        'lastCompetition.runAt':            new Date(),
+        'lastCompetition.keyword':          keyword,
+        'lastCompetition.totalShops':       totalShops,
+        'lastCompetition.dropshippers':     dropshippers,
+        'lastCompetition.dropshipperShops': dropshipperShops,
+        'lastCompetition.label':            score.label,
+        'lastCompetition.color':            score.color,
+        'lastCompetition.description':      score.description,
+        'lastCompetition.saturation':       score.saturation,
       }
-    });
+    }, { new: true });
+    console.log('Competition saved — totalShops:', totalShops, 'dropshippers:', dropshippers, 'saturation:', score.saturation);
 
     send({
       step: 'complete',
@@ -705,5 +707,6 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
     }
+
 
 
