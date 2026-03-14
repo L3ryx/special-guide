@@ -493,8 +493,14 @@
 
     async function deleteAccount() {
       if (!confirm('⚠️ Delete your account and all saved data? This cannot be undone.')) return;
+      const password = prompt('Enter your password to confirm:');
+      if (!password) return;
       try {
-        const r = await fetch('/api/auth/delete-account', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } });
+        const r = await fetch('/api/auth/delete-account', {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
         if (r.ok) { logout(); }
         else { const d = await r.json().catch(()=>({})); showToast('Error: ' + (d.error || r.status), '#ef4444'); }
       } catch(e) { showToast('Error: ' + e.message, '#ef4444'); }
