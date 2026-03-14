@@ -194,29 +194,50 @@ async function scrapeShopListings(shopUrl) {
   return listings.filter(l => l.image || l.url);
 }
 
+// Appel Gemini avec retry exponentiel pour absorber les 429
+async function callGeminiWithRetry(payload, maxRetries = 4) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const res = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        payload,
+        { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
+      );
+      return res;
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 429) {
+        // Backoff exponentiel : 5s, 10s, 20s, 40s
+        const wait = 5000 * Math.pow(2, attempt);
+        console.warn(`Gemini 429 — attente ${wait / 1000}s avant retry ${attempt + 1}/${maxRetries}`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      throw err; // Autre erreur -> propager
+    }
+  }
+  throw new Error('Gemini 429 — max retries atteint');
+}
+
 async function compareWithClaude(etsyImgUrl, aliImgUrl) {
   const [etsyBuf, aliBuf] = await Promise.all([
     axios.get(etsyImgUrl, { responseType: 'arraybuffer', timeout: 15000 }),
     axios.get(aliImgUrl,  { responseType: 'arraybuffer', timeout: 15000 }),
   ]);
-  const etsyB64 = Buffer.from(etsyBuf.data).toString('base64');
-  const aliB64  = Buffer.from(aliBuf.data).toString('base64');
+  const etsyB64  = Buffer.from(etsyBuf.data).toString('base64');
+  const aliB64   = Buffer.from(aliBuf.data).toString('base64');
   const etsyMime = etsyBuf.headers['content-type'] || 'image/jpeg';
   const aliMime  = aliBuf.headers['content-type']  || 'image/jpeg';
 
-  const geminiVisionRes = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    {
-      contents: [{
-        parts: [
-          { inline_data: { mime_type: etsyMime, data: etsyB64 } },
-          { inline_data: { mime_type: aliMime,  data: aliB64  } },
-          { text: 'Are these two product images showing the same or very similar product? Reply with ONLY a number from 0 to 100 representing similarity percentage.' }
-        ]
-      }]
-    },
-    { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
-  );
+  const geminiVisionRes = await callGeminiWithRetry({
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: etsyMime, data: etsyB64 } },
+        { inline_data: { mime_type: aliMime,  data: aliB64  } },
+        { text: 'Are these two product images showing the same or very similar product? Reply with ONLY a number from 0 to 100 representing similarity percentage.' }
+      ]
+    }]
+  });
 
   const txt = geminiVisionRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '75';
   return Math.min(100, Math.max(0, parseInt(txt) || 75));
@@ -265,37 +286,35 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       }
     }
 
-    // Try 2: ScrapingBee si ScraperAPI a echoue
-    // 3 combinaisons : sans JS (moins de credits), JS+stealth, JS+premium
+    // Try 2: ScrapingBee if ScraperAPI failed
     if (!aboutHtml && apiKey) {
-      const sbAttempts = [
-        { render_js: 'false', stealth_proxy: true,  premium_proxy: false, wait: null,   label: 'no-JS+stealth' },
-        { render_js: 'true',  stealth_proxy: true,  premium_proxy: false, wait: '2000', label: 'JS+stealth'    },
-        { render_js: 'true',  stealth_proxy: false, premium_proxy: true,  wait: '3000', label: 'JS+premium'    },
-      ];
-      for (let i = 0; i < sbAttempts.length; i++) {
-        const cfg = sbAttempts[i];
+      for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          console.log('ScrapingBee shop fetch attempt', i + 1, '(' + cfg.label + '):', shopBase);
-          const params = { api_key: apiKey, url: shopBase, render_js: cfg.render_js, country_code: 'us', timeout: '45000' };
-          if (cfg.stealth_proxy) params.stealth_proxy = 'true';
-          if (cfg.premium_proxy) params.premium_proxy = 'true';
-          if (cfg.wait)          params.wait          = cfg.wait;
-          const r = await axios.get('https://app.scrapingbee.com/api/v1/', { params, timeout: 120000 });
-          const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-          if (html.length > 500) {
-            aboutHtml = html;
-            console.log('ScrapingBee OK (' + cfg.label + ') -', aboutHtml.length, 'chars');
+          console.log('ScrapingBee shop fetch attempt', attempt, ':', shopBase);
+          const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+            params: {
+              api_key:         apiKey,
+              url:             shopBase,
+              render_js:       'true',
+              premium_proxy:   'true',
+              country_code:    'us',
+              block_resources: 'false',
+              wait:            '2000',
+              timeout:         '45000',
+            },
+            timeout: 120000,
+          });
+          aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+          if (aboutHtml.length > 500) {
+            console.log('ScrapingBee OK —', aboutHtml.length, 'chars');
             break;
           }
         } catch (e) {
           const status = e.response?.status;
           const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 80) : e.message;
-          console.warn('ScrapingBee attempt', i + 1, '(' + cfg.label + ') failed:', status, detail);
-          if (status === 401) break;
-          // 429 = rate limit -> attendre plus longtemps
-          const delay = status === 429 ? 8000 : 3000;
-          if (i < sbAttempts.length - 1) await new Promise(r => setTimeout(r, delay));
+          console.warn('ScrapingBee attempt', attempt, 'failed:', status, detail);
+          if (status === 401) break; // quota exhausted
+          if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
         }
       }
     }
@@ -367,7 +386,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     let dropshippers = 0;
     let analyzed = 0;
     const dropshipperShops = [];
-    const CONCURRENCY = 3; // Keep low to avoid Serper 429
+    const CONCURRENCY = 1; // 1 seul worker à la fois pour eviter Gemini 429
     const SIMILARITY_THRESHOLD = 0.55; // 55% minimum to count as dropshipper
 
     async function analyzeOne(listing) {
@@ -417,20 +436,18 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
           return;
         }
 
-        // 4. Gemini Vision — compare images
-        const geminiRes = await axios.post(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
-          {
-            contents: [{
-              parts: [
-                { inline_data: { mime_type: etsyImg.mime, data: etsyImg.data } },
-                { inline_data: { mime_type: aliImg.mime,  data: aliImg.data  } },
-                { text: 'Compare these two product images. Could one be a dropshipped or wholesale version of the other?\nScore: same product+design→0.85-1.0 | same type+similar→0.65-0.84 | same category→0.35-0.64 | different→0.0-0.34\nIgnore background, watermarks, angle, lighting.\nReply with ONLY a decimal number (e.g. 0.82).' }
-              ]
-            }]
-          },
-          { headers: { 'Content-Type': 'application/json' }, timeout: 25000 }
-        );
+        // Délai minimum entre appels Gemini pour rester sous le rate limit
+        await new Promise(r => setTimeout(r, 1500));
+        // 4. Gemini Vision — compare images (avec retry auto sur 429)
+        const geminiRes = await callGeminiWithRetry({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: etsyImg.mime, data: etsyImg.data } },
+              { inline_data: { mime_type: aliImg.mime,  data: aliImg.data  } },
+              { text: 'Compare these two product images. Could one be a dropshipped or wholesale version of the other?\nScore: same product+design→0.85-1.0 | same type+similar→0.65-0.84 | same category→0.35-0.64 | different→0.0-0.34\nIgnore background, watermarks, angle, lighting.\nReply with ONLY a decimal number (e.g. 0.82).' }
+            ]
+          }]
+        });
 
         const txt   = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '0';
         const match = txt.match(/(?:0\.\d+|1(?:\.0+)?)/);
@@ -688,4 +705,5 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
     }
+
 
