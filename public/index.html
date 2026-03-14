@@ -345,7 +345,7 @@
 
     <section id="results-section">
       <div class="results-grid">
-        <div class="results-count-bar" id="results-count"></div>
+        <div class="results-count-bar" id="results-count" style="display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;"></div>
         <div id="results-container"></div>
 
       </div>
@@ -357,6 +357,35 @@
     // ── AUTH ──
     let SCOUT_TOKEN = localStorage.getItem('scout_token') || null;
     let _currentUser = null;
+
+    function showDropList(shops) {
+      var existing = document.getElementById('drop-list-modal');
+      if (existing) existing.remove();
+      var rows = '';
+      if (!shops || !shops.length) {
+        rows = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:20px;">No dropshippers found</div>';
+      } else {
+        shops.forEach(function(s) {
+          rows += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.07);">' +
+            '<span style="color:#fff;font-weight:600;font-size:0.9rem;">' + (s.shopName || '—') + '</span>' +
+            '<a href="' + (s.shopUrl || '#') + '" target="_blank" rel="noopener" style="padding:6px 14px;border-radius:8px;background:rgba(241,100,30,0.15);border:1px solid rgba(241,100,30,0.3);color:#fb923c;font-size:0.78rem;font-weight:600;text-decoration:none;">Visit ↗</a>' +
+          '</div>';
+        });
+      }
+      var modal = document.createElement('div');
+      modal.id = 'drop-list-modal';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.innerHTML =
+        '<div style="background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">' +
+            '<span style="color:#fff;font-weight:700;font-size:1rem;">🛒 Dropshipping shops (' + shops.length + ')</span>' +
+            '<button onclick="document.getElementById('drop-list-modal').remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.2rem;cursor:pointer;">✕</button>' +
+          '</div>' +
+          '<div style="overflow-y:auto;flex:1;">' + rows + '</div>' +
+        '</div>';
+      modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+      document.body.appendChild(modal);
+    }
     let _authTab = 'login';
 
     function checkAuth() {
@@ -712,6 +741,7 @@
 
     // ── SEARCH ──
     let _allResults = [];
+    let _dropshipperShops = [];
     let _searching = false;
 
     async function startSearch() {
@@ -728,6 +758,7 @@
 
       _searching = true;
       _allResults = [];
+      _dropshipperShops = [];
       window._shopDataMap = {};
 
       const btn = document.getElementById('start-btn');
@@ -806,6 +837,14 @@
                   kwResults.forEach(renderMatch);
                   _allResults = _allResults.concat(kwResults);
                   totalMatches += kwResults.length;
+                  // Collect dropshipper shops
+                  if (ev.dropshipperShops && ev.dropshipperShops.length) {
+                    ev.dropshipperShops.forEach(function(s) {
+                      if (!_dropshipperShops.find(function(x) { return x.shopUrl === s.shopUrl; })) {
+                        _dropshipperShops.push(s);
+                      }
+                    });
+                  }
                   document.getElementById('progress-msg').textContent = '✅ ' + kwResults.length + ' match(es) found';
                   if (tag) tag.className = 'keyword-tag done';
                 } else if (ev.step === 'error') {
@@ -853,7 +892,20 @@
         document.getElementById('results-section').style.display = 'block';
       }
 
-      document.getElementById('results-count').textContent = totalMatches > 0 ? totalMatches + ' match(es) found' : '';
+      var countBar = document.getElementById('results-count');
+      countBar.innerHTML = '';
+      if (totalMatches > 0) {
+        var countSpan = document.createElement('span');
+        countSpan.textContent = totalMatches + ' match(es) found';
+        countBar.appendChild(countSpan);
+      }
+      if (_dropshipperShops.length > 0) {
+        var dropBtn = document.createElement('button');
+        dropBtn.textContent = '🛒 Drop List (' + _dropshipperShops.length + ')';
+        dropBtn.style.cssText = 'padding:6px 16px;border-radius:8px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-weight:600;font-size:0.78rem;cursor:pointer;font-family:Inter,sans-serif;';
+        dropBtn.onclick = function() { showDropList(_dropshipperShops); };
+        countBar.appendChild(dropBtn);
+      }
 
       if (totalMatches > 0) {
 
