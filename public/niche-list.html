@@ -209,23 +209,24 @@
     }
 
     function buildShopRow(shop) {
-      const wrap = document.createElement('div');
-      const productImg = shop.productImage || null;
-      const productUrl = shop.productUrl  || shop.shopUrl || '#';
-      const thumbHtml = productImg
-        ? `<a href="${productUrl}" target="_blank" rel="noopener"><img class="shop-thumb" src="${productImg}" alt="" loading="lazy" /></a>`
-        : `<a href="${productUrl}" target="_blank" rel="noopener"><div class="shop-thumb-placeholder">🛍</div></a>`;
+      var wrap = document.createElement('div');
+      var productImg = shop.productImage || null;
+      var productUrl = shop.productUrl || shop.shopUrl || '#';
+      var thumbHtml = productImg
+        ? '<a href="' + productUrl + '" target="_blank" rel="noopener"><img class="shop-thumb" src="' + productImg + '" alt="" loading="lazy" /></a>'
+        : '<a href="' + productUrl + '" target="_blank" rel="noopener"><div class="shop-thumb-placeholder">🛍</div></a>';
 
-      const name = shop.shopName || shop.shopUrl?.split('/shop/')?.[1]?.split('/')?.[0] || 'Shop';
-      const logoHtml = shop.shopAvatar
-        ? `<img class="shop-row-logo" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
-        : `<div class="shop-row-logo-initial">${name.charAt(0).toUpperCase()}</div>`;
+      var name = shop.shopName || (shop.shopUrl ? shop.shopUrl.split('/shop/')[1] || 'Shop' : 'Shop');
+      var logoHtml = shop.shopAvatar
+        ? '<img class="shop-row-logo" src="' + shop.shopAvatar + '" alt="" onerror="this.style.display='none'" />'
+        : '<div class="shop-row-logo-initial">' + name.charAt(0).toUpperCase() + '</div>';
 
       var hasComp = shop.lastCompetition && shop.lastCompetition.saturation != null;
-      var compBtnHtml = hasComp ? '' : '<button class="btn-find" id="find-btn-' + shop._id + '" onclick="runCompetition('' + shop._id + '')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>';
+      var sid = shop._id;
+      var compBtnHtml = hasComp ? '' : '<button class="btn-find" id="find-btn-' + sid + '" onclick="runCompetition(\'' + sid + '\')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>';
 
       wrap.innerHTML =
-        '<div class="shop-row" id="shop-row-' + shop._id + '">' +
+        '<div class="shop-row" id="shop-row-' + sid + '">' +
           thumbHtml +
           '<div class="shop-row-right">' +
             logoHtml +
@@ -236,12 +237,12 @@
                 compBtnHtml +
               '</div>' +
             '</div>' +
-            '<button class="btn-delete" onclick="deleteShop('' + shop._id + '')" title="Delete">✕</button>' +
+            '<button class="btn-delete" onclick="deleteShop(\'' + sid + '\')" title="Delete">✕</button>' +
           '</div>' +
         '</div>' +
-        '<div class="comp-area" id="comp-area-' + shop._id + '">' +
-          '<div class="comp-status" id="comp-status-' + shop._id + '"></div>' +
-          '<div class="comp-results" id="comp-results-' + shop._id + '"></div>' +
+        '<div class="comp-area" id="comp-area-' + sid + '">' +
+          '<div class="comp-status" id="comp-status-' + sid + '"></div>' +
+          '<div class="comp-results" id="comp-results-' + sid + '"></div>' +
         '</div>';
 
       if (hasComp) {
