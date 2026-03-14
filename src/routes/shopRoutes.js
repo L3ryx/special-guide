@@ -365,7 +365,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     let dropshippers = 0;
     let analyzed = 0;
     const dropshipperShops = [];
-    const CONCURRENCY = 10;
+    const CONCURRENCY = 3; // Keep low to avoid Serper 429
     const SIMILARITY_THRESHOLD = 0.55; // 55% minimum to count as dropshipper
 
     async function analyzeOne(listing) {
@@ -374,6 +374,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         const title = (listing.title || '').replace(/[^a-zA-Z0-9\s]/g, ' ').trim().slice(0, 80);
         const query = title ? title + ' site:aliexpress.com' : 'product site:aliexpress.com';
 
+        await new Promise(r => setTimeout(r, 300)); // avoid Serper 429
         const searchRes = await axios.post('https://google.serper.dev/search',
           { q: query, gl: 'us', hl: 'en', num: 3 },
           { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 20000 }
