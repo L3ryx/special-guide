@@ -84,12 +84,13 @@
     }
     .shop-row-info { flex: 1; min-width: 0; }
     .shop-row-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .shop-row-btns { display: flex; gap: 7px; margin-top: 7px; align-items: center; flex-wrap: wrap; }
+    .shop-row-btns { display: flex; flex-direction: column; gap: 7px; margin-top: 7px; align-items: stretch; }
     .btn-visit {
       padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(241,100,30,0.35);
       background: rgba(241,100,30,0.12); color: #fb923c;
       font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.75rem;
       text-decoration: none; transition: all 0.2s; white-space: nowrap;
+      text-align: center; display: block;
     }
     .btn-visit:hover { background: rgba(241,100,30,0.25); }
     .btn-find {
@@ -98,7 +99,7 @@
       font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.75rem;
       cursor: pointer; transition: all 0.2s; white-space: nowrap;
       box-shadow: 0 2px 10px rgba(168,85,247,0.35);
-      display: inline-flex; align-items: center; gap: 6px;
+      display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
     }
     .btn-find:hover { background: linear-gradient(135deg,#6d28d9,#9333ea); transform: translateY(-1px); }
     .btn-find.running { background: linear-gradient(135deg,#6d28d9,#9333ea); box-shadow: 0 2px 20px rgba(168,85,247,0.6); cursor: not-allowed; }
@@ -209,92 +210,37 @@
     }
 
     function buildShopRow(shop) {
-      var id = shop._id;
-      var name = shop.shopName || (shop.shopUrl ? shop.shopUrl.split('/shop/')[1] : '') || 'Shop';
-      var productImg = shop.productImage || null;
-      var productUrl = shop.productUrl || shop.shopUrl || '#';
-      var hasComp = !!(shop.lastCompetition && shop.lastCompetition.saturation != null);
+      const wrap = document.createElement('div');
+      const productImg = shop.productImage || null;
+      const productUrl = shop.productUrl  || shop.shopUrl || '#';
+      const thumbHtml = productImg
+        ? `<a href="${productUrl}" target="_blank" rel="noopener"><img class="shop-thumb" src="${productImg}" alt="" loading="lazy" /></a>`
+        : `<a href="${productUrl}" target="_blank" rel="noopener"><div class="shop-thumb-placeholder">🛍</div></a>`;
 
-      // Thumb
-      var thumbA = document.createElement('a');
-      thumbA.href = productUrl; thumbA.target = '_blank'; thumbA.rel = 'noopener';
-      if (productImg) {
-        var img = document.createElement('img');
-        img.className = 'shop-thumb'; img.src = productImg; img.alt = ''; img.loading = 'lazy';
-        thumbA.appendChild(img);
-      } else {
-        var ph = document.createElement('div');
-        ph.className = 'shop-thumb-placeholder'; ph.textContent = '🛍';
-        thumbA.appendChild(ph);
-      }
+      const name = shop.shopName || shop.shopUrl?.split('/shop/')?.[1]?.split('/')?.[0] || 'Shop';
+      const logoHtml = shop.shopAvatar
+        ? `<img class="shop-row-logo" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
+        : `<div class="shop-row-logo-initial">${name.charAt(0).toUpperCase()}</div>`;
 
-      // Logo
-      var logoEl;
-      if (shop.shopAvatar) {
-        logoEl = document.createElement('img');
-        logoEl.className = 'shop-row-logo'; logoEl.src = shop.shopAvatar; logoEl.alt = '';
-        logoEl.onerror = function() { this.style.display = 'none'; };
-      } else {
-        logoEl = document.createElement('div');
-        logoEl.className = 'shop-row-logo-initial';
-        logoEl.textContent = name.charAt(0).toUpperCase();
-      }
-
-      // Name
-      var nameDiv = document.createElement('div');
-      nameDiv.className = 'shop-row-name'; nameDiv.textContent = name;
-
-      // Buttons row
-      var btns = document.createElement('div');
-      btns.className = 'shop-row-btns';
-
-      var visitA = document.createElement('a');
-      visitA.className = 'btn-visit'; visitA.href = shop.shopUrl;
-      visitA.target = '_blank'; visitA.rel = 'noopener'; visitA.textContent = 'Visit shop ↗';
-      btns.appendChild(visitA);
-
-      if (!hasComp) {
-        var compBtn = document.createElement('button');
-        compBtn.className = 'btn-find'; compBtn.id = 'find-btn-' + id;
-        compBtn.innerHTML = '<span class="spinner"></span><span class="btn-label">⚔️ Competition</span>';
-        compBtn.onclick = (function(sid) { return function() { runCompetition(sid); }; })(id);
-        btns.appendChild(compBtn);
-      }
-
-      // Info
-      var info = document.createElement('div'); info.className = 'shop-row-info';
-      info.appendChild(nameDiv); info.appendChild(btns);
-
-      // Delete button
-      var delBtn = document.createElement('button');
-      delBtn.className = 'btn-delete'; delBtn.title = 'Delete'; delBtn.textContent = '✕';
-      delBtn.onclick = (function(sid) { return function() { deleteShop(sid); }; })(id);
-
-      // Right column
-      var right = document.createElement('div'); right.className = 'shop-row-right';
-      right.appendChild(logoEl); right.appendChild(info); right.appendChild(delBtn);
-
-      // Shop row
-      var row = document.createElement('div');
-      row.className = 'shop-row'; row.id = 'shop-row-' + id;
-      row.appendChild(thumbA); row.appendChild(right);
-
-      // Comp area
-      var compArea = document.createElement('div'); compArea.className = 'comp-area'; compArea.id = 'comp-area-' + id;
-      var compStatus = document.createElement('div'); compStatus.className = 'comp-status'; compStatus.id = 'comp-status-' + id;
-      var compResults = document.createElement('div'); compResults.className = 'comp-results'; compResults.id = 'comp-results-' + id;
-      compArea.appendChild(compStatus); compArea.appendChild(compResults);
-
-      // Wrap
-      var wrap = document.createElement('div');
-      wrap.appendChild(row); wrap.appendChild(compArea);
-
-      if (hasComp) {
-        setTimeout(function() {
-          var resDiv = document.getElementById('comp-results-' + id);
-          if (resDiv) resDiv.innerHTML = renderCompetitionResult(shop.lastCompetition);
-        }, 0);
-      }
+      wrap.innerHTML = `
+        <div class="shop-row" id="shop-row-${shop._id}">
+          ${thumbHtml}
+          <div class="shop-row-right">
+            ${logoHtml}
+            <div class="shop-row-info">
+              <div class="shop-row-name">${name}</div>
+              <div class="shop-row-btns">
+                <a class="btn-visit" href="${shop.shopUrl}" target="_blank" rel="noopener">Visit shop ↗</a>
+                <button class="btn-find" id="find-btn-${shop._id}" onclick="runCompetition('${shop._id}')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>
+              </div>
+            </div>
+            <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
+          </div>
+        </div>
+        <div class="comp-area" id="comp-area-${shop._id}">
+          <div class="comp-status" id="comp-status-${shop._id}"></div>
+          <div class="comp-results" id="comp-results-${shop._id}"></div>
+        </div>`;
       return wrap;
     }
 
@@ -354,8 +300,6 @@
               } else if (ev.step === 'complete') {
                 status.textContent = '';
                 resDiv.innerHTML = renderCompetitionResult(ev);
-                var compBtn = document.getElementById('find-btn-' + shopId);
-                if (compBtn) compBtn.remove();
               } else if (ev.step === 'error') {
                 status.textContent = '❌ ' + ev.message;
               }
@@ -368,16 +312,18 @@
     }
 
     function renderCompetitionResult(ev) {
-      var color        = ev.color || '#f97316';
-      var saturation   = ev.saturation != null ? ev.saturation : 0;
-      var totalShops   = ev.totalShops   || 0;
-      var dropshippers = ev.dropshippers || 0;
-      var shops        = ev.dropshipperShops || [];
+      var color         = ev.color || '#f97316';
+      var saturation    = ev.saturation || 0;
+      var totalShops    = ev.totalShops    || 0;
+      var totalListings = ev.totalListings || 0;
+      var similarTitles = ev.similarTitles || 0;
+      var avgPerShop    = totalShops > 0 ? Math.round(totalListings / totalShops) : 0;
 
+      // Gauge arc SVG
       var r = 54, cx = 70, cy = 70;
       var startAngle = 200, endAngle = 340;
-      var arcSpan = endAngle - startAngle;
-      var fillAngle = startAngle + (arcSpan * saturation / 100);
+      var arcSpan    = endAngle - startAngle;
+      var fillAngle  = startAngle + (arcSpan * saturation / 100);
       function polar(cx, cy, r, deg) {
         var rad = (deg - 90) * Math.PI / 180;
         return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
@@ -390,21 +336,16 @@
       var trackPath = arcPath(cx, cy, r, startAngle, endAngle);
       var fillPath  = saturation > 0 ? arcPath(cx, cy, r, startAngle, Math.min(fillAngle, endAngle)) : '';
 
-      // Store shops data for List button
-      var dataId = 'comp-shops-' + Math.random().toString(36).slice(2);
-      window._compShopsStore = window._compShopsStore || {};
-      window._compShopsStore[dataId] = shops;
-
-      return '' +
+      var html =
         '<div class="comp-panel">' +
-          '<div class="comp-keyword">Niche keyword: <span>"' + (ev.keyword || '') + '"</span></div>' +
+          '<div class="comp-keyword">Niche keyword : <span>"' + (ev.keyword || '') + '"</span></div>' +
           '<div class="comp-top-row">' +
             '<div class="comp-gauge-wrap">' +
               '<svg viewBox="0 0 140 110" width="140" height="110">' +
                 '<path d="' + trackPath + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" stroke-linecap="round"/>' +
                 (fillPath ? '<path d="' + fillPath + '" fill="none" stroke="' + color + '" stroke-width="10" stroke-linecap="round" opacity="0.9"/>' : '') +
                 '<text x="' + cx + '" y="72" text-anchor="middle" font-size="22" font-weight="800" fill="' + color + '">' + saturation + '%</text>' +
-                '<text x="' + cx + '" y="86" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1">DROPSHIPPERS</text>' +
+                '<text x="' + cx + '" y="86" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1">SATURATION</text>' +
               '</svg>' +
             '</div>' +
             '<div class="comp-badge-block">' +
@@ -413,44 +354,15 @@
             '</div>' +
           '</div>' +
           '<div class="comp-stats">' +
-            '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + dropshippers + '</span><span class="comp-stat-lbl">🛒 Dropshippers</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + totalShops + '</span><span class="comp-stat-lbl">🏪 Shops analyzed</span></div>' +
-            '<div class="comp-stat"><span class="comp-stat-val">' + saturation + '%</span><span class="comp-stat-lbl">📊 Dropship rate</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val" style="color:' + color + '">' + totalShops.toLocaleString() + '</span><span class="comp-stat-lbl">🏪 Boutiques</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + (totalListings > 0 ? totalListings.toLocaleString() : '—') + '</span><span class="comp-stat-lbl">📋 Annonces totales</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + (avgPerShop > 0 ? '~' + avgPerShop : '—') + '</span><span class="comp-stat-lbl">📊 Annonces / boutique</span></div>' +
+            '<div class="comp-stat"><span class="comp-stat-val">' + similarTitles.toLocaleString() + '</span><span class="comp-stat-lbl">🎯 Titres similaires</span></div>' +
           '</div>' +
-          '<div style="margin-top:12px;">' +
-            '<button onclick="showDropshipList(window._compShopsStore[\'' + dataId + '\'])" style="padding:8px 20px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;font-weight:600;font-size:0.82rem;cursor:pointer;font-family:Inter,sans-serif;">📋 List (' + dropshippers + ' shops)</button>' +
-          '</div>' +
-        '</div>';
-    }
 
-
-    function showDropshipList(shops) {
-      var existing = document.getElementById('dropship-modal');
-      if (existing) existing.remove();
-      var rows = '';
-      if (!shops || shops.length === 0) {
-        rows = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:24px;">No dropshippers found</div>';
-      } else {
-        shops.forEach(function(s) {
-          rows += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.07);">' +
-            '<span style="color:#fff;font-weight:600;font-size:0.88rem;">' + (s.shopName || '—') + '</span>' +
-            '<a href="' + (s.shopUrl || '#') + '" target="_blank" rel="noopener" style="padding:6px 14px;border-radius:8px;background:rgba(241,100,30,0.15);border:1px solid rgba(241,100,30,0.3);color:#fb923c;font-size:0.78rem;font-weight:600;text-decoration:none;">Visit ↗</a>' +
-          '</div>';
-        });
-      }
-      var modal = document.createElement('div');
-      modal.id = 'dropship-modal';
-      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;padding:20px;';
-      modal.innerHTML =
-        '<div style="background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">' +
-            '<span style="color:#fff;font-weight:700;font-size:1rem;">🛒 Dropshipping shops (' + shops.length + ')</span>' +
-            '<button onclick="document.getElementById(\'dropship-modal\').remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.3rem;cursor:pointer;line-height:1;">✕</button>' +
-          '</div>' +
-          '<div style="overflow-y:auto;flex:1;">' + rows + '</div>' +
         '</div>';
-      modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
-      document.body.appendChild(modal);
+
+      return html;
     }
 
     function goBack() {
