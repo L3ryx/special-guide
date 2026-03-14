@@ -9,7 +9,7 @@ async function uploadToImgBB(input) {
       b64 = input.split(',')[1];
     } else if (input.startsWith('http')) {
       const dl = await axios.get(input, {
-        responseType: 'arraybuffer', timeout: 15000,
+        responseType: 'arraybuffer', timeout: 8000,
         headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.etsy.com/' }
       });
       b64 = Buffer.from(dl.data).toString('base64');
@@ -23,7 +23,7 @@ async function uploadToImgBB(input) {
 
     const res = await axios.post('https://api.imgbb.com/1/upload', form, {
       headers: form.getHeaders?.() || { 'Content-Type': 'multipart/form-data' },
-      timeout: 30000
+      timeout: 12000
     });
 
     if (res.data.success) return res.data.data.url;
