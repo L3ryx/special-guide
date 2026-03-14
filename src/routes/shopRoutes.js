@@ -355,6 +355,15 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     const dropshipperShops = [];
     const SIMILARITY_THRESHOLD = 0.55;
 
+    // Cache ImgBB — évite de re-uploader la même image
+    const imgbbCache = new Map();
+    async function uploadCached(url) {
+      if (imgbbCache.has(url)) return imgbbCache.get(url);
+      const result = await uploadToImgBB(url);
+      imgbbCache.set(url, result);
+      return result;
+    }
+
     // Set des boutiques déjà analysées — on saute si déjà vue
     const shopsAnalyzed = new Set();
 
@@ -374,7 +383,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
         let etsyPublicUrl;
         try {
-          etsyPublicUrl = await uploadToImgBB(listing.image);
+          etsyPublicUrl = await uploadCached(listing.image);
         } catch (e) {
           console.warn('ImgBB upload (Etsy) failed:', e.message);
           return;
@@ -384,7 +393,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         // ── 2. Serper Google Lens — recherche par image ───────────────
         // On envoie l'image Etsy à Google Lens et on cherche
         // un résultat AliExpress parmi les correspondances visuelles
-        await new Promise(r => setTimeout(r, 300)); // éviter Serper 429
+        await new Promise(r => setTimeout(r, 100)); // éviter Serper 429
         let aliResult = null;
         try {
           const lensRes = await axios.post(
@@ -428,7 +437,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         // ── 3. Upload image AliExpress sur ImgBB ─────────────────────
         let aliPublicUrl;
         try {
-          aliPublicUrl = await uploadToImgBB(aliImageUrl);
+          aliPublicUrl = await uploadCached(aliImageUrl);
         } catch (e) {
           console.warn('ImgBB upload (Ali) failed:', e.message);
           return;
@@ -454,7 +463,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         }
 
         // ── 5. Gemini Vision — l'objet Etsy correspond-il à AliExpress ?
-        await new Promise(r => setTimeout(r, 1500)); // délai rate limit Gemini
+        await new Promise(r => setTimeout(r, 800)); // délai rate limit Gemini
         const geminiRes = await callGeminiWithRetry({
           contents: [{
             parts: [
@@ -545,7 +554,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
 // Scrape Etsy search results — all listings, skip if shop already seen, max 400 total
 async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
-  const MAX_LISTINGS = 400;
+  const MAX_LISTINGS = 150; // 150 suffisant statistiquement, 3x plus rapide
   const shopsSeen   = new Set(); // shops already analyzed
   const listings    = [];
   let page = 1;
@@ -582,11 +591,13 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
 
     onPage(page, listings.length);
 
-    // Stop if nothing new, no next page, or limit reached
+    // Stop si rien de nouveau sur cette page, pas de page suivante, ou limite atteinte
     const hasNext = html.includes('pagination-next') || html.includes(`page=${page + 1}`);
-    if (!hasNext || addedOnPage === 0 || listings.length >= MAX_LISTINGS) break;
+    if (!hasNext || listings.length >= MAX_LISTINGS) break;
+    // Stop anticipé : 2 pages consécutives sans nouvelles boutiques
+    if (addedOnPage === 0) break;
     page++;
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 400)); // réduit de 800ms
   }
 
   console.log('Competition: total listings to analyze:', listings.length);
