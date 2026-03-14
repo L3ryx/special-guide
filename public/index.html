@@ -198,24 +198,8 @@
     .empty { text-align:center; padding:40px 20px; color:var(--muted); }
 
     /* FIND */
-    #find-wrap { display:none; flex-direction:column; align-items:center; gap:16px; padding:10px 0 20px; width:100%; }
-    #find-btn { padding:16px 48px; background:var(--green); border:none; border-radius:14px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1.1rem; letter-spacing:0.1em; cursor:pointer; transition:all 0.25s; box-shadow:0 4px 24px rgba(34,197,94,0.4); }
-    #find-btn:hover { background:#16a34a; transform:translateY(-1px); }
-    #find-btn.searching { animation:findBlink 0.6s ease-in-out infinite; cursor:not-allowed; }
+
     @keyframes findBlink { 0%,100%{background:#dc2626;box-shadow:0 4px 32px rgba(220,38,38,0.7)} 50%{background:#ff3333;box-shadow:0 0 48px rgba(255,50,50,1)} }
-    #find-status { font-size:0.82rem; color:var(--muted); text-align:center; }
-    #winner-card { display:none; width:100%; max-width:600px; background:linear-gradient(135deg,rgba(34,197,94,0.12),rgba(16,163,74,0.06)); border:1px solid rgba(34,197,94,0.4); border-radius:18px; padding:24px; backdrop-filter:blur(16px); text-align:center; }
-    #winner-card .winner-label { font-size:0.75rem; font-weight:700; letter-spacing:0.15em; color:var(--green); text-transform:uppercase; margin-bottom:10px; }
-    #winner-card .winner-name { font-size:1.5rem; font-weight:800; color:#fff; margin-bottom:14px; }
-    #winner-card .winner-stats { display:flex; justify-content:center; gap:32px; flex-wrap:wrap; }
-    #winner-card .winner-stat { display:flex; flex-direction:column; align-items:center; gap:4px; }
-    #winner-card .winner-stat-val { font-size:1.4rem; font-weight:800; color:var(--green); }
-    #winner-card .winner-stat-lbl { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; }
-    #winner-card .winner-revenue { margin-top:20px; padding:16px 20px; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.25); border-radius:12px; }
-    #winner-card .revenue-amount { font-size:2.2rem; font-weight:900; color:var(--green); }
-    #winner-card .revenue-label { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.12em; color:var(--muted); margin-top:4px; }
-    #winner-card .revenue-detail { font-size:0.78rem; color:rgba(255,255,255,0.45); margin-top:6px; }
-    #winner-card .winner-link { display:inline-block; margin-top:16px; padding:10px 28px; border-radius:10px; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.4); color:var(--green); font-weight:600; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
 
     @media(max-width:640px){#main-view{padding:70px 14px 20px}.input-row input{font-size:0.95rem;padding:14px 16px}#add-keyword-btn{width:46px;height:46px}.match-body{display:flex;flex-direction:row}.divider-line{width:1px;flex-shrink:0}.product-panel{flex:1;min-width:0;padding:10px 6px;gap:6px}.prod-link{font-size:0.65rem;padding:6px 4px}.price-tag{font-size:0.7rem;padding:4px 6px}}
 
@@ -363,11 +347,7 @@
       <div class="results-grid">
         <div class="results-count-bar" id="results-count"></div>
         <div id="results-container"></div>
-        <div id="find-wrap">
-          <button id="find-btn" onclick="startFind()">🔍 Find</button>
-          <div id="find-status"></div>
-          <div id="winner-card"></div>
-        </div>
+
       </div>
     </section>
   </div>
@@ -753,9 +733,7 @@
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('results-container').innerHTML = '';
       document.getElementById('results-count').textContent = '';
-      document.getElementById('find-wrap').style.display = 'none';
-      document.getElementById('winner-card').style.display = 'none';
-      document.getElementById('find-status').textContent = '';
+
       document.documentElement.classList.remove('unlocked');
       window.scrollTo({ top: 0 });
 
@@ -872,7 +850,7 @@
       document.getElementById('results-count').textContent = totalMatches > 0 ? totalMatches + ' match(es) found' : '';
 
       if (totalMatches > 0) {
-        document.getElementById('find-wrap').style.display = 'flex';
+
         setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
       }
     }
@@ -901,7 +879,7 @@
           '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' +
             (shopAvatar ? '<img src="' + shopAvatar + '" onerror="this.style.display=\'none\'" />' : '<span class="side-initial">' + initial + '</span>') +
           '</a>' +
-          '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + idx + ',this)">♥</button>' +
+          '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + idx + ',this)">❤️</button>' +
         '</div>' +
         '<div class="img-wrap"><div class="img-box">' + (etsySrc ? '<img src="' + etsySrc + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') + '</div></div>' +
         '</div>' +
@@ -921,60 +899,7 @@
     }
 
     // ── FIND ──
-    let _lastResults = [];
-    // Use _allResults as source for find
-    async function startFind() {
-      _lastResults = _allResults;
-      const btn = document.getElementById('find-btn');
-      const status = document.getElementById('find-status');
-      const winnerCard = document.getElementById('winner-card');
-      if (!_lastResults.length) { status.textContent = 'No results.'; return; }
-      btn.disabled = true; btn.classList.add('searching'); btn.textContent = 'Analyzing...';
-      status.textContent = 'Connecting...'; winnerCard.style.display = 'none';
-      function resetBtn() { btn.disabled = false; btn.classList.remove('searching'); btn.textContent = '🔍 Find'; }
-      try {
-        const response = await fetch('/api/shop-stats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ results: _lastResults }) });
-        const reader = response.body.getReader(), decoder = new TextDecoder(); let buf = '';
-        while (true) {
-          const { done, value } = await reader.read(); if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split('\n'); buf = lines.pop();
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const ev = JSON.parse(line.slice(6));
-              if (ev.step === 'scraping') { const tot = ev.total || _lastResults.length; status.innerHTML = '<span style="color:#fff;font-weight:700;">' + ev.shopName + '</span> <span style="color:var(--muted);font-size:0.75rem;">(' + (ev.index + 1) + ' / ' + tot + ')</span> <span style="color:var(--muted);">— scanning...</span>'; }
-              else if (ev.step === 'done') { status.innerHTML = '<span style="color:#22c55e;font-weight:700;">✓ ' + ev.shopName + '</span> <span style="color:var(--muted);font-size:0.75rem;">— ' + (ev.stats?.sales != null ? ev.stats.sales.toLocaleString('en-US') + ' sales' : 'no data') + '</span>'; }
-              else if (ev.step === 'complete') { resetBtn(); status.textContent = ''; showWinner(ev.winner); }
-              else if (ev.step === 'error') { status.textContent = '❌ ' + ev.message; showErrorPopup(ev.message); resetBtn(); }
-            } catch(e) {}
-          }
-        }
-      } catch(err) { status.textContent = '❌ ' + err.message; showErrorPopup(err.message); resetBtn(); }
-    }
 
-    function showWinner(w) {
-      const card = document.getElementById('winner-card');
-      if (!w) { document.getElementById('find-status').textContent = 'Insufficient data.'; showErrorPopup('No winner could be determined — insufficient sales data for the scraped shops.'); return; }
-      const sales = w.sales != null ? w.sales.toLocaleString('en-US') : '—';
-      const created = w.createdAt ? new Date(w.createdAt) : null;
-      const ageDays = created ? Math.max(Math.floor((Date.now() - created.getTime()) / 86400000), 1) : 0;
-      const ageStr = ageDays ? (ageDays < 365 ? ageDays + ' j' : Math.floor(ageDays / 365) + ' ans') : '—';
-      const perDay = (w.sales && ageDays) ? (w.sales / ageDays).toFixed(2) : '—';
-      const yearStr = created ? created.getFullYear().toString() : '—';
-      const dateStr = created ? created.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—';
-      let revHtml = '';
-      if (w.avgPrice != null && w.sales != null) {
-        const rev = w.avgPrice * w.sales;
-        const revStr = rev >= 1e6 ? '$' + (rev / 1e6).toFixed(1) + 'M' : rev >= 1000 ? '$' + (rev / 1000).toFixed(0) + 'K' : '$' + rev.toFixed(0);
-        revHtml = '<div class="winner-revenue"><div class="revenue-amount">' + revStr + '</div><div class="revenue-label">Est. Revenue</div><div class="revenue-detail">$' + w.avgPrice.toFixed(2) + ' × ' + w.sales.toLocaleString('en-US') + ' sales</div></div>';
-      }
-      const winnerShopIdx = Object.keys(window._shopDataMap).length;
-      window._shopDataMap[winnerShopIdx] = { shopUrl: w.shopUrl || '', shopName: w.shopName || '', shopAvatar: '', productImage: '', productUrl: w.shopUrl || '' };
-      card.innerHTML = '<div class="winner-label">🏆 Top Performing Shop</div><div class="winner-name">' + (w.shopName || 'Shop') + '</div><div class="winner-stats"><div class="winner-stat"><span class="winner-stat-val">' + sales + '</span><span class="winner-stat-lbl">Sales</span></div><div class="winner-stat"><span class="winner-stat-val">' + ageStr + '</span><span class="winner-stat-lbl">Age</span></div><div class="winner-stat"><span class="winner-stat-val">' + perDay + '</span><span class="winner-stat-lbl">/ day</span></div><div class="winner-stat"><span class="winner-stat-val">' + yearStr + '</span><span class="winner-stat-lbl">Created</span></div></div>' + revHtml + '<div style="font-size:0.75rem;color:var(--muted);margin-top:10px;">Created ' + dateStr + '</div><div style="display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap;">' + (w.shopUrl ? '<a class="winner-link" href="' + w.shopUrl + '" target="_blank" rel="noopener">View shop ↗</a>' : '') + '<button id="winner-save-btn" onclick="saveShop(' + winnerShopIdx + ',this)" style="padding:10px 22px;border-radius:10px;background:rgba(250,204,21,0.15);border:1px solid rgba(250,204,21,0.4);color:#facc15;font-weight:600;font-size:0.85rem;cursor:pointer;font-family:Inter,sans-serif;transition:all 0.2s;">♥ Add to Niche List</button></div>';
-      card.style.display = 'block';
-      setTimeout(function() { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
-    }
 
     // ── SAVE SHOP ──
     let _savedShopUrls = new Set();
@@ -1019,12 +944,12 @@
         });
         if (r.ok) {
           _savedShopUrls.add(data.shopUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
-          updateNlCount(); showToast('Saved! ♥', '#22c55e');
+          updateNlCount(); showToast('Saved! ❤️', '#22c55e');
         } else {
-          const json = await r.json().catch(() => ({})); btn.classList.remove('saving'); btn.textContent = '♥';
+          const json = await r.json().catch(() => ({})); btn.classList.remove('saving'); btn.textContent = '❤️';
           showToast('Error: ' + (json.error || r.status), '#ef4444');
         }
-      } catch(e) { btn.classList.remove('saving'); btn.textContent = '♥'; showToast(e.message, '#ef4444'); }
+      } catch(e) { btn.classList.remove('saving'); btn.textContent = '❤️'; showToast(e.message, '#ef4444'); }
     }
 
     // ── MILKY WAY ──
