@@ -273,6 +273,11 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         const status = e.response?.status;
         const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 100) : e.message;
         console.warn('ScrapingBee attempt', attempt, 'failed:', status, detail);
+        // If quota exhausted — stop retrying immediately
+        if (status === 401 || (detail && detail.includes('limit reached'))) {
+          console.warn('ScrapingBee quota exhausted — skipping to fallback');
+          break;
+        }
         if (attempt < 3) await new Promise(r => setTimeout(r, 4000));
       }
     }
