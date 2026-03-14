@@ -11,7 +11,19 @@ const savedShopSchema = new mongoose.Schema({
   // Dernière analyse FIND
   lastFind: {
     runAt:    { type: Date, default: null },
-    results:  { type: Array, default: [] },   // [{etsyListing, aliUrl, similarity, etsyImg, aliImg}]
+    results:  { type: Array, default: [] },
+  },
+  // Dernière analyse COMPETITION
+  lastCompetition: {
+    runAt:           { type: Date, default: null },
+    keyword:         { type: String, default: null },
+    totalShops:      { type: Number, default: null },
+    dropshippers:    { type: Number, default: null },
+    dropshipperShops:{ type: Array,  default: [] }, // [{shopName, shopUrl}]
+    label:           { type: String, default: null },
+    color:           { type: String, default: null },
+    description:     { type: String, default: null },
+    saturation:      { type: Number, default: null },
   }
 });
 
