@@ -250,7 +250,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     for (const tryUrl of urlsToTry) {
       try {
         const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-          params: { api_key: apiKey, url: tryUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000' },
+          params: { api_key: apiKey, url: tryUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000', block_resources: 'false' },
           timeout: 120000,
         });
         aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
