@@ -118,6 +118,11 @@
     .keyword-tag.error .tag-text { color:#f87171; }
     #clear-keywords-btn { width:48px; height:48px; flex-shrink:0; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:14px; color:#f87171; font-size:1.1rem; cursor:pointer; transition:all 0.2s; display:none; align-items:center; justify-content:center; }
     #clear-keywords-btn:hover { background:rgba(239,68,68,0.25); border-color:rgba(239,68,68,0.6); }
+    #dice-btn { width:48px; height:48px; flex-shrink:0; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.35); border-radius:14px; color:#a78bfa; font-size:1.4rem; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; }
+    #dice-btn:hover { background:rgba(139,92,246,0.3); border-color:#a78bfa; transform:translateY(-1px); }
+    #dice-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
+    #dice-btn.spinning { animation:diceSpin 0.5s ease infinite; }
+    @keyframes diceSpin { 0%{transform:rotate(0deg)scale(1)} 50%{transform:rotate(180deg)scale(1.1)} 100%{transform:rotate(360deg)scale(1)} }
 
     .selects-row { display:flex; gap:10px; width:100%; }
     .select-wrap { flex:1; position:relative; }
@@ -317,6 +322,7 @@
     <div class="search-card">
       <!-- Input + tags + add + trash, all inline -->
       <div class="input-row">
+        <button id="dice-btn" onclick="rollNiche()" title="Random niche keyword">🎲</button>
         <input type="text" id="keyword-input" placeholder="Enter keyword" />
         <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword">+<span id="kw-count-badge"></span></button>
         <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords">🗑</button>
@@ -699,6 +705,29 @@
       if (trash) trash.style.display = _keywords.length > 0 ? 'flex' : 'none';
     }
 
+    async function rollNiche() {
+      const btn = document.getElementById('dice-btn');
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      btn.classList.add('spinning');
+      try {
+        const res = await fetch('/api/niche-keyword', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('scout_token') || '') }
+        });
+        const data = await res.json();
+        const kw = (data.keyword || '').trim();
+        if (kw) {
+          document.getElementById('keyword-input').value = kw;
+          document.getElementById('keyword-input').focus();
+        }
+      } catch(e) {
+        showToast('Gemini error: ' + e.message, '#ef4444');
+      }
+      btn.disabled = false;
+      btn.classList.remove('spinning');
+    }
+
     function clearKeywords() {
       _keywords = [];
       renderKeywords();
@@ -1039,3 +1068,4 @@
   </script>
 </body>
 </html>
+
