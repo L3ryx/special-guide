@@ -232,7 +232,7 @@
         window._dropListData[shop._id] = dropshippers;
       }
       const dropListBtnHtml = (hasComp && dropshippers.length > 0)
-        ? '<button class="btn-drop-list" onclick="showDropshipList(window._dropListData['' + shop._id + ''])">🛒 Drop List (' + dropshippers.length + ')</button>'
+        ? '<button class="btn-drop-list" onclick="showDropshipList(window._dropListData[\"' + shop._id + '\"])">🛒 Drop List (' + dropshippers.length + ')</button>'
         : '';
       wrap.innerHTML = `
         <div class="shop-row" id="shop-row-${shop._id}">
@@ -423,7 +423,7 @@
       modal.innerHTML = '<div style="background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">' +
           '<span style="color:#fff;font-weight:700;font-size:1rem;">🛒 Dropshipping shops (' + shops.length + ')</span>' +
-          '<button onclick="document.getElementById('dropship-modal').remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.2rem;cursor:pointer;">✕</button>' +
+          '<button onclick="document.getElementById(&quot;dropship-modal&quot;).remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.2rem;cursor:pointer;">✕</button>' +
         '</div><div style="overflow-y:auto;flex:1;">' + rows + '</div></div>';
       modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
       document.body.appendChild(modal);
