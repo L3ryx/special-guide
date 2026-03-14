@@ -227,8 +227,12 @@
       const hasComp = shop.lastCompetition && shop.lastCompetition.saturation != null;
       const compBtnHtml = hasComp ? '' : `<button class="btn-find" id="find-btn-${shop._id}" onclick="runCompetition('${shop._id}')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>`;
       const dropshippers = hasComp ? (shop.lastCompetition.dropshipperShops || []) : [];
+      if (dropshippers.length > 0) {
+        window._dropListData = window._dropListData || {};
+        window._dropListData[shop._id] = dropshippers;
+      }
       const dropListBtnHtml = (hasComp && dropshippers.length > 0)
-        ? `<button class="btn-drop-list" onclick="showDropshipList(${JSON.stringify(dropshippers).replace(/"/g, '&quot;')})">🛒 Drop List (${dropshippers.length})</button>`
+        ? '<button class="btn-drop-list" onclick="showDropshipList(window._dropListData['' + shop._id + ''])">🛒 Drop List (' + dropshippers.length + ')</button>'
         : '';
       wrap.innerHTML = `
         <div class="shop-row" id="shop-row-${shop._id}">
@@ -253,7 +257,11 @@
       if (hasComp) {
         setTimeout(() => {
           const resDiv = document.getElementById('comp-results-' + shop._id);
-          if (resDiv) resDiv.innerHTML = renderCompetitionResult(shop.lastCompetition);
+          if (resDiv) resDiv.innerHTML = renderCompetitionResult(shop.lastCompetition, shop._id);
+          if (dropshippers.length > 0) {
+            window._dropListData = window._dropListData || {};
+            window._dropListData[shop._id] = dropshippers;
+          }
         }, 0);
       }
       return wrap;
@@ -314,9 +322,23 @@
                 status.textContent = ev.message;
               } else if (ev.step === 'complete') {
                 status.textContent = '';
-                resDiv.innerHTML = renderCompetitionResult(ev);
+                resDiv.innerHTML = renderCompetitionResult(ev, shopId);
                 const compBtn = document.getElementById('find-btn-' + shopId);
                 if (compBtn) compBtn.remove();
+                // Add drop list button under shop row
+                const shops = ev.dropshipperShops || [];
+                if (shops.length > 0) {
+                  window._dropListData = window._dropListData || {};
+                  window._dropListData[shopId] = shops;
+                  const btnsDiv = document.querySelector('#shop-row-' + shopId + ' .shop-row-btns');
+                  if (btnsDiv && !btnsDiv.querySelector('.btn-drop-list')) {
+                    var dlBtn = document.createElement('button');
+                    dlBtn.className = 'btn-drop-list';
+                    dlBtn.textContent = '🛒 Drop List (' + shops.length + ')';
+                    dlBtn.onclick = (function(id) { return function() { showDropshipList(window._dropListData[id]); }; })(shopId);
+                    btnsDiv.appendChild(dlBtn);
+                  }
+                }
               } else if (ev.step === 'error') {
                 status.textContent = '❌ ' + ev.message;
               }
@@ -328,7 +350,7 @@
       btn.disabled = false; btn.classList.remove('running'); label.textContent = '⚔️ Competition';
     }
 
-    function renderCompetitionResult(ev) {
+    function renderCompetitionResult(ev, shopId) {
       var color        = ev.color || '#f97316';
       var saturation   = ev.saturation || 0;
       var totalShops   = ev.totalShops   || 0;
@@ -348,7 +370,8 @@
       }
       var trackPath = arcPath(cx, cy, r, startAngle, endAngle);
       var fillPath  = saturation > 0 ? arcPath(cx, cy, r, startAngle, Math.min(fillAngle, endAngle)) : '';
-      var shopsJson  = JSON.stringify(shops).replace(/'/g, "&#39;");
+      window._dropListData = window._dropListData || {};
+      if (shopId) window._dropListData[shopId] = shops;
 
       return '<div class="comp-panel">' +
           '<div class="comp-keyword">Niche keyword: <span>"' + (ev.keyword || '') + '"</span></div>' +
@@ -372,7 +395,7 @@
             '<div class="comp-stat"><span class="comp-stat-val">' + saturation + '%</span><span class="comp-stat-lbl">📊 Dropship rate</span></div>' +
           '</div>' +
           '<div style="margin:10px 0 4px;">' +
-            '<button onclick='showDropshipList(' + shopsJson + ')' style="padding:8px 20px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;font-weight:600;font-size:0.82rem;cursor:pointer;font-family:Inter,sans-serif;">📋 List (' + dropshippers + ' shops)</button>' +
+            (shops.length > 0 ? '<button onclick="showDropshipList(window._dropListData[\''+shopId+'\'])" style="padding:8px 20px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;font-weight:600;font-size:0.82rem;cursor:pointer;font-family:Inter,sans-serif;">📋 List (' + dropshippers + ' shops)</button>' : '') +
           '</div>' +
         '</div>';
     }
