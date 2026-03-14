@@ -223,7 +223,7 @@
         ? `<img class="shop-row-logo" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
         : `<div class="shop-row-logo-initial">${name.charAt(0).toUpperCase()}</div>`;
 
-      const hasComp = shop.lastCompetition && shop.lastCompetition.saturation != null;
+      const hasComp = shop.lastCompetition && shop.lastCompetition.totalShops != null && shop.lastCompetition.runAt != null;
       const dropshippers = hasComp ? (shop.lastCompetition.dropshipperShops || []) : [];
 
       if (dropshippers.length > 0) {
@@ -350,11 +350,15 @@
     }
 
     function renderCompetitionResult(ev, shopId) {
-      var color        = ev.color || '#f97316';
-      var saturation   = ev.saturation || 0;
-      var totalShops   = ev.totalShops   || 0;
-      var dropshippers = ev.dropshippers || 0;
+      // Normaliser les champs — compatibles avec l'event SSE et lastCompetition MongoDB
+      var color        = ev.color || (ev.score && ev.score.color) || '#f97316';
+      var saturation   = ev.saturation != null ? ev.saturation : (ev.score && ev.score.saturation != null ? ev.score.saturation : 0);
+      var totalShops   = (ev.totalShops   != null && ev.totalShops   !== '') ? Number(ev.totalShops)   : 0;
+      var dropshippers = (ev.dropshippers != null && ev.dropshippers !== '') ? Number(ev.dropshippers) : 0;
       var shops        = ev.dropshipperShops || [];
+      var keyword      = ev.keyword || '';
+      // Log debug pour diagnostiquer
+      console.log('[Competition]', { totalShops, dropshippers, saturation, color, keyword, shops: shops.length });
 
       window._dropListData = window._dropListData || {};
       if (shopId) window._dropListData[shopId] = shops;
@@ -506,4 +510,5 @@
   </script>
 </body>
 </html>
+
 
