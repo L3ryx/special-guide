@@ -250,7 +250,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     for (const tryUrl of urlsToTry) {
       try {
         const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-          params: { api_key: apiKey, url: tryUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000', block_resources: 'false' },
+          params: { api_key: apiKey, url: tryUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2500', timeout: '45000', block_resources: false },
           timeout: 120000,
         });
         aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
@@ -295,7 +295,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     send({ step: 'status', message: '🔍 Scraping Etsy listings for "' + keyword + '"...' });
 
     const listings = await scrapeEtsyListingsForCompetition(apiKey, keyword, (page, count) => {
-      send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + ' unique shops found so far...' });
+      send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + '/400 listings collected...' });
     });
 
     const totalShops = listings.length;
@@ -364,19 +364,19 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
   }
 });
 
-// Scrape Etsy search results pages — 1 listing per unique shop (max 5 pages)
+// Scrape Etsy search results — all listings, skip if shop already seen, max 400 total
 async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
-  const { scrapeEtsy } = require('../services/etsyScraper');
-  const shopsSeen = new Set();
-  const listings  = [];
+  const MAX_LISTINGS = 400;
+  const shopsSeen   = new Set(); // shops already analyzed
+  const listings    = [];
   let page = 1;
 
-  while (page <= 5) {
+  while (listings.length < MAX_LISTINGS) {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&page=${page}`;
     let html = '';
     try {
       const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '3000', timeout: '45000', block_resources: 'false' },
+        params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '3000', timeout: '45000', block_resources: false },
         timeout: 120000,
       });
       html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
@@ -385,33 +385,34 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
       break;
     }
 
-    // Parse listings from search result HTML
-    console.log('Competition page', page, '- HTML length:', html.length, 'chars');
-    console.log('  listing/ links:', (html.match(/etsy\.com\/listing/g) || []).length);
-    console.log('  etsystatic imgs:', (html.match(/etsystatic\.com/g) || []).length);
-    console.log('  data-listing-id:', (html.match(/data-listing-id/g) || []).length);
-    console.log('  data-shop-name:', (html.match(/data-shop-name/g) || []).length);
+    console.log('Competition page', page, '- HTML:', html.length, 'chars');
     const rawListings = parseSearchResultListings(html);
-    console.log('  → listings found:', rawListings.length);
-    let added = 0;
+    console.log('  → raw listings:', rawListings.length);
 
+    let addedOnPage = 0;
     for (const l of rawListings) {
-      if (!l.image || !l.shopName) continue;
-      if (shopsSeen.has(l.shopName)) continue; // skip already-seen shop
-      shopsSeen.add(l.shopName);
-      listings.push({ shopName: l.shopName, image: l.image, link: l.link });
-      added++;
+      if (listings.length >= MAX_LISTINGS) break;
+      if (!l.image) continue;
+
+      // Skip if this shop was already analyzed
+      if (l.shopName && shopsSeen.has(l.shopName)) continue;
+
+      // Mark shop as seen, add listing
+      if (l.shopName) shopsSeen.add(l.shopName);
+      listings.push({ shopName: l.shopName || null, image: l.image, link: l.link });
+      addedOnPage++;
     }
 
     onPage(page, listings.length);
 
-    // Stop if no new shops found or no next page
+    // Stop if nothing new, no next page, or limit reached
     const hasNext = html.includes('pagination-next') || html.includes(`page=${page + 1}`);
-    if (!hasNext || added === 0) break;
+    if (!hasNext || addedOnPage === 0 || listings.length >= MAX_LISTINGS) break;
     page++;
     await new Promise(r => setTimeout(r, 800));
   }
 
+  console.log('Competition: total listings to analyze:', listings.length);
   return listings;
 }
 
@@ -433,13 +434,30 @@ function parseSearchResultListings(html) {
         const cleanUrl = url.split('?')[0];
         if (seen.has(cleanUrl)) continue;
         seen.add(cleanUrl);
-        const shopName = item.seller?.name || item.brand?.name || null;
-        const shopUrl  = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
-        results.push({ title: name, link: cleanUrl, image: img, shopName, shopUrl });
+        // Try all possible shopName fields in JSON-LD
+        const shopName = item.seller?.name
+          || item.brand?.name
+          || item.offers?.seller?.name
+          || item.manufacturer?.name
+          || item.provider?.name
+          || null;
+        // Also try to extract shopName from the listing URL context in full HTML
+        let resolvedShop = shopName;
+        if (!resolvedShop) {
+          const idx = html.indexOf(cleanUrl.split('/listing/')[1]?.split('/')[0] || '');
+          if (idx > -1) {
+            const ctx = html.slice(Math.max(0, idx - 2000), idx + 2000);
+            const m = ctx.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i)
+                   || ctx.match(/"shopName"\s*:\s*"([^"]+)"/i);
+            if (m) resolvedShop = m[1];
+          }
+        }
+        const shopUrl = resolvedShop ? `https://www.etsy.com/shop/${resolvedShop}` : null;
+        results.push({ title: name, link: cleanUrl, image: img, shopName: resolvedShop, shopUrl });
       }
     } catch {}
   }
-  if (results.length >= 2) return results;
+  if (results.filter(r => r.shopName).length >= 2) return results;
 
   // Strategy 2: data-listing-id blocks
   const blocks = [...html.matchAll(/(<(?:li|div)[^>]*data-listing-id[^>]*>[\s\S]*?<\/(?:li|div)>)/gi)];
@@ -471,9 +489,13 @@ function parseSearchResultListings(html) {
     }
     if (closest) {
       seen.add(link.url);
-      // Try to extract shopName from nearby HTML
-      const ctx   = html.slice(Math.max(0, link.pos - 500), link.pos + 500);
-      const shopM = ctx.match(/data-shop-name="([^"]+)"/i) || ctx.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
+      // Extract shopName from nearby HTML — wider context window
+      const ctx = html.slice(Math.max(0, link.pos - 2000), link.pos + 2000);
+      const shopM = ctx.match(/data-shop-name="([^"]+)"/i)
+                 || ctx.match(/href="https:\/\/www\.etsy\.com\/shop\/([A-Za-z0-9_-]+)"/i)
+                 || ctx.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i)
+                 || ctx.match(/"shopName"\s*:\s*"([^"]+)"/i)
+                 || ctx.match(/"shop_name"\s*:\s*"([^"]+)"/i);
       const shopName = shopM ? shopM[1] : null;
       results.push({ link: link.url, image: closest.url, shopName, shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null });
     }
