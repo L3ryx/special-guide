@@ -209,44 +209,89 @@
     }
 
     function buildShopRow(shop) {
-      const wrap = document.createElement('div');
-      const productImg = shop.productImage || null;
-      const productUrl = shop.productUrl  || shop.shopUrl || '#';
-      const thumbHtml = productImg
-        ? `<a href="${productUrl}" target="_blank" rel="noopener"><img class="shop-thumb" src="${productImg}" alt="" loading="lazy" /></a>`
-        : `<a href="${productUrl}" target="_blank" rel="noopener"><div class="shop-thumb-placeholder">🛍</div></a>`;
+      var id = shop._id;
+      var name = shop.shopName || (shop.shopUrl ? shop.shopUrl.split('/shop/')[1] : '') || 'Shop';
+      var productImg = shop.productImage || null;
+      var productUrl = shop.productUrl || shop.shopUrl || '#';
+      var hasComp = !!(shop.lastCompetition && shop.lastCompetition.saturation != null);
 
-      const name = shop.shopName || shop.shopUrl?.split('/shop/')?.[1]?.split('/')?.[0] || 'Shop';
-      const logoHtml = shop.shopAvatar
-        ? `<img class="shop-row-logo" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
-        : `<div class="shop-row-logo-initial">${name.charAt(0).toUpperCase()}</div>`;
+      // Thumb
+      var thumbA = document.createElement('a');
+      thumbA.href = productUrl; thumbA.target = '_blank'; thumbA.rel = 'noopener';
+      if (productImg) {
+        var img = document.createElement('img');
+        img.className = 'shop-thumb'; img.src = productImg; img.alt = ''; img.loading = 'lazy';
+        thumbA.appendChild(img);
+      } else {
+        var ph = document.createElement('div');
+        ph.className = 'shop-thumb-placeholder'; ph.textContent = '🛍';
+        thumbA.appendChild(ph);
+      }
 
-      var hasComp = shop.lastCompetition && shop.lastCompetition.saturation != null;
-      var compBtnHtml = hasComp ? '' : '<button class="btn-find" id="find-btn-' + shop._id + '" onclick="runCompetition(\'' + shop._id + '\')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>';
+      // Logo
+      var logoEl;
+      if (shop.shopAvatar) {
+        logoEl = document.createElement('img');
+        logoEl.className = 'shop-row-logo'; logoEl.src = shop.shopAvatar; logoEl.alt = '';
+        logoEl.onerror = function() { this.style.display = 'none'; };
+      } else {
+        logoEl = document.createElement('div');
+        logoEl.className = 'shop-row-logo-initial';
+        logoEl.textContent = name.charAt(0).toUpperCase();
+      }
 
-      wrap.innerHTML =
-        '<div class="shop-row" id="shop-row-' + shop._id + '">' +
-          thumbHtml +
-          '<div class="shop-row-right">' +
-            logoHtml +
-            '<div class="shop-row-info">' +
-              '<div class="shop-row-name">' + name + '</div>' +
-              '<div class="shop-row-btns">' +
-                '<a class="btn-visit" href="' + shop.shopUrl + '" target="_blank" rel="noopener">Visit shop ↗</a>' +
-                compBtnHtml +
-              '</div>' +
-            '</div>' +
-            '<button class="btn-delete" onclick="deleteShop(\'' + shop._id + '\')" title="Delete">✕</button>' +
-          '</div>' +
-        '</div>' +
-        '<div class="comp-area" id="comp-area-' + shop._id + '">' +
-          '<div class="comp-status" id="comp-status-' + shop._id + '"></div>' +
-          '<div class="comp-results" id="comp-results-' + shop._id + '"></div>' +
-        '</div>';
+      // Name
+      var nameDiv = document.createElement('div');
+      nameDiv.className = 'shop-row-name'; nameDiv.textContent = name;
+
+      // Buttons row
+      var btns = document.createElement('div');
+      btns.className = 'shop-row-btns';
+
+      var visitA = document.createElement('a');
+      visitA.className = 'btn-visit'; visitA.href = shop.shopUrl;
+      visitA.target = '_blank'; visitA.rel = 'noopener'; visitA.textContent = 'Visit shop ↗';
+      btns.appendChild(visitA);
+
+      if (!hasComp) {
+        var compBtn = document.createElement('button');
+        compBtn.className = 'btn-find'; compBtn.id = 'find-btn-' + id;
+        compBtn.innerHTML = '<span class="spinner"></span><span class="btn-label">⚔️ Competition</span>';
+        compBtn.onclick = (function(sid) { return function() { runCompetition(sid); }; })(id);
+        btns.appendChild(compBtn);
+      }
+
+      // Info
+      var info = document.createElement('div'); info.className = 'shop-row-info';
+      info.appendChild(nameDiv); info.appendChild(btns);
+
+      // Delete button
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn-delete'; delBtn.title = 'Delete'; delBtn.textContent = '✕';
+      delBtn.onclick = (function(sid) { return function() { deleteShop(sid); }; })(id);
+
+      // Right column
+      var right = document.createElement('div'); right.className = 'shop-row-right';
+      right.appendChild(logoEl); right.appendChild(info); right.appendChild(delBtn);
+
+      // Shop row
+      var row = document.createElement('div');
+      row.className = 'shop-row'; row.id = 'shop-row-' + id;
+      row.appendChild(thumbA); row.appendChild(right);
+
+      // Comp area
+      var compArea = document.createElement('div'); compArea.className = 'comp-area'; compArea.id = 'comp-area-' + id;
+      var compStatus = document.createElement('div'); compStatus.className = 'comp-status'; compStatus.id = 'comp-status-' + id;
+      var compResults = document.createElement('div'); compResults.className = 'comp-results'; compResults.id = 'comp-results-' + id;
+      compArea.appendChild(compStatus); compArea.appendChild(compResults);
+
+      // Wrap
+      var wrap = document.createElement('div');
+      wrap.appendChild(row); wrap.appendChild(compArea);
 
       if (hasComp) {
         setTimeout(function() {
-          var resDiv = document.getElementById('comp-results-' + shop._id);
+          var resDiv = document.getElementById('comp-results-' + id);
           if (resDiv) resDiv.innerHTML = renderCompetitionResult(shop.lastCompetition);
         }, 0);
       }
@@ -373,7 +418,7 @@
             '<div class="comp-stat"><span class="comp-stat-val">' + saturation + '%</span><span class="comp-stat-lbl">📊 Dropship rate</span></div>' +
           '</div>' +
           '<div style="margin-top:12px;">' +
-            '<button onclick="showDropshipList(window._compShopsStore['' + dataId + ''])" style="padding:8px 20px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;font-weight:600;font-size:0.82rem;cursor:pointer;font-family:Inter,sans-serif;">📋 List (' + dropshippers + ' shops)</button>' +
+            '<button onclick="showDropshipList(window._compShopsStore[\'' + dataId + '\'])" style="padding:8px 20px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;font-weight:600;font-size:0.82rem;cursor:pointer;font-family:Inter,sans-serif;">📋 List (' + dropshippers + ' shops)</button>' +
           '</div>' +
         '</div>';
     }
@@ -400,7 +445,7 @@
         '<div style="background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">' +
             '<span style="color:#fff;font-weight:700;font-size:1rem;">🛒 Dropshipping shops (' + shops.length + ')</span>' +
-            '<button onclick="document.getElementById('dropship-modal').remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.3rem;cursor:pointer;line-height:1;">✕</button>' +
+            '<button onclick="document.getElementById(\'dropship-modal\').remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.3rem;cursor:pointer;line-height:1;">✕</button>' +
           '</div>' +
           '<div style="overflow-y:auto;flex:1;">' + rows + '</div>' +
         '</div>';
