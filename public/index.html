@@ -118,11 +118,13 @@
     .keyword-tag.error .tag-text { color:#f87171; }
     #clear-keywords-btn { width:48px; height:48px; flex-shrink:0; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:14px; color:#f87171; font-size:1.1rem; cursor:pointer; transition:all 0.2s; display:none; align-items:center; justify-content:center; }
     #clear-keywords-btn:hover { background:rgba(239,68,68,0.25); border-color:rgba(239,68,68,0.6); }
-    #dice-btn { width:48px; height:48px; flex-shrink:0; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.35); border-radius:14px; color:#a78bfa; font-size:1.4rem; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; }
-    #dice-btn:hover { background:rgba(139,92,246,0.3); border-color:#a78bfa; transform:translateY(-1px); }
+    #dice-btn { width:100%; padding:16px 20px; background:linear-gradient(135deg,#1d4ed8,#3b82f6); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-size:1rem; font-weight:700; letter-spacing:0.05em; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 4px 20px rgba(59,130,246,0.35); }
+    #dice-btn:hover { background:linear-gradient(135deg,#1e40af,#2563eb); transform:translateY(-1px); box-shadow:0 6px 24px rgba(59,130,246,0.5); }
+    #dice-btn:active { transform:translateY(0); }
     #dice-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
-    #dice-btn.spinning { animation:diceSpin 0.5s ease infinite; }
-    @keyframes diceSpin { 0%{transform:rotate(0deg)scale(1)} 50%{transform:rotate(180deg)scale(1.1)} 100%{transform:rotate(360deg)scale(1)} }
+    #dice-btn .dice-icon { font-size:1.3rem; transition:transform 0.3s; }
+    #dice-btn.spinning .dice-icon { animation:diceSpin 0.5s ease infinite; }
+    @keyframes diceSpin { 0%{transform:rotate(0deg)scale(1)} 50%{transform:rotate(180deg)scale(1.15)} 100%{transform:rotate(360deg)scale(1)} }
 
     .selects-row { display:flex; gap:10px; width:100%; }
     .select-wrap { flex:1; position:relative; }
@@ -322,8 +324,10 @@
     <div class="search-card">
       <!-- Input + tags + add + trash, all inline -->
       <div class="input-row">
-        <button id="dice-btn" onclick="rollNiche()" title="Random niche keyword">🎲</button>
-        <input type="text" id="keyword-input" placeholder="Enter keyword" />
+        <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:8px;">
+          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;" />
+          <button id="dice-btn" onclick="rollNiche()"><span class="dice-icon">🎲</span>Generate</button>
+        </div>
         <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword">+<span id="kw-count-badge"></span></button>
         <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords">🗑</button>
       </div>
