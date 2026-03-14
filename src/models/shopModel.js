@@ -8,12 +8,12 @@ const savedShopSchema = new mongoose.Schema({
   productImage: { type: String, default: null },
   productUrl:   { type: String, default: null },
   savedAt:      { type: Date, default: Date.now },
-  // Dernière analyse FIND
+  // Last FIND analysis
   lastFind: {
     runAt:    { type: Date, default: null },
     results:  { type: Array, default: [] },
   },
-  // Dernière analyse COMPETITION
+  // Last COMPETITION analysis
   lastCompetition: {
     runAt:           { type: Date, default: null },
     keyword:         { type: String, default: null },
@@ -27,7 +27,7 @@ const savedShopSchema = new mongoose.Schema({
   }
 });
 
-// Un user ne peut pas sauvegarder 2x la même boutique
+// Unique shop per user
 savedShopSchema.index({ userId: 1, shopUrl: 1 }, { unique: true });
 
 module.exports = mongoose.model('SavedShop', savedShopSchema);
