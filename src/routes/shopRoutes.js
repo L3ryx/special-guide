@@ -245,43 +245,29 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     send({ step: 'status', message: '🏪 Fetching shop page...' });
     const shopBase = shop.shopUrl.replace(/\/?$/, '');
 
-    // Fetch main shop page without JS render (faster, avoids 500 errors)
+    // Fetch shop page via ScraperAPI
     let aboutHtml = '';
-    const fetchAttempts = [
-      { url: shopBase, render_js: 'false' },
-      { url: shopBase, render_js: 'true', block_resources: 'false' },
-    ];
-
-    for (const attempt of fetchAttempts) {
-      try {
-        console.log('Fetching shop:', attempt.url, '(render_js:', attempt.render_js + ')');
-        const params = {
-          api_key:       apiKey,
-          url:           attempt.url,
-          render_js:     attempt.render_js,
-          premium_proxy: 'true',
-          country_code:  'us',
-          timeout:       '40000',
-        };
-        if (attempt.block_resources) params.block_resources = attempt.block_resources;
-        if (attempt.render_js === 'true') params.wait = '2000';
-
-        const r = await axios.get('https://app.scrapingbee.com/api/v1/', { params, timeout: 90000 });
-        aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-        console.log('Shop fetch result — length:', aboutHtml.length, '| preview:', aboutHtml.slice(0, 200));
-        if (aboutHtml.length > 500) {
-          console.log('Shop fetch OK');
-          break;
-        }
-      } catch (e) {
-        const status = e.response?.status;
-        const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 200) : e.message;
-        console.warn('Shop fetch failed:', status, detail);
-      }
+    if (!process.env.SCRAPEAPI_KEY) {
+      send({ step: 'error', message: '❌ SCRAPEAPI_KEY missing — add it in Render Environment Variables' });
+      return res.end();
     }
 
-    if (!aboutHtml || aboutHtml.length < 100) {
-      send({ step: 'error', message: '❌ Could not fetch shop page — ScrapingBee returned empty response.' });
+    try {
+      console.log('Fetching shop via ScraperAPI:', shopBase);
+      const scraperUrl = `http://api.scraperapi.com?api_key=${process.env.SCRAPEAPI_KEY}&url=${encodeURIComponent(shopBase)}&render=true&country_code=us`;
+      const r = await axios.get(scraperUrl, { timeout: 120000 });
+      aboutHtml = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      console.log('ScraperAPI shop fetch OK —', aboutHtml.length, 'chars');
+    } catch (e) {
+      const status = e.response?.status;
+      const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 150) : e.message;
+      console.warn('ScraperAPI shop fetch failed:', status, detail);
+      send({ step: 'error', message: '❌ Could not fetch shop page (ScraperAPI ' + (status || '?') + '): ' + detail });
+      return res.end();
+    }
+
+    if (!aboutHtml || aboutHtml.length < 500) {
+      send({ step: 'error', message: '❌ Shop page returned empty — the shop may not have an About section.' });
       return res.end();
     }
 
