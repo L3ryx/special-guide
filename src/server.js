@@ -38,16 +38,20 @@ app.get('/proxy-image', async (req, res) => {
   }
 });
 
+// ── Health check
+app.get('/api/health', (req, res) => res.json({ ok: true }));
+
 // ── Routes API
 app.use('/api', scrapeRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
 
 // ── Pages
+app.get('/loading',        (req, res) => res.sendFile(path.join(__dirname, '../public/loading.html')));
 app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 app.get('/finder',         (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
-app.get('/niche-list',      (req, res) => res.sendFile(path.join(__dirname, '../public/niche-list.html')));
-app.get('/reset-password',  (req, res) => res.sendFile(path.join(__dirname, '../public/reset-password.html')));
+app.get('/niche-list',     (req, res) => res.sendFile(path.join(__dirname, '../public/niche-list.html')));
+app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, '../public/reset-password.html')));
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
