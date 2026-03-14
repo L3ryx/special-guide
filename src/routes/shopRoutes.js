@@ -376,7 +376,7 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
     let html = '';
     try {
       const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2000', block_ads: 'true', timeout: '45000' },
+        params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '3000', timeout: '45000', block_resources: 'false' },
         timeout: 120000,
       });
       html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
@@ -386,7 +386,13 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
     }
 
     // Parse listings from search result HTML
+    console.log('Competition page', page, '- HTML length:', html.length, 'chars');
+    console.log('  listing/ links:', (html.match(/etsy\.com\/listing/g) || []).length);
+    console.log('  etsystatic imgs:', (html.match(/etsystatic\.com/g) || []).length);
+    console.log('  data-listing-id:', (html.match(/data-listing-id/g) || []).length);
+    console.log('  data-shop-name:', (html.match(/data-shop-name/g) || []).length);
     const rawListings = parseSearchResultListings(html);
+    console.log('  → listings found:', rawListings.length);
     let added = 0;
 
     for (const l of rawListings) {
