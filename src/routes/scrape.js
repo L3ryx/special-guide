@@ -80,7 +80,7 @@ router.post('/search', async (req, res) => {
 
   const send         = (step, msg) => res.write('data: ' + JSON.stringify({ step, message: msg }) + '\n\n');
   const sendError    = msg => { res.write('data: ' + JSON.stringify({ step: 'error', message: msg }) + '\n\n'); res.end(); };
-  const sendComplete = r   => { res.write('data: ' + JSON.stringify({ step: 'complete', results: r }) + '\n\n'); res.end(); };
+  const sendComplete = (r, ds) => { res.write('data: ' + JSON.stringify({ step: 'complete', results: r, dropshipperShops: ds || [] }) + '\n\n'); res.end(); };
 
   try {
     send('scraping_etsy', `🔍 Scraping Etsy for "${keyword}"...`);
@@ -102,6 +102,7 @@ router.post('/search', async (req, res) => {
 
     let done = 0;
     const allResults = [];
+    const dropshipperShops = []; // { shopName, shopUrl }
 
     await parallel(
       listings.filter(l => l.image),
@@ -110,12 +111,18 @@ router.post('/search', async (req, res) => {
         try {
           const matches = await reverseImageSearch(listing.image, listing.title || '');
           done++;
-          send('comparing', `🤖 ${done}/${listings.length} analyzed`);
+          send('comparing', `🔎 ${done}/${listings.length} analyzed`);
           if (!matches.length) return;
           const comparisons = await compareEtsyWithAliexpress(listing, matches);
           if (comparisons.length > 0) {
             allResults.push(...comparisons);
-            send('match_found', `✅ ${allResults.length} correspondance(s)`);
+            // Track dropshipper shop
+            const shopName = listing.shopName || null;
+            const shopUrl  = listing.shopUrl  || (shopName ? 'https://www.etsy.com/shop/' + shopName : null);
+            if (shopUrl && !dropshipperShops.find(s => s.shopUrl === shopUrl)) {
+              dropshipperShops.push({ shopName: shopName || 'Unknown', shopUrl });
+            }
+            send('match_found', `✅ ${allResults.length} match(es) — ${dropshipperShops.length} dropshipper(s)`);
           }
         } catch (err) {
           console.error('Erreur listing:', err.message);
@@ -145,7 +152,7 @@ router.post('/search', async (req, res) => {
       } catch {}
     });
 
-    sendComplete(deduped);
+    sendComplete(deduped, dropshipperShops);
 
   } catch (err) {
     sendError(err.message || 'Erreur inattendue');
