@@ -983,11 +983,15 @@
       const shopUrl = etsy.shopUrl
         || (_shopName0 ? 'https://www.etsy.com/shop/' + _shopName0 : null)
         || (etsy.link ? (function(l) {
-              var m = l.match(/etsy\.com\/shop\/([^/?#]+)/);
-              return m ? 'https://www.etsy.com/shop/' + m[1] : null;
+              // Chercher /shop/NomBoutique dans l'URL
+              var m = l.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
+              if (m) return 'https://www.etsy.com/shop/' + m[1];
+              // Chercher ?listing_shop= ou &shop= dans les paramètres
+              m = l.match(/[?&](?:listing_shop|shop)=([A-Za-z0-9_-]+)/i);
+              if (m) return 'https://www.etsy.com/shop/' + m[1];
+              return null;
             })(etsy.link) : null)
         || '';
-      console.log('[Shop]', { shopName: _shopName0, shopUrl, etsyShopUrl: etsy.shopUrl, link: etsy.link });
       const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
@@ -1083,5 +1087,4 @@
   </script>
 </body>
 </html>
-
 
