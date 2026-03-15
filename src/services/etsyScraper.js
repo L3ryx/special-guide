@@ -191,11 +191,27 @@ function parseEtsyListings(html) {
   }
   if (listings.length >= 2) return listings;
 
-  // Strategy 3: proximity
+  // Strategy 3: proximity + extraction shopName depuis JSON embarqué
   const allLinks = [...html.matchAll(/href="(https:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"?#]+)/g)];
   const allImages = [...html.matchAll(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+\.(?:jpg|jpeg|png|webp))/gi)];
-  const linkPos = allLinks.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
+  const linkPos = allLinks.map(m => ({ url: m[1].split('?')[0], listingId: m[2], pos: m.index }));
   const imgPos = allImages.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
+
+  // Pré-construire une map listingId → shopName depuis le JSON embarqué
+  const listingShopMap = new Map();
+  for (const [, raw] of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)) {
+    if (!raw.includes('"listing_id"') && !raw.includes('"listingId"')) continue;
+    for (const [, lid, sname] of raw.matchAll(/"listing_id"\s*:\s*(\d+)[^}]{0,400}"shop_name"\s*:\s*"([^"]+)"/g)) {
+      listingShopMap.set(lid, sname);
+    }
+    for (const [, lid, sname] of raw.matchAll(/"listingId"\s*:\s*(\d+)[^}]{0,400}"shopName"\s*:\s*"([^"]+)"/g)) {
+      listingShopMap.set(lid, sname);
+    }
+    for (const [, lid, sname] of raw.matchAll(/"listing_id"\s*:\s*(\d+)[^}]{0,400}"owner_name"\s*:\s*"([^"]+)"/g)) {
+      listingShopMap.set(lid, sname);
+    }
+    if (listingShopMap.size > 5) break;
+  }
 
   for (const link of linkPos) {
     if (seen.has(link.url)) continue;
@@ -206,15 +222,14 @@ function parseEtsyListings(html) {
     }
     if (closest) {
       seen.add(link.url);
-      // Try to extract shopName from nearby HTML context (within 2000 chars around the link)
-      const contextStart = Math.max(0, link.pos - 1000);
-      const contextEnd = Math.min(html.length, link.pos + 1000);
-      const context = html.slice(contextStart, contextEnd);
+      const context = html.slice(Math.max(0, link.pos - 1500), Math.min(html.length, link.pos + 1500));
       const shopAttr = context.match(/data-shop-name="([^"]+)"/i)
                     || context.match(/data-shop_name="([^"]+)"/i)
                     || context.match(/"shopName"\s*:\s*"([^"]+)"/i)
-                    || context.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
-      const shopName = shopAttr ? shopAttr[1] : null;
+                    || context.match(/"shop_name"\s*:\s*"([^"]+)"/i)
+                    || context.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
+      const shopName = (link.listingId && listingShopMap.get(link.listingId))
+                    || (shopAttr ? shopAttr[1] : null);
       listings.push({
         title: link.url.split('/').pop().replace(/-/g, ' '),
         link: link.url, image: closest.url,
@@ -260,4 +275,5 @@ async function debugEtsyHtml(keyword) {
 }
 
 module.exports = { scrapeEtsy, scrapeEtsyShopNames, debugEtsyHtml };
+
 
