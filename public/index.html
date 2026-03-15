@@ -930,7 +930,7 @@
                       }
                     });
                   }
-                  document.getElementById('progress-msg').textContent = '✅ ' + kwResults.length + ' match(es) found';
+                  document.getElementById('progress-msg').textContent = '';
                   if (tag) tag.className = 'keyword-tag done';
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
