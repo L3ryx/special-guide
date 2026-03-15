@@ -395,7 +395,8 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + '/400 listings collected...' });
     });
 
-    const totalShops = listings.length;
+    // totalShops = boutiques uniques (chaque boutique peut avoir jusqu'à 3 images)
+    const totalShops = new Set(listings.map(l => l.shopName || l.link)).size;
     if (totalShops === 0) {
       send({ step: 'error', message: '❌ No listings found on Etsy for this keyword' });
       return res.end();
@@ -421,18 +422,33 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     // Set des boutiques déjà analysées — on saute si déjà vue
     const shopsAnalyzed = new Set();
 
+    // Map boutique → nombre d'images testées (pour les boutiques multi-images)
+    const shopImageCount  = new Map(); // shopName → nb images tentées
+    const shopMatched     = new Set(); // boutiques déjà comptées comme dropshipper
+
     async function analyzeOne(listing) {
       try {
-        // ── Sauter si boutique déjà analysée ──────────────────────────
         const shopKey = listing.shopName || listing.link;
-        if (shopKey && shopsAnalyzed.has(shopKey)) {
-          console.log('Skip (already analyzed):', shopKey);
+
+        // ── Sauter si boutique déjà comptée comme dropshipper ────────
+        if (shopKey && shopMatched.has(shopKey)) {
+          console.log('Skip (already matched):', shopKey);
           return;
         }
-        if (shopKey) shopsAnalyzed.add(shopKey);
+
+        // ── Sauter si c'est une image extra et la boutique est déjà dans shopsAnalyzed ──
+        // shopsAnalyzed = boutiques dont toutes les images ont été testées sans match
+        if (shopKey && shopsAnalyzed.has(shopKey)) {
+          console.log('Skip (all images tested, no match):', shopKey);
+          return;
+        }
+
+        // Incrémenter le compteur d'images pour cette boutique
+        const imgCount = (shopImageCount.get(shopKey) || 0) + 1;
+        shopImageCount.set(shopKey, imgCount);
+        console.log('Analyzing image', imgCount, 'for:', shopKey);
 
         // ── 1. Upload image Etsy sur ImgBB pour URL publique ──────────
-        // Serper Lens a besoin d'une URL publique accessible
         if (!listing.image) return;
 
         let etsyPublicUrl;
@@ -535,6 +551,8 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         console.log('🤖 Gemini vision:', Math.round(gemScore * 100) + '%');
 
         if (gemScore >= SIMILARITY_THRESHOLD) {
+          // Marquer la boutique comme dropshipper (évite de la recompter sur les images suivantes)
+          if (shopKey) shopMatched.add(shopKey);
           dropshippers++;
           dropshipperShops.push({
             shopName:   listing.shopName || 'Unknown',
@@ -544,6 +562,13 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
           });
           console.log('✅ Similarity:', Math.round(gemScore * 100) + '% —', aliUrl);
           send({ step: 'match', message: '🛒 Match ' + Math.round(gemScore * 100) + '% — ' + (listing.shopName || 'shop') + ' (' + dropshippers + ' dropshippers)' });
+        } else {
+          // Pas de match sur cette image — si c'était la dernière image de la boutique, la marquer comme analysée
+          const maxImages = 3;
+          if ((shopImageCount.get(shopKey) || 0) >= maxImages) {
+            if (shopKey) shopsAnalyzed.add(shopKey);
+            console.log('No match after', maxImages, 'images for:', shopKey);
+          }
         }
 
       } catch (e) {
@@ -633,12 +658,22 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
       if (listings.length >= MAX_LISTINGS) break;
       if (!l.image) continue;
 
-      // Skip if this shop was already analyzed
-      if (l.shopName && shopsSeen.has(l.shopName)) continue;
+      const shopKey = l.shopName || null;
 
-      // Mark shop as seen, add listing
-      if (l.shopName) shopsSeen.add(l.shopName);
-      listings.push({ shopName: l.shopName || null, image: l.image, link: l.link });
+      // Si boutique déjà vue, on peut encore ajouter des images (max 3 par boutique)
+      if (shopKey && shopsSeen.has(shopKey)) {
+        // Compter combien d'images on a déjà pour cette boutique
+        const existing = listings.filter(x => x.shopName === shopKey);
+        if (existing.length >= 3) continue; // déjà 3 images → passer
+        // Ajouter une image supplémentaire pour cette boutique
+        listings.push({ shopName: shopKey, image: l.image, link: l.link, extraImage: true });
+        addedOnPage++;
+        continue;
+      }
+
+      // Nouvelle boutique
+      if (shopKey) shopsSeen.add(shopKey);
+      listings.push({ shopName: shopKey, image: l.image, link: l.link });
       addedOnPage++;
     }
 
@@ -794,6 +829,7 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
     }
+
 
 
 
