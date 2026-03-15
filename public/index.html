@@ -977,8 +977,16 @@
       const etsy = m.etsy, ali = m.aliexpress;
       const etsySrc = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc  = ali.image || '';
-      const shopUrl = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0] : '') || '';
-      const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
+      // Construire shopUrl correctement depuis shopName ou l'URL du listing
+      const shopName0 = etsy.shopName || null;
+      const shopUrl = etsy.shopUrl
+        || (shopName0 ? 'https://www.etsy.com/shop/' + shopName0 : null)
+        || (etsy.link ? (function(l) {
+              var m = l.match(/etsy\.com\/shop\/([^/?#]+)/);
+              return m ? 'https://www.etsy.com/shop/' + m[1] : null;
+            })(etsy.link) : null)
+        || '';
+      const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || shopName0 || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
       window._shopDataMap[idx] = { shopUrl, shopName, shopAvatar, productImage: etsySrc, productUrl: etsy.link || '' };
