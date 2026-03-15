@@ -193,32 +193,45 @@ async function scrapingbeeFetch(targetUrl, sbParams = {}) {
   const zrKey = process.env.ZENROWS_API_KEY;
   if (!zrKey) throw new Error('ScrapingBee failed and ZENROWS_API_KEY is not set');
 
-  // 3 combinaisons par ordre de rapidité
-  const zrAttempts = [
-    { js_render: 'false', premium_proxy: 'false', timeout: 30000, label: 'no-JS' },
-    { js_render: 'false', premium_proxy: 'true',  timeout: 45000, label: 'no-JS+premium' },
-    { js_render: 'true',  premium_proxy: 'true',  timeout: 60000, label: 'JS+premium' },
-  ];
-
-  for (let i = 0; i < zrAttempts.length; i++) {
-    const cfg = zrAttempts[i];
+  // ── Fallback 1 : ZenRows sans JS ──
+  const zrKey = process.env.ZENROWS_API_KEY;
+  if (zrKey) {
     try {
-      console.log('ZenRows attempt', i + 1, '(' + cfg.label + '):', targetUrl);
-      const params = { apikey: zrKey, url: targetUrl };
-      if (cfg.js_render     === 'true') params.js_render     = 'true';
-      if (cfg.premium_proxy === 'true') params.premium_proxy = 'true';
-
-      const r = await axios.get('https://api.zenrows.com/v1/', { params, timeout: cfg.timeout });
+      console.log('ZenRows fallback (no-JS):', targetUrl);
+      const r = await axios.get('https://api.zenrows.com/v1/', {
+        params: { apikey: zrKey, url: targetUrl },
+        timeout: 30000,
+      });
       const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-      if (html.length < 500) throw new Error('ZenRows empty response');
-      console.log('ZenRows OK (' + cfg.label + ') —', html.length, 'chars');
-      return html;
+      if (html.length > 500) {
+        console.log('ZenRows OK —', html.length, 'chars');
+        return html;
+      }
     } catch (e) {
-      console.warn('ZenRows attempt', i + 1, '(' + cfg.label + ') failed:', e.message.slice(0, 80));
-      if (i < zrAttempts.length - 1) await new Promise(r => setTimeout(r, 1000));
+      console.warn('ZenRows failed (' + e.response?.status + '):', e.message.slice(0, 80));
     }
   }
-  throw new Error('ZenRows failed on all 3 attempts');
+
+  // ── Fallback 2 : ScraperAPI ──
+  const saKey = process.env.SCRAPEAPI_KEY;
+  if (saKey) {
+    try {
+      console.log('ScraperAPI fallback:', targetUrl);
+      const r = await axios.get('http://api.scraperapi.com', {
+        params: { api_key: saKey, url: targetUrl, render: 'false', country_code: 'us' },
+        timeout: 60000,
+      });
+      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      if (html.length > 500) {
+        console.log('ScraperAPI OK —', html.length, 'chars');
+        return html;
+      }
+    } catch (e) {
+      console.warn('ScraperAPI failed (' + e.response?.status + '):', e.message.slice(0, 80));
+    }
+  }
+
+  throw new Error('All scrapers failed — check ZENROWS_API_KEY, SCRAPEAPI_KEY');
 }
 
 async function scrapeShopListings(shopUrl) {
@@ -320,8 +333,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
   const send = d => res.write('data: ' + JSON.stringify(d) + '\n\n');
 
   try {
-    const apiKey = process.env.SCRAPINGBEE_KEY;
-    if (!apiKey) { send({ step: 'error', message: '❌ SCRAPINGBEE_KEY missing' }); return res.end(); }
+    const apiKey = null; // ScrapingBee désactivé
     if (!process.env.GEMINI_API_KEY) { send({ step: 'error', message: '❌ GEMINI_API_KEY missing' }); return res.end(); }
     if (!process.env.SERPER_API_KEY) { send({ step: 'error', message: '❌ SERPER_API_KEY missing' }); return res.end(); }
     if (!process.env.IMGBB_API_KEY)  { send({ step: 'error', message: '❌ IMGBB_API_KEY missing' });  return res.end(); }
