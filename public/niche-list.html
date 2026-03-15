@@ -233,7 +233,10 @@
         ? `<a href="${productUrl}" target="_blank" rel="noopener"><img class="shop-thumb" src="${productImg}" alt="" loading="lazy" /></a>`
         : `<a href="${productUrl}" target="_blank" rel="noopener"><div class="shop-thumb-placeholder">🛍</div></a>`;
 
-      const name = shop.shopName || shop.shopUrl?.split('/shop/')?.[1]?.split('/')?.[0] || 'Shop';
+      const name = shop.shopName
+        || (shop.shopUrl ? shop.shopUrl.split('/shop/')[1]?.split('/')[0] : null)
+        || (shop.productUrl ? (shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/)?.[1]) : null)
+        || 'Shop';
       const logoHtml = shop.shopAvatar
         ? `<img class="shop-row-logo" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
         : `<div class="shop-row-logo-initial">${name.charAt(0).toUpperCase()}</div>`;
@@ -261,7 +264,7 @@
             <div class="shop-row-info">
               <div class="shop-row-name">${name}</div>
               <div class="shop-row-btns">
-                <a class="btn-visit" href="${shop.shopUrl || '#'}" target="_blank" rel="noopener">🛍 Visit Shop</a>
+                <a class="btn-visit" href="${(function(u){ var m=u&&u.match(/etsy\.com\/shop\/([^/?#]+)/); return m?'https://www.etsy.com/shop/'+m[1]:(u&&!u.includes('/listing/')?u:'#'); })(shop.shopUrl)}" target="_blank" rel="noopener">🛍 Visit Shop</a>
                 ${compBtnHtml}
                 ${dropListBtnHtml}
               </div>
@@ -349,13 +352,14 @@
 
       function updateEstimate(totalShops) {
         estimatedTotal = Math.round(totalShops * 1.5) + 35;
+        // Remplacer "estimating..." par la durée estimée
         timerTot.textContent = '/ ~' + fmtTime(estimatedTotal);
       }
 
       const timerInterval = setInterval(() => {
         elapsed++;
         timerEl.textContent = fmtTime(elapsed);
-        if (estimatedTotal && elapsed >= estimatedTotal) {
+        if (estimatedTotal && elapsed > estimatedTotal) {
           timerTot.textContent = '/ ~' + fmtTime(estimatedTotal) + ' ⏳';
         }
       }, 1000);
