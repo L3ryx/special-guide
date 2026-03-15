@@ -94,17 +94,20 @@ router.post('/search', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
-  const send         = (step, msg) => res.write('data: ' + JSON.stringify({ step, message: msg }) + '\n\n');
-  const sendError    = msg => { res.write('data: ' + JSON.stringify({ step: 'error', message: msg }) + '\n\n'); res.end(); };
-  const sendComplete = (r, ds) => { res.write('data: ' + JSON.stringify({ step: 'complete', results: r, dropshipperShops: ds || [] }) + '\n\n'); res.end(); };
+  const sendRaw      = (data) => res.write('data: ' + JSON.stringify(data) + '\n\n');
+  const send         = (step, msg, pct) => sendRaw({ step, message: msg, pct: pct ?? null });
+  const sendError    = msg => { sendRaw({ step: 'error', message: msg }); res.end(); };
+  const sendComplete = (r, ds) => { sendRaw({ step: 'complete', results: r, dropshipperShops: ds || [], pct: 100 }); res.end(); };
 
   try {
-    send('scraping_etsy', `🔍 Scraping Etsy for "${keyword}"...`);
+    // Étape 1 : scraping Etsy (~30% du total)
+    send('scraping', '🔍 Scraping Etsy...', 2);
     const listings = await scrapeEtsy(keyword, maxCount);
     if (!listings.length) return sendError('No Etsy listings found');
-    send('etsy_done', `✅ ${listings.length} listings found`);
+    send('etsy_done', `✅ ${listings.length} listings found`, 30);
 
-    send('reverse_search', `🏪 Fetching shop info...`);
+    // Étape 2 : shop info (~5% du total)
+    send('reverse_search', '🏪 Fetching shop info...', 32);
     await parallel(listings, 1, async (listing) => {
       try {
         const shopInfo = await getShopInfo(listing);
@@ -114,31 +117,34 @@ router.post('/search', async (req, res) => {
       } catch {}
     });
 
-    send('reverse_search', `🔎 Analyzing ${listings.length} listings in parallel...`);
+    // Étape 3 : analyse par image (~60% du total, de 35% à 95%)
+    const toAnalyze = listings.filter(l => l.image);
+    const total = toAnalyze.length;
+    send('reverse_search', `🔎 Analyzing ${total} listings...`, 35);
 
     let done = 0;
     const allResults = [];
-    const dropshipperShops = []; // { shopName, shopUrl }
+    const dropshipperShops = [];
 
     await parallel(
-      listings.filter(l => l.image),
+      toAnalyze,
       2,
       async (listing) => {
         try {
           const matches = await reverseImageSearch(listing.image, listing.title || '');
           done++;
-          send('comparing', `🔎 ${done}/${listings.length} analyzed`);
+          const pct = 35 + Math.round((done / total) * 60); // 35% → 95%
+          send('comparing', `🔎 ${done}/${total} analyzed`, pct);
           if (!matches.length) return;
           const comparisons = await compareEtsyWithAliexpress(listing, matches);
           if (comparisons.length > 0) {
             allResults.push(...comparisons);
-            // Track dropshipper shop
             const shopName = listing.shopName || null;
             const shopUrl  = listing.shopUrl  || (shopName ? 'https://www.etsy.com/shop/' + shopName : null);
             if (shopUrl && !dropshipperShops.find(s => s.shopUrl === shopUrl)) {
               dropshipperShops.push({ shopName: shopName || 'Unknown', shopUrl });
             }
-            send('match_found', `✅ ${allResults.length} match(es) — ${dropshipperShops.length} dropshipper(s)`);
+            send('match_found', `✅ ${allResults.length} match(es) — ${dropshipperShops.length} dropshipper(s)`, pct);
           }
         } catch (err) {
           console.error('Erreur listing:', err.message);
@@ -147,7 +153,7 @@ router.post('/search', async (req, res) => {
       }
     );
 
-    send('finalizing', `📊 Done — ${allResults.length} result(s)`);
+    send('finalizing', `📊 Done — ${allResults.length} result(s)`, 97);
 
     const seen = new Set();
     const deduped = allResults
@@ -284,6 +290,7 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
 
 
