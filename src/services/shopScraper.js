@@ -17,7 +17,46 @@ async function getShopInfo(listing) {
     return info;
   }
 
-  // ScrapingBee désactivé — retourner les infos déjà disponibles dans le listing
+  // Retry avec backoff pour eviter les 429
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      // Tentative 1 : sans render_js (moins de credits, evite les 429)
+      // Tentative 2 : avec stealth_proxy
+      // Tentative 3 : avec premium_proxy
+      const params = {
+        api_key:      process.env.SCRAPINGBEE_KEY,
+        url:          listing.link,
+        render_js:    attempt === 1 ? 'false' : 'true',
+        country_code: 'us',
+        timeout:      '30000',
+      };
+      if (attempt === 2) params.stealth_proxy  = 'true';
+      if (attempt === 3) params.premium_proxy  = 'true';
+      if (attempt > 1)   params.wait           = '2000';
+
+      const res = await axios.get('https://app.scrapingbee.com/api/v1/', {
+        params,
+        timeout: 60000,
+      });
+      const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+      const info = parseShopInfo(html);
+      cache.set(key, info);
+      if (info.shopName) cache.set(info.shopName, info);
+      return info;
+    } catch (err) {
+      const status = err.response?.status;
+      console.error('shopScraper error (attempt ' + attempt + '):', err.message);
+      // 429 = rate limit -> attendre avant retry
+      if (status === 429 && attempt < 3) {
+        await new Promise(r => setTimeout(r, 5000 * attempt));
+        continue;
+      }
+      // 401 = cle invalide -> inutile de retry
+      if (status === 401) break;
+      if (attempt === 3) break;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
   return { shopName: listing.shopName || null, shopUrl: listing.shopUrl || null, shopAvatar: null };
 }
 
@@ -78,4 +117,3 @@ function parseShopInfo(html) {
 }
 
 module.exports = { getShopInfo };
-
