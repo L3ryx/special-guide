@@ -26,12 +26,12 @@ async function lensSearch(imgUrl) {
       .map(m => ({ link: cleanAliUrl(m.link || m.url), image: m.imageUrl || m.thumbnailUrl || null, source: 'lens' }))
       .filter(m => m.link);
 
-    // Upload AliExpress thumbnails to ImgBB for reliable display
-    for (const match of aliMatches) {
+    // Upload AliExpress thumbnails en parallèle
+    await Promise.all(aliMatches.map(async match => {
       if (match.image) {
         try { match.image = await uploadToImgBB(match.image); } catch {}
       }
-    }
+    }));
     return aliMatches;
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
@@ -48,7 +48,7 @@ async function reverseImageSearch(etsyImageUrl, title = '') {
 
     // Lens only — text search removed (too many false positives)
     // Small delay to avoid Serper rate limit (429)
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 200));
     const results = await lensSearch(publicUrl);
 
     console.log(`🛒 Result: ${results[0]?.link || 'none'} (${results.length} matches)`);
