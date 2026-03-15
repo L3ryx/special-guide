@@ -14,8 +14,7 @@ const { scrapeEtsy, debugEtsyHtml }              = require('../services/etsyScra
 const { reverseImageSearch }                      = require('../services/reverseImageSearch');
 const { compareEtsyWithAliexpress }               = require('../services/imageSimilarity');
 const { getShopInfo }                             = require('../services/shopScraper');
-const { scrapeShopStats, computeScore,
-        extractStatsFromListingHtml }             = require('../services/shopStatsScraper');
+
 
 async function parallel(items, concurrency, fn) {
   const results = new Array(items.length);
