@@ -77,8 +77,8 @@ async function compareEtsyWithAliexpress(etsyItem, aliItems, threshold = 60) {
       continue;
     }
 
-    // Délai entre appels Gemini pour éviter les 429
-    await new Promise(r => setTimeout(r, 800));
+    // Délai entre appels Gemini — 2s pour rester sous les 15 req/min du free tier
+    await new Promise(r => setTimeout(r, 2000));
 
     const score = await geminiVisionScore(etsyImageUrl, ali.image);
 
