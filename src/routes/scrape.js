@@ -50,7 +50,7 @@ router.post('/niche-keyword', async (req, res) => {
 
 // ── DEBUG KEYS ──
 router.get('/debug', (req, res) => {
-  const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'IMGBB_API_KEY', 'SCRAPINGBEE_KEY'];
+  const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'IMGBB_API_KEY'];
   const status = {};
   for (const key of keys) {
     const val = process.env[key];
@@ -63,9 +63,10 @@ router.get('/debug', (req, res) => {
 router.get('/debug-shop', async (req, res) => {
   const shopUrl = req.query.url;
   if (!shopUrl) return res.status(400).json({ error: 'Parameter ?url= required' });
-  const apiKey = process.env.SCRAPINGBEE_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'SCRAPINGBEE_KEY manquant' });
+  const apiKey = 'disabled';
+  if (!apiKey) return res.status(500).json({ error: 'ScrapingBee désactivé' });
   try {
+    return res.status(503).json({ error: 'ScrapingBee désactivé' });
     const reqUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}`
       + `&url=${encodeURIComponent(shopUrl)}`
       + `&render_js=true&premium_proxy=true&country_code=us&wait=2000&timeout=45000`;
@@ -275,7 +276,6 @@ router.get('/health', (req, res) => {
     SCRAPEAPI_KEY:     !!process.env.SCRAPEAPI_KEY,
     SERPER_API_KEY:    !!process.env.SERPER_API_KEY,
     IMGBB_API_KEY:     !!process.env.IMGBB_API_KEY,
-    SCRAPINGBEE_KEY:   !!process.env.SCRAPINGBEE_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
