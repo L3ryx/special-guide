@@ -322,37 +322,34 @@
 
   <div id="main-view">
     <div class="search-card">
-      <!-- 2 colonnes : gauche alignée | droite fixe (+ et trash) -->
-      <div style="display:flex;gap:8px;align-items:flex-start;">
+      <!-- Grille CSS 2 colonnes : gauche flexible, droite 48px fixe -->
+      <div style="display:grid;grid-template-columns:1fr 48px;gap:8px;">
 
-        <!-- Colonne gauche : keyword et select+generate ont exactement la même largeur -->
-        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;">
+        <!-- Ligne 1 col 1 : keyword -->
+        <input type="text" id="keyword-input" placeholder="Enter keyword"
+          style="padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
 
-          <!-- Ligne 1 : keyword (toute la largeur de la colonne) -->
-          <input type="text" id="keyword-input" placeholder="Enter keyword"
-            style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
-          <div id="keywords-list" style="display:none;"></div>
+        <!-- Ligne 1 col 2 : bouton + -->
+        <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword" style="width:48px;align-self:stretch;margin-top:4px;">+<span id="kw-count-badge"></span></button>
 
-          <!-- Ligne 2 : select + generate (toute la largeur de la colonne, = keyword) -->
-          <div style="display:flex;gap:8px;align-items:stretch;">
-            <div class="select-wrap" style="flex:2;">
-              <select id="count-select">
-                <option value="1">1 image</option><option value="2">2 images</option><option value="3">3 images</option>
-                <option value="5">5 images</option><option value="10" selected>10 images</option>
-                <option value="15">15 images</option><option value="20">20 images</option>
-                <option value="30">30 images</option><option value="50">50 images</option><option value="100">100 images</option>
-              </select>
-            </div>
-            <button id="dice-btn" onclick="rollNiche()" style="flex:1;padding:0 16px;"><span class="dice-icon">🎲</span>Generate</button>
+        <!-- keywords-list span sur 2 colonnes -->
+        <div id="keywords-list" style="display:none;grid-column:1/3;"></div>
+
+        <!-- Ligne 2 col 1 : select + generate -->
+        <div style="display:flex;gap:8px;align-items:stretch;">
+          <div class="select-wrap" style="flex:2;">
+            <select id="count-select">
+              <option value="1">1 image</option><option value="2">2 images</option><option value="3">3 images</option>
+              <option value="5">5 images</option><option value="10" selected>10 images</option>
+              <option value="15">15 images</option><option value="20">20 images</option>
+              <option value="30">30 images</option><option value="50">50 images</option><option value="100">100 images</option>
+            </select>
           </div>
-
+          <button id="dice-btn" onclick="rollNiche()" style="flex:1;padding:0 16px;"><span class="dice-icon">🎲</span>Generate</button>
         </div>
 
-        <!-- Colonne droite fixe : + (ligne 1) et trash (ligne 2), même largeur (48px) -->
-        <div style="flex-shrink:0;width:48px;display:flex;flex-direction:column;gap:8px;">
-          <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword" style="width:48px;height:52px;">+<span id="kw-count-badge"></span></button>
-          <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords" style="width:48px;height:52px;">🗑</button>
-        </div>
+        <!-- Ligne 2 col 2 : bouton trash -->
+        <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords" style="width:48px;align-self:stretch;">🗑</button>
 
       </div>
       <button id="start-btn" onclick="startSearch()">START</button>
