@@ -26,7 +26,7 @@ router.post('/save', requireAuth, async (req, res) => {
   try {
     const shop = await SavedShop.findOneAndUpdate(
       { userId: req.user.id, shopUrl },
-      { $set: { shopName, shopAvatar: shopAvatar || null, productImage: productImage || null, productUrl: productUrl || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
+      { $set: { shopName, shopAvatar: shopAvatar || null, productImage: productImage || null, productUrl: productUrl || null, keyword: req.body.keyword || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ ok: true, shop });
@@ -319,78 +319,37 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     if (!process.env.SERPER_API_KEY) { send({ step: 'error', message: '❌ SERPER_API_KEY missing' }); return res.end(); }
     if (!process.env.IMGBB_API_KEY)  { send({ step: 'error', message: '❌ IMGBB_API_KEY missing' });  return res.end(); }
 
-    // ── STEP 1 : Récupérer les titres des 5 premières annonces → keyword via Gemini ──
-    send({ step: 'status', message: '🏪 Fetching shop listings...' });
-    const shopBase = shop.shopUrl.replace(/\/?$/, '');
+    // ── STEP 1 : Utiliser le keyword sauvegardé avec la boutique ──
+    let keyword = '';
 
-    // Scraper les listings de la boutique pour récupérer les 5 premiers titres
-    let shopTitles = [];
-    try {
-      const shopListings = await scrapeShopListings(shopBase);
-      shopTitles = shopListings
-        .slice(0, 5)
-        .map(l => l.title)
-        .filter(t => t && t.length > 3);
-      console.log('Shop titles found:', shopTitles);
-    } catch (e) {
-      console.warn('scrapeShopListings failed:', e.message);
+    // Priorité 1 : keyword sauvegardé lors de la recherche principale
+    if (shop.keyword && shop.keyword.trim().length > 1) {
+      keyword = shop.keyword.trim().toLowerCase();
+      console.log('Keyword from saved shop:', keyword);
     }
 
-    // Si on n'a pas pu récupérer les titres, essayer ScraperAPI en fallback
-    if (shopTitles.length === 0 && process.env.SCRAPEAPI_KEY) {
-      try {
-        send({ step: 'status', message: '🏪 Trying ScraperAPI fallback...' });
-        console.log('ScraperAPI shop fetch:', shopBase);
-        const scraperUrl = 'http://api.scraperapi.com?api_key=' + process.env.SCRAPEAPI_KEY + '&url=' + encodeURIComponent(shopBase) + '&render=false&country_code=us';
-        const r = await axios.get(scraperUrl, { timeout: 60000 });
-        const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-        if (html.length > 500) {
-          // Extraire les titres depuis le HTML ScraperAPI
-          const titleMatches = [...html.matchAll(/"title"\s*:\s*"([^"]{5,150})"/g)];
-          shopTitles = titleMatches
-            .map(m => m[1].replace(/\\u[0-9a-f]{4}/gi, '').trim())
-            .filter(t => t.length > 5)
-            .slice(0, 5);
-          console.log('ScraperAPI titles:', shopTitles);
-        }
-      } catch (e) {
-        console.warn('ScraperAPI fallback failed:', e.message);
+    // Priorité 2 : extraire depuis productUrl
+    if (!keyword && shop.productUrl) {
+      const m = shop.productUrl.match(/\/listing\/\d+\/([^/?#]+)/);
+      if (m) {
+        keyword = m[1].replace(/-/g, ' ').replace(/[^a-z0-9 ]/gi, ' ').trim().toLowerCase();
+        keyword = keyword.split(/\s+/).slice(0, 3).join(' ');
+        console.log('Keyword from productUrl:', keyword);
       }
     }
 
-    if (shopTitles.length === 0) {
-      send({ step: 'error', message: '❌ Could not fetch any listing titles from this shop. Please try again.' });
+    // Priorité 3 : shopName en CamelCase
+    if (!keyword && shop.shopName) {
+      keyword = shop.shopName.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().trim();
+      console.log('Keyword from shopName:', keyword);
+    }
+
+    if (!keyword) {
+      send({ step: 'error', message: '❌ Could not determine a keyword for this shop.' });
       return res.end();
     }
 
-    send({ step: 'status', message: '📝 ' + shopTitles.length + ' listing titles found. Analyzing with AI...' });
-    console.log('Titles sent to Gemini:', shopTitles);
-
-    // ── STEP 2 : Gemini → keyword à partir des titres ──
-    let keyword = '';
-    try {
-      const titlesText = shopTitles.map((t, i) => (i + 1) + '. ' + t).join('\n');
-      const aiRes = await axios.post(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + process.env.GEMINI_API_KEY,
-        {
-          contents: [{
-            parts: [{
-              text: 'Here are the first 5 product listing titles from an Etsy shop:\n\n' + titlesText + '\n\nWhat is the main type of product sold by this shop? Respond with ONLY a single short English keyword (1-3 words max) that best defines the niche. No explanation, no punctuation, just the keyword.'
-            }]
-          }]
-        },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
-      );
-      keyword = (aiRes.data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-    } catch (e) {
-      const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-      send({ step: 'error', message: '❌ Gemini failed (' + (e.response?.status || '') + '): ' + detail });
-      return res.end();
-    }
-
-    if (!keyword) { send({ step: 'error', message: '❌ AI could not determine a keyword' }); return res.end(); }
     send({ step: 'keyword', message: '🔑 Keyword: "' + keyword + '"', keyword });
-
     // ── STEP 3 : Scrape Etsy listings (1 per unique shop) ──
     send({ step: 'status', message: '🔍 Scraping Etsy listings for "' + keyword + '"...' });
 
