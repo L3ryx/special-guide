@@ -96,31 +96,37 @@ router.post('/search', async (req, res) => {
 
   const sendRaw      = (data) => res.write('data: ' + JSON.stringify(data) + '\n\n');
   const send         = (step, msg, pct) => sendRaw({ step, message: msg, pct: pct ?? null });
-  const sendError    = msg => { sendRaw({ step: 'error', message: msg }); res.end(); };
-  const sendComplete = (r, ds) => { sendRaw({ step: 'complete', results: r, dropshipperShops: ds || [], pct: 100 }); res.end(); };
+  const sendError    = msg => { clearInterval(keepAlive); sendRaw({ step: 'error', message: msg }); res.end(); };
+  const sendComplete = (r, ds) => { clearInterval(keepAlive); sendRaw({ step: 'complete', results: r, dropshipperShops: ds || [], pct: 100 }); res.end(); };
+
+  // Keep-alive : envoyer un ping toutes les 10s pour éviter que Render coupe la connexion SSE
+  const keepAlive = setInterval(() => res.write(': ping\n\n'), 10000);
+  res.on('close', () => clearInterval(keepAlive));
 
   try {
-    // Étape 1 : scraping Etsy (~30% du total)
-    send('scraping', '🔍 Scraping Etsy...', 2);
+    // ── Étape 1 : scraping Etsy (0% → 30%) ──────────────────────────
+    send('log', '🔍 Scraping Etsy for "' + keyword + '"...', 2);
     const listings = await scrapeEtsy(keyword, maxCount);
     if (!listings.length) return sendError('No Etsy listings found');
-    send('etsy_done', `✅ ${listings.length} listings found`, 30);
+    send('log', `✅ ${listings.length} listings found on Etsy`, 30);
 
-    // Étape 2 : shop info (~5% du total)
-    send('reverse_search', '🏪 Fetching shop info...', 32);
-    await parallel(listings, 1, async (listing) => {
-      try {
-        const shopInfo = await getShopInfo(listing);
-        listing.shopName   = shopInfo.shopName   || listing.shopName;
-        listing.shopUrl    = shopInfo.shopUrl    || listing.shopUrl;
-        listing.shopAvatar = shopInfo.shopAvatar || null;
-      } catch {}
+    // ── Étape 2 : enrichir shopName/shopUrl depuis les données du listing (instantané) ──
+    listings.forEach(listing => {
+      const info = {
+        shopName:   listing.shopName   || null,
+        shopUrl:    listing.shopUrl    || (listing.shopName ? 'https://www.etsy.com/shop/' + listing.shopName : null),
+        shopAvatar: listing.shopAvatar || null,
+      };
+      listing.shopName   = info.shopName;
+      listing.shopUrl    = info.shopUrl;
+      listing.shopAvatar = info.shopAvatar;
     });
+    send('log', `🏪 ${listings.filter(l => l.shopName).length}/${listings.length} shops identified`, 33);
 
-    // Étape 3 : analyse par image (~60% du total, de 35% à 95%)
+    // ── Étape 3 : analyse par image (33% → 95%) ─────────────────────
     const toAnalyze = listings.filter(l => l.image);
     const total = toAnalyze.length;
-    send('reverse_search', `🔎 Analyzing ${total} listings...`, 35);
+    send('log', `🖼 Starting image analysis for ${total} listings...`, 35);
 
     let done = 0;
     const allResults = [];
@@ -131,11 +137,20 @@ router.post('/search', async (req, res) => {
       2,
       async (listing) => {
         try {
+          // Log : upload ImgBB
+          const pctBefore = 35 + Math.round((done / total) * 60);
+          send('log', `📤 Uploading image ${done + 1}/${total}...`, pctBefore);
+
           const matches = await reverseImageSearch(listing.image, listing.title || '');
           done++;
-          const pct = 35 + Math.round((done / total) * 60); // 35% → 95%
-          send('comparing', `🔎 ${done}/${total} analyzed`, pct);
-          if (!matches.length) return;
+          const pct = 35 + Math.round((done / total) * 60);
+
+          if (!matches.length) {
+            send('log', `🔍 ${done}/${total} — no AliExpress match`, pct);
+            return;
+          }
+
+          send('log', `🛒 ${done}/${total} — AliExpress match found!`, pct);
           const comparisons = await compareEtsyWithAliexpress(listing, matches);
           if (comparisons.length > 0) {
             allResults.push(...comparisons);
@@ -144,16 +159,17 @@ router.post('/search', async (req, res) => {
             if (shopUrl && !dropshipperShops.find(s => s.shopUrl === shopUrl)) {
               dropshipperShops.push({ shopName: shopName || 'Unknown', shopUrl });
             }
-            send('match_found', `✅ ${allResults.length} match(es) — ${dropshipperShops.length} dropshipper(s)`, pct);
+            send('log', `✅ Match confirmed — ${allResults.length} total (${dropshipperShops.length} shops)`, pct);
           }
         } catch (err) {
           console.error('Erreur listing:', err.message);
           done++;
+          send('log', `⚠️ Error on listing ${done}/${total}`, 35 + Math.round((done / total) * 60));
         }
       }
     );
 
-    send('finalizing', `📊 Done — ${allResults.length} result(s)`, 97);
+    send('log', `📊 Analysis complete — ${allResults.length} matches found`, 97);
 
     const seen = new Set();
     const deduped = allResults
@@ -165,13 +181,11 @@ router.post('/search', async (req, res) => {
         return true;
       });
 
-    await parallel(deduped, 1, async (result) => {
-      try {
-        const shop = await getShopInfo(result.etsy);
-        result.etsy.shopName   = shop.shopName   || result.etsy.shopName   || null;
-        result.etsy.shopUrl    = shop.shopUrl    || result.etsy.shopUrl    || null;
-        result.etsy.shopAvatar = shop.shopAvatar || null;
-      } catch {}
+    // Enrichir les résultats finaux (instantané)
+    deduped.forEach(result => {
+      if (!result.etsy.shopUrl && result.etsy.shopName) {
+        result.etsy.shopUrl = 'https://www.etsy.com/shop/' + result.etsy.shopName;
+      }
     });
 
     sendComplete(deduped, dropshipperShops);
