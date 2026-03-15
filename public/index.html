@@ -1007,20 +1007,8 @@
       const etsy = m.etsy, ali = m.aliexpress;
       const etsySrc = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc  = ali.image || '';
-      // Construire shopUrl — priorité : shopUrl > shopName > regex sur link > slug du listing
-      const _sn = etsy.shopName || null;
-      const shopUrl = etsy.shopUrl
-        || (_sn ? 'https://www.etsy.com/shop/' + _sn : null)
-        || (etsy.link ? (function(l){
-              // Chercher /shop/ dans l'URL
-              var ms = l.match(/etsy\.com\/shop\/([^/?#]+)/);
-              if (ms) return 'https://www.etsy.com/shop/' + ms[1];
-              return null;
-           })(etsy.link) : null)
-        || '';
-      const shopName = etsy.shopName
-        || (shopUrl ? shopUrl.split('/shop/')[1]?.split('/')[0] : null)
-        || 'Shop';
+      const shopUrl = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0] : '') || '';
+      const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
       window._shopDataMap[idx] = { shopUrl, shopName, shopAvatar, productImage: etsySrc, productUrl: etsy.link || '' };
@@ -1031,9 +1019,9 @@
       card.innerHTML =
         '<div class="match-body"><div class="product-panel"><div class="etsy-img-container">' +
         '<div class="shop-side-col">' +
-          (shopUrl ? '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' : '<span class="shop-side-btn">') +
+          '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' +
             (shopAvatar ? '<img src="' + shopAvatar + '" onerror="this.style.display=\'none\'" />' : '<span class="side-initial">' + initial + '</span>') +
-          (shopUrl ? '</a>' : '</span>') +
+          '</a>' +
           '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + idx + ',this)">❤️</button>' +
         '</div>' +
         '<div class="img-wrap"><div class="img-box">' + (etsySrc ? '<img src="' + etsySrc + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') + '</div></div>' +
