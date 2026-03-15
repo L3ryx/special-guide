@@ -156,7 +156,7 @@
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
     .step-dot .step-label { font-size:0.6rem; color:var(--muted); text-align:center; white-space:nowrap; }
     .progress-track { width:100%; height:10px; background:rgba(255,255,255,0.07); border-radius:10px; overflow:visible; position:relative; }
-    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c2d12,#dc2626,#f97316,#fbbf24,#fef08a); border-radius:10px; position:relative; transition:width 0.5s ease; box-shadow:0 0 6px #f97316,0 0 20px #dc2626; }
+    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c2d12,#dc2626,#f97316,#fbbf24,#fef08a); border-radius:10px; position:relative; transition:width 0.8s cubic-bezier(0.4,0,0.2,1); box-shadow:0 0 6px #f97316,0 0 20px #dc2626; }
     .progress-fill::after { content:"🔥"; position:absolute; right:-14px; top:50%; transform:translateY(-55%); font-size:1.3rem; filter:drop-shadow(0 0 6px #f97316); animation:flicker 0.3s infinite alternate; display:none; }
     .progress-fill.burning::after { display:block; }
     @keyframes flicker { 0%{transform:translateY(-55%)scale(1)rotate(-3deg)} 100%{transform:translateY(-60%)scale(1.08)rotate(3deg)} }
@@ -754,23 +754,24 @@
     });
 
     // ── PROGRESS ──
+    // Durées estimées en secondes pour chaque étape
     const STEPS = [
-      { key: 'scraping_etsy', label: 'Etsy' },
-      { key: 'reverse_search', label: 'Reverse' },
-      { key: 'aliexpress_found', label: 'AliExpress' },
-      { key: 'comparing', label: 'AI' },
-      { key: 'finalizing', label: 'Results' },
+      { key: 'etsy_done',      label: 'Etsy',      duration: 30 },
+      { key: 'reverse_search', label: 'Shop info', duration: 5  },
+      { key: 'comparing',      label: 'Analysis',  duration: 60 },
+      { key: 'finalizing',     label: 'Results',   duration: 3  },
     ];
+    const TOTAL_DURATION = STEPS.reduce(function(s, x) { return s + x.duration; }, 0); // ~98s
 
     function initProgress(keyword) {
       document.getElementById('progress-keyword-label').textContent = keyword ? '🔍 ' + keyword : '';
-      const c = document.getElementById('progress-steps');
-      c.innerHTML = '';
+      const cont = document.getElementById('progress-steps');
+      cont.innerHTML = '';
       STEPS.forEach(function(s) {
         const d = document.createElement('div');
         d.className = 'step-dot'; d.id = 'step-' + s.key;
         d.innerHTML = '<div class="dot"></div><span class="step-label">' + s.label + '</span>';
-        c.appendChild(d);
+        cont.appendChild(d);
       });
       setProgress(0);
       document.getElementById('progress-msg').textContent = '';
@@ -778,8 +779,26 @@
 
     function setProgress(p) {
       const el = document.getElementById('progress-fill');
+      if (!el) return;
       el.style.width = p + '%';
       if (p > 0 && p < 100) el.classList.add('burning'); else el.classList.remove('burning');
+    }
+
+    // Appelé avec le pct exact reçu du backend — CSS transition anime le mouvement
+    function setProgressDirect(pct, msg) {
+      setProgress(pct);
+      if (msg) document.getElementById('progress-msg').textContent = msg;
+      var cumul = 0;
+      STEPS.forEach(function(s) {
+        var el = document.getElementById('step-' + s.key);
+        if (!el) { cumul += s.duration; return; }
+        var start = Math.round((cumul / TOTAL_DURATION) * 100);
+        var end   = Math.round(((cumul + s.duration) / TOTAL_DURATION) * 100);
+        if (pct >= end)   el.className = 'step-dot done';
+        else if (pct >= start) el.className = 'step-dot active';
+        else              el.className = 'step-dot';
+        cumul += s.duration;
+      });
     }
 
     function advanceStep(k, msg) {
@@ -791,7 +810,9 @@
         else if (i === idx) el.className = 'step-dot active';
         else el.className = 'step-dot';
       });
-      setProgress(Math.round(((idx + 1) / STEPS.length) * 100));
+      var done = 0;
+      for (var i = 0; i <= idx; i++) done += STEPS[i].duration;
+      setProgress(Math.min(97, Math.round((done / TOTAL_DURATION) * 100)));
       document.getElementById('progress-msg').textContent = msg || '';
     }
 
@@ -914,7 +935,11 @@
                   if (tag) tag.className = 'keyword-tag error';
                   hasError = true;
                 } else {
-                  advanceStep(ev.step, ev.message);
+                  if (ev.pct !== null && ev.pct !== undefined) {
+                    setProgressDirect(ev.pct, ev.message);
+                  } else {
+                    advanceStep(ev.step, ev.message);
+                  }
                 }
               } catch(e) {}
             }
@@ -977,7 +1002,12 @@
       const etsy = m.etsy, ali = m.aliexpress;
       const etsySrc = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc  = ali.image || '';
-      const shopUrl = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0] : '') || '';
+      // Construire shopUrl — priorité : shopUrl > shopName > regex sur link
+      const _sn = etsy.shopName || null;
+      const shopUrl = etsy.shopUrl
+        || (_sn ? 'https://www.etsy.com/shop/' + _sn : null)
+        || (etsy.link ? (function(l){ var m = l.match(/etsy\.com\/shop\/([^/?#]+)/); return m ? 'https://www.etsy.com/shop/' + m[1] : null; })(etsy.link) : null)
+        || '';
       const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
@@ -989,9 +1019,9 @@
       card.innerHTML =
         '<div class="match-body"><div class="product-panel"><div class="etsy-img-container">' +
         '<div class="shop-side-col">' +
-          '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' +
+          (shopUrl ? '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' : '<span class="shop-side-btn">') +
             (shopAvatar ? '<img src="' + shopAvatar + '" onerror="this.style.display=\'none\'" />' : '<span class="side-initial">' + initial + '</span>') +
-          '</a>' +
+          (shopUrl ? '</a>' : '</span>') +
           '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + idx + ',this)">❤️</button>' +
         '</div>' +
         '<div class="img-wrap"><div class="img-box">' + (etsySrc ? '<img src="' + etsySrc + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') + '</div></div>' +
@@ -1010,7 +1040,7 @@
         if (hb) { hb.classList.add('saved'); hb.textContent = '✔'; }
       }
     }
-    
+
     // ── FIND ──
 
 
@@ -1073,6 +1103,7 @@
   </script>
 </body>
 </html>
+
 
 
 
