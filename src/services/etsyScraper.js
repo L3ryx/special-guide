@@ -1,73 +1,54 @@
 const axios = require('axios');
 
 // ════════════════════════════════════════════════════════════════
-// HELPER : fetch avec fallback ZenRows si ScrapingBee échoue
+// HELPER : fetch avec ScrapingBee, fallback ScraperAPI
 // ════════════════════════════════════════════════════════════════
 async function fetchHtml(targetUrl, sbParams = {}) {
-  // ScrapingBee désactivé
+  const sbKey = process.env.SCRAPINGBEE_KEY;
 
-  // ── Fallback 1 : ZenRows JS+premium (seule config supportée) ──
-  const zrKey = process.env.ZENROWS_API_KEY;
-  if (zrKey) {
+  // ── ScrapingBee ──
+  if (sbKey) {
     try {
-      console.log('ZenRows fallback (JS+premium):', targetUrl);
-      const r = await axios.get('https://api.zenrows.com/v1/', {
-        params: {
-          apikey:         zrKey,
-          url:            targetUrl,
-          js_render:      'true',
-          premium_proxy:  'true',
-          custom_headers: 'true',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
+      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+        params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
+        timeout: 120000,
+      });
+      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      if (html.length > 500) return html;
+    } catch (e) {
+      console.warn('ScrapingBee failed (' + e.response?.status + ') — trying ScraperAPI:', e.message.slice(0, 80));
+    }
+  }
+
+  // ── Fallback ScraperAPI ──
+  const saKey = process.env.SCRAPEAPI_KEY;
+  if (!saKey) throw new Error('ScrapingBee failed and SCRAPEAPI_KEY is not set');
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      console.log('ScraperAPI fallback attempt', attempt, ':', targetUrl);
+      const r = await axios.get('http://api.scraperapi.com', {
+        params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
         timeout: 90000,
-        headers: { 'Accept-Language': 'en-US,en;q=0.9' },
       });
       const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
       if (html.length > 500) {
-        // Log un extrait pour diagnostiquer le parsing
-        const hasListings = html.includes('/listing/');
-        const hasJsonLd   = html.includes('application/ld+json');
-        console.log('ZenRows OK —', html.length, 'chars | listings:', hasListings, '| json-ld:', hasJsonLd);
-        // Extrait de debug (premiers 500 chars après "listing")
-        const idx = html.indexOf('/listing/');
-        if (idx > 0) console.log('ZenRows sample:', html.slice(Math.max(0,idx-50), idx+100));
+        console.log('ScraperAPI OK —', html.length, 'chars');
         return html;
       }
     } catch (e) {
-      console.warn('ZenRows failed (' + e.response?.status + '):', e.message.slice(0, 80));
+      console.warn('ScraperAPI attempt', attempt, 'failed (' + e.response?.status + '):', e.message.slice(0, 80));
+      if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
     }
   }
 
-  // ── Fallback 2 : ScraperAPI (2 tentatives) ──
-  const saKey = process.env.SCRAPEAPI_KEY;
-  if (saKey) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        console.log('ScraperAPI fallback attempt', attempt, ':', targetUrl);
-        const r = await axios.get('http://api.scraperapi.com', {
-          params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
-          timeout: 90000,
-        });
-        const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-        if (html.length > 500) {
-          console.log('ScraperAPI OK —', html.length, 'chars');
-          return html;
-        }
-      } catch (e) {
-        console.warn('ScraperAPI attempt', attempt, 'failed (' + e.response?.status + '):', e.message.slice(0, 80));
-        if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
-      }
-    }
-  }
-
-  throw new Error('All scrapers failed — check ZENROWS_API_KEY, SCRAPEAPI_KEY');
+  throw new Error('All scrapers failed — check SCRAPINGBEE_KEY, SCRAPEAPI_KEY');
 }
 
 // ════════════════════════════════════════════════════════════════
 async function scrapeEtsy(keyword, maxCount = 10) {
-  if (!process.env.ZENROWS_API_KEY && !process.env.SCRAPEAPI_KEY) {
-    throw new Error('ZENROWS_API_KEY or SCRAPEAPI_KEY required');
+  if (!process.env.SCRAPINGBEE_KEY && !process.env.SCRAPEAPI_KEY) {
+    throw new Error('SCRAPINGBEE_KEY or SCRAPEAPI_KEY required');
   }
 
   console.log(`scrapeEtsy: "${keyword}" (max ${maxCount})`);
@@ -131,8 +112,8 @@ async function scrapeEtsy(keyword, maxCount = 10) {
 
 // ════════════════════════════════════════════════════════════════
 async function scrapeEtsyShopNames(keyword) {
-  if (!process.env.ZENROWS_API_KEY && !process.env.SCRAPEAPI_KEY) {
-    throw new Error('ZENROWS_API_KEY or SCRAPEAPI_KEY required');
+  if (!process.env.SCRAPINGBEE_KEY && !process.env.SCRAPEAPI_KEY) {
+    throw new Error('SCRAPINGBEE_KEY or SCRAPEAPI_KEY required');
   }
 
   const allShops = new Set();
@@ -178,7 +159,6 @@ function parseEtsyListings(html) {
   const listings = [];
   const seen = new Set();
 
-  // Debug : compter les éléments clés
   const dbgListings = (html.match(/\/listing\//g) || []).length;
   const dbgJsonLd   = (html.match(/application\/ld\+json/g) || []).length;
   const dbgDataId   = (html.match(/data-listing-id/g) || []).length;
@@ -192,8 +172,7 @@ function parseEtsyListings(html) {
       const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
       for (const item of items) {
         let url = item.url || item['@id'];
-        // Normaliser les URLs localisées (/pt/listing/, /fr/listing/ → /listing/)
-        if (url) url = url.replace(/\/[a-z]{2}(\/listing\/)/i, '$1');
+        if (url) url = url.replace(/\/[a-z]{2}(\/listing\/)/, '$1');
         const rawImg = Array.isArray(item.image) ? item.image[0] : (typeof item.image === 'string' ? item.image : null);
         const image = cleanEtsyImage(rawImg);
         const name = item.name;
@@ -242,7 +221,7 @@ function parseEtsyListings(html) {
   // Strategy 3: proximity
   const allLinks  = [...html.matchAll(/href="(https?:\/\/www\.etsy\.com(?:\/[a-z]{2})?\/listing\/(\d+)\/[^"?#]+)/g)];
   const allImages = [...html.matchAll(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+\.(?:jpg|jpeg|png|webp))/gi)];
-  const linkPos   = allLinks.map(m  => ({ url: m[1].split('?')[0], pos: m.index }));
+  const linkPos   = allLinks.map(m  => ({ url: m[1].replace(/\/[a-z]{2}(\/listing\/)/, '$1').split('?')[0], pos: m.index }));
   const imgPos    = allImages.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
 
   for (const link of linkPos) {
@@ -270,40 +249,29 @@ function parseEtsyListings(html) {
     }
   }
 
-  if (listings.length >= 2) return listings;
-
-  // Strategy 4 : URLs /listing/ encodées dans du JSON (window.__data, next.js, etc.)
-  // ZenRows retourne parfois le HTML avec les données dans des balises script JSON
-  const jsonDataBlocks = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)];
-  for (const block of jsonDataBlocks) {
-    const script = block[1];
-    if (!script.includes('/listing/')) continue;
-    // Chercher des patterns de listing dans le JS
-    const linkMatches = [...script.matchAll(/["'](https?:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"'?#\s]+)["']/g)];
-    const imgMatches  = [...script.matchAll(/["'](https?:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp))["']/g)];
-    for (const lm of linkMatches) {
-      const url = lm[1].split('?')[0];
-      if (seen.has(url)) continue;
-      // Chercher une image proche dans le même bloc
-      const lPos = lm.index;
-      let closest = null, minDist = Infinity;
-      for (const im of imgMatches) {
-        const d = Math.abs(im.index - lPos);
-        if (d < minDist && d < 3000) { minDist = d; closest = im; }
+  // Strategy 4: JSON dans scripts
+  if (listings.length < 2) {
+    const jsonDataBlocks = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)];
+    for (const block of jsonDataBlocks) {
+      const script = block[1];
+      if (!script.includes('/listing/')) continue;
+      const linkMatches = [...script.matchAll(/["'](https?:\/\/www\.etsy\.com(?:\/[a-z]{2})?\/listing\/(\d+)\/[^"'?#\s]+)["']/g)];
+      const imgMatches  = [...script.matchAll(/["'](https?:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp))["']/g)];
+      for (const lm of linkMatches) {
+        const url = lm[1].replace(/\/[a-z]{2}(\/listing\/)/, '$1').split('?')[0];
+        if (seen.has(url)) continue;
+        let closest = null, minDist = Infinity;
+        for (const im of imgMatches) {
+          const d = Math.abs(im.index - lm.index);
+          if (d < minDist && d < 3000) { minDist = d; closest = im; }
+        }
+        if (!closest) continue;
+        seen.add(url);
+        const shopName = extractShopFromUrl(url) || null;
+        listings.push({ title: url.split('/').pop().replace(/-/g, ' '), link: url, image: closest[1].split('?')[0], source: 'etsy', shopName, shopUrl: shopName ? 'https://www.etsy.com/shop/' + shopName : null, price: null });
       }
-      if (!closest) continue;
-      seen.add(url);
-      const shopName = extractShopFromUrl(url) || null;
-      listings.push({
-        title: url.split('/').pop().replace(/-/g, ' '),
-        link:  url,
-        image: closest[1].split('?')[0],
-        source: 'etsy', shopName,
-        shopUrl: shopName ? 'https://www.etsy.com/shop/' + shopName : null,
-        price: null,
-      });
+      if (listings.length >= 2) break;
     }
-    if (listings.length >= 2) break;
   }
 
   console.log('parseEtsyListings result:', listings.length, 'listings found');
