@@ -20,41 +20,51 @@ async function fetchHtml(targetUrl, sbParams = {}) {
     }
   }
 
-  // ── Fallback ZenRows — 3 combinaisons par ordre de rapidité ──
+  // ── Fallback 1 : ZenRows JS+premium (seule config supportée) ──
   const zrKey = process.env.ZENROWS_API_KEY;
-  if (!zrKey) throw new Error('ScrapingBee failed and ZENROWS_API_KEY is not set');
-
-  const zrAttempts = [
-    // Tentative 1 : sans JS (le plus rapide ~5s)
-    { js_render: 'false', premium_proxy: 'false', timeout: 30000, label: 'no-JS' },
-    // Tentative 2 : sans JS + premium proxy (~10s)
-    { js_render: 'false', premium_proxy: 'true',  timeout: 45000, label: 'no-JS+premium' },
-    // Tentative 3 : avec JS + premium proxy (plus lent ~30s)
-    { js_render: 'true',  premium_proxy: 'true',  timeout: 60000, label: 'JS+premium' },
-  ];
-
-  for (let i = 0; i < zrAttempts.length; i++) {
-    const cfg = zrAttempts[i];
+  if (zrKey) {
     try {
-      console.log('ZenRows attempt', i + 1, '(' + cfg.label + '):', targetUrl);
-      const params = { apikey: zrKey, url: targetUrl };
-      if (cfg.js_render    === 'true') params.js_render     = 'true';
-      if (cfg.premium_proxy === 'true') params.premium_proxy = 'true';
-
+      console.log('ZenRows fallback (JS+premium):', targetUrl);
       const r = await axios.get('https://api.zenrows.com/v1/', {
-        params,
-        timeout: cfg.timeout,
+        params: { apikey: zrKey, url: targetUrl, js_render: 'true', premium_proxy: 'true' },
+        timeout: 90000,
       });
       const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-      if (html.length < 500) throw new Error('ZenRows empty response');
-      console.log('ZenRows OK (' + cfg.label + ') —', html.length, 'chars');
-      return html;
+      if (html.length > 500) {
+        // Log un extrait pour diagnostiquer le parsing
+        const hasListings = html.includes('/listing/');
+        const hasJsonLd   = html.includes('application/ld+json');
+        console.log('ZenRows OK —', html.length, 'chars | listings:', hasListings, '| json-ld:', hasJsonLd);
+        // Extrait de debug (premiers 500 chars après "listing")
+        const idx = html.indexOf('/listing/');
+        if (idx > 0) console.log('ZenRows sample:', html.slice(Math.max(0,idx-50), idx+100));
+        return html;
+      }
     } catch (e) {
-      console.warn('ZenRows attempt', i + 1, '(' + cfg.label + ') failed:', e.message.slice(0, 80));
-      if (i < zrAttempts.length - 1) await new Promise(r => setTimeout(r, 1000));
+      console.warn('ZenRows failed (' + e.response?.status + '):', e.message.slice(0, 80));
     }
   }
-  throw new Error('ZenRows failed on all 3 attempts');
+
+  // ── Fallback 2 : ScraperAPI ──
+  const saKey = process.env.SCRAPEAPI_KEY;
+  if (saKey) {
+    try {
+      console.log('ScraperAPI fallback:', targetUrl);
+      const r = await axios.get('http://api.scraperapi.com', {
+        params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
+        timeout: 90000,
+      });
+      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      if (html.length > 500) {
+        console.log('ScraperAPI OK —', html.length, 'chars');
+        return html;
+      }
+    } catch (e) {
+      console.warn('ScraperAPI failed (' + e.response?.status + '):', e.message.slice(0, 80));
+    }
+  }
+
+  throw new Error('All scrapers failed — check SCRAPINGBEE_KEY, ZENROWS_API_KEY, SCRAPEAPI_KEY');
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -170,6 +180,12 @@ async function scrapeEtsyShopNames(keyword) {
 function parseEtsyListings(html) {
   const listings = [];
   const seen = new Set();
+
+  // Debug : compter les éléments clés
+  const dbgListings = (html.match(/\/listing\//g) || []).length;
+  const dbgJsonLd   = (html.match(/application\/ld\+json/g) || []).length;
+  const dbgDataId   = (html.match(/data-listing-id/g) || []).length;
+  console.log('parseEtsyListings debug — /listing/:', dbgListings, '| json-ld blocks:', dbgJsonLd, '| data-listing-id:', dbgDataId);
 
   // Strategy 1: JSON-LD
   const jsonLdBlocks = html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
