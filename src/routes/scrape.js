@@ -14,7 +14,8 @@ const { scrapeEtsy, debugEtsyHtml }              = require('../services/etsyScra
 const { reverseImageSearch }                      = require('../services/reverseImageSearch');
 const { compareEtsyWithAliexpress }               = require('../services/imageSimilarity');
 const { getShopInfo }                             = require('../services/shopScraper');
-
+const { scrapeShopStats, computeScore,
+        extractStatsFromListingHtml }             = require('../services/shopStatsScraper');
 
 async function parallel(items, concurrency, fn) {
   const results = new Array(items.length);
@@ -49,7 +50,7 @@ router.post('/niche-keyword', async (req, res) => {
 
 // ── DEBUG KEYS ──
 router.get('/debug', (req, res) => {
-  const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'IMGBB_API_KEY'];
+  const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY', 'SCRAPINGBEE_KEY'];
   const status = {};
   for (const key of keys) {
     const val = process.env[key];
@@ -62,10 +63,9 @@ router.get('/debug', (req, res) => {
 router.get('/debug-shop', async (req, res) => {
   const shopUrl = req.query.url;
   if (!shopUrl) return res.status(400).json({ error: 'Parameter ?url= required' });
-  const apiKey = 'disabled';
-  if (!apiKey) return res.status(500).json({ error: 'ScrapingBee désactivé' });
+  const apiKey = process.env.SCRAPINGBEE_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'SCRAPINGBEE_KEY manquant' });
   try {
-    return res.status(503).json({ error: 'ScrapingBee désactivé' });
     const reqUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}`
       + `&url=${encodeURIComponent(shopUrl)}`
       + `&render_js=true&premium_proxy=true&country_code=us&wait=2000&timeout=45000`;
@@ -88,7 +88,7 @@ router.post('/search', async (req, res) => {
   const { keyword, maxCount = 10 } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
-  const missing = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'IMGBB_API_KEY']
+  const missing = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY']
     .filter(k => !process.env[k]);
   if (missing.length) return res.status(500).json({ error: 'Missing keys: ' + missing.join(', ') });
 
@@ -107,8 +107,7 @@ router.post('/search', async (req, res) => {
     send('etsy_done', `✅ ${listings.length} listings found`);
 
     send('reverse_search', `🏪 Fetching shop info...`);
-    // Séquentiel — ScrapingBee 401, getShopInfo utilise le shopName déjà dans le listing
-    await parallel(listings, 1, async (listing) => {
+    await parallel(listings, 15, async (listing) => {
       try {
         const shopInfo = await getShopInfo(listing);
         listing.shopName   = shopInfo.shopName   || listing.shopName;
@@ -125,7 +124,7 @@ router.post('/search', async (req, res) => {
 
     await parallel(
       listings.filter(l => l.image),
-      2, // 2 workers — limité par Gemini free tier (15 req/min)
+      2,
       async (listing) => {
         try {
           const matches = await reverseImageSearch(listing.image, listing.title || '');
@@ -162,7 +161,7 @@ router.post('/search', async (req, res) => {
         return true;
       });
 
-    await parallel(deduped, 1, async (result) => {
+    await parallel(deduped, 8, async (result) => {
       try {
         const shop = await getShopInfo(result.etsy);
         result.etsy.shopName   = shop.shopName   || result.etsy.shopName   || null;
@@ -274,7 +273,9 @@ router.get('/health', (req, res) => {
   const keys = {
     SCRAPEAPI_KEY:     !!process.env.SCRAPEAPI_KEY,
     SERPER_API_KEY:    !!process.env.SERPER_API_KEY,
+    ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
     IMGBB_API_KEY:     !!process.env.IMGBB_API_KEY,
+    SCRAPINGBEE_KEY:   !!process.env.SCRAPINGBEE_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
