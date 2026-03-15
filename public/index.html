@@ -955,13 +955,7 @@
         countSpan.textContent = totalMatches + ' match(es) found';
         countBar.appendChild(countSpan);
       }
-      if (_dropshipperShops.length > 0) {
-        var dropBtn = document.createElement('button');
-        dropBtn.textContent = '🛒 Drop List (' + _dropshipperShops.length + ')';
-        dropBtn.style.cssText = 'padding:6px 16px;border-radius:8px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-weight:600;font-size:0.78rem;cursor:pointer;font-family:Inter,sans-serif;';
-        dropBtn.onclick = function() { showDropList(_dropshipperShops); };
-        countBar.appendChild(dropBtn);
-      }
+
 
       if (totalMatches > 0) {
 
@@ -1074,4 +1068,5 @@
   </script>
 </body>
 </html>
+
 
