@@ -26,8 +26,16 @@ async function fetchHtml(targetUrl, sbParams = {}) {
     try {
       console.log('ZenRows fallback (JS+premium):', targetUrl);
       const r = await axios.get('https://api.zenrows.com/v1/', {
-        params: { apikey: zrKey, url: targetUrl, js_render: 'true', premium_proxy: 'true' },
+        params: {
+          apikey:         zrKey,
+          url:            targetUrl,
+          js_render:      'true',
+          premium_proxy:  'true',
+          custom_headers: 'true',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
         timeout: 90000,
+        headers: { 'Accept-Language': 'en-US,en;q=0.9' },
       });
       const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
       if (html.length > 500) {
@@ -194,7 +202,9 @@ function parseEtsyListings(html) {
       const data = JSON.parse(block[1]);
       const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
       for (const item of items) {
-        const url = item.url || item['@id'];
+        let url = item.url || item['@id'];
+        // Normaliser les URLs localisées (/pt/listing/, /fr/listing/ → /listing/)
+        if (url) url = url.replace(/\/[a-z]{2}(\/listing\/)/i, '$1');
         const rawImg = Array.isArray(item.image) ? item.image[0] : (typeof item.image === 'string' ? item.image : null);
         const image = cleanEtsyImage(rawImg);
         const name = item.name;
@@ -241,7 +251,7 @@ function parseEtsyListings(html) {
   if (listings.length >= 2) return listings;
 
   // Strategy 3: proximity
-  const allLinks  = [...html.matchAll(/href="(https:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"?#]+)/g)];
+  const allLinks  = [...html.matchAll(/href="(https?:\/\/www\.etsy\.com(?:\/[a-z]{2})?\/listing\/(\d+)\/[^"?#]+)/g)];
   const allImages = [...html.matchAll(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+\.(?:jpg|jpeg|png|webp))/gi)];
   const linkPos   = allLinks.map(m  => ({ url: m[1].split('?')[0], pos: m.index }));
   const imgPos    = allImages.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
@@ -271,6 +281,43 @@ function parseEtsyListings(html) {
     }
   }
 
+  if (listings.length >= 2) return listings;
+
+  // Strategy 4 : URLs /listing/ encodées dans du JSON (window.__data, next.js, etc.)
+  // ZenRows retourne parfois le HTML avec les données dans des balises script JSON
+  const jsonDataBlocks = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)];
+  for (const block of jsonDataBlocks) {
+    const script = block[1];
+    if (!script.includes('/listing/')) continue;
+    // Chercher des patterns de listing dans le JS
+    const linkMatches = [...script.matchAll(/["'](https?:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"'?#\s]+)["']/g)];
+    const imgMatches  = [...script.matchAll(/["'](https?:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp))["']/g)];
+    for (const lm of linkMatches) {
+      const url = lm[1].split('?')[0];
+      if (seen.has(url)) continue;
+      // Chercher une image proche dans le même bloc
+      const lPos = lm.index;
+      let closest = null, minDist = Infinity;
+      for (const im of imgMatches) {
+        const d = Math.abs(im.index - lPos);
+        if (d < minDist && d < 3000) { minDist = d; closest = im; }
+      }
+      if (!closest) continue;
+      seen.add(url);
+      const shopName = extractShopFromUrl(url) || null;
+      listings.push({
+        title: url.split('/').pop().replace(/-/g, ' '),
+        link:  url,
+        image: closest[1].split('?')[0],
+        source: 'etsy', shopName,
+        shopUrl: shopName ? 'https://www.etsy.com/shop/' + shopName : null,
+        price: null,
+      });
+    }
+    if (listings.length >= 2) break;
+  }
+
+  console.log('parseEtsyListings result:', listings.length, 'listings found');
   return listings;
 }
 
