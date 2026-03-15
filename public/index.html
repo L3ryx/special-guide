@@ -862,6 +862,7 @@
 
         try {
           document.getElementById('progress-msg').textContent = '⏳ Connecting...';
+          window._currentKeyword = keyword;
           const response = await fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -981,7 +982,7 @@
       const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
-      window._shopDataMap[idx] = { shopUrl, shopName, shopAvatar, productImage: etsySrc, productUrl: etsy.link || '' };
+      window._shopDataMap[idx] = { shopUrl, shopName, shopAvatar, productImage: etsySrc, productUrl: etsy.link || '', keyword: window._currentKeyword || '' };
       const initial = shopName.charAt(0).toUpperCase();
 
       const card = document.createElement('div');
@@ -1053,7 +1054,7 @@
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ shopUrl: data.shopUrl, shopName: data.shopName, shopAvatar: data.shopAvatar, productImage: data.productImage, productUrl: data.productUrl })
+          body: JSON.stringify({ shopUrl: data.shopUrl, shopName: data.shopName, shopAvatar: data.shopAvatar, productImage: data.productImage, productUrl: data.productUrl, keyword: data.keyword || '' })
         });
         if (r.ok) {
           _savedShopUrls.add(data.shopUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
@@ -1073,6 +1074,7 @@
   </script>
 </body>
 </html>
+
 
 
 
