@@ -958,6 +958,8 @@
                   showErrorPopup(ev.message);
                   if (tag) tag.className = 'keyword-tag error';
                   hasError = true;
+                } else if (ev.step === 'log') {
+                  if (ev.pct !== null && ev.pct !== undefined) setProgressDirect(ev.pct, ev.message);
                 } else {
                   if (ev.pct !== null && ev.pct !== undefined) {
                     setProgressDirect(ev.pct, ev.message);
