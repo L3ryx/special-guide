@@ -156,7 +156,7 @@
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
     .step-dot .step-label { font-size:0.6rem; color:var(--muted); text-align:center; white-space:nowrap; }
     .progress-track { width:100%; height:10px; background:rgba(255,255,255,0.07); border-radius:10px; overflow:visible; position:relative; }
-    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c2d12,#dc2626,#f97316,#fbbf24,#fef08a); border-radius:10px; position:relative; transition:width 0.8s cubic-bezier(0.4,0,0.2,1); box-shadow:0 0 6px #f97316,0 0 20px #dc2626; }
+    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c2d12,#dc2626,#f97316,#fbbf24,#fef08a); border-radius:10px; position:relative; transition:width 0.4s ease-out; box-shadow:0 0 6px #f97316,0 0 20px #dc2626; }
     .progress-fill::after { content:"🔥"; position:absolute; right:-14px; top:50%; transform:translateY(-55%); font-size:1.3rem; filter:drop-shadow(0 0 6px #f97316); animation:flicker 0.3s infinite alternate; display:none; }
     .progress-fill.burning::after { display:block; }
     @keyframes flicker { 0%{transform:translateY(-55%)scale(1)rotate(-3deg)} 100%{transform:translateY(-60%)scale(1.08)rotate(3deg)} }
@@ -778,10 +778,6 @@
       document.getElementById('progress-msg').textContent = '';
     }
 
-    var _pctCurrent = 0;
-    var _pctTarget  = 0;
-    var _tickTimer  = null;
-
     function setProgress(p) {
       const el = document.getElementById('progress-fill');
       if (!el) return;
@@ -789,27 +785,10 @@
       if (p > 0 && p < 100) el.classList.add('burning'); else el.classList.remove('burning');
     }
 
-    function startTick() {
-      if (_tickTimer) return;
-      _tickTimer = setInterval(function() {
-        if (_pctCurrent < _pctTarget) {
-          // Vitesse adaptative : plus l'écart est grand, plus on avance vite
-          var gap = _pctTarget - _pctCurrent;
-          var step = gap > 20 ? 1.5 : gap > 5 ? 0.8 : 0.3;
-          _pctCurrent = Math.min(_pctTarget, _pctCurrent + step);
-          setProgress(_pctCurrent);
-        }
-      }, 150);
-    }
-
-    function stopTick() {
-      clearInterval(_tickTimer);
-      _tickTimer = null;
-    }
+    function stopTick() {} // no-op, gardé pour compatibilité
 
     function setProgressDirect(pct, msg) {
-      _pctTarget = pct;
-      startTick();
+      setProgress(pct);
       if (msg) document.getElementById('progress-msg').textContent = msg;
       var cumul = 0;
       STEPS.forEach(function(s) {
@@ -937,7 +916,7 @@
               try {
                 const ev = JSON.parse(line.slice(6));
                 if (ev.step === 'complete') {
-                  stopTick(); _pctCurrent = 100; _pctTarget = 100; setProgress(100);
+                  setProgress(100);
                   completeAllSteps();
                   kwResults = ev.results || [];
                   kwResults.forEach(renderMatch);
