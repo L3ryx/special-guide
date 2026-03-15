@@ -50,7 +50,7 @@ router.post('/niche-keyword', async (req, res) => {
 
 // ── DEBUG KEYS ──
 router.get('/debug', (req, res) => {
-  const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY', 'SCRAPINGBEE_KEY'];
+  const keys = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'IMGBB_API_KEY', 'SCRAPINGBEE_KEY'];
   const status = {};
   for (const key of keys) {
     const val = process.env[key];
@@ -88,7 +88,7 @@ router.post('/search', async (req, res) => {
   const { keyword, maxCount = 10 } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
-  const missing = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'IMGBB_API_KEY']
+  const missing = ['SCRAPEAPI_KEY', 'SERPER_API_KEY', 'IMGBB_API_KEY']
     .filter(k => !process.env[k]);
   if (missing.length) return res.status(500).json({ error: 'Missing keys: ' + missing.join(', ') });
 
@@ -273,7 +273,6 @@ router.get('/health', (req, res) => {
   const keys = {
     SCRAPEAPI_KEY:     !!process.env.SCRAPEAPI_KEY,
     SERPER_API_KEY:    !!process.env.SERPER_API_KEY,
-    ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
     IMGBB_API_KEY:     !!process.env.IMGBB_API_KEY,
     SCRAPINGBEE_KEY:   !!process.env.SCRAPINGBEE_KEY,
   };
@@ -287,4 +286,5 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
