@@ -125,7 +125,7 @@ router.post('/search', async (req, res) => {
 
     await parallel(
       listings.filter(l => l.image),
-      4, // 4 workers — reverseImageSearch en parallèle, Gemini a son propre retry
+      2, // 2 workers — limité par Gemini free tier (15 req/min)
       async (listing) => {
         try {
           const matches = await reverseImageSearch(listing.image, listing.title || '');
