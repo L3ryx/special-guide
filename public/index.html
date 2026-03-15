@@ -478,7 +478,6 @@
     const API_HINTS = {
       'SCRAPINGBEE':     'Check your SCRAPINGBEE_KEY in Render → Environment Variables. Credits may be exhausted.',
       'SERPER':          'Check your SERPER_API_KEY in Render → Environment Variables. Free plan limit may be reached (1000 req/month).',
-      'ANTHROPIC':       'Check your ANTHROPIC_API_KEY in Render → Environment Variables. Account credits may be depleted.',
       'IMGBB':           'Check your IMGBB_API_KEY in Render → Environment Variables.',
       'SCRAPEAPI':       'Check your SCRAPEAPI_KEY in Render → Environment Variables.',
       'MONGODB':         'MongoDB connection failed. Check MONGODB_URI in Render → Environment Variables.',
@@ -495,7 +494,6 @@
       const m = msg.toUpperCase();
       if (m.includes('SCRAPINGBEE') || m.includes('SCRAPING BEE')) return 'ScrapingBee';
       if (m.includes('SERPER')) return 'Serper';
-      if (m.includes('ANTHROPIC') || m.includes('CLAUDE')) return 'Anthropic';
       if (m.includes('IMGBB')) return 'ImgBB';
       if (m.includes('SCRAPEAPI')) return 'ScrapeAPI';
       if (m.includes('MONGODB') || m.includes('MONGO')) return 'MongoDB';
