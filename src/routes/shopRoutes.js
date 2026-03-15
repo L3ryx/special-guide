@@ -515,7 +515,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       }
 
       analyzed++;
-      send({ step: 'analyzing', message: '🔎 ' + analyzed + '/' + totalShops + ' analyzed — ' + dropshippers + ' dropshippers found' });
+      send({ step: 'analyzing', totalShops, message: '🔎 ' + analyzed + '/' + totalShops + ' analyzed — ' + dropshippers + ' dropshippers found' });
     }
 
     // Séquentiel (1 worker) pour éviter les 429 Gemini et Serper
