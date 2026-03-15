@@ -152,7 +152,7 @@ function parseEtsyListings(html) {
         if (url?.includes('/listing/') && image && name && !seen.has(url)) {
           seen.add(url);
           const shopName = item.seller?.name || item.brand?.name || extractShopFromUrl(url) || null;
-          const shopUrl = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
+          const shopUrl = shopName ? \https://www.etsy.com/shop/${shopName}` : null;`
           let price = null;
           const offers = item.offers || item.offer;
           if (offers) {
@@ -178,7 +178,7 @@ function parseEtsyListings(html) {
       seen.add(linkMatch[1]);
       const shopAttr = b.match(/data-shop-name="([^"]+)"/i);
       const shopName = shopAttr ? shopAttr[1] : extractShopFromUrl(linkMatch[1]);
-      const shopUrl = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
+      const shopUrl = shopName ? \https://www.etsy.com/shop/${shopName}` : null;`
       const nameMatch = b.match(/alt="([^"]{5,120})"/i);
       const priceMatch = b.match(/data-price="([^"]+)"/i) || b.match(/"price"\s*:\s*"([^"]+)"/i);
       listings.push({
@@ -215,6 +215,8 @@ function parseEtsyListings(html) {
     }
     if (listingShopMap.size > 5) break;
   }
+const shopName = shopAttr ? shopAttr[1] : null;
+}
 
   for (const link of linkPos) {
     if (seen.has(link.url)) continue;
