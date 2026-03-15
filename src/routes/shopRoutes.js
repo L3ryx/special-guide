@@ -26,10 +26,20 @@ router.post('/save', requireAuth, async (req, res) => {
   try {
     const shop = await SavedShop.findOneAndUpdate(
       { userId: req.user.id, shopUrl },
-      { $set: { shopName, shopAvatar: shopAvatar || null, productImage: productImage || null, productUrl: productUrl || null, keyword: req.body.keyword || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
+      { $set: { shopName, shopAvatar: shopAvatar || null, productImage: productImage || null, productUrl: productUrl || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ ok: true, shop });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── LIST SHOPS ──
+router.get('/', requireAuth, async (req, res) => {
+  try {
+    const shops = await SavedShop.find({ userId: req.user.id }).sort({ savedAt: -1 });
+    res.json(shops);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
