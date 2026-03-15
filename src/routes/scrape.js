@@ -181,19 +181,45 @@ router.post('/search', async (req, res) => {
         return true;
       });
 
-    // Enrichir les résultats finaux — extraire shopName depuis l'URL si manquant
-    deduped.forEach(result => {
+    // Enrichir les résultats — résoudre shopName via API Etsy si manquant
+    await Promise.all(deduped.map(async result => {
       const etsy = result.etsy;
-      // Essayer d'extraire shopName depuis l'URL du listing
-      if (!etsy.shopName && etsy.link) {
-        const m = etsy.link.match(/etsy\.com\/shop\/([^/?#]+)/i);
-        if (m) etsy.shopName = m[1];
+      if (etsy.shopName && etsy.shopUrl) return; // déjà connu
+
+      // Extraire le listing ID depuis l'URL
+      const listingId = etsy.link && etsy.link.match(/\/listing\/(\d+)/)?.[1];
+      if (listingId) {
+        try {
+          // API publique Etsy — retourne les infos du listing dont shop_id et shop title
+          const apiUrl = 'https://openapi.etsy.com/v3/application/listings/' + listingId;
+          // Alternative sans clé : scraper la page du listing
+          const r = await axios.get('https://www.etsy.com/listing/' + listingId, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept-Language': 'en-US,en;q=0.9',
+            },
+            timeout: 10000,
+            maxRedirects: 3,
+          });
+          const html = typeof r.data === 'string' ? r.data : '';
+          // Extraire shopName depuis la page du listing
+          const shopMatch = html.match(/href="https:\/\/www\.etsy\.com\/shop\/([A-Za-z0-9_-]+)"/i)
+                         || html.match(/"shopName"\s*:\s*"([^"]+)"/i)
+                         || html.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
+          if (shopMatch?.[1]) {
+            etsy.shopName = shopMatch[1];
+            etsy.shopUrl  = 'https://www.etsy.com/shop/' + shopMatch[1];
+          }
+        } catch (e) {
+          // Silencieux — pas bloquant
+        }
       }
-      // Construire shopUrl si manquant
+
+      // Dernier fallback : shopUrl depuis shopName
       if (!etsy.shopUrl && etsy.shopName) {
         etsy.shopUrl = 'https://www.etsy.com/shop/' + etsy.shopName;
       }
-    });
+    }));
 
     sendComplete(deduped, dropshipperShops);
 
