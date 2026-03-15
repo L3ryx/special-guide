@@ -773,9 +773,14 @@
         d.innerHTML = '<div class="dot"></div><span class="step-label">' + s.label + '</span>';
         cont.appendChild(d);
       });
+      _pctCurrent = 0; _pctTarget = 0; stopTick();
       setProgress(0);
       document.getElementById('progress-msg').textContent = '';
     }
+
+    var _pctCurrent = 0;
+    var _pctTarget  = 0;
+    var _tickTimer  = null;
 
     function setProgress(p) {
       const el = document.getElementById('progress-fill');
@@ -784,9 +789,24 @@
       if (p > 0 && p < 100) el.classList.add('burning'); else el.classList.remove('burning');
     }
 
-    // Appelé avec le pct exact reçu du backend — CSS transition anime le mouvement
+    function startTick() {
+      if (_tickTimer) return;
+      _tickTimer = setInterval(function() {
+        if (_pctCurrent < _pctTarget) {
+          _pctCurrent = Math.min(_pctTarget, _pctCurrent + 0.3);
+          setProgress(_pctCurrent);
+        }
+      }, 300);
+    }
+
+    function stopTick() {
+      clearInterval(_tickTimer);
+      _tickTimer = null;
+    }
+
     function setProgressDirect(pct, msg) {
-      setProgress(pct);
+      _pctTarget = pct;
+      startTick();
       if (msg) document.getElementById('progress-msg').textContent = msg;
       var cumul = 0;
       STEPS.forEach(function(s) {
@@ -794,9 +814,9 @@
         if (!el) { cumul += s.duration; return; }
         var start = Math.round((cumul / TOTAL_DURATION) * 100);
         var end   = Math.round(((cumul + s.duration) / TOTAL_DURATION) * 100);
-        if (pct >= end)   el.className = 'step-dot done';
+        if (pct >= end)        el.className = 'step-dot done';
         else if (pct >= start) el.className = 'step-dot active';
-        else              el.className = 'step-dot';
+        else                   el.className = 'step-dot';
         cumul += s.duration;
       });
     }
@@ -914,6 +934,7 @@
               try {
                 const ev = JSON.parse(line.slice(6));
                 if (ev.step === 'complete') {
+                  stopTick(); _pctCurrent = 100; _pctTarget = 100; setProgress(100);
                   completeAllSteps();
                   kwResults = ev.results || [];
                   kwResults.forEach(renderMatch);
