@@ -181,10 +181,17 @@ router.post('/search', async (req, res) => {
         return true;
       });
 
-    // Enrichir les résultats finaux (instantané)
+    // Enrichir les résultats finaux — extraire shopName depuis l'URL si manquant
     deduped.forEach(result => {
-      if (!result.etsy.shopUrl && result.etsy.shopName) {
-        result.etsy.shopUrl = 'https://www.etsy.com/shop/' + result.etsy.shopName;
+      const etsy = result.etsy;
+      // Essayer d'extraire shopName depuis l'URL du listing
+      if (!etsy.shopName && etsy.link) {
+        const m = etsy.link.match(/etsy\.com\/shop\/([^/?#]+)/i);
+        if (m) etsy.shopName = m[1];
+      }
+      // Construire shopUrl si manquant
+      if (!etsy.shopUrl && etsy.shopName) {
+        etsy.shopUrl = 'https://www.etsy.com/shop/' + etsy.shopName;
       }
     });
 
