@@ -53,22 +53,25 @@ async function fetchHtml(targetUrl, sbParams = {}) {
     }
   }
 
-  // ── Fallback 2 : ScraperAPI ──
+  // ── Fallback 2 : ScraperAPI (2 tentatives) ──
   const saKey = process.env.SCRAPEAPI_KEY;
   if (saKey) {
-    try {
-      console.log('ScraperAPI fallback:', targetUrl);
-      const r = await axios.get('http://api.scraperapi.com', {
-        params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
-        timeout: 90000,
-      });
-      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-      if (html.length > 500) {
-        console.log('ScraperAPI OK —', html.length, 'chars');
-        return html;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log('ScraperAPI fallback attempt', attempt, ':', targetUrl);
+        const r = await axios.get('http://api.scraperapi.com', {
+          params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
+          timeout: 90000,
+        });
+        const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+        if (html.length > 500) {
+          console.log('ScraperAPI OK —', html.length, 'chars');
+          return html;
+        }
+      } catch (e) {
+        console.warn('ScraperAPI attempt', attempt, 'failed (' + e.response?.status + '):', e.message.slice(0, 80));
+        if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
       }
-    } catch (e) {
-      console.warn('ScraperAPI failed (' + e.response?.status + '):', e.message.slice(0, 80));
     }
   }
 
