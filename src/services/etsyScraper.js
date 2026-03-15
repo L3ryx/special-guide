@@ -4,21 +4,7 @@ const axios = require('axios');
 // HELPER : fetch avec fallback ZenRows si ScrapingBee échoue
 // ════════════════════════════════════════════════════════════════
 async function fetchHtml(targetUrl, sbParams = {}) {
-  const sbKey = process.env.SCRAPINGBEE_KEY;
-
-  // ── Tentative ScrapingBee ──
-  if (sbKey) {
-    try {
-      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
-        timeout: 120000,
-      });
-      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-      if (html.length > 500) return html;
-    } catch (e) {
-      console.warn('ScrapingBee failed (' + e.response?.status + ') — trying ZenRows:', e.message.slice(0, 80));
-    }
-  }
+  // ScrapingBee désactivé
 
   // ── Fallback 1 : ZenRows JS+premium (seule config supportée) ──
   const zrKey = process.env.ZENROWS_API_KEY;
@@ -75,13 +61,13 @@ async function fetchHtml(targetUrl, sbParams = {}) {
     }
   }
 
-  throw new Error('All scrapers failed — check SCRAPINGBEE_KEY, ZENROWS_API_KEY, SCRAPEAPI_KEY');
+  throw new Error('All scrapers failed — check ZENROWS_API_KEY, SCRAPEAPI_KEY');
 }
 
 // ════════════════════════════════════════════════════════════════
 async function scrapeEtsy(keyword, maxCount = 10) {
-  if (!process.env.SCRAPINGBEE_KEY && !process.env.ZENROWS_API_KEY) {
-    throw new Error('SCRAPINGBEE_KEY or ZENROWS_API_KEY required');
+  if (!process.env.ZENROWS_API_KEY && !process.env.SCRAPEAPI_KEY) {
+    throw new Error('ZENROWS_API_KEY or SCRAPEAPI_KEY required');
   }
 
   console.log(`scrapeEtsy: "${keyword}" (max ${maxCount})`);
@@ -145,8 +131,8 @@ async function scrapeEtsy(keyword, maxCount = 10) {
 
 // ════════════════════════════════════════════════════════════════
 async function scrapeEtsyShopNames(keyword) {
-  if (!process.env.SCRAPINGBEE_KEY && !process.env.ZENROWS_API_KEY) {
-    throw new Error('SCRAPINGBEE_KEY or ZENROWS_API_KEY required');
+  if (!process.env.ZENROWS_API_KEY && !process.env.SCRAPEAPI_KEY) {
+    throw new Error('ZENROWS_API_KEY or SCRAPEAPI_KEY required');
   }
 
   const allShops = new Set();
