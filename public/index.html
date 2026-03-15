@@ -793,10 +793,13 @@
       if (_tickTimer) return;
       _tickTimer = setInterval(function() {
         if (_pctCurrent < _pctTarget) {
-          _pctCurrent = Math.min(_pctTarget, _pctCurrent + 0.3);
+          // Vitesse adaptative : plus l'écart est grand, plus on avance vite
+          var gap = _pctTarget - _pctCurrent;
+          var step = gap > 20 ? 1.5 : gap > 5 ? 0.8 : 0.3;
+          _pctCurrent = Math.min(_pctTarget, _pctCurrent + step);
           setProgress(_pctCurrent);
         }
-      }, 300);
+      }, 150);
     }
 
     function stopTick() {
