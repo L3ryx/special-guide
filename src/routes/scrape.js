@@ -107,7 +107,8 @@ router.post('/search', async (req, res) => {
     send('etsy_done', `✅ ${listings.length} listings found`);
 
     send('reverse_search', `🏪 Fetching shop info...`);
-    await parallel(listings, 15, async (listing) => {
+    // Séquentiel — ScrapingBee 401, getShopInfo utilise le shopName déjà dans le listing
+    await parallel(listings, 1, async (listing) => {
       try {
         const shopInfo = await getShopInfo(listing);
         listing.shopName   = shopInfo.shopName   || listing.shopName;
@@ -124,7 +125,7 @@ router.post('/search', async (req, res) => {
 
     await parallel(
       listings.filter(l => l.image),
-      2,
+      4, // 4 workers — reverseImageSearch en parallèle, Gemini a son propre retry
       async (listing) => {
         try {
           const matches = await reverseImageSearch(listing.image, listing.title || '');
@@ -161,7 +162,7 @@ router.post('/search', async (req, res) => {
         return true;
       });
 
-    await parallel(deduped, 8, async (result) => {
+    await parallel(deduped, 1, async (result) => {
       try {
         const shop = await getShopInfo(result.etsy);
         result.etsy.shopName   = shop.shopName   || result.etsy.shopName   || null;
