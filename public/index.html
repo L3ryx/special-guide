@@ -471,7 +471,6 @@
     const API_HINTS = {
       'SCRAPINGBEE':     'Check your SCRAPINGBEE_KEY in Render → Environment Variables. Credits may be exhausted.',
       'SERPER':          'Check your SERPER_API_KEY in Render → Environment Variables. Free plan limit may be reached (1000 req/month).',
-      'ANTHROPIC':       'Check your ANTHROPIC_API_KEY in Render → Environment Variables. Account credits may be depleted.',
       'IMGBB':           'Check your IMGBB_API_KEY in Render → Environment Variables.',
       'SCRAPEAPI':       'Check your SCRAPEAPI_KEY in Render → Environment Variables.',
       'MONGODB':         'MongoDB connection failed. Check MONGODB_URI in Render → Environment Variables.',
@@ -488,7 +487,6 @@
       const m = msg.toUpperCase();
       if (m.includes('SCRAPINGBEE') || m.includes('SCRAPING BEE')) return 'ScrapingBee';
       if (m.includes('SERPER')) return 'Serper';
-      if (m.includes('ANTHROPIC') || m.includes('CLAUDE')) return 'Anthropic';
       if (m.includes('IMGBB')) return 'ImgBB';
       if (m.includes('SCRAPEAPI')) return 'ScrapeAPI';
       if (m.includes('MONGODB') || m.includes('MONGO')) return 'MongoDB';
@@ -978,20 +976,7 @@
       const etsy = m.etsy, ali = m.aliexpress;
       const etsySrc = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc  = ali.image || '';
-      // Construire shopUrl correctement — jamais la racine etsy.com
-      const _shopName0 = etsy.shopName || null;
-      const shopUrl = etsy.shopUrl
-        || (_shopName0 ? 'https://www.etsy.com/shop/' + _shopName0 : null)
-        || (etsy.link ? (function(l) {
-              // Chercher /shop/NomBoutique dans l'URL
-              var m = l.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
-              if (m) return 'https://www.etsy.com/shop/' + m[1];
-              // Chercher ?listing_shop= ou &shop= dans les paramètres
-              m = l.match(/[?&](?:listing_shop|shop)=([A-Za-z0-9_-]+)/i);
-              if (m) return 'https://www.etsy.com/shop/' + m[1];
-              return null;
-            })(etsy.link) : null)
-        || '';
+      const shopUrl = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0] : '') || '';
       const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
@@ -1003,7 +988,7 @@
       card.innerHTML =
         '<div class="match-body"><div class="product-panel"><div class="etsy-img-container">' +
         '<div class="shop-side-col">' +
-          '<a class="shop-side-btn" href="' + (shopUrl || 'javascript:void(0)') + '" ' + (shopUrl ? 'target="_blank" rel="noopener"' : '') + '>' +
+          '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' +
             (shopAvatar ? '<img src="' + shopAvatar + '" onerror="this.style.display=\'none\'" />' : '<span class="side-initial">' + initial + '</span>') +
           '</a>' +
           '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + idx + ',this)">❤️</button>' +
@@ -1087,4 +1072,5 @@
   </script>
 </body>
 </html>
+
 
