@@ -189,7 +189,10 @@ function parseEtsyListings(html) {
       });
     }
   }
-  if (listings.length >= 2) return listings;
+  if (listings.length >= 2) {
+    console.log('Strategy 1 shopNames:', listings.slice(0,3).map(l => l.shopName));
+    return listings;
+  }
 
   // Strategy 3: proximity + extraction shopName depuis JSON embarqué
   const allLinks = [...html.matchAll(/href="(https:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"?#]+)/g)];
@@ -240,6 +243,8 @@ function parseEtsyListings(html) {
     }
   }
 
+  console.log('Strategy 3 shopNames:', listings.slice(0,3).map(l => l.shopName));
+  console.log('listingShopMap size:', listingShopMap.size);
   return listings;
 }
 
