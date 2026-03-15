@@ -7,6 +7,7 @@ const savedShopSchema = new mongoose.Schema({
   shopAvatar:   { type: String, default: null },
   productImage: { type: String, default: null },
   productUrl:   { type: String, default: null },
+  keyword:      { type: String, default: null },
   savedAt:      { type: Date, default: Date.now },
   // Last FIND analysis
   lastFind: {
