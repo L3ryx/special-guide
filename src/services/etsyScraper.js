@@ -213,8 +213,8 @@ function parseEtsyListings(html) {
       const shopAttr = context.match(/data-shop-name="([^"]+)"/i)
                     || context.match(/data-shop_name="([^"]+)"/i)
                     || context.match(/"shopName"\s*:\s*"([^"]+)"/i)
-                    || context.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
-      const shopName = shopAttr ? shopAttr[1] : extractShopFromUrl(link.url);
+                    || context.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
+      const shopName = shopAttr ? shopAttr[1] : null;
       listings.push({
         title: link.url.split('/').pop().replace(/-/g, ' '),
         link: link.url, image: closest.url,
@@ -229,14 +229,8 @@ function parseEtsyListings(html) {
 }
 
 function extractShopFromUrl(url) {
-  if (!url) return null;
-  // /shop/NomBoutique dans l'URL
-  let m = url.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
-  if (m) return m[1];
-  // ?listing_shop=NomBoutique ou &shop=NomBoutique dans les paramètres
-  m = url.match(/[?&](?:listing_shop|shop)=([A-Za-z0-9_-]+)/i);
-  if (m) return m[1];
-  return null;
+  const m = url.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
+  return m ? m[1] : null;
 }
 
 function cleanEtsyImage(url) {
