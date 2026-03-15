@@ -1,78 +1,42 @@
 const axios = require('axios');
 
-// ════════════════════════════════════════════════════════════════
-// HELPER : fetch avec ScrapingBee, fallback ScraperAPI
-// ════════════════════════════════════════════════════════════════
-async function fetchHtml(targetUrl, sbParams = {}) {
-  const sbKey = process.env.SCRAPINGBEE_KEY;
-
-  // ── ScrapingBee ──
-  if (sbKey) {
-    try {
-      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
-        timeout: 120000,
-      });
-      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-      if (html.length > 500) return html;
-    } catch (e) {
-      console.warn('ScrapingBee failed (' + e.response?.status + ') — trying ScraperAPI:', e.message.slice(0, 80));
-    }
-  }
-
-  // ── Fallback ScraperAPI ──
-  const saKey = process.env.SCRAPEAPI_KEY;
-  if (!saKey) throw new Error('ScrapingBee failed and SCRAPEAPI_KEY is not set');
-
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      console.log('ScraperAPI fallback attempt', attempt, ':', targetUrl);
-      const r = await axios.get('http://api.scraperapi.com', {
-        params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
-        timeout: 90000,
-      });
-      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-      if (html.length > 500) {
-        console.log('ScraperAPI OK —', html.length, 'chars');
-        return html;
-      }
-    } catch (e) {
-      console.warn('ScraperAPI attempt', attempt, 'failed (' + e.response?.status + '):', e.message.slice(0, 80));
-      if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
-    }
-  }
-
-  throw new Error('All scrapers failed — check SCRAPINGBEE_KEY, SCRAPEAPI_KEY');
-}
-
-// ════════════════════════════════════════════════════════════════
 async function scrapeEtsy(keyword, maxCount = 10) {
-  if (!process.env.SCRAPINGBEE_KEY && !process.env.SCRAPEAPI_KEY) {
-    throw new Error('SCRAPINGBEE_KEY or SCRAPEAPI_KEY required');
-  }
+  const apiKey = process.env.SCRAPINGBEE_KEY;
+  if (!apiKey) throw new Error('SCRAPINGBEE_KEY missing');
 
   console.log(`scrapeEtsy: "${keyword}" (max ${maxCount})`);
 
   const allListings = [];
   const seen = new Set();
   let page = 1;
-  const perPage = 48;
+  const perPage = 48; // Etsy shows ~48 per page
 
   while (allListings.length < maxCount) {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&ref=search_bar&page=${page}`;
 
-    let html;
+    let response;
     try {
-      html = await fetchHtml(etsyUrl, {
-        render_js:     'true',
-        premium_proxy: 'true',
-        wait:          '3000',
-        block_ads:     'true',
+      response = await axios.get('https://app.scrapingbee.com/api/v1/', {
+        params: {
+          api_key:       apiKey,
+          url:           etsyUrl,
+          render_js:     'true',
+          premium_proxy: 'true',
+          country_code:  'us',
+          wait:          '3000',
+          block_ads:     'true',
+          timeout:       '45000',
+        },
+        timeout: 120000,
       });
     } catch (err) {
-      throw new Error(`Scraping failed: ${err.message}`);
+      const status = err.response?.status;
+      if (status === 401) throw new Error('SCRAPINGBEE_KEY invalid (401)');
+      if (status === 429) throw new Error('ScrapingBee credits exhausted (429)');
+      throw new Error(`ScrapingBee error ${status || ''}: ${err.message}`);
     }
 
+    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
     console.log(`Page ${page}: ${html.length} chars`);
 
     const listings = parseEtsyListings(html);
@@ -90,9 +54,11 @@ async function scrapeEtsy(keyword, maxCount = 10) {
     }
 
     console.log(`After page ${page}: ${allListings.length}/${maxCount}`);
+
     if (allListings.length >= maxCount) break;
 
-    const hasNextPage = html.includes('pagination-next') || html.includes('"next"') ||
+    // Check if there's a next page
+    const hasNextPage = html.includes('pagination-next') || html.includes('"next"') || 
                         html.includes(`page=${page + 1}`) || valid.length >= perPage - 5;
     if (!hasNextPage) {
       console.log(`No next page detected after page ${page}`);
@@ -100,7 +66,10 @@ async function scrapeEtsy(keyword, maxCount = 10) {
     }
 
     page++;
+    // Safety limit: max 5 pages
     if (page > 5) break;
+
+    // Small delay between pages
     await new Promise(r => setTimeout(r, 1000));
   }
 
@@ -110,39 +79,50 @@ async function scrapeEtsy(keyword, maxCount = 10) {
   return allListings.slice(0, maxCount);
 }
 
-// ════════════════════════════════════════════════════════════════
+// Scrape all shop names for a keyword (for competition analysis) — no image needed
 async function scrapeEtsyShopNames(keyword) {
-  if (!process.env.SCRAPINGBEE_KEY && !process.env.SCRAPEAPI_KEY) {
-    throw new Error('SCRAPINGBEE_KEY or SCRAPEAPI_KEY required');
-  }
+  const apiKey = process.env.SCRAPINGBEE_KEY;
+  if (!apiKey) throw new Error('SCRAPINGBEE_KEY missing');
 
   const allShops = new Set();
   let page = 1;
 
-  while (page <= 20) {
+  while (page <= 20) { // max 20 pages
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&ref=search_bar&page=${page}`;
 
-    let html;
+    let response;
     try {
-      html = await fetchHtml(etsyUrl, {
-        render_js:     'true',
-        premium_proxy: 'true',
-        wait:          '2000',
-        block_ads:     'true',
+      response = await axios.get('https://app.scrapingbee.com/api/v1/', {
+        params: {
+          api_key:       apiKey,
+          url:           etsyUrl,
+          render_js:     'true',
+          premium_proxy: 'true',
+          country_code:  'us',
+          wait:          '2000',
+          block_ads:     'true',
+          timeout:       '45000',
+        },
+        timeout: 120000,
       });
-    } catch (e) {
-      console.warn(`Page ${page} error:`, e.message);
+    } catch (err) {
+      console.warn(`Page ${page} error:`, err.message);
       break;
     }
 
+    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
     const listings = parseEtsyListings(html);
-    const shops = listings.filter(l => l.shopName).map(l => l.shopName);
+    const shops = listings
+      .filter(l => l.shopName)
+      .map(l => l.shopName);
+
     if (shops.length === 0) break;
 
     shops.forEach(s => allShops.add(s));
     console.log(`Competition page ${page}: +${shops.length} shops, total unique: ${allShops.size}`);
 
-    const hasNext = html.includes('pagination-next') ||
+    // Check if there's a next page
+    const hasNext = html.includes('pagination-next') || 
                     listings.length >= 40 ||
                     html.includes(`page=${page + 1}`);
     if (!hasNext) break;
@@ -154,15 +134,9 @@ async function scrapeEtsyShopNames(keyword) {
   return Array.from(allShops);
 }
 
-// ════════════════════════════════════════════════════════════════
 function parseEtsyListings(html) {
   const listings = [];
   const seen = new Set();
-
-  const dbgListings = (html.match(/\/listing\//g) || []).length;
-  const dbgJsonLd   = (html.match(/application\/ld\+json/g) || []).length;
-  const dbgDataId   = (html.match(/data-listing-id/g) || []).length;
-  console.log('parseEtsyListings debug — /listing/:', dbgListings, '| json-ld blocks:', dbgJsonLd, '| data-listing-id:', dbgDataId);
 
   // Strategy 1: JSON-LD
   const jsonLdBlocks = html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
@@ -171,8 +145,7 @@ function parseEtsyListings(html) {
       const data = JSON.parse(block[1]);
       const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
       for (const item of items) {
-        let url = item.url || item['@id'];
-        if (url) url = url.replace(/\/[a-z]{2}(\/listing\/)/, '$1');
+        const url = item.url || item['@id'];
         const rawImg = Array.isArray(item.image) ? item.image[0] : (typeof item.image === 'string' ? item.image : null);
         const image = cleanEtsyImage(rawImg);
         const name = item.name;
@@ -200,13 +173,13 @@ function parseEtsyListings(html) {
   for (const block of blocks) {
     const b = block[1];
     const linkMatch = b.match(/href="(https:\/\/www\.etsy\.com\/listing\/\d+\/[^"?#]+)/);
-    const imgMatch  = b.match(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+)"/i);
+    const imgMatch = b.match(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+)"/i);
     if (linkMatch && imgMatch && !seen.has(linkMatch[1])) {
       seen.add(linkMatch[1]);
       const shopAttr = b.match(/data-shop-name="([^"]+)"/i);
       const shopName = shopAttr ? shopAttr[1] : extractShopFromUrl(linkMatch[1]);
-      const shopUrl  = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
-      const nameMatch  = b.match(/alt="([^"]{5,120})"/i);
+      const shopUrl = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
+      const nameMatch = b.match(/alt="([^"]{5,120})"/i);
       const priceMatch = b.match(/data-price="([^"]+)"/i) || b.match(/"price"\s*:\s*"([^"]+)"/i);
       listings.push({
         title: nameMatch ? nameMatch[1].trim() : linkMatch[1].split('/').pop().replace(/-/g, ' '),
@@ -219,10 +192,10 @@ function parseEtsyListings(html) {
   if (listings.length >= 2) return listings;
 
   // Strategy 3: proximity
-  const allLinks  = [...html.matchAll(/href="(https?:\/\/www\.etsy\.com(?:\/[a-z]{2})?\/listing\/(\d+)\/[^"?#]+)/g)];
+  const allLinks = [...html.matchAll(/href="(https:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"?#]+)/g)];
   const allImages = [...html.matchAll(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+\.(?:jpg|jpeg|png|webp))/gi)];
-  const linkPos   = allLinks.map(m  => ({ url: m[1].replace(/\/[a-z]{2}(\/listing\/)/, '$1').split('?')[0], pos: m.index }));
-  const imgPos    = allImages.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
+  const linkPos = allLinks.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
+  const imgPos = allImages.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
 
   for (const link of linkPos) {
     if (seen.has(link.url)) continue;
@@ -233,12 +206,15 @@ function parseEtsyListings(html) {
     }
     if (closest) {
       seen.add(link.url);
-      const ctx      = html.slice(Math.max(0, link.pos - 1000), link.pos + 1000);
-      const shopAttr = ctx.match(/data-shop-name="([^"]+)"/i)
-                    || ctx.match(/data-shop_name="([^"]+)"/i)
-                    || ctx.match(/"shopName"\s*:\s*"([^"]+)"/i)
-                    || ctx.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
-      const shopName = shopAttr ? shopAttr[1] : null;
+      // Try to extract shopName from nearby HTML context (within 2000 chars around the link)
+      const contextStart = Math.max(0, link.pos - 1000);
+      const contextEnd = Math.min(html.length, link.pos + 1000);
+      const context = html.slice(contextStart, contextEnd);
+      const shopAttr = context.match(/data-shop-name="([^"]+)"/i)
+                    || context.match(/data-shop_name="([^"]+)"/i)
+                    || context.match(/"shopName"\s*:\s*"([^"]+)"/i)
+                    || context.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
+      const shopName = shopAttr ? shopAttr[1] : extractShopFromUrl(link.url);
       listings.push({
         title: link.url.split('/').pop().replace(/-/g, ' '),
         link: link.url, image: closest.url,
@@ -249,38 +225,18 @@ function parseEtsyListings(html) {
     }
   }
 
-  // Strategy 4: JSON dans scripts
-  if (listings.length < 2) {
-    const jsonDataBlocks = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)];
-    for (const block of jsonDataBlocks) {
-      const script = block[1];
-      if (!script.includes('/listing/')) continue;
-      const linkMatches = [...script.matchAll(/["'](https?:\/\/www\.etsy\.com(?:\/[a-z]{2})?\/listing\/(\d+)\/[^"'?#\s]+)["']/g)];
-      const imgMatches  = [...script.matchAll(/["'](https?:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp))["']/g)];
-      for (const lm of linkMatches) {
-        const url = lm[1].replace(/\/[a-z]{2}(\/listing\/)/, '$1').split('?')[0];
-        if (seen.has(url)) continue;
-        let closest = null, minDist = Infinity;
-        for (const im of imgMatches) {
-          const d = Math.abs(im.index - lm.index);
-          if (d < minDist && d < 3000) { minDist = d; closest = im; }
-        }
-        if (!closest) continue;
-        seen.add(url);
-        const shopName = extractShopFromUrl(url) || null;
-        listings.push({ title: url.split('/').pop().replace(/-/g, ' '), link: url, image: closest[1].split('?')[0], source: 'etsy', shopName, shopUrl: shopName ? 'https://www.etsy.com/shop/' + shopName : null, price: null });
-      }
-      if (listings.length >= 2) break;
-    }
-  }
-
-  console.log('parseEtsyListings result:', listings.length, 'listings found');
   return listings;
 }
 
 function extractShopFromUrl(url) {
-  const m = url.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
-  return m ? m[1] : null;
+  if (!url) return null;
+  // /shop/NomBoutique dans l'URL
+  let m = url.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
+  if (m) return m[1];
+  // ?listing_shop=NomBoutique ou &shop=NomBoutique dans les paramètres
+  m = url.match(/[?&](?:listing_shop|shop)=([A-Za-z0-9_-]+)/i);
+  if (m) return m[1];
+  return null;
 }
 
 function cleanEtsyImage(url) {
@@ -292,9 +248,15 @@ function cleanEtsyImage(url) {
 }
 
 async function debugEtsyHtml(keyword) {
+  const apiKey = process.env.SCRAPINGBEE_KEY;
+  if (!apiKey) return { ok: false, error: 'SCRAPINGBEE_KEY not defined' };
   try {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}`;
-    const html = await fetchHtml(etsyUrl, { render_js: 'true', premium_proxy: 'true', wait: '2000' });
+    const response = await axios.get('https://app.scrapingbee.com/api/v1/', {
+      params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2000', timeout: '45000' },
+      timeout: 120000,
+    });
+    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
     const listings = parseEtsyListings(html);
     const valid = listings.filter(l => l.link && l.image);
     return { ok: true, htmlLength: html.length, validListings: valid.length, sample: valid[0] || null };
