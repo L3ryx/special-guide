@@ -234,9 +234,7 @@
         window._dropListData[shop._id] = dropshippers;
       }
 
-      const dropListBtnHtml = (hasComp && dropshippers.length > 0)
-        ? `<button class="btn-drop-list" onclick="showDropshipList(window._dropListData['${shop._id}'])">🛒 Drop List (${dropshippers.length})</button>`
-        : '';
+      const dropListBtnHtml = ''; // bouton Shop integre dans la banniere
 
       const compBtnHtml = hasComp
         ? ''
@@ -332,14 +330,6 @@
                 if (shops.length > 0) {
                   window._dropListData = window._dropListData || {};
                   window._dropListData[shopId] = shops;
-                  const btnsDiv = document.querySelector('#shop-row-' + shopId + ' .shop-row-btns');
-                  if (btnsDiv && !btnsDiv.querySelector('.btn-drop-list')) {
-                    const dlBtn = document.createElement('button');
-                    dlBtn.className = 'btn-drop-list';
-                    dlBtn.textContent = '🛒 Drop List (' + shops.length + ')';
-                    dlBtn.onclick = (function(id) { return function() { showDropshipList(window._dropListData[id]); }; })(shopId);
-                    btnsDiv.appendChild(dlBtn);
-                  }
                 }
               } else if (ev.step === 'error') {
                 status.textContent = '❌ ' + ev.message;
@@ -353,53 +343,59 @@
     }
 
     function renderCompetitionResult(ev, shopId) {
-      // Normaliser les champs — compatibles avec l'event SSE et lastCompetition MongoDB
-      var color        = ev.color || (ev.score && ev.score.color) || '#f97316';
-      var saturation   = ev.saturation != null ? ev.saturation : (ev.score && ev.score.saturation != null ? ev.score.saturation : 0);
       var totalShops   = (ev.totalShops   != null && ev.totalShops   !== '') ? Number(ev.totalShops)   : 0;
       var dropshippers = (ev.dropshippers != null && ev.dropshippers !== '') ? Number(ev.dropshippers) : 0;
       var shops        = ev.dropshipperShops || [];
-      var keyword      = ev.keyword || '';
-      // Log debug pour diagnostiquer
-      console.log('[Competition]', { totalShops, dropshippers, saturation, color, keyword, shops: shops.length });
+      console.log('[Competition]', { totalShops, dropshippers, shops: shops.length });
 
       window._dropListData = window._dropListData || {};
       if (shopId) window._dropListData[shopId] = shops;
 
-      var pct = totalShops > 0 ? Math.round((dropshippers / totalShops) * 100) : 0;
+      var pct        = totalShops > 0 ? Math.round((dropshippers / totalShops) * 100) : 0;
       var gaugeColor = pct <= 10 ? '#22c55e' : pct <= 25 ? '#86efac' : pct <= 45 ? '#fbbf24' : pct <= 65 ? '#f97316' : '#ef4444';
       var gaugeLabel = pct <= 10 ? 'Very Low' : pct <= 25 ? 'Low' : pct <= 45 ? 'Moderate' : pct <= 65 ? 'High' : 'Very High';
 
-      var gR = 36, gCx = 48, gCy = 48;
-      var gStart = 200, gEnd = 340, gSpan = gEnd - gStart;
-      var gFill  = gStart + (gSpan * pct / 100);
-      function gPolar(cx, cy, r, deg) {
+      // Jauge SVG demi-cercle
+      var gR = 28, gCx = 36, gCy = 34;
+      function gP(cx, cy, r, deg) {
         var rad = (deg - 90) * Math.PI / 180;
-        return { x: (cx + r * Math.cos(rad)).toFixed(2), y: (cy + r * Math.sin(rad)).toFixed(2) };
+        return [(cx + r * Math.cos(rad)).toFixed(1), (cy + r * Math.sin(rad)).toFixed(1)];
       }
-      function gArc(cx, cy, r, a1, a2) {
-        var s = gPolar(cx, cy, r, a1), e = gPolar(cx, cy, r, a2);
-        return 'M ' + s.x + ' ' + s.y + ' A ' + r + ' ' + r + ' 0 ' + ((a2-a1)>180?1:0) + ' 1 ' + e.x + ' ' + e.y;
+      function gA(a1, a2) {
+        var s = gP(gCx, gCy, gR, a1), e = gP(gCx, gCy, gR, a2);
+        return 'M'+s[0]+' '+s[1]+' A '+gR+' '+gR+' 0 '+((a2-a1)>=180?1:0)+' 1 '+e[0]+' '+e[1];
       }
-      var gTrack = gArc(gCx, gCy, gR, gStart, gEnd);
-      var gPath  = pct > 0 ? gArc(gCx, gCy, gR, gStart, Math.min(gFill, gEnd)) : '';
+      var gFill = 180 + (180 * pct / 100);
+      var svgGauge =
+        '<svg viewBox="0 0 72 48" width="62" height="42" style="display:block;">' +
+          '<path d="' + gA(180,360) + '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="7" stroke-linecap="round"/>' +
+          (pct > 0 ? '<path d="' + gA(180, Math.min(gFill,360)) + '" fill="none" stroke="' + gaugeColor + '" stroke-width="7" stroke-linecap="round"/>' : '') +
+          '<text x="36" y="34" text-anchor="middle" font-size="11" font-weight="800" fill="' + gaugeColor + '" font-family="Inter,sans-serif">' + pct + '%</text>' +
+        '</svg>' +
+        '<div style="text-align:center;font-size:0.58rem;font-weight:700;color:' + gaugeColor + ';font-family:Inter,sans-serif;margin-top:1px;letter-spacing:0.04em;">' + gaugeLabel + '</div>';
 
-      return '<div class="comp-panel">' +
-          '<svg viewBox="0 0 96 72" width="72" height="54" style="flex-shrink:0;">' +
-            '<path d="' + gTrack + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round"/>' +
-            (gPath ? '<path d="' + gPath + '" fill="none" stroke="' + gaugeColor + '" stroke-width="8" stroke-linecap="round" opacity="0.9"/>' : '') +
-            '<text x="' + gCx + '" y="47" text-anchor="middle" font-size="13" font-weight="800" fill="' + gaugeColor + '" font-family="Inter,sans-serif">' + pct + '%</text>' +
-          '</svg>' +
-          '<div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;">' +
-            '<div class="comp-keyword" style="margin:0;">🔑 <span>"' + (ev.keyword || '') + '"</span> — <span style="color:' + gaugeColor + ';font-weight:700;">' + gaugeLabel + '</span></div>' +
-            '<div class="comp-stats" style="gap:14px;">' +
-              '<div class="comp-stat"><span class="comp-stat-val">' + totalShops + '</span><span class="comp-stat-lbl"> shops</span></div>' +
-              '<div style="width:1px;height:20px;background:rgba(255,255,255,0.1);"></div>' +
-              '<div class="comp-stat"><span class="comp-stat-val" style="color:#f87171;">' + dropshippers + '</span><span class="comp-stat-lbl"> dropshippers</span></div>' +
-            '</div>' +
+      // Bouton Shop jaune
+      var hasShops = shops.length > 0;
+      var shopOnClick = hasShops ? ('showDropshipList(window._dropListData[\''+shopId+'\'])') : '';
+      var shopStyle   = hasShops
+        ? 'background:#f59e0b;color:#000;cursor:pointer;box-shadow:0 2px 8px rgba(245,158,11,0.35);'
+        : 'background:rgba(245,158,11,0.2);color:rgba(0,0,0,0.35);cursor:default;';
+      var shopBtn = '<button onclick="' + shopOnClick + '" style="flex-shrink:0;padding:8px 18px;border-radius:9px;border:none;font-weight:800;font-size:0.78rem;font-family:Inter,sans-serif;white-space:nowrap;' + shopStyle + '">Shop</button>';
+
+      // Banniere bleue
+      return '<div style="margin-top:10px;display:flex;align-items:center;gap:12px;' +
+          'background:linear-gradient(135deg,rgba(37,99,235,0.3),rgba(59,130,246,0.15));' +
+          'border:1px solid rgba(59,130,246,0.4);border-radius:12px;padding:10px 14px;">' +
+        '<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;">' + svgGauge + '</div>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:0.68rem;color:rgba(255,255,255,0.5);font-family:Inter,sans-serif;margin-bottom:2px;letter-spacing:0.04em;text-transform:uppercase;">Dropshipping</div>' +
+          '<div style="font-size:1rem;font-weight:800;color:#fff;font-family:Inter,sans-serif;line-height:1.2;">' +
+            dropshippers + ' boutique' + (dropshippers !== 1 ? 's' : '') + ' en dropshipping' +
           '</div>' +
-          (shops.length > 0 ? '<button onclick="showDropshipList(window._dropListData[\'' + shopId + '\'])" style="flex-shrink:0;padding:6px 12px;border-radius:8px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-weight:600;font-size:0.72rem;cursor:pointer;font-family:Inter,sans-serif;white-space:nowrap;">🛒 Drop List (' + dropshippers + ')</button>' : '') +
-        '</div>';
+          '<div style="font-size:0.7rem;color:rgba(255,255,255,0.4);font-family:Inter,sans-serif;margin-top:2px;">sur ' + totalShops + ' analysees</div>' +
+        '</div>' +
+        shopBtn +
+      '</div>';
     }
 
     function showDropshipList(shops) {
@@ -410,13 +406,10 @@
         rows = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:20px;">No dropshippers found</div>';
       } else {
         shops.forEach(function(s) {
-          var simBadge = s.similarity ? '<span style="font-size:0.7rem;color:rgba(255,255,255,0.4);margin-left:6px;">' + s.similarity + '% match</span>' : '';
-          var aliBtn   = s.aliUrl ? '<a href="' + s.aliUrl + '" target="_blank" rel="noopener" style="padding:5px 10px;border-radius:7px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;font-size:0.72rem;font-weight:600;text-decoration:none;margin-right:6px;">Ali ↗</a>' : '';
-          rows += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.07);">' +
-            '<span style="color:#fff;font-weight:600;font-size:0.85rem;">' + (s.shopName || '—') + simBadge + '</span>' +
-            '<div style="display:flex;gap:4px;align-items:center;">' + aliBtn +
-              '<a href="' + (s.shopUrl || '#') + '" target="_blank" rel="noopener" style="padding:5px 10px;border-radius:7px;background:rgba(241,100,30,0.15);border:1px solid rgba(241,100,30,0.3);color:#fb923c;font-size:0.72rem;font-weight:600;text-decoration:none;">Etsy ↗</a>' +
-            '</div></div>';
+          rows += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);">' +
+            '<span style="color:#fff;font-weight:600;font-size:0.88rem;">' + (s.shopName || '—') + '</span>' +
+            '<a href="' + (s.shopUrl || '#') + '" target="_blank" rel="noopener" style="padding:6px 14px;border-radius:8px;background:#f59e0b;border:none;color:#000;font-size:0.75rem;font-weight:800;text-decoration:none;white-space:nowrap;">Voir la boutique</a>' +
+          '</div>';
         });
       }
       var modal = document.createElement('div');
@@ -424,7 +417,7 @@
       modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:20px;';
       modal.innerHTML = '<div style="background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">' +
-          '<span style="color:#fff;font-weight:700;font-size:1rem;">🛒 Dropshipping shops (' + shops.length + ')</span>' +
+          '<span style="color:#fff;font-weight:700;font-size:1rem;">Boutiques en dropshipping (' + shops.length + ')</span>' +
           '<button onclick="document.getElementById(&quot;dropship-modal&quot;).remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.2rem;cursor:pointer;">✕</button>' +
         '</div><div style="overflow-y:auto;flex:1;">' + rows + '</div></div>';
       modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
@@ -513,6 +506,7 @@
   </script>
 </body>
 </html>
+
 
 
 
