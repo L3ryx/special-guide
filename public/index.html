@@ -118,7 +118,7 @@
     .keyword-tag.error .tag-text { color:#f87171; }
     #clear-keywords-btn { width:48px; height:48px; flex-shrink:0; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:14px; color:#f87171; font-size:1.1rem; cursor:pointer; transition:all 0.2s; display:none; align-items:center; justify-content:center; }
     #clear-keywords-btn:hover { background:rgba(239,68,68,0.25); border-color:rgba(239,68,68,0.6); }
-    #dice-btn { width:100%; height:48px; padding:0 20px; background:linear-gradient(135deg,#1d4ed8,#3b82f6); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-size:1rem; font-weight:700; letter-spacing:0.05em; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 4px 20px rgba(59,130,246,0.35); }
+    #dice-btn { width:100%; height:52px; padding:0 20px; background:linear-gradient(135deg,#1d4ed8,#3b82f6); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-size:1rem; font-weight:700; letter-spacing:0.05em; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 4px 20px rgba(59,130,246,0.35); }
     #dice-btn:hover { background:linear-gradient(135deg,#1e40af,#2563eb); transform:translateY(-1px); box-shadow:0 6px 24px rgba(59,130,246,0.5); }
     #dice-btn:active { transform:translateY(0); }
     #dice-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
@@ -128,7 +128,7 @@
 
     .selects-row { display:flex; gap:10px; width:100%; }
     .select-wrap { flex:1; position:relative; }
-    .select-wrap select { width:100%; padding:16px 40px 16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; color:var(--text); font-family:'Inter',sans-serif; font-size:1rem; outline:none; appearance:none; backdrop-filter:blur(16px); cursor:pointer; transition:border-color 0.2s; }
+    .select-wrap select { width:100%; height:52px; padding:0 40px 0 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; color:var(--text); font-family:'Inter',sans-serif; font-size:1rem; outline:none; appearance:none; backdrop-filter:blur(16px); cursor:pointer; transition:border-color 0.2s; text-align:center; }
     .select-wrap select:focus { border-color:var(--green); }
     .select-wrap option { background:#1a1a1a; color:#fff; }
     .select-wrap::after { content:'▾'; position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; font-size:0.8rem; }
@@ -322,28 +322,34 @@
 
   <div id="main-view">
     <div class="search-card">
-      <!-- Input + tags + add + trash, all inline -->
-      <div class="input-row" style="align-items:stretch;">
-        <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:8px;">
-          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;" />
-          <button id="dice-btn" onclick="rollNiche()"><span class="dice-icon">🎲</span>Generate</button>
+      <!-- Wrapper : colonnes gauche (keyword+select+generate) et droite (+/trash) -->
+      <div style="display:flex;gap:8px;align-items:flex-start;">
+
+        <!-- Colonne gauche : keyword sur ligne 1, select+generate sur ligne 2 -->
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;">
+          <!-- Ligne 1 : keyword -->
+          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
+          <div id="keywords-list" style="display:none;"></div>
+          <!-- Ligne 2 : select + generate — même largeur que keyword -->
+          <div class="selects-row" style="display:flex;gap:8px;align-items:stretch;">
+            <div class="select-wrap" style="flex:1;">
+              <select id="count-select">
+                <option value="1">1 image</option><option value="2">2 images</option><option value="3">3 images</option>
+                <option value="5">5 images</option><option value="10" selected>10 images</option>
+                <option value="15">15 images</option><option value="20">20 images</option>
+                <option value="30">30 images</option><option value="50">50 images</option><option value="100">100 images</option>
+              </select>
+            </div>
+            <button id="dice-btn" onclick="rollNiche()" style="flex-shrink:0;width:auto;padding:0 20px;"><span class="dice-icon">🎲</span>Generate</button>
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+
+        <!-- Colonne droite : + en haut, trash en bas — même largeur fixe -->
+        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:8px;">
           <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword">+<span id="kw-count-badge"></span></button>
           <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords">🗑</button>
         </div>
-      </div>
-      <div id="keywords-list" style="display:none;"></div>
-      <!-- Number of images -->
-      <div class="selects-row">
-        <div class="select-wrap">
-          <select id="count-select">
-            <option value="1">1 image</option><option value="2">2 images</option><option value="3">3 images</option>
-            <option value="5">5 images</option><option value="10" selected>10 images</option>
-            <option value="15">15 images</option><option value="20">20 images</option>
-            <option value="30">30 images</option><option value="50">50 images</option><option value="100">100 images</option>
-          </select>
-        </div>
+
       </div>
       <button id="start-btn" onclick="startSearch()">START</button>
     </div>
