@@ -253,6 +253,16 @@ async function scrapeShopListings(shopUrl) {
   const imgMatches = [...html.matchAll(/https:\/\/i\.etsystatic\.com\/[^\s"']+(?:il|il_fullxfull)[^"'\s]*/g)];
   imgMatches.forEach((im, idx) => { if (listings[idx]) listings[idx].image = im[0]; });
 
+  // Debug : voir ce que contient le HTML
+  const hasListing  = (html.match(/\/listing\//g) || []).length;
+  const hasJsonLd   = (html.match(/ld\+json/g) || []).length;
+  const hasAlt      = (html.match(/listing\/\d+/g) || []).length;
+  const hasFrListing= (html.match(/\/fr\/listing\//g) || []).length;
+  const hasEtsystatic=(html.match(/etsystatic\.com/g) || []).length;
+  console.log('scrapeShopListings debug — /listing/:', hasListing, '| /fr/listing/:', hasFrListing, '| ld+json:', hasJsonLd, '| listing/N:', hasAlt, '| etsystatic:', hasEtsystatic);
+  // Extrait du HTML pour voir la structure
+  const sampleIdx = html.indexOf('listing');
+  if (sampleIdx > 0) console.log('HTML sample around listing:', html.slice(Math.max(0,sampleIdx-30), sampleIdx+80));
   console.log('scrapeShopListings:', listings.length, 'listings, titles:', listings.slice(0,5).map(l=>l.title));
   return listings.filter(l => l.url);
 }
@@ -791,7 +801,6 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
     }
-
 
 
 
