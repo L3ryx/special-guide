@@ -58,43 +58,16 @@ async function geminiVisionScore(etsyImageUrl, aliImageUrl) {
   }
 }
 
-// Verify each Serper Lens match with Gemini Vision
+// Gemini désactivé — retourner directement les matches Lens trouvés par Serper
 async function compareEtsyWithAliexpress(etsyItem, aliItems, threshold = 60) {
   if (!aliItems.length) return [];
 
-  const etsyImageUrl = etsyItem.hostedImageUrl || etsyItem.image;
-  if (!etsyImageUrl) return [];
+  const results = aliItems
+    .filter(ali => ali.link)
+    .map(ali => ({ etsy: etsyItem, aliexpress: ali, similarity: 75 }));
 
-  const results = [];
-
-  for (const ali of aliItems) {
-    if (!ali.link || !ali.image) continue;
-
-    if (!process.env.GEMINI_API_KEY) {
-      if (ali.source === 'lens') {
-        results.push({ etsy: etsyItem, aliexpress: ali, similarity: 75 });
-      }
-      continue;
-    }
-
-    // Délai entre appels Gemini — 2s pour rester sous les 15 req/min du free tier
-    await new Promise(r => setTimeout(r, 2000));
-
-    const score = await geminiVisionScore(etsyImageUrl, ali.image);
-
-    if (score === null) {
-      console.log(`⚠️ Gemini failed — skipping match`);
-      continue;
-    }
-
-    console.log(`${score >= threshold ? '✅' : '❌'} Similarity: ${score}% — ${ali.link?.substring(0, 60)}`);
-
-    if (score >= threshold) {
-      results.push({ etsy: etsyItem, aliexpress: ali, similarity: score });
-    }
-  }
-
-  return results.sort((a, b) => b.similarity - a.similarity).slice(0, 1);
+  console.log(`✅ Lens matches directs: ${results.length}`);
+  return results.slice(0, 1);
 }
 
 module.exports = { compareEtsyWithAliexpress };
