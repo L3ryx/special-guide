@@ -161,46 +161,16 @@ function cleanAliUrl(raw) {
 // ZenRows prend le relais automatiquement.
 // ════════════════════════════════════════════════════════════════════════
 async function scrapingbeeFetch(targetUrl, sbParams = {}) {
-  const sbKey = process.env.SCRAPINGBEE_KEY;
+  // ScrapingBee désactivé — ZenRows puis ScraperAPI directement
 
-  // ── Tentative ScrapingBee ──
-  if (sbKey) {
-    try {
-      const params = {
-        api_key:      sbKey,
-        url:          targetUrl,
-        render_js:    'true',
-        country_code: 'us',
-        timeout:      '45000',
-        ...sbParams,
-      };
-      const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params,
-        timeout: 120000,
-      });
-      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-      if (html.length > 500) {
-        return html;
-      }
-    } catch (e) {
-      const status = e.response?.status;
-      console.warn('ScrapingBee failed (' + status + ') — trying ZenRows:', e.message.slice(0, 80));
-      // 401 = crédits épuisés, 429 = rate limit, 500 = erreur serveur → fallback
-    }
-  }
-
-  // ── Fallback ZenRows ──
-  const zrKey = process.env.ZENROWS_API_KEY;
-  if (!zrKey) throw new Error('ScrapingBee failed and ZENROWS_API_KEY is not set');
-
-  // ── Fallback 1 : ZenRows sans JS ──
+  // ── Fallback 1 : ZenRows (JS+premium) ──
   const zrKey = process.env.ZENROWS_API_KEY;
   if (zrKey) {
     try {
-      console.log('ZenRows fallback (no-JS):', targetUrl);
+      console.log('ZenRows fetch (JS+premium):', targetUrl);
       const r = await axios.get('https://api.zenrows.com/v1/', {
-        params: { apikey: zrKey, url: targetUrl },
-        timeout: 30000,
+        params: { apikey: zrKey, url: targetUrl, js_render: 'true', premium_proxy: 'true' },
+        timeout: 90000,
       });
       const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
       if (html.length > 500) {
@@ -216,10 +186,10 @@ async function scrapingbeeFetch(targetUrl, sbParams = {}) {
   const saKey = process.env.SCRAPEAPI_KEY;
   if (saKey) {
     try {
-      console.log('ScraperAPI fallback:', targetUrl);
+      console.log('ScraperAPI fetch:', targetUrl);
       const r = await axios.get('http://api.scraperapi.com', {
-        params: { api_key: saKey, url: targetUrl, render: 'false', country_code: 'us' },
-        timeout: 60000,
+        params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
+        timeout: 90000,
       });
       const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
       if (html.length > 500) {
