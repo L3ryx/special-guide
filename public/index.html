@@ -987,6 +987,7 @@
               return m ? 'https://www.etsy.com/shop/' + m[1] : null;
             })(etsy.link) : null)
         || '';
+      console.log('[Shop]', { shopName: _shopName0, shopUrl, etsyShopUrl: etsy.shopUrl, link: etsy.link });
       const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
@@ -998,7 +999,7 @@
       card.innerHTML =
         '<div class="match-body"><div class="product-panel"><div class="etsy-img-container">' +
         '<div class="shop-side-col">' +
-          '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' +
+          '<a class="shop-side-btn" href="' + (shopUrl || 'javascript:void(0)') + '" ' + (shopUrl ? 'target="_blank" rel="noopener"' : '') + '>' +
             (shopAvatar ? '<img src="' + shopAvatar + '" onerror="this.style.display=\'none\'" />' : '<span class="side-initial">' + initial + '</span>') +
           '</a>' +
           '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + idx + ',this)">❤️</button>' +
