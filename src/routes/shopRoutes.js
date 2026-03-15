@@ -209,16 +209,46 @@ async function scrapeShopListings(shopUrl) {
   const listings = [];
   const seen = new Set();
 
-  // Stratégie 1 : JSON embarqué (ScrapingBee/ZenRows avec JS)
-  const listingPattern = /"listing_id"\s*:\s*(\d+)[^}]*?"title"\s*:\s*"([^"]+)"/g;
+  // Stratégie 1 : listing_id + title dans JSON embarqué React
+  const p1 = /"listing_id"\s*:\s*(\d+)[^}]*?"title"\s*:\s*"([^"]+)"/g;
   let m;
-  while ((m = listingPattern.exec(html)) !== null && listings.length < 30) {
+  while ((m = p1.exec(html)) !== null && listings.length < 30) {
     const id = m[1], title = m[2];
-    const url = 'https://www.etsy.com/listing/' + id + '/' + title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    if (!seen.has(id)) { seen.add(id); listings.push({ id, title, url, image: null, price: null }); }
+    if (!seen.has(id)) {
+      seen.add(id);
+      listings.push({ id, title, url: 'https://www.etsy.com/listing/' + id, image: null, price: null });
+    }
   }
 
-  // Stratégie 2 : JSON-LD (présent dans HTML statique ScraperAPI)
+  // Stratégie 2 : "listingId" dans les données React window.__data ou scripts
+  if (listings.length < 3) {
+    const p2 = /"listingId"\s*:\s*(\d+)[^,}]*?"title"\s*:\s*"([^"]+)"/g;
+    while ((m = p2.exec(html)) !== null && listings.length < 30) {
+      const id = m[1], title = m[2];
+      if (!seen.has(id)) {
+        seen.add(id);
+        listings.push({ id, title, url: 'https://www.etsy.com/listing/' + id, image: null, price: null });
+      }
+    }
+  }
+
+  // Stratégie 3 : chercher "id":NNNN,"title":"..." dans tous les scripts
+  if (listings.length < 3) {
+    for (const [, raw] of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)) {
+      if (!raw.includes('"title"') || !raw.includes('listing')) continue;
+      const p3 = /"id"\s*:\s*(\d{8,})\s*,[^}]{0,200}"title"\s*:\s*"([^"]{5,150})"/g;
+      while ((m = p3.exec(raw)) !== null && listings.length < 30) {
+        const id = m[1], title = m[2];
+        if (!seen.has(id)) {
+          seen.add(id);
+          listings.push({ id, title, url: 'https://www.etsy.com/listing/' + id, image: null, price: null });
+        }
+      }
+      if (listings.length >= 5) break;
+    }
+  }
+
+  // Stratégie 4 : JSON-LD
   if (listings.length < 3) {
     for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
       try {
@@ -227,10 +257,11 @@ async function scrapeShopListings(shopUrl) {
         for (const item of items) {
           const url = item.url || item['@id'];
           if (!url || !url.includes('/listing/')) continue;
-          const cleanUrl = url.split('?')[0];
-          if (seen.has(cleanUrl)) continue;
-          seen.add(cleanUrl);
-          listings.push({ title: item.name || cleanUrl.split('/').pop().replace(/-/g, ' '), url: cleanUrl, image: null, price: null });
+          const cleanUrl = url.replace(/\/[a-z]{2}(\/listing\/)/, '$1').split('?')[0];
+          const id = cleanUrl.match(/\/listing\/(\d+)/)?.[1];
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          listings.push({ id, title: item.name || cleanUrl.split('/').pop().replace(/-/g, ' '), url: cleanUrl, image: null, price: null });
           if (listings.length >= 30) break;
         }
       } catch {}
@@ -238,32 +269,11 @@ async function scrapeShopListings(shopUrl) {
     }
   }
 
-  // Stratégie 3 : liens href vers listings (fallback HTML pur)
-  if (listings.length < 3) {
-    for (const hm of html.matchAll(/href="(https?:\/\/www\.etsy\.com(?:\/[a-z]{2})?\/listing\/(\d+)\/([^"?#]+))"/g)) {
-      const url = hm[1].replace(/\/[a-z]{2}(\/listing\/)/, '$1').split('?')[0];
-      const id  = hm[2];
-      if (seen.has(id) || listings.length >= 30) continue;
-      seen.add(id);
-      listings.push({ title: hm[3].replace(/-/g, ' '), url, image: null, price: null });
-    }
-  }
+  // Ajouter images etsystatic dans l'ordre
+  const imgs = [...html.matchAll(/https:\/\/i\.etsystatic\.com\/[^\s"',]+(?:il_fullxfull|il_75x75|il_570xN)[^"'\s,]*/g)];
+  imgs.forEach((im, idx) => { if (listings[idx]) listings[idx].image = im[0].split('?')[0]; });
 
-  // Ajouter les images etsystatic aux listings dans l'ordre
-  const imgMatches = [...html.matchAll(/https:\/\/i\.etsystatic\.com\/[^\s"']+(?:il|il_fullxfull)[^"'\s]*/g)];
-  imgMatches.forEach((im, idx) => { if (listings[idx]) listings[idx].image = im[0]; });
-
-  // Debug : voir ce que contient le HTML
-  const hasListing  = (html.match(/\/listing\//g) || []).length;
-  const hasJsonLd   = (html.match(/ld\+json/g) || []).length;
-  const hasAlt      = (html.match(/listing\/\d+/g) || []).length;
-  const hasFrListing= (html.match(/\/fr\/listing\//g) || []).length;
-  const hasEtsystatic=(html.match(/etsystatic\.com/g) || []).length;
-  console.log('scrapeShopListings debug — /listing/:', hasListing, '| /fr/listing/:', hasFrListing, '| ld+json:', hasJsonLd, '| listing/N:', hasAlt, '| etsystatic:', hasEtsystatic);
-  // Extrait du HTML pour voir la structure
-  const sampleIdx = html.indexOf('listing');
-  if (sampleIdx > 0) console.log('HTML sample around listing:', html.slice(Math.max(0,sampleIdx-30), sampleIdx+80));
-  console.log('scrapeShopListings:', listings.length, 'listings, titles:', listings.slice(0,5).map(l=>l.title));
+  console.log('scrapeShopListings:', listings.length, 'listings found');
   return listings.filter(l => l.url);
 }
 
