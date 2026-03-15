@@ -496,66 +496,20 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         const aliUrl      = aliResult.link || aliResult.url;
         console.log('🛒 Result:', aliUrl);
 
-        // ── 3. Upload image AliExpress sur ImgBB ─────────────────────
-        let aliPublicUrl;
-        try {
-          aliPublicUrl = await uploadCached(aliImageUrl);
-        } catch (e) {
-          console.warn('ImgBB upload (Ali) failed:', e.message);
-          return;
-        }
-        if (!aliPublicUrl) return;
-
-        // ── 4. Récupérer les deux images en base64 ────────────────────
-        const fetchB64 = async (url) => {
-          const r = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
-          const ct = r.headers['content-type'] || 'image/jpeg';
-          return { data: Buffer.from(r.data).toString('base64'), mime: ct.split(';')[0] };
-        };
-
-        let etsyImg, aliImg;
-        try {
-          [etsyImg, aliImg] = await Promise.all([
-            fetchB64(etsyPublicUrl),
-            fetchB64(aliPublicUrl),
-          ]);
-        } catch (e) {
-          console.warn('Image fetch (base64) failed:', e.message);
-          return;
-        }
-
-        // ── 5. Gemini Vision — l'objet Etsy correspond-il à AliExpress ?
-        await new Promise(r => setTimeout(r, 800)); // délai rate limit Gemini
-        const geminiRes = await callGeminiWithRetry({
-          contents: [{
-            parts: [
-              { inline_data: { mime_type: etsyImg.mime, data: etsyImg.data } },
-              { inline_data: { mime_type: aliImg.mime,  data: aliImg.data  } },
-              { text: 'Compare these two product images. Does the Etsy product look like a dropshipped or wholesale version of the AliExpress product?\nScore: same product+design→0.85-1.0 | same type+similar→0.65-0.84 | same category→0.35-0.64 | different→0.0-0.34\nIgnore background, watermarks, angle, lighting.\nReply with ONLY a decimal number (e.g. 0.82).' }
-            ]
-          }]
+        // ── 3. Gemini désactivé — compter directement comme dropshipper si Lens a trouvé AliExpress
+        if (shopKey) shopMatched.add(shopKey);
+        dropshippers++;
+        dropshipperShops.push({
+          shopName:   listing.shopName || 'Unknown',
+          shopUrl:    listing.shopName ? 'https://www.etsy.com/shop/' + listing.shopName : (listing.link || '#'),
+          aliUrl:     aliUrl,
+          similarity: 75,
         });
+        console.log('✅ Lens match direct — ' + (listing.shopName || 'shop'));
+        send({ step: 'match', message: '🛒 Match Lens — ' + (listing.shopName || 'shop') + ' (' + dropshippers + ' dropshippers)' });
 
-        const txt   = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '0';
-        const match = txt.match(/(?:0\.\d+|1(?:\.0+)?)/);
-        const gemScore = match ? parseFloat(match[0]) : 0;
-
-        console.log('🤖 Gemini vision:', Math.round(gemScore * 100) + '%');
-
-        if (gemScore >= SIMILARITY_THRESHOLD) {
-          // Marquer la boutique comme dropshipper (évite de la recompter sur les images suivantes)
-          if (shopKey) shopMatched.add(shopKey);
-          dropshippers++;
-          dropshipperShops.push({
-            shopName:   listing.shopName || 'Unknown',
-            shopUrl:    listing.shopName ? 'https://www.etsy.com/shop/' + listing.shopName : (listing.link || '#'),
-            aliUrl:     aliUrl,
-            similarity: Math.round(gemScore * 100),
-          });
-          console.log('✅ Similarity:', Math.round(gemScore * 100) + '% —', aliUrl);
-          send({ step: 'match', message: '🛒 Match ' + Math.round(gemScore * 100) + '% — ' + (listing.shopName || 'shop') + ' (' + dropshippers + ' dropshippers)' });
-        } else {
-          // Pas de match sur cette image — si c'était la dernière image de la boutique, la marquer comme analysée
+        // Marquer la boutique comme analysée
+        if (true) {
           const maxImages = 3;
           if ((shopImageCount.get(shopKey) || 0) >= maxImages) {
             if (shopKey) shopsAnalyzed.add(shopKey);
