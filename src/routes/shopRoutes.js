@@ -170,7 +170,7 @@ async function scrapingbeeFetch(targetUrl, sbParams = {}) {
       console.log('ZenRows fetch (JS+premium):', targetUrl);
       const r = await axios.get('https://api.zenrows.com/v1/', {
         params: { apikey: zrKey, url: targetUrl, js_render: 'true', premium_proxy: 'true' },
-        timeout: 90000,
+        timeout: 30000, // réduit à 30s — passer vite à ScraperAPI si ZenRows timeout
       });
       const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
       if (html.length > 500) {
@@ -801,6 +801,7 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
     }
+
 
 
 
