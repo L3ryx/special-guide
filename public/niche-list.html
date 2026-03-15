@@ -129,6 +129,24 @@
     .comp-area { padding: 0 14px 12px 14px; }
     .comp-status { font-size: 0.74rem; color: var(--muted); min-height: 1.1em; margin-top: 8px; }
     .comp-results { margin-top: 4px; }
+    .comp-steps { margin-top: 10px; display: none; flex-direction: column; gap: 5px; }
+    .comp-step { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; padding: 5px 8px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); transition: all 0.3s; }
+    .comp-step .step-icon { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; flex-shrink: 0; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.3); }
+    .comp-step .step-label { flex: 1; color: rgba(255,255,255,0.4); }
+    .comp-step .step-time { font-size: 0.65rem; color: rgba(255,255,255,0.25); flex-shrink: 0; }
+    .comp-step.active .step-icon { background: rgba(249,115,22,0.2); color: #f97316; animation: pulse 1s infinite; }
+    .comp-step.active .step-label { color: #f97316; font-weight: 600; }
+    .comp-step.active .step-time { color: #f97316; }
+    .comp-step.done .step-icon { background: rgba(34,197,94,0.2); color: #22c55e; }
+    .comp-step.done .step-label { color: rgba(255,255,255,0.7); }
+    .comp-step.done .step-time { color: rgba(255,255,255,0.3); }
+    .comp-step.error .step-icon { background: rgba(239,68,68,0.2); color: #ef4444; }
+    .comp-step.error .step-label { color: #ef4444; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .comp-timer { display:none; align-items:center; gap:6px; margin-top:8px; padding:5px 10px; background:rgba(249,115,22,0.08); border:1px solid rgba(249,115,22,0.2); border-radius:10px; font-size:0.75rem; font-family:'Inter',monospace; }
+    .comp-timer .timer-elapsed { color:#f97316; font-weight:700; font-size:0.85rem; }
+    .comp-timer .timer-sep { color:rgba(255,255,255,0.2); }
+    .comp-timer .timer-total { color:rgba(255,255,255,0.35); }
 
     .btn-delete {
       width: 26px; height: 26px; border-radius: 50%;
@@ -259,6 +277,34 @@
         </div>
         <div class="comp-area">
           <div class="comp-status" id="comp-status-${shop._id}"></div>
+          <div class="comp-timer" id="comp-timer-${shop._id}">
+            <span>⏱</span>
+            <span class="timer-elapsed" id="timer-elapsed-${shop._id}">0:00</span>
+            <span class="timer-sep">/</span>
+            <span class="timer-total" id="timer-total-${shop._id}">estimating...</span>
+          </div>
+          <div class="comp-steps" id="comp-steps-${shop._id}">
+            <div class="comp-step" id="cstep-keyword-${shop._id}">
+              <div class="step-icon">🔑</div>
+              <div class="step-label">Keyword extraction</div>
+              <div class="step-time">~2s</div>
+            </div>
+            <div class="comp-step" id="cstep-scraping-${shop._id}">
+              <div class="step-icon">🔍</div>
+              <div class="step-label">Scraping Etsy listings</div>
+              <div class="step-time">~30s</div>
+            </div>
+            <div class="comp-step" id="cstep-analyzing-${shop._id}">
+              <div class="step-icon">🖼</div>
+              <div class="step-label">Reverse image search</div>
+              <div class="step-time">~2min</div>
+            </div>
+            <div class="comp-step" id="cstep-complete-${shop._id}">
+              <div class="step-icon">📊</div>
+              <div class="step-label">Computing results</div>
+              <div class="step-time">~1s</div>
+            </div>
+          </div>
           <div class="comp-results" id="comp-results-${shop._id}">
             ${hasComp ? renderCompetitionResult(shop.lastCompetition, shop._id) : ''}
           </div>
@@ -277,15 +323,59 @@
     }
 
     async function runCompetition(shopId) {
-      const btn    = document.getElementById('find-btn-' + shopId);
-      const label  = btn.querySelector('.btn-label');
-      const status = document.getElementById('comp-status-' + shopId);
-      const resDiv = document.getElementById('comp-results-' + shopId);
+      const btn      = document.getElementById('find-btn-' + shopId);
+      const label    = btn.querySelector('.btn-label');
+      const status   = document.getElementById('comp-status-' + shopId);
+      const resDiv   = document.getElementById('comp-results-' + shopId);
+      const stepsDiv = document.getElementById('comp-steps-' + shopId);
       btn.disabled = true;
       btn.classList.add('running');
       label.textContent = 'Analyse...';
-      status.textContent = '⚔️ Starting competition analysis...';
+      status.textContent = '';
       resDiv.innerHTML = '';
+      stepsDiv.style.display = 'flex';
+
+      function setStep(name, state) {
+        const el = document.getElementById('cstep-' + name + '-' + shopId);
+        if (!el) return;
+        el.classList.remove('active', 'done', 'error');
+        if (state) el.classList.add(state);
+        const icon = el.querySelector('.step-icon');
+        const icons = { keyword:'🔑', scraping:'🔍', analyzing:'🖼', complete:'📊' };
+        if (state === 'done') icon.textContent = '✓';
+        else if (state === 'error') icon.textContent = '✗';
+        else icon.textContent = icons[name] || '•';
+      }
+
+      // Minuteur live avec estimé dynamique
+      const timerDiv = document.getElementById('comp-timer-' + shopId);
+      const timerEl  = document.getElementById('timer-elapsed-' + shopId);
+      const timerTot = document.getElementById('timer-total-' + shopId);
+      timerDiv.style.display = 'flex';
+      let elapsed = 0;
+      let estimatedTotal = null; // calculé dès qu'on connaît le nb de boutiques
+
+      function fmtTime(s) {
+        const m = Math.floor(s / 60);
+        return m + ':' + String(s % 60).padStart(2, '0');
+      }
+
+      // Appelé quand on connaît le nombre de boutiques à analyser
+      function updateEstimate(totalShops) {
+        // ~1.5s par boutique (upload ImgBB + Serper Lens)
+        estimatedTotal = Math.round(totalShops * 1.5) + 35; // +35s pour scraping Etsy
+        timerTot.textContent = '~' + fmtTime(estimatedTotal);
+      }
+
+      const timerInterval = setInterval(() => {
+        elapsed++;
+        timerEl.textContent = fmtTime(elapsed);
+        if (estimatedTotal && elapsed >= estimatedTotal) {
+          timerTot.textContent = '~' + fmtTime(estimatedTotal) + ' (running...)';
+        }
+      }, 1000);
+
+      setStep('keyword', 'active');
 
       try {
         const token = localStorage.getItem('scout_token');
@@ -317,12 +407,26 @@
             if (!line.startsWith('data: ')) continue;
             try {
               const ev = JSON.parse(line.slice(6));
-              if (ev.step === 'status' || ev.step === 'scraping') {
+              if (ev.step === 'status') {
                 status.textContent = ev.message;
               } else if (ev.step === 'keyword') {
+                setStep('keyword', 'done');
+                setStep('scraping', 'active');
+                status.textContent = ev.message;
+              } else if (ev.step === 'scraping') {
+                status.textContent = ev.message;
+              } else if (ev.step === 'analyzing' || ev.step === 'match') {
+                setStep('scraping', 'done');
+                setStep('analyzing', 'active');
+                if (ev.totalShops && !estimatedTotal) updateEstimate(ev.totalShops);
                 status.textContent = ev.message;
               } else if (ev.step === 'complete') {
+                clearInterval(timerInterval);
+                timerDiv.style.display = 'none';
+                setStep('analyzing', 'done');
+                setStep('complete', 'done');
                 status.textContent = '';
+                stepsDiv.style.display = 'none';
                 resDiv.innerHTML = renderCompetitionResult(ev, shopId);
                 const compBtn = document.getElementById('find-btn-' + shopId);
                 if (compBtn) compBtn.remove();
@@ -332,12 +436,18 @@
                   window._dropListData[shopId] = shops;
                 }
               } else if (ev.step === 'error') {
+                clearInterval(timerInterval);
+                timerDiv.style.display = 'none';
+                ['keyword','scraping','analyzing','complete'].forEach(s => {
+                  const el = document.getElementById('cstep-' + s + '-' + shopId);
+                  if (el && el.classList.contains('active')) setStep(s, 'error');
+                });
                 status.textContent = '❌ ' + ev.message;
               }
             } catch(e) {}
           }
         }
-      } catch(err) { status.textContent = '❌ ' + err.message; }
+      } catch(err) { clearInterval(timerInterval); timerDiv.style.display = 'none'; status.textContent = '❌ ' + err.message; }
 
       btn.disabled = false; btn.classList.remove('running'); label.textContent = '⚔️ Competition';
     }
@@ -506,6 +616,7 @@
   </script>
 </body>
 </html>
+
 
 
 
