@@ -14,8 +14,6 @@ const { scrapeEtsy, debugEtsyHtml }              = require('../services/etsyScra
 const { reverseImageSearch }                      = require('../services/reverseImageSearch');
 const { compareEtsyWithAliexpress }               = require('../services/imageSimilarity');
 const { getShopInfo }                             = require('../services/shopScraper');
-const { scrapeShopStats, computeScore,
-        extractStatsFromListingHtml }             = require('../services/shopStatsScraper');
 
 async function parallel(items, concurrency, fn) {
   const results = new Array(items.length);
@@ -107,7 +105,7 @@ router.post('/search', async (req, res) => {
     send('etsy_done', `✅ ${listings.length} listings found`);
 
     send('reverse_search', `🏪 Fetching shop info...`);
-    await parallel(listings, 15, async (listing) => {
+    await parallel(listings, 1, async (listing) => {
       try {
         const shopInfo = await getShopInfo(listing);
         listing.shopName   = shopInfo.shopName   || listing.shopName;
@@ -161,7 +159,7 @@ router.post('/search', async (req, res) => {
         return true;
       });
 
-    await parallel(deduped, 8, async (result) => {
+    await parallel(deduped, 1, async (result) => {
       try {
         const shop = await getShopInfo(result.etsy);
         result.etsy.shopName   = shop.shopName   || result.etsy.shopName   || null;
