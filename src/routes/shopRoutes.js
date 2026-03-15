@@ -193,22 +193,30 @@ async function scrapingbeeFetch(targetUrl, sbParams = {}) {
   const zrKey = process.env.ZENROWS_API_KEY;
   if (!zrKey) throw new Error('ScrapingBee failed and ZENROWS_API_KEY is not set');
 
-  console.log('ZenRows fallback:', targetUrl);
-  const zrParams = {
-    apikey:          zrKey,
-    url:             targetUrl,
-    js_render:       'true',     // équivalent render_js
-    premium_proxy:   'true',
-    wait_for:        '2000',     // équivalent wait
-  };
-  const r = await axios.get('https://api.zenrows.com/v1/', {
-    params: zrParams,
-    timeout: 120000,
-  });
-  const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-  if (html.length < 500) throw new Error('ZenRows returned empty response');
-  console.log('ZenRows OK —', html.length, 'chars');
-  return html;
+  // 2 tentatives max, timeout 60s
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      console.log('ZenRows fallback attempt', attempt, ':', targetUrl);
+      const r = await axios.get('https://api.zenrows.com/v1/', {
+        params: {
+          apikey:        zrKey,
+          url:           targetUrl,
+          js_render:     'true',
+          premium_proxy: 'true',
+          wait_for:      sbParams.wait || '2000',
+        },
+        timeout: 60000,
+      });
+      const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      if (html.length < 500) throw new Error('ZenRows returned empty response');
+      console.log('ZenRows OK (' + html.length + ' chars)');
+      return html;
+    } catch (e) {
+      console.warn('ZenRows attempt', attempt, 'failed:', e.message.slice(0, 80));
+      if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+  throw new Error('ZenRows failed after 2 attempts');
 }
 
 async function scrapeShopListings(shopUrl) {
