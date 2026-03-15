@@ -80,7 +80,7 @@
     .acct-box-msg { font-size:0.8rem; min-height:1.1em; text-align:center; }
 
     /* ── NICHE LIST BTN ── */
-    #niche-list-btn { position:fixed; top:10px; left:12px; z-index:500; display:none; align-items:center; gap:6px; padding:7px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.8); font-size:0.82rem; font-weight:600; font-family:'Inter',sans-serif; text-decoration:none; backdrop-filter:blur(12px); transition:all 0.2s; }
+    #niche-list-btn { position:fixed; top:10px; left:12px; z-index:500; display:none; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; border:2px solid rgba(241,100,30,0.6); background:rgba(241,100,30,0.18); color:#f87171; font-size:22px; text-decoration:none; backdrop-filter:blur(12px); transition:all 0.2s; }
     #niche-list-btn:hover { background:rgba(255,255,255,0.13); color:#fff; }
     #niche-list-btn .nl-count { background:var(--green); border-radius:50%; width:16px; height:16px; font-size:0.6rem; font-weight:700; display:none; align-items:center; justify-content:center; color:#fff; }
 
@@ -118,7 +118,7 @@
     .keyword-tag.error .tag-text { color:#f87171; }
     #clear-keywords-btn { width:48px; height:48px; flex-shrink:0; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:14px; color:#f87171; font-size:1.1rem; cursor:pointer; transition:all 0.2s; display:none; align-items:center; justify-content:center; }
     #clear-keywords-btn:hover { background:rgba(239,68,68,0.25); border-color:rgba(239,68,68,0.6); }
-    #dice-btn { width:100%; height:48px; padding:0 20px; background:linear-gradient(135deg,#1d4ed8,#3b82f6); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-size:1rem; font-weight:700; letter-spacing:0.05em; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 4px 20px rgba(59,130,246,0.35); }
+    #dice-btn { width:100%; height:52px; min-height:52px; max-height:52px; padding:0 20px; background:linear-gradient(135deg,#1d4ed8,#3b82f6); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-size:1rem; font-weight:700; letter-spacing:0.05em; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 4px 20px rgba(59,130,246,0.35); }
     #dice-btn:hover { background:linear-gradient(135deg,#1e40af,#2563eb); transform:translateY(-1px); box-shadow:0 6px 24px rgba(59,130,246,0.5); }
     #dice-btn:active { transform:translateY(0); }
     #dice-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
@@ -128,7 +128,7 @@
 
     .selects-row { display:flex; gap:10px; width:100%; }
     .select-wrap { flex:1; position:relative; }
-    .select-wrap select { width:100%; padding:16px 40px 16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; color:var(--text); font-family:'Inter',sans-serif; font-size:1rem; outline:none; appearance:none; backdrop-filter:blur(16px); cursor:pointer; transition:border-color 0.2s; }
+    .select-wrap select { width:100%; height:52px; min-height:52px; max-height:52px; padding:0 40px 0 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; color:var(--text); font-family:'Inter',sans-serif; font-size:1rem; outline:none; appearance:none; backdrop-filter:blur(16px); cursor:pointer; transition:border-color 0.2s; text-align:center; }
     .select-wrap select:focus { border-color:var(--green); }
     .select-wrap option { background:#1a1a1a; color:#fff; }
     .select-wrap::after { content:'▾'; position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; font-size:0.8rem; }
@@ -276,7 +276,7 @@
   </div>
 
   <!-- FIXED BUTTONS -->
-  <a id="niche-list-btn" href="/niche-list"><span style="color:#f87171;">❤️</span><span>Shop</span><span class="nl-count" id="nl-count">0</span></a>
+  <a id="niche-list-btn" href="/niche-list">❤️<span class="nl-count" id="nl-count" style="position:absolute;top:-4px;right:-4px;">0</span></a>
   <div id="user-badge">
     <button id="user-avatar-btn" onclick="toggleUserDropdown()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -322,28 +322,35 @@
 
   <div id="main-view">
     <div class="search-card">
-      <!-- Input + tags + add + trash, all inline -->
-      <div class="input-row" style="align-items:stretch;">
-        <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:8px;">
-          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;" />
-          <button id="dice-btn" onclick="rollNiche()"><span class="dice-icon">🎲</span>Generate</button>
+      <!-- Grille CSS 2 colonnes : gauche flexible, droite 48px fixe -->
+      <div style="display:grid;grid-template-columns:1fr 48px;gap:8px;">
+
+        <!-- Ligne 1 col 1 : keyword -->
+        <input type="text" id="keyword-input" placeholder="Enter keyword"
+          style="padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
+
+        <!-- Ligne 1 col 2 : bouton + -->
+        <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword" style="width:48px;align-self:stretch;margin-top:4px;">+<span id="kw-count-badge"></span></button>
+
+        <!-- keywords-list span sur 2 colonnes -->
+        <div id="keywords-list" style="display:none;grid-column:1/3;"></div>
+
+        <!-- Ligne 2 col 1 : select + generate -->
+        <div style="display:flex;gap:8px;align-items:stretch;">
+          <div class="select-wrap" style="flex:2;">
+            <select id="count-select">
+              <option value="1">1 image</option><option value="2">2 images</option><option value="3">3 images</option>
+              <option value="5">5 images</option><option value="10" selected>10 images</option>
+              <option value="15">15 images</option><option value="20">20 images</option>
+              <option value="30">30 images</option><option value="50">50 images</option><option value="100">100 images</option>
+            </select>
+          </div>
+          <button id="dice-btn" onclick="rollNiche()" style="flex:1;padding:0 16px;"><span class="dice-icon">🎲</span>Generate</button>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
-          <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword">+<span id="kw-count-badge"></span></button>
-          <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords">🗑</button>
-        </div>
-      </div>
-      <div id="keywords-list" style="display:none;"></div>
-      <!-- Number of images -->
-      <div class="selects-row">
-        <div class="select-wrap">
-          <select id="count-select">
-            <option value="1">1 image</option><option value="2">2 images</option><option value="3">3 images</option>
-            <option value="5">5 images</option><option value="10" selected>10 images</option>
-            <option value="15">15 images</option><option value="20">20 images</option>
-            <option value="30">30 images</option><option value="50">50 images</option><option value="100">100 images</option>
-          </select>
-        </div>
+
+        <!-- Ligne 2 col 2 : bouton trash -->
+        <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords" style="width:48px;align-self:stretch;">🗑</button>
+
       </div>
       <button id="start-btn" onclick="startSearch()">START</button>
     </div>
@@ -953,13 +960,7 @@
         countSpan.textContent = totalMatches + ' match(es) found';
         countBar.appendChild(countSpan);
       }
-      if (_dropshipperShops.length > 0) {
-        var dropBtn = document.createElement('button');
-        dropBtn.textContent = '🛒 Drop List (' + _dropshipperShops.length + ')';
-        dropBtn.style.cssText = 'padding:6px 16px;border-radius:8px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-weight:600;font-size:0.78rem;cursor:pointer;font-family:Inter,sans-serif;';
-        dropBtn.onclick = function() { showDropList(_dropshipperShops); };
-        countBar.appendChild(dropBtn);
-      }
+
 
       if (totalMatches > 0) {
 
@@ -1072,5 +1073,6 @@
   </script>
 </body>
 </html>
+
 
 
