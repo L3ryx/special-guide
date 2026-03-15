@@ -862,7 +862,6 @@
 
         try {
           document.getElementById('progress-msg').textContent = '⏳ Connecting...';
-          window._currentKeyword = keyword;
           const response = await fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -978,11 +977,16 @@
       const etsy = m.etsy, ali = m.aliexpress;
       const etsySrc = etsy.hostedImageUrl || etsy.image || '';
       const aliSrc  = ali.image || '';
-      const shopUrl = etsy.shopUrl || (etsy.link ? etsy.link.split('/listing/')[0] : '') || '';
+      // Construire shopUrl — priorité : shopUrl > shopName > regex sur link
+      const _sn = etsy.shopName || null;
+      const shopUrl = etsy.shopUrl
+        || (_sn ? 'https://www.etsy.com/shop/' + _sn : null)
+        || (etsy.link ? (function(l){ var m = l.match(/etsy\.com\/shop\/([^/?#]+)/); return m ? 'https://www.etsy.com/shop/' + m[1] : null; })(etsy.link) : null)
+        || '';
       const shopName = etsy.shopName || shopUrl.split('/shop/')[1]?.split('/')[0] || 'Shop';
       const shopAvatar = etsy.shopAvatar || '';
       const idx = Object.keys(window._shopDataMap).length;
-      window._shopDataMap[idx] = { shopUrl, shopName, shopAvatar, productImage: etsySrc, productUrl: etsy.link || '', keyword: window._currentKeyword || '' };
+      window._shopDataMap[idx] = { shopUrl, shopName, shopAvatar, productImage: etsySrc, productUrl: etsy.link || '' };
       const initial = shopName.charAt(0).toUpperCase();
 
       const card = document.createElement('div');
@@ -990,9 +994,9 @@
       card.innerHTML =
         '<div class="match-body"><div class="product-panel"><div class="etsy-img-container">' +
         '<div class="shop-side-col">' +
-          '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' +
+          (shopUrl ? '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' : '<span class="shop-side-btn">') +
             (shopAvatar ? '<img src="' + shopAvatar + '" onerror="this.style.display=\'none\'" />' : '<span class="side-initial">' + initial + '</span>') +
-          '</a>' +
+          (shopUrl ? '</a>' : '</span>') +
           '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + idx + ',this)">❤️</button>' +
         '</div>' +
         '<div class="img-wrap"><div class="img-box">' + (etsySrc ? '<img src="' + etsySrc + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') + '</div></div>' +
@@ -1054,7 +1058,7 @@
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ shopUrl: data.shopUrl, shopName: data.shopName, shopAvatar: data.shopAvatar, productImage: data.productImage, productUrl: data.productUrl, keyword: data.keyword || '' })
+          body: JSON.stringify({ shopUrl: data.shopUrl, shopName: data.shopName, shopAvatar: data.shopAvatar, productImage: data.productImage, productUrl: data.productUrl })
         });
         if (r.ok) {
           _savedShopUrls.add(data.shopUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
@@ -1074,7 +1078,6 @@
   </script>
 </body>
 </html>
-
 
 
 
