@@ -891,6 +891,7 @@
                 if (ev.step === 'complete') {
                   completeAllSteps();
                   kwResults = ev.results || [];
+                  window._currentKeyword = keyword;
                   kwResults.forEach(renderMatch);
                   _allResults = _allResults.concat(kwResults);
                   totalMatches += kwResults.length;
@@ -976,7 +977,7 @@
       // Construire shopUrl — priorité : shopUrl > shopName > regex sur link
       const productUrl = etsy.link || '';
       const idx = Object.keys(window._shopDataMap).length;
-      window._shopDataMap[idx] = { productUrl, productImage: etsySrc };
+      window._shopDataMap[idx] = { productUrl, productImage: etsySrc, keyword: window._currentKeyword || null };
 
       const card = document.createElement('div');
       card.className = 'match-card';
@@ -1042,7 +1043,7 @@
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ productUrl: data.productUrl, productImage: data.productImage })
+          body: JSON.stringify({ productUrl: data.productUrl, productImage: data.productImage, keyword: data.keyword || null })
         });
         if (r.ok) {
           _savedShopUrls.add(data.productUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
