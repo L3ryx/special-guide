@@ -157,14 +157,6 @@
     }
     .empty-state .emoji { font-size: 2.5rem; }
 
-    /* Dropshipper rows inside shop card */
-    .drop-shops-section { margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
-    .drop-shops-title { font-size: 0.68rem; font-weight: 700; color: rgba(239,68,68,0.8); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
-    .drop-shop-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.15); border-radius: 8px; }
-    .drop-shop-name { font-size: 0.8rem; font-weight: 600; color: rgba(255,255,255,0.85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
-    .drop-shop-btn { flex-shrink: 0; padding: 4px 10px; border-radius: 6px; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.35); color: #fbbf24; font-size: 0.72rem; font-weight: 700; text-decoration: none; white-space: nowrap; transition: all 0.2s; }
-    .drop-shop-btn:hover { background: rgba(245,158,11,0.3); color: #fff; }
-
     .toast-msg {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
       padding: 12px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
@@ -185,8 +177,7 @@
   </nav>
 
   <div class="container">
-    <h1>My Shops</h1>
-    <p class="subtitle" id="subtitle">Loading...</p>
+    <h1>My List</h1>
     <div class="shops-list" id="shops-list"></div>
   </div>
 
@@ -211,11 +202,9 @@
 
     async function loadShops() {
       const list = document.getElementById('shops-list');
-      const sub  = document.getElementById('subtitle');
       try {
         const r     = await apiFetch('/api/shops');
         const shops = await r.json();
-        sub.textContent = shops.length + ' saved shop(s)';
         if (!shops.length) {
           list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved shops yet.<br>Save shops from Finder Niche search results.</div>';
           return;
@@ -245,9 +234,7 @@
         || (shop.shopUrl ? shop.shopUrl.split('/shop/')[1]?.split('/')[0] : null)
         || (shop.productUrl ? (shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/)?.[1]) : null)
         || 'Shop';
-      const logoHtml = shop.shopAvatar
-        ? `<img class="shop-row-logo" src="${shop.shopAvatar}" alt="" onerror="this.style.display='none'" />`
-        : `<div class="shop-row-logo-initial">${name.charAt(0).toUpperCase()}</div>`;
+
 
       const hasComp = shop.lastCompetition && shop.lastCompetition.totalShops != null && shop.lastCompetition.runAt != null;
       const dropshippers = hasComp ? (shop.lastCompetition.dropshipperShops || []) : [];
@@ -257,39 +244,23 @@
         window._dropListData[shop._id] = dropshippers;
       }
 
+      const dropListBtnHtml = ''; // bouton Shop integre dans la banniere
+
       const compBtnHtml = hasComp
         ? ''
         : `<button class="btn-find" id="find-btn-${shop._id}" onclick="runCompetition('${shop._id}')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>`;
 
-      // Générer les lignes dropshippers directement dans la card
-      function buildDropShopRows(shops) {
-        if (!shops || shops.length === 0) return '';
-        const rows = shops.map(s => {
-          const sName = s.shopName || '';
-          const sUrl  = sName ? 'https://www.etsy.com/shop/' + sName : (s.shopUrl || '#');
-          return `<div class="drop-shop-row">
-            <span class="drop-shop-name">${sName || '—'}</span>
-            <a class="drop-shop-btn" href="${sUrl}" target="_blank" rel="noopener">Voir ↗</a>
-          </div>`;
-        }).join('');
-        return `<div class="drop-shops-section">
-          <div class="drop-shops-title">🛒 ${shops.length} dropshipper${shops.length > 1 ? 's' : ''} identifié${shops.length > 1 ? 's' : ''}</div>
-          ${rows}
-        </div>`;
-      }
-
-      const dropShopsHtml = buildDropShopRows(dropshippers);
-
+      // ✅ CORRECTION : innerHTML du wrapper correctement rempli
       wrap.innerHTML = `
         <div class="shop-row" id="shop-row-${shop._id}">
           ${thumbHtml}
           <div class="shop-row-right">
-            ${logoHtml}
             <div class="shop-row-info">
               <div class="shop-row-name">${name}</div>
               <div class="shop-row-btns">
-                <a class="btn-visit" href="${shop.shopName ? 'https://www.etsy.com/shop/' + shop.shopName : (shop.shopUrl || '#')}" target="_blank" rel="noopener">🛍 Visit Shop</a>
+                <a class="btn-visit" href="${shop.productUrl || '#'}" target="_blank" rel="noopener">Visit</a>
                 ${compBtnHtml}
+                ${dropListBtnHtml}
               </div>
             </div>
             <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
@@ -327,9 +298,6 @@
           </div>
           <div class="comp-results" id="comp-results-${shop._id}">
             ${hasComp ? renderCompetitionResult(shop.lastCompetition, shop._id) : ''}
-          </div>
-          <div class="drop-shops-wrap" id="drop-shops-${shop._id}">
-            ${dropShopsHtml}
           </div>
         </div>
       `;
@@ -448,20 +416,6 @@
                 if (shops.length > 0) {
                   window._dropListData = window._dropListData || {};
                   window._dropListData[shopId] = shops;
-                }
-                // Mettre à jour les lignes dropshippers dans la card
-                const dropWrap = document.getElementById('drop-shops-' + shopId);
-                if (dropWrap) {
-                  if (shops.length > 0) {
-                    const rows = shops.map(function(s) {
-                      const sName = s.shopName || '';
-                      const sUrl  = sName ? 'https://www.etsy.com/shop/' + sName : (s.shopUrl || '#');
-                      return '<div class="drop-shop-row"><span class="drop-shop-name">' + (sName || '—') + '</span><a class="drop-shop-btn" href="' + sUrl + '" target="_blank" rel="noopener">Voir ↗</a></div>';
-                    }).join('');
-                    dropWrap.innerHTML = '<div class="drop-shops-section"><div class="drop-shops-title">🛒 ' + shops.length + ' dropshipper' + (shops.length > 1 ? 's' : '') + ' identifié' + (shops.length > 1 ? 's' : '') + '</div>' + rows + '</div>';
-                  } else {
-                    dropWrap.innerHTML = '';
-                  }
                 }
               } else if (ev.step === 'error') {
                 clearInterval(timerInterval);
