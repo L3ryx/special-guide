@@ -206,15 +206,7 @@ function parseEtsyListings(html) {
     }
     if (closest) {
       seen.add(link.url);
-      // Try to extract shopName from nearby HTML context (within 2000 chars around the link)
-      const contextStart = Math.max(0, link.pos - 1000);
-      const contextEnd = Math.min(html.length, link.pos + 1000);
-      const context = html.slice(contextStart, contextEnd);
-      const shopAttr = context.match(/data-shop-name="([^"]+)"/i)
-                    || context.match(/data-shop_name="([^"]+)"/i)
-                    || context.match(/"shopName"\s*:\s*"([^"]+)"/i)
-                    || context.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
-      const shopName = shopAttr ? shopAttr[1] : null;
+      const shopName = extractShopFromUrl(link.url);
       listings.push({
         title: link.url.split('/').pop().replace(/-/g, ' '),
         link: link.url, image: closest.url,
@@ -260,3 +252,5 @@ async function debugEtsyHtml(keyword) {
 }
 
 module.exports = { scrapeEtsy, scrapeEtsyShopNames, debugEtsyHtml };
+
+
