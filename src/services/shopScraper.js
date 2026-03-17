@@ -6,7 +6,7 @@ async function getShopInfo(listing) {
   const key = listing.shopName || listing.link;
   if (cache.has(key)) return cache.get(key);
 
-  // Already have shopName — just build the info
+  // Si on a déjà le shopName depuis ScrapingBee, on construit juste les infos sans re-scraper
   if (listing.shopName) {
     const info = {
       shopName:   listing.shopName,
@@ -17,53 +17,24 @@ async function getShopInfo(listing) {
     return info;
   }
 
-  // Retry avec backoff pour eviter les 429
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      // Tentative 1 : sans render_js (moins de credits, evite les 429)
-      // Tentative 2 : avec stealth_proxy
-      // Tentative 3 : avec premium_proxy
-      const params = {
-        api_key:      process.env.SCRAPINGBEE_KEY,
-        url:          listing.link,
-        render_js:    attempt === 1 ? 'false' : 'true',
-        country_code: 'us',
-        timeout:      '30000',
-      };
-      if (attempt === 2) params.stealth_proxy  = 'true';
-      if (attempt === 3) params.premium_proxy  = 'true';
-      if (attempt > 1)   params.wait           = '2000';
-
-      const res = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params,
-        timeout: 60000,
-      });
-      const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
-      const info = parseShopInfo(html);
-      cache.set(key, info);
-      if (info.shopName) cache.set(info.shopName, info);
-      return info;
-    } catch (err) {
-      const status = err.response?.status;
-      console.error('shopScraper error (attempt ' + attempt + '):', err.message);
-      // 429 = rate limit -> attendre avant retry
-      if (status === 429 && attempt < 3) {
-        await new Promise(r => setTimeout(r, 5000 * attempt));
-        continue;
-      }
-      // 401 = cle invalide -> inutile de retry
-      if (status === 401) break;
-      if (attempt === 3) break;
-      await new Promise(r => setTimeout(r, 2000));
-    }
+  try {
+    const url = `http://api.scraperapi.com?api_key=${process.env.SCRAPEAPI_KEY}&url=${encodeURIComponent(listing.link)}&render=false`;
+    const res  = await axios.get(url, { timeout: 20000 });
+    const html = res.data;
+    const info = parseShopInfo(html);
+    cache.set(key, info);
+    if (info.shopName) cache.set(info.shopName, info);
+    return info;
+  } catch (err) {
+    console.error('shopScraper error:', err.message);
+    return { shopName: listing.shopName || null, shopUrl: listing.shopUrl || null, shopAvatar: null };
   }
-  return { shopName: listing.shopName || null, shopUrl: listing.shopUrl || null, shopAvatar: null };
 }
 
 function parseShopInfo(html) {
   let shopName = null, shopAvatar = null;
 
-  // Strategy 1: JSON-LD
+  // JSON-LD
   for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
       const items = [].concat(JSON.parse(raw)?.['@graph'] || JSON.parse(raw));
@@ -74,27 +45,10 @@ function parseShopInfo(html) {
     if (shopName) break;
   }
 
-  // Strategy 2: multiple HTML/JS patterns
+  // HTML fallback
   if (!shopName) {
-    const patterns = [
-      // Direct href to shop page — most reliable
-      /href="https:\/\/www\.etsy\.com\/shop\/([A-Za-z0-9_-]+)/i,
-      // Data attributes
-      /data-shop-name="([^"]+)"/i,
-      // JSON in page JS
-      /"shopName"\s*:\s*"([^"]+)"/i,
-      /"shop_name"\s*:\s*"([^"]+)"/i,
-      /"owner_name"\s*:\s*"([^"]+)"/i,
-      // Schema.org Store
-      /"@type"\s*:\s*"Store"[^}]{0,200}"name"\s*:\s*"([^"]+)"/i,
-      /"name"\s*:\s*"([^"]+)"[^}]{0,200}"@type"\s*:\s*"Store"/i,
-      // Etsy internal JS state
-      /"shopId"[^}]{0,300}"shopName"\s*:\s*"([^"]+)"/i,
-    ];
-    for (const pat of patterns) {
-      const m = html.match(pat);
-      if (m?.[1]?.length > 1) { shopName = m[1]; break; }
-    }
+    const m = html.match(/data-shop-name="([^"]+)"/i) || html.match(/"shopName"\s*:\s*"([^"]+)"/i);
+    if (m) shopName = m[1];
   }
 
   // Avatar
@@ -111,9 +65,11 @@ function parseShopInfo(html) {
 
   return {
     shopName,
-    shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null,
+    shopUrl:    shopName ? `https://www.etsy.com/shop/${shopName}` : null,
     shopAvatar
   };
 }
 
 module.exports = { getShopInfo };
+
+
