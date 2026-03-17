@@ -7,21 +7,18 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
-  const { productUrl, productImage } = req.body;
+  const { productUrl, productImage, keyword } = req.body;
   if (!productUrl) return res.status(400).json({ error: 'productUrl requis' });
-
-  // Extraire shopName depuis l'URL listing si possible
-  // URL Etsy listing : https://www.etsy.com/listing/123456/nom-produit
-  // shopName non disponible depuis l'URL listing — on stocke null
   try {
     const shop = await SavedShop.findOneAndUpdate(
       { userId: req.user.id, productUrl },
       { $set: {
+          productUrl,
+          productImage: productImage || null,
+          keyword:      keyword || null,
           shopName:     null,
           shopUrl:      null,
           shopAvatar:   null,
-          productImage: productImage || null,
-          productUrl,
           savedAt:      new Date(),
         },
         $setOnInsert: { userId: req.user.id }
@@ -30,6 +27,8 @@ router.post('/save', requireAuth, async (req, res) => {
     );
     res.json({ ok: true, shop });
   } catch (err) {
+    // Doublon sur un ancien index (ex: userId_1_shopUrl_1) — on retourne ok quand même
+    if (err.code === 11000) return res.json({ ok: true });
     res.status(500).json({ error: err.message });
   }
 });
