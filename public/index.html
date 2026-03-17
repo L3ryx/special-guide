@@ -183,10 +183,10 @@
     .img-box img { width:100%; height:100%; object-fit:cover; transition:transform 0.4s; display:block; }
     .img-box:hover img { transform:scale(1.04); }
 
-    /* heart overlay */
+    /* heart + image layout */
     .etsy-img-container { position:relative; width:100%; }
-    .btn-heart-icon { position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:3; width:32px; height:32px; border-radius:50%; border:none; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); cursor:pointer; display:flex; align-items:center; justify-content:center; color:#facc15; font-size:1.15rem; transition:all 0.2s; padding:0; }
-    .btn-heart-icon:hover { background:rgba(0,0,0,0.75); transform:translateX(-50%) scale(1.15); }
+    .btn-heart-icon { position:absolute; left:0; top:50%; transform:translateY(-50%); z-index:3; width:30px; height:52px; border-radius:0 10px 10px 0; border:none; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); cursor:pointer; display:flex; align-items:center; justify-content:center; color:#facc15; font-size:1.1rem; transition:all 0.2s; padding:0; }
+    .btn-heart-icon:hover { background:rgba(0,0,0,0.75); color:#fff; }
     .btn-heart-icon.saved { color:#22c55e; }
     .btn-heart-icon.saving { opacity:0.5; cursor:not-allowed; }
 
