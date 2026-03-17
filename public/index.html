@@ -183,14 +183,10 @@
     .img-box img { width:100%; height:100%; object-fit:cover; transition:transform 0.4s; display:block; }
     .img-box:hover img { transform:scale(1.04); }
 
-    /* shop side col */
+    /* heart overlay on image */
     .etsy-img-container { position:relative; width:100%; }
-    .shop-side-col { position:absolute; top:0; left:0; bottom:0; width:42px; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:10px 0; background:rgba(0,0,0,0.45); border-right:1px solid rgba(255,255,255,0.08); border-radius:11px 0 0 11px; }
-    .shop-side-btn { display:flex; align-items:center; justify-content:center; text-decoration:none; }
-    .shop-side-btn img { width:26px; height:26px; border-radius:50%; object-fit:cover; border:2px solid rgba(241,100,30,0.6); }
-    .side-initial { display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:rgba(241,100,30,0.3); border:2px solid rgba(241,100,30,0.5); color:#fff; font-weight:700; font-size:0.8rem; }
-    .btn-heart-icon { width:26px; height:26px; border-radius:50%; border:none; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#facc15; font-size:1.1rem; transition:all 0.2s; padding:0; }
-    .btn-heart-icon:hover { transform:scale(1.25); }
+    .btn-heart-icon { position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:3; width:32px; height:32px; border-radius:50%; border:none; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px); cursor:pointer; display:flex; align-items:center; justify-content:center; color:#facc15; font-size:1.2rem; transition:all 0.2s; padding:0; }
+    .btn-heart-icon:hover { transform:translateX(-50%) scale(1.2); background:rgba(0,0,0,0.75); }
     .btn-heart-icon.saved { color:#22c55e; }
     .btn-heart-icon.saving { opacity:0.5; cursor:not-allowed; }
 
@@ -993,12 +989,7 @@
       card.className = 'match-card';
       card.innerHTML =
         '<div class="match-body"><div class="product-panel"><div class="etsy-img-container">' +
-        '<div class="shop-side-col">' +
-          (shopUrl ? '<a class="shop-side-btn" href="' + shopUrl + '" target="_blank" rel="noopener">' : '<span class="shop-side-btn">') +
-            (shopAvatar ? '<img src="' + shopAvatar + '" onerror="this.style.display=\'none\'" />' : '<span class="side-initial">' + initial + '</span>') +
-          (shopUrl ? '</a>' : '</span>') +
-          '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + idx + ',this)">❤️</button>' +
-        '</div>' +
+        '<button class="btn-heart-icon" id="heart-' + encodeShopKey(shopUrl) + '" onclick="saveShop(' + idx + ',this)">❤️</button>' +
         '<div class="img-wrap"><div class="img-box">' + (etsySrc ? '<img src="' + etsySrc + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') + '</div></div>' +
         '</div>' +
         (etsy.price ? '<div class="price-tag etsy-price">💰 ' + etsy.price + '</div>' : '') +
@@ -1078,6 +1069,7 @@
   </script>
 </body>
 </html>
+
 
 
 
