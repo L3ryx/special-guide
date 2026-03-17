@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const savedShopSchema = new mongoose.Schema({
   userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  shopName:  { type: String, required: true },
-  shopUrl:   { type: String, required: true },
+  shopName:  { type: String, default: null },
+  shopUrl:   { type: String, default: null },
   shopAvatar:   { type: String, default: null },
   productImage: { type: String, default: null },
   productUrl:   { type: String, default: null },
@@ -29,6 +29,6 @@ const savedShopSchema = new mongoose.Schema({
 });
 
 // Unique shop per user
-savedShopSchema.index({ userId: 1, shopUrl: 1 }, { unique: true });
+savedShopSchema.index({ userId: 1, productUrl: 1 }, { unique: true });
 
 module.exports = mongoose.model('SavedShop', savedShopSchema);
