@@ -230,7 +230,13 @@
         ? `<a href="${productUrl}" target="_blank" rel="noopener"><img class="shop-thumb" src="${productImg}" alt="" loading="lazy" /></a>`
         : `<a href="${productUrl}" target="_blank" rel="noopener"><div class="shop-thumb-placeholder">🛍</div></a>`;
 
-      const name = shop.keyword || shop.shopName || '—';
+      // Keyword sauvegardé, sinon extraire depuis le slug de l'URL listing
+      var _kw = shop.keyword || null;
+      if (!_kw && shop.productUrl) {
+        var _slug = shop.productUrl.match(/\/listing\/\d+\/([^/?#]+)/);
+        if (_slug) _kw = _slug[1].replace(/-/g, ' ').replace(/[^a-z0-9 ]/gi, ' ').trim();
+      }
+      const name = _kw || '—';
 
 
       const hasComp = shop.lastCompetition && shop.lastCompetition.totalShops != null && shop.lastCompetition.runAt != null;
