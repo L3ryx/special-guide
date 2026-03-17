@@ -134,11 +134,28 @@ async function scrapeEtsyShopNames(keyword) {
   return Array.from(allShops);
 }
 
+// ── EXTRACTION DU SHOP NAME DEPUIS UNE URL DE LISTING ──
+// Etsy listing URLs: https://www.etsy.com/listing/123456/product-name
+// On extrait le shopName depuis le contexte HTML autour du lien, ou depuis les blocs JSON.
+function extractShopNameFromContext(context) {
+  // Ordre de priorité : attributs HTML > JSON inline > URL /shop/
+  const m =
+    context.match(/data-shop-name="([^"]+)"/i) ||
+    context.match(/data-shop_name="([^"]+)"/i) ||
+    context.match(/data-seller-name="([^"]+)"/i) ||
+    context.match(/"shopName"\s*:\s*"([A-Za-z0-9_-]+)"/i) ||
+    context.match(/"sellerName"\s*:\s*"([A-Za-z0-9_-]+)"/i) ||
+    context.match(/"seller"\s*:\s*\{[^}]*"name"\s*:\s*"([A-Za-z0-9_-]+)"/i) ||
+    context.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i) ||
+    context.match(/\/shop\/([A-Za-z0-9]+)/i);
+  return m ? m[1] : null;
+}
+
 function parseEtsyListings(html) {
   const listings = [];
   const seen = new Set();
 
-  // Strategy 1: JSON-LD
+  // ── Strategy 1: JSON-LD ──
   const jsonLdBlocks = html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
   for (const block of jsonLdBlocks) {
     try {
@@ -151,7 +168,8 @@ function parseEtsyListings(html) {
         const name = item.name;
         if (url?.includes('/listing/') && image && name && !seen.has(url)) {
           seen.add(url);
-          const shopName = item.seller?.name || item.brand?.name || extractShopFromUrl(url) || null;
+          // seller.name est la source la plus fiable dans JSON-LD
+          const shopName = item.seller?.name || item.brand?.name || null;
           const shopUrl = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
           let price = null;
           const offers = item.offers || item.offer;
@@ -168,7 +186,7 @@ function parseEtsyListings(html) {
   }
   if (listings.length >= 2) return listings;
 
-  // Strategy 2: data-listing-id blocks
+  // ── Strategy 2: data-listing-id blocks ──
   const blocks = [...html.matchAll(/(<(?:li|div)[^>]*data-listing-id[^>]*>[\s\S]*?<\/(?:li|div)>)/gi)];
   for (const block of blocks) {
     const b = block[1];
@@ -176,8 +194,8 @@ function parseEtsyListings(html) {
     const imgMatch = b.match(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+)"/i);
     if (linkMatch && imgMatch && !seen.has(linkMatch[1])) {
       seen.add(linkMatch[1]);
-      const shopAttr = b.match(/data-shop-name="([^"]+)"/i);
-      const shopName = shopAttr ? shopAttr[1] : extractShopFromUrl(linkMatch[1]);
+      // Chercher le shopName dans tout le bloc HTML
+      const shopName = extractShopNameFromContext(b);
       const shopUrl = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
       const nameMatch = b.match(/alt="([^"]{5,120})"/i);
       const priceMatch = b.match(/data-price="([^"]+)"/i) || b.match(/"price"\s*:\s*"([^"]+)"/i);
@@ -191,10 +209,13 @@ function parseEtsyListings(html) {
   }
   if (listings.length >= 2) return listings;
 
-  // Strategy 3: proximity
+  // ── Strategy 3: proximity (fallback) ──
+  // Extraction globale des shopNames présents dans la page (blocs JSON, data-shop-name, /shop/ URLs)
+  const globalShopMap = buildGlobalShopMap(html);
+
   const allLinks = [...html.matchAll(/href="(https:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"?#]+)/g)];
   const allImages = [...html.matchAll(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+\.(?:jpg|jpeg|png|webp))/gi)];
-  const linkPos = allLinks.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
+  const linkPos = allLinks.map(m => ({ url: m[1].split('?')[0], listingId: m[2], pos: m.index }));
   const imgPos = allImages.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
 
   for (const link of linkPos) {
@@ -206,15 +227,17 @@ function parseEtsyListings(html) {
     }
     if (closest) {
       seen.add(link.url);
-      // Try to extract shopName from nearby HTML context (within 2000 chars around the link)
+      // 1) Contexte local autour du lien (2000 chars)
       const contextStart = Math.max(0, link.pos - 1000);
       const contextEnd = Math.min(html.length, link.pos + 1000);
       const context = html.slice(contextStart, contextEnd);
-      const shopAttr = context.match(/data-shop-name="([^"]+)"/i)
-                    || context.match(/data-shop_name="([^"]+)"/i)
-                    || context.match(/"shopName"\s*:\s*"([^"]+)"/i)
-                    || context.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
-      const shopName = shopAttr ? shopAttr[1] : null;
+      let shopName = extractShopNameFromContext(context);
+
+      // 2) Si pas trouvé localement, chercher par listing ID dans la map globale
+      if (!shopName && link.listingId) {
+        shopName = globalShopMap.get(link.listingId) || null;
+      }
+
       listings.push({
         title: link.url.split('/').pop().replace(/-/g, ' '),
         link: link.url, image: closest.url,
@@ -228,9 +251,22 @@ function parseEtsyListings(html) {
   return listings;
 }
 
-function extractShopFromUrl(url) {
-  const m = url.match(/etsy\.com\/shop\/([A-Za-z0-9]+)/i);
-  return m ? m[1] : null;
+// Construit une map listingId → shopName en scannant tout le HTML une seule fois
+function buildGlobalShopMap(html) {
+  const map = new Map();
+  // Chercher les blocs JS/JSON qui associent un listingId à un shopName
+  // Pattern Etsy typique : "listing_id":123456,"shop_name":"ShopName"
+  const patterns = [
+    /"listing_id"\s*:\s*(\d+)[^}]{0,200}"shop_name"\s*:\s*"([A-Za-z0-9_-]+)"/gi,
+    /"listingId"\s*:\s*(\d+)[^}]{0,200}"shopName"\s*:\s*"([A-Za-z0-9_-]+)"/gi,
+    /"id"\s*:\s*(\d+)[^}]{0,200}"seller"\s*:\s*\{[^}]*"name"\s*:\s*"([A-Za-z0-9_-]+)"/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const m of html.matchAll(pattern)) {
+      if (!map.has(m[1])) map.set(m[1], m[2]);
+    }
+  }
+  return map;
 }
 
 function cleanEtsyImage(url) {
