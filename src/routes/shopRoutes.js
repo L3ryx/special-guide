@@ -7,26 +7,25 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
-  let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
-  if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
-  if (shopUrl.includes('/listing/')) {
-    const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/);
-    shopUrl = m
-      ? `https://www.etsy.com/shop/${m[1]}`
-      : shopName
-        ? `https://www.etsy.com/shop/${shopName}`
-        : shopUrl.split('/listing/')[0].replace(/\/$/, '');
-  } else {
-    shopUrl = shopUrl.replace(/\/$/, '');
-  }
-  if (!shopName || shopName === 'Shop' || shopName === 'Boutique') {
-    const m = shopUrl.match(/\/shop\/([^/?#]+)/);
-    shopName = m ? m[1] : shopUrl.split('/').filter(Boolean).pop() || 'Shop';
-  }
+  const { productUrl, productImage } = req.body;
+  if (!productUrl) return res.status(400).json({ error: 'productUrl requis' });
+
+  // Extraire shopName depuis l'URL listing si possible
+  // URL Etsy listing : https://www.etsy.com/listing/123456/nom-produit
+  // shopName non disponible depuis l'URL listing — on stocke null
   try {
     const shop = await SavedShop.findOneAndUpdate(
-      { userId: req.user.id, shopUrl },
-      { $set: { shopName, shopAvatar: shopAvatar || null, productImage: productImage || null, productUrl: productUrl || null, keyword: req.body.keyword || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
+      { userId: req.user.id, productUrl },
+      { $set: {
+          shopName:     null,
+          shopUrl:      null,
+          shopAvatar:   null,
+          productImage: productImage || null,
+          productUrl,
+          savedAt:      new Date(),
+        },
+        $setOnInsert: { userId: req.user.id }
+      },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ ok: true, shop });
@@ -709,6 +708,7 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
     }
+
 
 
 
