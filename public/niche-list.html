@@ -57,45 +57,31 @@
     .shop-row {
       display: flex; align-items: center; gap: 14px;
       background: var(--glass); border: 1px solid var(--glass-border);
-      border-radius: 16px; padding: 12px 14px;
+      border-radius: 16px; padding: 14px 16px;
       backdrop-filter: blur(16px); animation: slideUp 0.4s ease;
     }
-    .shop-thumb {
-      width: 70px; height: 70px; border-radius: 10px; object-fit: cover;
-      border: 1px solid var(--glass-border); flex-shrink: 0; cursor: pointer;
+    .shop-avatar {
+      width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
+      border: 2px solid rgba(241,100,30,0.4); flex-shrink: 0;
     }
-    .shop-thumb:hover { opacity: 0.85; }
-    .shop-thumb-placeholder {
-      width: 70px; height: 70px; border-radius: 10px; flex-shrink: 0;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
-      display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+    .shop-avatar-ph {
+      width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(241,100,30,0.1); border: 2px solid rgba(241,100,30,0.3);
+      display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
     }
-    .shop-row-right { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: center; }
     .shop-row-info { flex: 1; min-width: 0; }
-    .shop-row-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .shop-row-btns { display: flex; flex-direction: column; gap: 7px; margin-top: 7px; align-items: stretch; }
+    .shop-row-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
     .btn-visit {
-      padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(241,100,30,0.35);
-      background: rgba(241,100,30,0.12); color: #fb923c;
-      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.75rem;
+      flex-shrink: 0; padding: 9px 18px; border-radius: 10px;
+      border: 1px solid rgba(241,100,30,0.5);
+      background: rgba(241,100,30,0.18); color: #fb923c;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.8rem;
       text-decoration: none; transition: all 0.2s; white-space: nowrap;
-      text-align: center; display: block;
     }
-    .btn-visit:hover { background: rgba(241,100,30,0.25); }
+    .btn-visit:hover { background: rgba(241,100,30,0.35); color: #fff; }
 
-    @keyframes spin { to { transform: rotate(360deg); } }
 
-    .comp-progress { display:none; flex-direction:row; align-items:center; gap:14px; margin-top:10px; }
-    .comp-step { display:none; align-items:center; gap:8px; font-size:0.78rem; opacity:0.4; }
-    .comp-step.active { display:flex; opacity:1; }
-    .comp-step.done { display:flex; opacity:0.6; }
-    .comp-step .step-icon { font-size:0.9rem; flex-shrink:0; }
-    .comp-step.active .step-icon { animation:pulse 1s infinite; }
-    .comp-step .step-label { color:#f97316; font-weight:600; }
-    .comp-step.done .step-label { color:#22c55e; }
-    .comp-step.error .step-label { color:#ef4444; }
-    .comp-step.error .step-icon { animation:none; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
 
     .btn-delete {
       width: 26px; height: 26px; border-radius: 50%;
@@ -127,7 +113,7 @@
   <nav>
     <div class="nav-left">
       <button type="button" class="btn-back" onclick="goBack()">← Back</button>
-      <span class="nav-title">My List</span>
+      <span class="nav-title">Dashboard</span>
     </div>
   </nav>
 
@@ -177,57 +163,49 @@
       const wrap = document.createElement('div');
       wrap.id = 'shop-wrapper-' + shop._id;
 
-      const productImg = shop.productImage || null;
-      const productUrl = shop.productUrl || '#';
-      const shopName   = shop.shopName || productUrl || '—';
+      const avatarUrl  = shop.shopAvatar || shop.productImage || null;
+      const shopUrl    = shop.shopUrl || shop.productUrl || '#';
+      const shopName   = shop.shopName || '—';
 
       const row = document.createElement('div');
       row.className = 'shop-row';
       row.id = 'shop-row-' + shop._id;
 
-      // Image / avatar via proxy
-      const thumb = document.createElement('a');
-      thumb.href = productUrl; thumb.target = '_blank'; thumb.rel = 'noopener';
+      // Avatar rond
       const ph = document.createElement('div');
-      ph.className = 'shop-thumb-placeholder'; ph.textContent = '🛍';
-      if (productImg) {
+      ph.className = 'shop-avatar-ph'; ph.textContent = '🛍';
+      if (avatarUrl) {
         const img = document.createElement('img');
-        img.className = 'shop-thumb';
-        img.src = '/proxy-image?url=' + encodeURIComponent(productImg);
+        img.className = 'shop-avatar';
+        img.src = '/proxy-image?url=' + encodeURIComponent(avatarUrl);
         img.loading = 'lazy'; img.alt = '';
         img.onerror = function() { this.style.display='none'; ph.style.display='flex'; };
         ph.style.display = 'none';
-        thumb.appendChild(img);
+        row.appendChild(img);
       }
-      thumb.appendChild(ph);
-      row.appendChild(thumb);
+      row.appendChild(ph);
 
-      // Infos + boutons
-      const right = document.createElement('div');
-      right.className = 'shop-row-right';
-
+      // Nom boutique
       const info = document.createElement('div');
       info.className = 'shop-row-info';
       const nameEl = document.createElement('div');
       nameEl.className = 'shop-row-name'; nameEl.textContent = shopName;
       info.appendChild(nameEl);
+      row.appendChild(info);
 
-      const btns = document.createElement('div');
-      btns.className = 'shop-row-btns';
+      // Bouton Visit shop
       const visitBtn = document.createElement('a');
       visitBtn.className = 'btn-visit';
-      visitBtn.href = productUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
       visitBtn.textContent = 'Visit shop ↗';
-      btns.appendChild(visitBtn);
-      info.appendChild(btns);
-      right.appendChild(info);
+      row.appendChild(visitBtn);
 
+      // Bouton supprimer
       const delBtn = document.createElement('button');
       delBtn.className = 'btn-delete'; delBtn.textContent = '✕';
       delBtn.addEventListener('click', function() { deleteShop(shop._id); });
-      right.appendChild(delBtn);
+      row.appendChild(delBtn);
 
-      row.appendChild(right);
       wrap.appendChild(row);
       return wrap;
     }
@@ -322,3 +300,4 @@
   </script>
 </body>
 </html>
+
