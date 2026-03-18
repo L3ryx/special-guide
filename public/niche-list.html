@@ -254,56 +254,65 @@
         : `<button class="btn-find" id="find-btn-${shop._id}" onclick="runCompetition('${shop._id}')"><span class="spinner"></span><span class="btn-label">⚔️ Competition</span></button>`;
 
       // ✅ CORRECTION : innerHTML du wrapper correctement rempli
-      wrap.innerHTML = `
-        <div class="shop-row" id="shop-row-${shop._id}">
-          ${thumbHtml}
-          <div class="shop-row-right">
-            <div class="shop-row-info">
-              <div class="shop-row-name">${name}</div>
-              <div class="shop-row-btns">
-                <a class="btn-visit" href="${shop.productUrl || '#'}" target="_blank" rel="noopener">Visit</a>
-                ${compBtnHtml}
-                ${dropListBtnHtml}
+      if (hasComp) {
+        // Afficher directement la carte résultat
+        wrap.innerHTML =
+          '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;' +
+          'background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px;">' +
+            '<div style="font-size:0.78rem;font-weight:700;color:#f97316;letter-spacing:0.06em;text-transform:uppercase;font-family:Inter,sans-serif;text-align:center;">' + name + '</div>' +
+            (shop.productImage ? '<a href="' + (shop.productUrl||'#') + '" target="_blank" rel="noopener" style="width:100%;max-width:160px;"><img src="' + shop.productImage + '" style="width:100%;border-radius:10px;object-fit:cover;aspect-ratio:1/1;" loading="lazy" /></a>' : '') +
+            renderCompetitionResult(shop.lastCompetition, shop._id) +
+            '<button onclick="deleteShop(\'' + shop._id + '\')" style="margin-top:2px;background:rgba(255,80,80,0.07);border:1px solid rgba(255,80,80,0.25);color:#f87171;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:0.8rem;">✕</button>' +
+          '</div>';
+      } else {
+        wrap.innerHTML = `
+          <div class="shop-row" id="shop-row-${shop._id}">
+            ${thumbHtml}
+            <div class="shop-row-right">
+              <div class="shop-row-info">
+                <div class="shop-row-name">${name}</div>
+                <div class="shop-row-btns">
+                  <a class="btn-visit" href="${shop.productUrl || '#'}" target="_blank" rel="noopener">Visit</a>
+                  ${compBtnHtml}
+                </div>
               </div>
-            </div>
-            <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
-          </div>
-        </div>
-        <div class="comp-area">
-          <div class="comp-status" id="comp-status-${shop._id}"></div>
-          <div class="comp-progress" id="comp-progress-${shop._id}">
-            <div class="comp-steps" id="comp-steps-${shop._id}">
-              <div class="comp-step" id="cstep-keyword-${shop._id}">
-                <div class="step-icon">🔑</div>
-                <div class="step-label">Keyword extraction</div>
-                <div class="step-time">~2s</div>
-              </div>
-              <div class="comp-step" id="cstep-scraping-${shop._id}">
-                <div class="step-icon">🔍</div>
-                <div class="step-label">Scraping Etsy listings</div>
-                <div class="step-time">~30s</div>
-              </div>
-              <div class="comp-step" id="cstep-analyzing-${shop._id}">
-                <div class="step-icon">🖼</div>
-                <div class="step-label">Reverse image search</div>
-                <div class="step-time">~2min</div>
-              </div>
-              <div class="comp-step" id="cstep-complete-${shop._id}">
-                <div class="step-icon">📊</div>
-                <div class="step-label">Computing results</div>
-                <div class="step-time">~1s</div>
-              </div>
-            </div>
-            <div class="comp-timer" id="comp-timer-${shop._id}">
-              <div class="timer-elapsed" id="timer-elapsed-${shop._id}">0:00</div>
-              <div class="timer-total" id="timer-total-${shop._id}">estimating...</div>
+              <button class="btn-delete" onclick="deleteShop('${shop._id}')" title="Delete">✕</button>
             </div>
           </div>
-          <div class="comp-results" id="comp-results-${shop._id}">
-            ${hasComp ? renderCompetitionResult(shop.lastCompetition, shop._id) : ''}
+          <div class="comp-area">
+            <div class="comp-status" id="comp-status-${shop._id}"></div>
+            <div class="comp-progress" id="comp-progress-${shop._id}">
+              <div class="comp-steps" id="comp-steps-${shop._id}">
+                <div class="comp-step" id="cstep-keyword-${shop._id}">
+                  <div class="step-icon">🔑</div>
+                  <div class="step-label">Keyword extraction</div>
+                  <div class="step-time">~2s</div>
+                </div>
+                <div class="comp-step" id="cstep-scraping-${shop._id}">
+                  <div class="step-icon">🔍</div>
+                  <div class="step-label">Scraping Etsy listings</div>
+                  <div class="step-time">~30s</div>
+                </div>
+                <div class="comp-step" id="cstep-analyzing-${shop._id}">
+                  <div class="step-icon">🖼</div>
+                  <div class="step-label">Reverse image search</div>
+                  <div class="step-time">~2min</div>
+                </div>
+                <div class="comp-step" id="cstep-complete-${shop._id}">
+                  <div class="step-icon">📊</div>
+                  <div class="step-label">Computing results</div>
+                  <div class="step-time">~1s</div>
+                </div>
+              </div>
+              <div class="comp-timer" id="comp-timer-${shop._id}">
+                <div class="timer-elapsed" id="timer-elapsed-${shop._id}">Estimating...</div>
+                <div class="timer-total" id="timer-total-${shop._id}"></div>
+              </div>
+            </div>
+            <div class="comp-results" id="comp-results-${shop._id}"></div>
           </div>
-        </div>
-      `;
+        `;
+      }
 
       return wrap;
     }
@@ -409,16 +418,27 @@
               } else if (ev.step === 'complete') {
                 clearInterval(timerInterval);
                 progDiv.style.display = 'none';
-                setStep('analyzing', 'done');
-                setStep('complete', 'done');
                 status.textContent = '';
-                resDiv.innerHTML = renderCompetitionResult(ev, shopId);
-                const compBtn = document.getElementById('find-btn-' + shopId);
-                if (compBtn) compBtn.remove();
                 const shops = ev.dropshipperShops || [];
                 if (shops.length > 0) {
                   window._dropListData = window._dropListData || {};
                   window._dropListData[shopId] = shops;
+                }
+                // Récupérer keyword et image depuis le wrapper
+                const wrapEl = document.getElementById('shop-wrapper-' + shopId);
+                const kw   = wrapEl ? (wrapEl.dataset.keyword || '') : '';
+                const img  = wrapEl ? (wrapEl.dataset.productImage || '') : '';
+                const pUrl = wrapEl ? (wrapEl.dataset.productUrl || '#') : '#';
+                // Remplacer tout le wrapper par la carte résultat
+                if (wrapEl) {
+                  wrapEl.innerHTML =
+                    '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;' +
+                    'background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px;">' +
+                      '<div style="font-size:0.78rem;font-weight:700;color:#f97316;letter-spacing:0.06em;text-transform:uppercase;font-family:Inter,sans-serif;text-align:center;">' + (kw || '—') + '</div>' +
+                      (img ? '<a href="' + pUrl + '" target="_blank" rel="noopener" style="width:100%;max-width:160px;"><img src="' + img + '" style="width:100%;border-radius:10px;object-fit:cover;aspect-ratio:1/1;" loading="lazy" /></a>' : '') +
+                      renderCompetitionResult(ev, shopId) +
+                      '<button onclick="deleteShop(\'' + shopId + '\')" style="margin-top:2px;background:rgba(255,80,80,0.07);border:1px solid rgba(255,80,80,0.25);color:#f87171;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:0.8rem;">✕</button>' +
+                    '</div>';
                 }
               } else if (ev.step === 'error') {
                 clearInterval(timerInterval);
