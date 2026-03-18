@@ -52,18 +52,6 @@
     h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
 
     .shops-list { display: flex; flex-direction: column; gap: 12px; }
-
-    /* ── Snap scroll vertical ── */
-    html, body { height: 100%; }
-    body { overflow-y: scroll; scroll-snap-type: y mandatory; }
-    .snap-section {
-      scroll-snap-align: start;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .snap-section:last-child { scroll-snap-align: start; min-height: auto; padding-bottom: 60px; }
     @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 
     .shop-row {
@@ -197,11 +185,9 @@
         }
         list.innerHTML = '';
         shops.forEach(shop => {
-          const section = document.createElement('div');
-          section.className = 'snap-section';
-          section.appendChild(buildShopRow(shop));
-          list.appendChild(section);
+          list.appendChild(buildShopRow(shop));
         });
+        window.dispatchEvent(new Event('shops-loaded'));
       } catch(e) {
         list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
       }
@@ -602,6 +588,32 @@
       modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
       document.body.appendChild(modal);
     }
+
+    // ── Verrouillage du scroll en bas de page ──
+    (function() {
+      var locked = false;
+
+      function checkLock() {
+        var scrollBottom = window.scrollY + window.innerHeight;
+        var pageHeight   = document.documentElement.scrollHeight;
+        // Verrouiller quand on est à moins de 10px du bas
+        if (scrollBottom >= pageHeight - 10) {
+          if (!locked) {
+            locked = true;
+            document.body.style.overflowY = 'hidden';
+          }
+        } else {
+          if (locked) {
+            locked = false;
+            document.body.style.overflowY = '';
+          }
+        }
+      }
+
+      window.addEventListener('scroll', checkLock, { passive: true });
+      // Vérifier aussi après chargement des shops
+      window.addEventListener('shops-loaded', checkLock);
+    })();
 
     function goBack() {
       sessionStorage.setItem('skipIntro', '1');
