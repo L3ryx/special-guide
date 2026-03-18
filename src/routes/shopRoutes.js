@@ -109,16 +109,58 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     if (!process.env.SERPER_API_KEY) { send({ step: 'error', message: '❌ SERPER_API_KEY missing' }); return res.end(); }
     if (!process.env.IMGBB_API_KEY)  { send({ step: 'error', message: '❌ IMGBB_API_KEY missing' });  return res.end(); }
 
-    // ── STEP 1 : Déterminer le mot-clé ──────────────────────────────
+    // ── STEP 1 : Scraper le titre de l'annonce via ScrapingBee puis Gemini ──
+    if (!process.env.GEMINI_API_KEY) { send({ step: 'error', message: '❌ GEMINI_API_KEY missing' }); return res.end(); }
+    if (!shop.productUrl) { send({ step: 'error', message: '❌ No product URL saved for this listing' }); return res.end(); }
+
+    send({ step: 'keyword', message: '🔍 Fetching listing details...' });
+
     let keyword = '';
-    if (shop.keyword && shop.keyword.trim().length > 1) {
-      keyword = shop.keyword.trim().toLowerCase();
-    } else if (shop.productUrl) {
-      const m = shop.productUrl.match(/\/listing\/\d+\/([^/?#]+)/);
-      if (m) keyword = m[1].replace(/-/g, ' ').replace(/[^a-z0-9 ]/gi, ' ').trim().toLowerCase().split(/\s+/).slice(0, 4).join(' ');
-    } else if (shop.shopName) {
-      keyword = shop.shopName.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().trim();
+    try {
+      // 1a. ScrapingBee scrape la page de l'annonce Etsy
+      const listingHtml = await scrapingbeeFetch(shop.productUrl, { stealth_proxy: 'true', wait: '2000' });
+
+      // Extraire le titre depuis JSON-LD ou balise title
+      let listingTitle = '';
+      try {
+        for (const [, raw] of listingHtml.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
+          const d = JSON.parse(raw);
+          const items = Array.isArray(d) ? d : (d['@graph'] || [d]);
+          for (const item of items) {
+            if (item.name && item.url?.includes('/listing/')) { listingTitle = item.name; break; }
+          }
+          if (listingTitle) break;
+        }
+      } catch {}
+      if (!listingTitle) {
+        const titleM = listingHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
+        if (titleM) listingTitle = titleM[1].replace(/\s*[|\-].*$/, '').trim();
+      }
+      if (!listingTitle) throw new Error('Could not extract listing title');
+
+      console.log('[Competition] Listing title:', listingTitle);
+      send({ step: 'keyword', message: '📝 Title: "' + listingTitle.slice(0, 60) + '"' });
+
+      // 1b. Gemini génère le mot-clé Etsy optimal
+      const geminiRes = await axios.post(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + process.env.GEMINI_API_KEY,
+        { contents: [{ parts: [{ text: 'From this Etsy listing title, extract the best 2-4 word search keyword that represents the core product. The keyword must be short, generic, and suitable for an Etsy product search. Reply with ONLY the keyword, no punctuation, no explanation.\n\nTitle: ' + listingTitle }] }] },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+      );
+      keyword = (geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      if (!keyword) throw new Error('Gemini returned empty keyword');
+
+    } catch (e) {
+      console.warn('[Competition] Gemini keyword failed:', e.message, '— falling back to saved keyword');
+      // Fallback : keyword sauvegardé ou slug URL
+      if (shop.keyword && shop.keyword.trim().length > 1) {
+        keyword = shop.keyword.trim().toLowerCase();
+      } else if (shop.productUrl) {
+        const m = shop.productUrl.match(/\/listing\/\d+\/([^/?#]+)/);
+        if (m) keyword = m[1].replace(/-/g, ' ').replace(/[^a-z0-9 ]/gi, ' ').trim().toLowerCase().split(/\s+/).slice(0, 4).join(' ');
+      }
     }
+
     if (!keyword) { send({ step: 'error', message: '❌ Could not determine keyword' }); return res.end(); }
 
     send({ step: 'keyword', message: '🔑 Keyword: "' + keyword + '"', keyword });
