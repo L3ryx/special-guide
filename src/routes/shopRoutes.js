@@ -231,21 +231,42 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         const aliImageUrl = aliResult.imageUrl || aliResult.thumbnailUrl;
         const aliUrl      = aliResult.link || aliResult.url;
 
-        // 3. Lens match AliExpress = dropshipping confirmé
-        dropshippers++;
-        if (listing.shopName && !dropshipperNames.has(listing.shopName)) {
-          dropshipperNames.add(listing.shopName);
-          dropshipperShops.push({
-            shopName:     listing.shopName,
-            shopUrl:      'https://www.etsy.com/shop/' + listing.shopName,
-            listingImage: listing.image  || null,
-            listingUrl:   listing.link   || null,
-            aliImage:     aliImageUrl    || null,
-            aliUrl:       aliUrl         || null,
-          });
+        // 3. Match trouvé — 2 matches requis pour confirmer dropshipping
+        const shopName = listing.shopName || null;
+        if (!shopName) { console.log('⚠️  Match sans shopName:', listing.link); }
+        else {
+          const prevMatches = shopMatchCount.get(shopName) || 0;
+          shopMatchCount.set(shopName, prevMatches + 1);
+
+          if (prevMatches === 0) {
+            // 1er match — stocker, attendre la confirmation
+            shopMatchData.set(shopName, {
+              listingImage: listing.image || null,
+              listingUrl:   listing.link  || null,
+              aliImage:     aliImageUrl   || null,
+              aliUrl:       aliUrl        || null,
+            });
+            console.log('🔶 1st match for', shopName, '— waiting for 2nd');
+          } else if (!shopsConfirmed.has(shopName)) {
+            // 2ème match — boutique confirmée dropshipping
+            shopsConfirmed.add(shopName);
+            dropshippers++;
+            if (!dropshipperNames.has(shopName)) {
+              dropshipperNames.add(shopName);
+              const first = shopMatchData.get(shopName) || {};
+              dropshipperShops.push({
+                shopName,
+                shopUrl:      'https://www.etsy.com/shop/' + shopName,
+                listingImage: first.listingImage || listing.image || null,
+                listingUrl:   first.listingUrl   || listing.link  || null,
+                aliImage:     first.aliImage     || aliImageUrl   || null,
+                aliUrl:       first.aliUrl       || aliUrl        || null,
+              });
+            }
+            console.log('✅ Confirmed (2 matches) —', shopName);
+            send({ step: 'match', totalShops: totalUniqueShops, message: '✅ ' + shopName + ' confirmed (' + dropshippers + ' dropshippers)' });
+          }
         }
-        console.log('✅ Dropshipper confirmed —', listing.shopName);
-        send({ step: 'match', totalShops: totalUniqueShops, message: '🛒 ' + listing.shopName + ' (' + dropshippers + ' dropshippers)' });
 
       } catch (e) {
         if (e.message === 'abort') throw e;
