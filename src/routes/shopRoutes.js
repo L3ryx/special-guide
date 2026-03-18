@@ -410,7 +410,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
             shopUrl:  'https://www.etsy.com/shop/' + listing.shopName,
           });
         }
-        console.log('✅ Dropshipper confirmed —', listing.shopName, '(score ' + score + ')');
+        console.log('✅ Dropshipper confirmed —', listing.shopName);
         send({ step: 'match', totalShops: totalUniqueShops, message: '🛒 ' + listing.shopName + ' (' + dropshippers + ' dropshippers)' });
 
       } catch (e) {
