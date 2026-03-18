@@ -105,17 +105,16 @@
     .comp-status { font-size: 0.74rem; color: var(--muted); min-height: 1.1em; margin-top: 8px; }
     .comp-results { margin-top: 4px; }
     .comp-progress { display:none; flex-direction:row; align-items:center; gap:14px; margin-top:10px; }
-    .comp-step { display:none; align-items:center; gap:7px; font-size:0.71rem; flex:1; }
-    .comp-step.active { display:flex; }
-    .comp-step .step-icon { font-size:0.9rem; flex-shrink:0; animation:pulse 1s infinite; }
+    .comp-step { display:none; align-items:center; gap:8px; font-size:0.78rem; opacity:0.4; }
+    .comp-step.active { display:flex; opacity:1; }
+    .comp-step.done { display:flex; opacity:0.6; }
+    .comp-step .step-icon { font-size:0.9rem; flex-shrink:0; }
+    .comp-step.active .step-icon { animation:pulse 1s infinite; }
     .comp-step .step-label { color:#f97316; font-weight:600; }
-    .comp-step .step-time { font-size:0.62rem; color:rgba(249,115,22,0.5); flex-shrink:0; }
+    .comp-step.done .step-label { color:#22c55e; }
     .comp-step.error .step-label { color:#ef4444; }
     .comp-step.error .step-icon { animation:none; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    .comp-timer { display:flex; flex-direction:column; align-items:flex-end; flex-shrink:0; gap:1px; }
-    .comp-timer .timer-elapsed { color:#f97316; font-weight:800; font-size:1.1rem; font-family:'Inter',monospace; }
-    .comp-timer .timer-total { color:rgba(255,255,255,0.28); font-size:0.65rem; font-family:'Inter',monospace; }
 
     .btn-delete {
       width: 26px; height: 26px; border-radius: 50%;
@@ -251,17 +250,11 @@
           </div>
           <div class="comp-area">
             <div class="comp-status" id="comp-status-${shop._id}"></div>
-            <div class="comp-progress" id="comp-progress-${shop._id}" style="display:none;flex-direction:row;align-items:center;gap:14px;margin-top:10px;">
-              <div class="comp-steps" id="comp-steps-${shop._id}">
-                <div class="comp-step" id="cstep-keyword-${shop._id}"><div class="step-icon">🔑</div><div class="step-label">Keyword</div></div>
-                <div class="comp-step" id="cstep-scraping-${shop._id}"><div class="step-icon">🔍</div><div class="step-label">Scraping</div></div>
-                <div class="comp-step" id="cstep-analyzing-${shop._id}"><div class="step-icon">🖼</div><div class="step-label">Analyzing</div></div>
-                <div class="comp-step" id="cstep-complete-${shop._id}"><div class="step-icon">📊</div><div class="step-label">Done</div></div>
-              </div>
-              <div class="comp-timer">
-                <div class="timer-elapsed" id="timer-elapsed-${shop._id}">Estimating...</div>
-                <div class="timer-total" id="timer-total-${shop._id}"></div>
-              </div>
+            <div class="comp-progress" id="comp-progress-${shop._id}" style="display:none;flex-direction:column;gap:6px;margin-top:10px;">
+              <div class="comp-step" id="cstep-keyword-${shop._id}"><div class="step-icon">🔑</div><div class="step-label">Extracting keyword...</div></div>
+              <div class="comp-step" id="cstep-scraping-${shop._id}"><div class="step-icon">🔍</div><div class="step-label">Scraping Etsy listings...</div></div>
+              <div class="comp-step" id="cstep-analyzing-${shop._id}"><div class="step-icon">🖼</div><div class="step-label">Analyzing images...</div></div>
+              <div class="comp-step" id="cstep-complete-${shop._id}"><div class="step-icon">📊</div><div class="step-label">Computing results...</div></div>
             </div>
             <div class="comp-results" id="comp-results-${shop._id}"></div>
           </div>`;
@@ -285,16 +278,11 @@
       const status  = document.getElementById('comp-status-' + shopId);
       const resDiv  = document.getElementById('comp-results-' + shopId);
       const progDiv = document.getElementById('comp-progress-' + shopId);
-      const timerEl = document.getElementById('timer-elapsed-' + shopId);
-      const timerTot= document.getElementById('timer-total-' + shopId);
-
       if (btn)    { btn.disabled = true; btn.classList.add('running'); }
       if (label)  { label.textContent = 'Analysing...'; }
       if (status) { status.textContent = ''; }
       if (resDiv) { resDiv.innerHTML = ''; }
       if (progDiv){ progDiv.style.display = 'flex'; }
-      if (timerEl){ timerEl.textContent = 'Estimating...'; timerEl.style.fontSize = '0.75rem'; }
-      if (timerTot){ timerTot.textContent = ''; }
 
       function setStep(name, state) {
         const el = document.getElementById('cstep-' + name + '-' + shopId);
@@ -303,18 +291,7 @@
         if (state) el.classList.add(state);
       }
 
-      let elapsed = 0, estimatedTotal = null;
-      function fmtTime(s) { return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
-      function updateEstimate(n) {
-        estimatedTotal = Math.round(n * 1.5) + 35;
-        if (timerEl) { timerEl.style.fontSize = '1.1rem'; timerEl.style.color = '#f97316'; }
-      }
-      const timerInterval = setInterval(() => {
-        elapsed++;
-        if (estimatedTotal !== null && timerEl) {
-          timerEl.textContent = fmtTime(Math.max(0, estimatedTotal - elapsed));
-        }
-      }, 1000);
+      const timerInterval = null; // timer supprimé
 
       setStep('keyword', 'active');
 
@@ -354,7 +331,6 @@
                 if (status) status.textContent = ev.message;
               } else if (ev.step === 'analyzing' || ev.step === 'match') {
                 setStep('scraping', 'done'); setStep('analyzing', 'active');
-                if (ev.totalShops && !estimatedTotal) updateEstimate(ev.totalShops);
                 if (status) status.textContent = ev.message;
               } else if (ev.step === 'complete') {
                 clearInterval(timerInterval);
