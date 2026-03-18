@@ -126,12 +126,7 @@
     #dice-btn.spinning .dice-icon { animation:diceSpin 0.5s ease infinite; }
     @keyframes diceSpin { 0%{transform:rotate(0deg)scale(1)} 50%{transform:rotate(180deg)scale(1.15)} 100%{transform:rotate(360deg)scale(1)} }
 
-    .selects-row { display:flex; gap:10px; width:100%; }
-    .select-wrap { flex:1; position:relative; }
-    .select-wrap select { width:100%; height:52px; min-height:52px; max-height:52px; padding:0 40px 0 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; color:var(--text); font-family:'Inter',sans-serif; font-size:1rem; outline:none; appearance:none; backdrop-filter:blur(16px); cursor:pointer; transition:border-color 0.2s; text-align:center; }
-    .select-wrap select:focus { border-color:var(--green); }
-    .select-wrap option { background:#1a1a1a; color:#fff; }
-    .select-wrap::after { content:'▾'; position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; font-size:0.8rem; }
+
 
     #start-btn { width:100%; padding:22px; background:var(--green); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1.25rem; letter-spacing:0.12em; cursor:pointer; transition:all 0.25s ease; position:relative; overflow:hidden; box-shadow:0 4px 32px rgba(34,197,94,0.45); }
     #start-btn::before { content:''; position:absolute; inset:0; background:linear-gradient(120deg,transparent 30%,rgba(255,255,255,0.15) 50%,transparent 70%); transform:translateX(-100%); transition:transform 0.6s ease; }
@@ -331,21 +326,11 @@
         <!-- keywords-list span sur 2 colonnes -->
         <div id="keywords-list" style="display:none;grid-column:1/3;"></div>
 
-        <!-- Ligne 2 col 1 : select + generate -->
-        <div style="display:flex;gap:8px;align-items:stretch;">
-          <div class="select-wrap" style="flex:2;">
-            <select id="count-select">
-              <option value="1">1 image</option><option value="2">2 images</option><option value="3">3 images</option>
-              <option value="5">5 images</option><option value="10" selected>10 images</option>
-              <option value="15">15 images</option><option value="20">20 images</option>
-              <option value="30">30 images</option><option value="50">50 images</option><option value="100">100 images</option>
-            </select>
-          </div>
-          <button id="dice-btn" onclick="rollNiche()" style="flex:1;padding:0 16px;"><span class="dice-icon">🎲</span>Generate</button>
-        </div>
+        <!-- Ligne 2 : bouton generate pleine largeur sur 2 colonnes -->
+        <button id="dice-btn" onclick="rollNiche()" style="grid-column:1/3;"><span class="dice-icon">🎲</span>Generate</button>
 
-        <!-- Ligne 2 col 2 : bouton trash -->
-        <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords" style="width:48px;align-self:stretch;">🗑</button>
+        <!-- Bouton trash caché (reste fonctionnel) -->
+        <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords" style="display:none;">🗑</button>
 
       </div>
       <button id="start-btn" onclick="startSearch()">START</button>
@@ -819,7 +804,6 @@
       const btn = document.getElementById('start-btn');
       btn.disabled = true; btn.textContent = 'LOADING'; btn.classList.remove('retry'); btn.classList.add('loading');
       document.getElementById('keyword-input').disabled = true;
-      document.getElementById('count-select').disabled = true;
 
       document.getElementById('progress-wrap').style.display = 'flex';
       document.getElementById('results-section').style.display = 'none';
@@ -829,7 +813,6 @@
       document.documentElement.classList.remove('unlocked');
       window.scrollTo({ top: 0 });
 
-      const maxCount = parseInt(document.getElementById('count-select').value) || 10;
       let totalMatches = 0;
       let hasError = false;
 
@@ -933,7 +916,6 @@
       _searching = false;
       btn.disabled = false; btn.classList.remove('loading');
       document.getElementById('keyword-input').disabled = false;
-      document.getElementById('count-select').disabled = false;
       clearKeywords(); // clear keywords after search completes
 
       if (hasError && totalMatches === 0) {
