@@ -159,7 +159,7 @@
 
     /* ── RESULTS ── */
     #results-section { position:relative; z-index:10; padding:0 20px 80px; display:none; }
-    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:20px; }
+    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:32px; }
     .keyword-section-title { font-size:0.75rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#f97316; padding:8px 0 4px; border-bottom:1px solid rgba(249,115,22,0.2); }
     .results-count-bar { text-align:center; font-size:0.8rem; color:var(--muted); margin-bottom:4px; }
     /* ── BANDEROLE CARD ── */
@@ -303,7 +303,7 @@
     </div>
   </div>
 
-    <!-- TITLE -->
+  <!-- TITLE -->
   <div id="title-outer"><div id="title-wrap"><div id="niche-title"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span class="title-space"></span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div></div></div>
 
   <div id="main-view">
@@ -904,7 +904,14 @@
     function renderShopResult(shop) {
       const productUrl = shop.listingUrl || shop.shopUrl || '#';
       const idx = Object.keys(window._shopDataMap).length;
-      window._shopDataMap[idx] = { productUrl, productImage: shop.shopImage || null };
+      const shopUrl = shop.shopName ? 'https://www.etsy.com/shop/' + shop.shopName : (shop.shopUrl || '#');
+      window._shopDataMap[idx] = {
+        shopName:     shop.shopName || null,
+        shopUrl:      shopUrl,
+        shopAvatar:   shop.shopAvatar || shop.shopImage || null,
+        productImage: shop.shopImage || null,
+        productUrl:   shop.listingUrl || shopUrl,
+      };
 
       const card = document.createElement('div');
       card.className = 'match-card';
@@ -913,9 +920,9 @@
 
       // Bouton ❤️ en premier (à gauche)
       const heartBtn = document.createElement('button');
-      heartBtn.className = 'btn-save-shop' + (_savedShopUrls.has(productUrl) ? ' saved' : '');
-      heartBtn.id = 'heart-' + encodeShopKey(productUrl);
-      heartBtn.textContent = _savedShopUrls.has(productUrl) ? '✔' : '❤️';
+      heartBtn.className = 'btn-save-shop' + (_savedShopUrls.has(shopUrl) ? ' saved' : '');
+      heartBtn.id = 'heart-' + encodeShopKey(shopUrl);
+      heartBtn.textContent = _savedShopUrls.has(shopUrl) ? '✔' : '❤️';
       heartBtn.onclick = function() { saveShop(idx, this); };
       inner.appendChild(heartBtn);
 
@@ -943,7 +950,7 @@
 
       // Bouton Visit shop
       const visitBtn = document.createElement('a');
-      visitBtn.href = shop.shopUrl || '#'; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
       visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop ↗';
       inner.appendChild(visitBtn);
 
@@ -960,7 +967,7 @@
         const r = await fetch('/api/shops', { headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } });
         if (!r.ok) return;
         const shops = await r.json();
-        shops.forEach(function(s) { _savedShopUrls.add(s.shopUrl); });
+        shops.forEach(function(s) { if (s.shopUrl) _savedShopUrls.add(s.shopUrl); });
         updateNlCount();
       } catch(e) {}
     }
@@ -986,6 +993,7 @@
       const data = window._shopDataMap && window._shopDataMap[idx];
       if (!data) { showToast('Shop data not found', '#ef4444'); return; }
       if (_savedShopUrls.has(data.shopUrl)) { btn.classList.add('saved'); btn.textContent = '✔'; showToast('Already saved!', '#22c55e'); return; }
+      if (!data.shopUrl || data.shopUrl === '#') { showToast('No shop URL', '#ef4444'); return; }
       btn.classList.add('saving'); btn.textContent = '⏳';
       try {
         const r = await fetch('/api/shops/save', {
