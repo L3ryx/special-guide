@@ -82,28 +82,9 @@
       text-align: center; display: block;
     }
     .btn-visit:hover { background: rgba(241,100,30,0.25); }
-    .btn-find {
-      padding: 6px 14px; border-radius: 8px; border: none;
-      background: linear-gradient(135deg,#7c3aed,#a855f7); color: #fff;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.75rem;
-      cursor: pointer; transition: all 0.2s; white-space: nowrap;
-      box-shadow: 0 2px 10px rgba(168,85,247,0.35);
-      display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
-    }
-    .btn-find:hover { background: linear-gradient(135deg,#6d28d9,#9333ea); transform: translateY(-1px); }
-    .btn-find.running { background: linear-gradient(135deg,#6d28d9,#9333ea); box-shadow: 0 2px 20px rgba(168,85,247,0.6); cursor: not-allowed; }
-    .btn-find .spinner {
-      display: none; width: 12px; height: 12px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: #fff; border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-    .btn-find.running .spinner { display: inline-block; }
+
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .comp-area { padding: 0 14px 12px 14px; }
-    .comp-status { font-size: 0.74rem; color: var(--muted); min-height: 1.1em; margin-top: 8px; }
-    .comp-results { margin-top: 4px; }
     .comp-progress { display:none; flex-direction:row; align-items:center; gap:14px; margin-top:10px; }
     .comp-step { display:none; align-items:center; gap:8px; font-size:0.78rem; opacity:0.4; }
     .comp-step.active { display:flex; opacity:1; }
@@ -146,7 +127,7 @@
   <nav>
     <div class="nav-left">
       <button type="button" class="btn-back" onclick="goBack()">← Back</button>
-      <span class="nav-title">Dashboard</span>
+      <span class="nav-title">My List</span>
     </div>
   </nav>
 
@@ -195,68 +176,61 @@
     function buildShopRow(shop) {
       const wrap = document.createElement('div');
       wrap.id = 'shop-wrapper-' + shop._id;
-      // Stocker les données pour la carte résultat
-      wrap.dataset.keyword      = shop.keyword || '';
-      wrap.dataset.productImage = shop.productImage || '';
-      wrap.dataset.productUrl   = shop.productUrl || '';
 
       const productImg = shop.productImage || null;
       const productUrl = shop.productUrl || '#';
-      const thumbHtml = productImg
-        ? `<a href="${productUrl}" target="_blank" rel="noopener"><img class="shop-thumb" src="${productImg}" alt="" loading="lazy" /></a>`
-        : `<a href="${productUrl}" target="_blank" rel="noopener"><div class="shop-thumb-placeholder">🛍</div></a>`;
+      const shopName   = shop.shopName || productUrl || '—';
 
-      // Keyword
-      const name = '';
+      const row = document.createElement('div');
+      row.className = 'shop-row';
+      row.id = 'shop-row-' + shop._id;
 
-      const hasComp = shop.lastCompetition && shop.lastCompetition.totalShops != null && shop.lastCompetition.runAt != null;
-      const compShops = hasComp ? (shop.lastCompetition.dropshipperShops || []) : [];
-
-      // Stocker les données de la drop list
-      window._dropListData = window._dropListData || {};
-      window._dropListData[shop._id] = compShops;
-
-      if (hasComp) {
-        wrap.innerHTML = '';
-        var resCard2 = renderCompetitionResult(shop.lastCompetition, shop._id, productImg || '', name, productUrl);
-        wrap.appendChild(resCard2);
-        var delDiv2 = document.createElement('div');
-        delDiv2.style.cssText = 'text-align:right;margin-top:6px;';
-        var delBtn2 = document.createElement('button');
-        delBtn2.className = 'btn-delete'; delBtn2.textContent = '✕';
-        (function(id){ delBtn2.addEventListener('click', function(){ deleteShop(id); }); })(shop._id);
-        delDiv2.appendChild(delBtn2); wrap.appendChild(delDiv2);
-      } else {
-        wrap.innerHTML = `
-          <div class="shop-row" id="shop-row-${shop._id}">
-            ${thumbHtml}
-            <div class="shop-row-right">
-              <div class="shop-row-info">
-                <div class="shop-row-btns">
-                  <a class="btn-visit" href="${productUrl}" target="_blank" rel="noopener">Visit</a>
-                  <button class="btn-find" id="find-btn-${shop._id}" onclick="runCompetition('${shop._id}')">
-                    <span class="spinner"></span><span class="btn-label">⚔️ Competition</span>
-                  </button>
-                </div>
-              </div>
-              <button class="btn-delete" onclick="deleteShop('${shop._id}')">✕</button>
-            </div>
-          </div>
-          <div class="comp-area">
-            <div class="comp-status" id="comp-status-${shop._id}"></div>
-            <div class="comp-progress" id="comp-progress-${shop._id}" style="display:none;flex-direction:column;gap:6px;margin-top:10px;">
-              <div class="comp-step" id="cstep-keyword-${shop._id}"><div class="step-icon">🔑</div><div class="step-label">Extracting keyword...</div></div>
-              <div class="comp-step" id="cstep-scraping-${shop._id}"><div class="step-icon">🔍</div><div class="step-label">Scraping Etsy listings...</div></div>
-              <div class="comp-step" id="cstep-analyzing-${shop._id}"><div class="step-icon">🖼</div><div class="step-label">Analyzing images...</div></div>
-              <div class="comp-step" id="cstep-complete-${shop._id}"><div class="step-icon">📊</div><div class="step-label">Computing results...</div></div>
-            </div>
-            <div class="comp-results" id="comp-results-${shop._id}"></div>
-          </div>`;
+      // Image / avatar via proxy
+      const thumb = document.createElement('a');
+      thumb.href = productUrl; thumb.target = '_blank'; thumb.rel = 'noopener';
+      const ph = document.createElement('div');
+      ph.className = 'shop-thumb-placeholder'; ph.textContent = '🛍';
+      if (productImg) {
+        const img = document.createElement('img');
+        img.className = 'shop-thumb';
+        img.src = '/proxy-image?url=' + encodeURIComponent(productImg);
+        img.loading = 'lazy'; img.alt = '';
+        img.onerror = function() { this.style.display='none'; ph.style.display='flex'; };
+        ph.style.display = 'none';
+        thumb.appendChild(img);
       }
+      thumb.appendChild(ph);
+      row.appendChild(thumb);
 
+      // Infos + boutons
+      const right = document.createElement('div');
+      right.className = 'shop-row-right';
+
+      const info = document.createElement('div');
+      info.className = 'shop-row-info';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'shop-row-name'; nameEl.textContent = shopName;
+      info.appendChild(nameEl);
+
+      const btns = document.createElement('div');
+      btns.className = 'shop-row-btns';
+      const visitBtn = document.createElement('a');
+      visitBtn.className = 'btn-visit';
+      visitBtn.href = productUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      visitBtn.textContent = 'Visit shop ↗';
+      btns.appendChild(visitBtn);
+      info.appendChild(btns);
+      right.appendChild(info);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-delete'; delBtn.textContent = '✕';
+      delBtn.addEventListener('click', function() { deleteShop(shop._id); });
+      right.appendChild(delBtn);
+
+      row.appendChild(right);
+      wrap.appendChild(row);
       return wrap;
     }
-
     function deleteShop(id) {
       if (!confirm('Delete this listing?')) return;
       apiFetch('/api/shops/' + id, { method: 'DELETE' }).then(() => {
@@ -265,324 +239,6 @@
         loadShops();
       });
     }
-
-    function runCompetition(shopId) {
-      const btn     = document.getElementById('find-btn-' + shopId);
-      const label   = btn ? btn.querySelector('.btn-label') : null;
-      const status  = document.getElementById('comp-status-' + shopId);
-      const resDiv  = document.getElementById('comp-results-' + shopId);
-      const progDiv = document.getElementById('comp-progress-' + shopId);
-      if (btn)    { btn.disabled = true; btn.classList.add('running'); }
-      if (label)  { label.textContent = 'Analysing...'; }
-      if (status) { status.textContent = ''; }
-      if (resDiv) { resDiv.innerHTML = ''; }
-      if (progDiv){ progDiv.style.display = 'flex'; }
-
-      function setStep(name, state) {
-        const el = document.getElementById('cstep-' + name + '-' + shopId);
-        if (!el) return;
-        el.classList.remove('active', 'done', 'error');
-        if (state) el.classList.add(state);
-      }
-
-      const timerInterval = null; // timer supprimé
-
-      setStep('keyword', 'active');
-
-      const token = localStorage.getItem('scout_token');
-      if (!token) { window.location.href = '/finder'; return; }
-
-      fetch('/api/shops/' + shopId + '/competition', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-      }).then(async response => {
-        if (!response.ok) {
-          clearInterval(timerInterval);
-          if (progDiv) progDiv.style.display = 'none';
-          if (status) status.textContent = '❌ Error ' + response.status;
-          if (btn) { btn.disabled = false; btn.classList.remove('running'); }
-          if (label) label.textContent = '⚔️ Competition';
-          return;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split('\n'); buf = lines.pop();
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const ev = JSON.parse(line.slice(6));
-              if (ev.step === 'keyword') {
-                setStep('keyword', 'done'); setStep('scraping', 'active');
-                if (status) status.textContent = ev.message;
-              } else if (ev.step === 'scraping') {
-                if (status) status.textContent = ev.message;
-              } else if (ev.step === 'analyzing' || ev.step === 'match') {
-                setStep('scraping', 'done'); setStep('analyzing', 'active');
-                if (status) status.textContent = ev.message;
-              } else if (ev.step === 'complete') {
-                clearInterval(timerInterval);
-                if (progDiv) progDiv.style.display = 'none';
-                if (status) status.textContent = '';
-
-                // Stocker drop list data
-                window._dropListData = window._dropListData || {};
-                window._dropListData[shopId] = ev.dropshipperShops || [];
-
-                // Récupérer keyword/image depuis le wrapper
-                const wrapEl = document.getElementById('shop-wrapper-' + shopId);
-                const kw   = wrapEl ? (wrapEl.dataset.keyword || '') : '';
-                const img  = wrapEl ? (wrapEl.dataset.productImage || '') : '';
-                const pUrl = wrapEl ? (wrapEl.dataset.productUrl || '#') : '#';
-
-                if (wrapEl) {
-                  wrapEl.innerHTML = '';
-                  var resCard = renderCompetitionResult(ev, shopId, img, kw, pUrl);
-                  wrapEl.appendChild(resCard);
-                  var delDiv = document.createElement('div');
-                  delDiv.style.cssText = 'text-align:right;margin-top:6px;';
-                  var delBtn = document.createElement('button');
-                  delBtn.className = 'btn-delete'; delBtn.textContent = '✕';
-                  delBtn.addEventListener('click', function() { deleteShop(shopId); });
-                  delDiv.appendChild(delBtn); wrapEl.appendChild(delDiv);
-                }
-              } else if (ev.step === 'error') {
-                clearInterval(timerInterval);
-                if (progDiv) progDiv.style.display = 'none';
-                if (status) status.textContent = '❌ ' + ev.message;
-              } else if (ev.step === 'status') {
-                if (status) status.textContent = ev.message;
-              }
-            } catch(e) {}
-          }
-        }
-      }).catch(err => {
-        clearInterval(timerInterval);
-        if (progDiv) progDiv.style.display = 'none';
-        if (status) status.textContent = '❌ ' + err.message;
-      }).finally(() => {
-        if (btn) { btn.disabled = false; btn.classList.remove('running'); }
-        if (label) label.textContent = '⚔️ Competition';
-      });
-    }
-
-    function renderCompetitionResult(ev, shopId, cardImg, cardKw, cardPUrl) {
-      var totalShops   = ev.totalShops   != null ? Number(ev.totalShops)   : 0;
-      var dropshippers = ev.dropshippers != null ? Number(ev.dropshippers) : 0;
-      var shops        = ev.dropshipperShops || [];
-
-      window._dropListData = window._dropListData || {};
-      window._dropListData[shopId] = shops;
-
-      var pct = totalShops > 0 ? Math.round((dropshippers / totalShops) * 100) : 0;
-      var gaugeColor = pct <= 10 ? '#22c55e' : pct <= 25 ? '#86efac' : pct <= 45 ? '#fbbf24' : pct <= 65 ? '#f97316' : '#ef4444';
-      var gaugeLabel = pct <= 10 ? 'Very Low' : pct <= 25 ? 'Low' : pct <= 45 ? 'Moderate' : pct <= 65 ? 'High' : 'Very High';
-
-      // ── Construire le DOM directement (pas de innerHTML) ──
-      var card = document.createElement('div');
-      card.style.cssText = 'display:flex;flex-direction:row;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(37,99,235,0.25),rgba(59,130,246,0.1));border:1px solid rgba(59,130,246,0.35);border-radius:14px;padding:12px 14px;';
-
-      // Image gauche
-      cardImg  = cardImg  || '';
-      cardKw   = cardKw   || '';
-      cardPUrl = cardPUrl || '#';
-      if (cardImg) {
-        var imgLink = document.createElement('a');
-        imgLink.href = cardPUrl; imgLink.target = '_blank'; imgLink.rel = 'noopener';
-        imgLink.style.flexShrink = '0';
-        var img = document.createElement('img');
-        img.src = cardImg; img.style.cssText = 'width:80px;height:80px;border-radius:10px;object-fit:cover;display:block;';
-        imgLink.appendChild(img);
-        card.appendChild(imgLink);
-      }
-
-      // Colonne centrale
-      var col = document.createElement('div');
-      col.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;';
-
-      if (cardKw) {
-        var kwDiv = document.createElement('div');
-        kwDiv.style.cssText = 'font-size:0.72rem;font-weight:700;color:#f97316;letter-spacing:0.05em;text-transform:uppercase;font-family:Inter,sans-serif;';
-        kwDiv.textContent = cardKw;
-        col.appendChild(kwDiv);
-      }
-
-      // Jauge SVG (string car SVG complexe)
-      var gR = 28, gCx = 36, gCy = 34;
-      function gP(cx, cy, r, deg) { var rad=(deg-90)*Math.PI/180; return [(cx+r*Math.cos(rad)).toFixed(1),(cy+r*Math.sin(rad)).toFixed(1)]; }
-      function gA(a1,a2) { var s=gP(gCx,gCy,gR,a1),e=gP(gCx,gCy,gR,a2); return 'M'+s[0]+' '+s[1]+' A '+gR+' '+gR+' 0 '+((a2-a1)>=180?1:0)+' 1 '+e[0]+' '+e[1]; }
-      var gFill = 180 + (180 * pct / 100);
-      var gaugeWrap = document.createElement('div');
-      gaugeWrap.innerHTML =
-        '<svg viewBox="0 0 72 48" width="62" height="42" style="display:block;">' +
-          '<path d="' + gA(180,360) + '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="7" stroke-linecap="round"/>' +
-          (pct > 0 ? '<path d="' + gA(180,Math.min(gFill,360)) + '" fill="none" stroke="' + gaugeColor + '" stroke-width="7" stroke-linecap="round"/>' : '') +
-          '<text x="36" y="34" text-anchor="middle" font-size="11" font-weight="800" fill="' + gaugeColor + '" font-family="Inter,sans-serif">' + pct + '%</text>' +
-        '</svg>' +
-        '<div style="text-align:center;font-size:0.58rem;font-weight:700;color:' + gaugeColor + ';font-family:Inter,sans-serif;">' + gaugeLabel + '</div>';
-      col.appendChild(gaugeWrap);
-
-      // Stats
-      var stats = document.createElement('div');
-      stats.style.cssText = 'display:flex;flex-direction:column;gap:3px;';
-      stats.innerHTML =
-        '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-family:Inter,sans-serif;">' +
-          '<span style="color:rgba(255,255,255,0.45);">Total shops</span>' +
-          '<span style="color:#fff;font-weight:700;">' + totalShops + '</span>' +
-        '</div>' +
-        '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-family:Inter,sans-serif;">' +
-          '<span style="color:rgba(255,255,255,0.45);">Drop shops</span>' +
-          '<span style="color:' + gaugeColor + ';font-weight:700;">' + dropshippers + '</span>' +
-        '</div>';
-      col.appendChild(stats);
-      card.appendChild(col);
-
-      // Bouton Drop List — addEventListener direct sur l'élément
-      var dropBtn = document.createElement('button');
-      dropBtn.title = 'Drop List';
-      dropBtn.textContent = '🔍';
-      dropBtn.style.cssText = 'width:38px;height:38px;border-radius:50%;border:none;font-size:1.1rem;flex-shrink:0;align-self:center;';
-      var shopsCopy = shops.slice();
-      if (shops.length > 0) {
-        dropBtn.style.cssText += 'background:#f59e0b;color:#000;cursor:pointer;';
-      } else {
-        dropBtn.style.cssText += 'background:rgba(245,158,11,0.35);color:#000;cursor:pointer;';
-      }
-      // Toujours cliquable — affiche la liste même si vide
-      dropBtn.addEventListener('click', function() {
-        showDropList(shopsCopy);
-      });
-      card.appendChild(dropBtn);
-
-      // Retourner l'élément DOM directement
-      return card;
-    }
-
-    function cleanAliUrlNL(url) {
-      if (!url) return '#';
-      var m = url.match(/\/item\/(\d{10,})/);
-      return m ? 'https://www.aliexpress.com/item/' + m[1] + '.html' : url;
-    }
-
-    function showDropList(shops) {
-      var existing = document.getElementById('dropship-modal');
-      if (existing) existing.remove();
-
-      var modal = document.createElement('div');
-      modal.id = 'dropship-modal';
-      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;padding:16px;';
-
-      var inner = document.createElement('div');
-      inner.style.cssText = 'background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:520px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;';
-
-      // Header
-      var header = document.createElement('div');
-      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;';
-      header.innerHTML = '<span style="color:#fff;font-weight:700;font-size:0.95rem;">Dropshipping shops (' + (shops ? shops.length : 0) + ')</span>';
-      var closeBtn = document.createElement('button');
-      closeBtn.textContent = '✕';
-      closeBtn.style.cssText = 'background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.2rem;cursor:pointer;';
-      closeBtn.addEventListener('click', function() { modal.remove(); });
-      header.appendChild(closeBtn);
-      inner.appendChild(header);
-
-      // Body
-      var body = document.createElement('div');
-      body.style.cssText = 'overflow-y:auto;flex:1;padding:12px;display:flex;flex-direction:column;gap:12px;';
-
-      if (!shops || shops.length === 0) {
-        body.innerHTML = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:20px;">No dropshippers found</div>';
-      } else {
-        shops.forEach(function(s) {
-          var sName  = s.shopName   || '';
-          var sUrl   = sName ? 'https://www.etsy.com/shop/' + sName : '#';
-          var lImg   = s.listingImage || '';
-          var lUrl   = s.listingUrl   || '#';
-          var aImg   = s.aliImage     || '';
-          var aUrl   = cleanAliUrlNL(s.aliUrl);
-
-          var card = document.createElement('div');
-          card.style.cssText = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;';
-
-          // Bouton boutique (pleine largeur, orange)
-          if (sName) {
-            var shopBtn = document.createElement('a');
-            shopBtn.href = sUrl; shopBtn.target = '_blank'; shopBtn.rel = 'noopener';
-            shopBtn.textContent = sName;
-            shopBtn.style.cssText = 'display:block;width:100%;padding:8px 12px;border-radius:8px;background:#f59e0b;color:#000;font-weight:800;font-size:0.82rem;text-align:center;text-decoration:none;box-sizing:border-box;';
-            card.appendChild(shopBtn);
-          }
-
-          // Ligne images : Etsy à gauche | AliExpress à droite
-          var imgRow = document.createElement('div');
-          imgRow.style.cssText = 'display:flex;gap:8px;';
-
-          // Colonne Etsy
-          var etsyCol = document.createElement('div');
-          etsyCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:5px;align-items:center;';
-          if (lImg) {
-            var etsyImgLink = document.createElement('a');
-            etsyImgLink.href = lUrl; etsyImgLink.target = '_blank'; etsyImgLink.rel = 'noopener';
-            var etsyImg = document.createElement('img');
-            etsyImg.src = lImg; etsyImg.style.cssText = 'width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;display:block;';
-            etsyImg.onerror = function(){ this.style.display='none'; };
-            etsyImgLink.appendChild(etsyImg);
-            etsyCol.appendChild(etsyImgLink);
-          } else {
-            var etsyPlaceholder = document.createElement('div');
-            etsyPlaceholder.style.cssText = 'width:100%;aspect-ratio:1/1;background:rgba(255,255,255,0.05);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;';
-            etsyPlaceholder.textContent = '🛍';
-            etsyCol.appendChild(etsyPlaceholder);
-          }
-          var etsyBtn = document.createElement('a');
-          etsyBtn.href = lUrl; etsyBtn.target = '_blank'; etsyBtn.rel = 'noopener';
-          etsyBtn.textContent = 'Etsy';
-          etsyBtn.style.cssText = 'display:block;width:100%;padding:5px;border-radius:6px;background:rgba(241,100,30,0.2);border:1px solid rgba(241,100,30,0.4);color:#fb923c;font-size:0.72rem;font-weight:700;text-align:center;text-decoration:none;box-sizing:border-box;';
-          etsyCol.appendChild(etsyBtn);
-          imgRow.appendChild(etsyCol);
-
-          // Colonne AliExpress
-          var aliCol = document.createElement('div');
-          aliCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:5px;align-items:center;';
-          if (aImg) {
-            var aliImgLink = document.createElement('a');
-            aliImgLink.href = aUrl; aliImgLink.target = '_blank'; aliImgLink.rel = 'noopener';
-            var aliImg = document.createElement('img');
-            aliImg.src = aImg; aliImg.style.cssText = 'width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;display:block;';
-            aliImg.onerror = function(){ this.style.display='none'; };
-            aliImgLink.appendChild(aliImg);
-            aliCol.appendChild(aliImgLink);
-          } else {
-            var aliPlaceholder = document.createElement('div');
-            aliPlaceholder.style.cssText = 'width:100%;aspect-ratio:1/1;background:rgba(255,255,255,0.05);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;';
-            aliPlaceholder.textContent = '🛒';
-            aliCol.appendChild(aliPlaceholder);
-          }
-          var aliBtn = document.createElement('a');
-          aliBtn.href = aUrl; aliBtn.target = '_blank'; aliBtn.rel = 'noopener';
-          aliBtn.textContent = 'Ali';
-          aliBtn.style.cssText = 'display:block;width:100%;padding:5px;border-radius:6px;background:rgba(227,24,55,0.15);border:1px solid rgba(227,24,55,0.3);color:#f87171;font-size:0.72rem;font-weight:700;text-align:center;text-decoration:none;box-sizing:border-box;';
-          aliCol.appendChild(aliBtn);
-          imgRow.appendChild(aliCol);
-
-          card.appendChild(imgRow);
-          body.appendChild(card);
-        });
-      }
-
-      inner.appendChild(body);
-      modal.appendChild(inner);
-      modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
-      document.body.appendChild(modal);
-    }
-
-
 
     function goBack() {
       sessionStorage.setItem('skipIntro', '1');
@@ -666,4 +322,3 @@
   </script>
 </body>
 </html>
-
