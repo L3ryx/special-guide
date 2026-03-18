@@ -470,36 +470,122 @@
       return card;
     }
 
+    function cleanAliUrlNL(url) {
+      if (!url) return '#';
+      var m = url.match(/\/item\/(\d{10,})/);
+      return m ? 'https://www.aliexpress.com/item/' + m[1] + '.html' : url;
+    }
+
     function showDropList(shops) {
       var existing = document.getElementById('dropship-modal');
       if (existing) existing.remove();
-      var rows = '';
-      if (!shops || shops.length === 0) {
-        rows = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:20px;">No dropshippers found</div>';
-      } else {
-        shops.forEach(function(s) {
-          var sName = s.shopName || '';
-          var sUrl  = sName ? 'https://www.etsy.com/shop/' + sName : '#';
-          rows += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);">' +
-            '<span style="color:#fff;font-weight:600;font-size:0.88rem;">' + (sName || '—') + '</span>' +
-            (sName ? '<a href="' + sUrl + '" target="_blank" rel="noopener" style="padding:6px 14px;border-radius:8px;background:#f59e0b;color:#000;font-size:0.75rem;font-weight:800;text-decoration:none;white-space:nowrap;">Visit shop</a>' : '') +
-          '</div>';
-        });
-      }
+
       var modal = document.createElement('div');
       modal.id = 'dropship-modal';
-      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:20px;';
-      modal.innerHTML =
-        '<div style="background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">' +
-            '<span style="color:#fff;font-weight:700;font-size:1rem;">Dropshipping shops (' + shops.length + ')</span>' +
-            '<button id="close-drop-modal" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.2rem;cursor:pointer;">✕</button>' +
-          '</div>' +
-          '<div style="overflow-y:auto;flex:1;">' + rows + '</div>' +
-        '</div>';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;padding:16px;';
+
+      var inner = document.createElement('div');
+      inner.style.cssText = 'background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:520px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;';
+
+      // Header
+      var header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;';
+      header.innerHTML = '<span style="color:#fff;font-weight:700;font-size:0.95rem;">Dropshipping shops (' + (shops ? shops.length : 0) + ')</span>';
+      var closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      closeBtn.style.cssText = 'background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.2rem;cursor:pointer;';
+      closeBtn.addEventListener('click', function() { modal.remove(); });
+      header.appendChild(closeBtn);
+      inner.appendChild(header);
+
+      // Body
+      var body = document.createElement('div');
+      body.style.cssText = 'overflow-y:auto;flex:1;padding:12px;display:flex;flex-direction:column;gap:12px;';
+
+      if (!shops || shops.length === 0) {
+        body.innerHTML = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:20px;">No dropshippers found</div>';
+      } else {
+        shops.forEach(function(s) {
+          var sName  = s.shopName   || '';
+          var sUrl   = sName ? 'https://www.etsy.com/shop/' + sName : '#';
+          var lImg   = s.listingImage || '';
+          var lUrl   = s.listingUrl   || '#';
+          var aImg   = s.aliImage     || '';
+          var aUrl   = cleanAliUrlNL(s.aliUrl);
+
+          var card = document.createElement('div');
+          card.style.cssText = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;';
+
+          // Bouton boutique (pleine largeur, orange)
+          if (sName) {
+            var shopBtn = document.createElement('a');
+            shopBtn.href = sUrl; shopBtn.target = '_blank'; shopBtn.rel = 'noopener';
+            shopBtn.textContent = sName;
+            shopBtn.style.cssText = 'display:block;width:100%;padding:8px 12px;border-radius:8px;background:#f59e0b;color:#000;font-weight:800;font-size:0.82rem;text-align:center;text-decoration:none;box-sizing:border-box;';
+            card.appendChild(shopBtn);
+          }
+
+          // Ligne images : Etsy à gauche | AliExpress à droite
+          var imgRow = document.createElement('div');
+          imgRow.style.cssText = 'display:flex;gap:8px;';
+
+          // Colonne Etsy
+          var etsyCol = document.createElement('div');
+          etsyCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:5px;align-items:center;';
+          if (lImg) {
+            var etsyImgLink = document.createElement('a');
+            etsyImgLink.href = lUrl; etsyImgLink.target = '_blank'; etsyImgLink.rel = 'noopener';
+            var etsyImg = document.createElement('img');
+            etsyImg.src = lImg; etsyImg.style.cssText = 'width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;display:block;';
+            etsyImg.onerror = function(){ this.style.display='none'; };
+            etsyImgLink.appendChild(etsyImg);
+            etsyCol.appendChild(etsyImgLink);
+          } else {
+            var etsyPlaceholder = document.createElement('div');
+            etsyPlaceholder.style.cssText = 'width:100%;aspect-ratio:1/1;background:rgba(255,255,255,0.05);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;';
+            etsyPlaceholder.textContent = '🛍';
+            etsyCol.appendChild(etsyPlaceholder);
+          }
+          var etsyBtn = document.createElement('a');
+          etsyBtn.href = lUrl; etsyBtn.target = '_blank'; etsyBtn.rel = 'noopener';
+          etsyBtn.textContent = 'Etsy';
+          etsyBtn.style.cssText = 'display:block;width:100%;padding:5px;border-radius:6px;background:rgba(241,100,30,0.2);border:1px solid rgba(241,100,30,0.4);color:#fb923c;font-size:0.72rem;font-weight:700;text-align:center;text-decoration:none;box-sizing:border-box;';
+          etsyCol.appendChild(etsyBtn);
+          imgRow.appendChild(etsyCol);
+
+          // Colonne AliExpress
+          var aliCol = document.createElement('div');
+          aliCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:5px;align-items:center;';
+          if (aImg) {
+            var aliImgLink = document.createElement('a');
+            aliImgLink.href = aUrl; aliImgLink.target = '_blank'; aliImgLink.rel = 'noopener';
+            var aliImg = document.createElement('img');
+            aliImg.src = aImg; aliImg.style.cssText = 'width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;display:block;';
+            aliImg.onerror = function(){ this.style.display='none'; };
+            aliImgLink.appendChild(aliImg);
+            aliCol.appendChild(aliImgLink);
+          } else {
+            var aliPlaceholder = document.createElement('div');
+            aliPlaceholder.style.cssText = 'width:100%;aspect-ratio:1/1;background:rgba(255,255,255,0.05);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;';
+            aliPlaceholder.textContent = '🛒';
+            aliCol.appendChild(aliPlaceholder);
+          }
+          var aliBtn = document.createElement('a');
+          aliBtn.href = aUrl; aliBtn.target = '_blank'; aliBtn.rel = 'noopener';
+          aliBtn.textContent = 'Ali';
+          aliBtn.style.cssText = 'display:block;width:100%;padding:5px;border-radius:6px;background:rgba(227,24,55,0.15);border:1px solid rgba(227,24,55,0.3);color:#f87171;font-size:0.72rem;font-weight:700;text-align:center;text-decoration:none;box-sizing:border-box;';
+          aliCol.appendChild(aliBtn);
+          imgRow.appendChild(aliCol);
+
+          card.appendChild(imgRow);
+          body.appendChild(card);
+        });
+      }
+
+      inner.appendChild(body);
+      modal.appendChild(inner);
       modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
       document.body.appendChild(modal);
-      document.getElementById('close-drop-modal').addEventListener('click', function() { modal.remove(); });
     }
 
     function goBack() {
