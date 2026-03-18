@@ -111,12 +111,24 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       console.log('[Competition] Listing title:', listingTitle);
       send({ step: 'keyword', message: '📝 Title: "' + listingTitle.slice(0, 60) + '"' });
 
-      // 1b. Gemini génère le mot-clé Etsy optimal
-      const geminiRes = await axios.post(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + process.env.GEMINI_API_KEY,
-        { contents: [{ parts: [{ text: 'From this Etsy listing title, extract the best 2-4 word search keyword that represents the core product. The keyword must be short, generic, and suitable for an Etsy product search. Reply with ONLY the keyword, no punctuation, no explanation.\n\nTitle: ' + listingTitle }] }] },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
-      );
+      // 1b. Gemini génère le mot-clé Etsy optimal (avec retry sur 429)
+      let geminiRes;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          geminiRes = await axios.post(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + process.env.GEMINI_API_KEY,
+            { contents: [{ parts: [{ text: 'From this Etsy listing title, extract the best 2-4 word search keyword that represents the core product. The keyword must be short, generic, and suitable for an Etsy product search. Reply with ONLY the keyword, no punctuation, no explanation.\n\nTitle: ' + listingTitle }] }] },
+            { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+          );
+          break;
+        } catch (geminiErr) {
+          if (geminiErr.response?.status === 429 && attempt < 3) {
+            const wait = 5000 * Math.pow(2, attempt);
+            console.warn('Gemini 429 — waiting ' + wait/1000 + 's...');
+            await new Promise(r => setTimeout(r, wait));
+          } else throw geminiErr;
+        }
+      }
       keyword = (geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
       if (!keyword) throw new Error('Gemini returned empty keyword');
 
@@ -515,4 +527,5 @@ function computeDropshipScore(dropshippers, totalShops) {
     }
 
 module.exports = router;
+module.exports.scrapeEtsyListingsForCompetition = scrapeEtsyListingsForCompetition;
 
