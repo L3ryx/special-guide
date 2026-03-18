@@ -314,7 +314,7 @@
       return wrap;
     }
 
-    async function deleteShop(id) {
+    window.deleteShop = async function(id) {
       if (!confirm('Delete this shop?')) return;
       await apiFetch('/api/shops/' + id, { method: 'DELETE' });
       document.getElementById('shop-wrapper-' + id)?.remove();
@@ -322,7 +322,7 @@
       loadShops();
     }
 
-    async function runCompetition(shopId) {
+    window.runCompetition = async function(shopId) {
       const btn      = document.getElementById('find-btn-' + shopId);
       const label    = btn.querySelector('.btn-label');
       const status   = document.getElementById('comp-status-' + shopId);
@@ -520,13 +520,13 @@
       '</div>';
     }
 
-    function openDropList(btn) {
+    window.openDropList = function(btn) {
       var id = btn.getAttribute('data-shop-id');
       var shops = (window._dropListData && window._dropListData[id]) || [];
       showDropshipList(shops);
     }
 
-    function showDropshipList(shops) {
+    window.showDropshipList = function(shops) {
       var existing = document.getElementById('dropship-modal');
       if (existing) existing.remove();
       var rows = '';
