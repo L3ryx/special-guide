@@ -7,7 +7,7 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
-  const { productUrl, productImage, keyword } = req.body;
+  const { productUrl, productImage } = req.body;
   if (!productUrl) return res.status(400).json({ error: 'productUrl requis' });
   try {
     const shop = await SavedShop.findOneAndUpdate(
@@ -15,7 +15,7 @@ router.post('/save', requireAuth, async (req, res) => {
       { $set: {
           productUrl,
           productImage: productImage || null,
-          keyword:      keyword      || null,
+          keyword:      null,
           shopName:     null,
           shopUrl:      null,
           shopAvatar:   null,
