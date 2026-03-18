@@ -462,7 +462,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
 // Scrape Etsy search results — 1 listing par boutique unique, toutes les pages disponibles
 async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
-  const MAX_PAGES  = 10;  // max 10 pages Etsy (~480 listings bruts max)
+  const MAX_PAGES  = 5;   // max 5 pages Etsy
   const shopsSeen  = new Set();
   const listings   = [];
   let page = 1;
