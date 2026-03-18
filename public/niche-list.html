@@ -207,12 +207,7 @@
         : `<a href="${productUrl}" target="_blank" rel="noopener"><div class="shop-thumb-placeholder">🛍</div></a>`;
 
       // Keyword
-      var _kw = shop.keyword || null;
-      if (!_kw && shop.productUrl) {
-        var _slug = shop.productUrl.match(/\/listing\/\d+\/([^/?#]+)/);
-        if (_slug) _kw = _slug[1].replace(/-/g, ' ').replace(/[^a-z0-9 ]/gi, ' ').trim();
-      }
-      const name = _kw || '—';
+      const name = '';
 
       const hasComp = shop.lastCompetition && shop.lastCompetition.totalShops != null && shop.lastCompetition.runAt != null;
       const compShops = hasComp ? (shop.lastCompetition.dropshipperShops || []) : [];
@@ -237,7 +232,6 @@
             ${thumbHtml}
             <div class="shop-row-right">
               <div class="shop-row-info">
-                <div class="shop-row-name">${name}</div>
                 <div class="shop-row-btns">
                   <a class="btn-visit" href="${productUrl}" target="_blank" rel="noopener">Visit</a>
                   <button class="btn-find" id="find-btn-${shop._id}" onclick="runCompetition('${shop._id}')">
