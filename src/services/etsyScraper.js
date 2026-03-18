@@ -186,6 +186,23 @@ function cleanEtsyImage(url) {
   return null;
 }
 
-module.exports = { scrapeEtsy };
+async function debugEtsyHtml(keyword) {
+  const apiKey = process.env.SCRAPINGBEE_KEY;
+  if (!apiKey) return { ok: false, error: 'SCRAPINGBEE_KEY not defined' };
+  try {
+    const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}`;
+    const response = await axios.get('https://app.scrapingbee.com/api/v1/', {
+      params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2000', timeout: '45000' },
+      timeout: 120000,
+    });
+    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+    const listings = parseEtsyListings(html);
+    const valid = listings.filter(l => l.link && l.image);
+    return { ok: true, htmlLength: html.length, validListings: valid.length, sample: valid[0] || null };
+  } catch (err) {
+    return { ok: false, status: err.response?.status, error: err.message };
+  }
+}
 
+module.exports = { scrapeEtsy };
 
