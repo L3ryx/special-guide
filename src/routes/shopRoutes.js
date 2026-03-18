@@ -7,20 +7,25 @@ const SavedShop    = require('../models/shopModel');
 router.post('/save', requireAuth, async (req, res) => {
   let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
 
-  // Normaliser shopUrl depuis productUrl si besoin
-  if (!shopUrl && productUrl) {
-    const m = productUrl.match(/etsy\.com\/shop\/([^/?#]+)/);
-    shopUrl = m ? `https://www.etsy.com/shop/${m[1]}` : null;
-  }
-  if (shopUrl) shopUrl = shopUrl.replace(/\/$/, '');
-
-  if (!productUrl) return res.status(400).json({ error: 'productUrl requis' });
-
-  // Extraire shopName depuis shopUrl si manquant
+  // Extraire shopName depuis différentes sources
   if (!shopName && shopUrl) {
-    const m = shopUrl.match(/\/shop\/([^/?#]+)/);
-    shopName = m ? m[1] : null;
+    const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
+    if (m) shopName = m[1];
   }
+  if (!shopName && productUrl) {
+    const m = productUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
+    if (m) shopName = m[1];
+  }
+
+  // Toujours reconstruire shopUrl proprement depuis shopName
+  if (shopName) {
+    shopUrl = 'https://www.etsy.com/shop/' + shopName;
+  } else if (shopUrl) {
+    shopUrl = shopUrl.replace(/\/$/, '');
+  }
+
+  if (!productUrl && shopUrl) productUrl = shopUrl;
+  if (!productUrl) return res.status(400).json({ error: 'productUrl requis' });
 
   try {
     const shop = await SavedShop.findOneAndUpdate(
@@ -52,4 +57,3 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
-
