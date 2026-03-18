@@ -331,18 +331,28 @@ router.get('/debug-scrape', async (req, res) => {
     const shopHrefs = [...html.matchAll(/href="[^"]*\/shop\/([A-Za-z0-9_-]+)"/g)].map(m => m[1]).slice(0, 5);
     const sellerNames = [...html.matchAll(/"seller"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/g)].map(m => m[1]).slice(0, 5);
 
+    // Chercher le listing autrement — via etsystatic.com images
+    const firstImgMatch = html.match(/https:\/\/i\.etsystatic\.com\/[^"\s]+/);
+    const firstImg = firstImgMatch ? firstImgMatch[0] : null;
+    const imgPos = firstImg ? html.indexOf(firstImg) : -1;
+    const htmlAroundImg = imgPos > 0 ? html.slice(Math.max(0, imgPos - 2000), imgPos + 500) : '';
+
+    // Chercher listing dans le HTML (toutes formes)
+    const listingRaw = [...html.matchAll(/listing[\/_]?(\d{6,})/gi)].map(m => m[0]).slice(0, 5);
+    const shopRaw    = [...html.matchAll(/shop[\/_]([A-Za-z0-9_-]{3,})/gi)].map(m => m[0]).slice(0, 10);
+
+    // Premiers 2000 chars du HTML pour voir la structure
+    const htmlStart = html.slice(0, 2000);
+
     res.json({
       htmlLength: html.length,
       totalListings: listings.length,
       withShopName: withShop.length,
-      firstListingId: firstId,
-      // Patterns trouvés dans le HTML
-      dataShopNames,
-      shopNameJson,
-      shopHrefs,
-      sellerNames,
-      // 3000 chars autour du premier listing
-      htmlAround: htmlAround.slice(0, 3000),
+      firstImg,
+      listingRaw,
+      shopRaw,
+      htmlStart,
+      htmlAroundImg: htmlAroundImg.slice(0, 3000),
     });
   } catch(e) {
     res.json({ error: e.message });
