@@ -480,8 +480,9 @@
       var loopeBtnStyle = hasShops
         ? 'background:#f59e0b;color:#000;cursor:pointer;box-shadow:0 2px 8px rgba(245,158,11,0.35);'
         : 'background:rgba(245,158,11,0.15);color:rgba(0,0,0,0.3);cursor:default;';
-      var loupeOnclick = hasShops ? ('showDropshipList(window._dropListData[&quot;' + shopId + '&quot;])') : '';
-      var loupeBtn = '<button onclick="' + loupeOnclick + '" title="Drop List" style="width:38px;height:38px;border-radius:50%;border:none;font-size:1.1rem;flex-shrink:0;align-self:center;' + loopeBtnStyle + '">🔍</button>';
+      var loupeBtn = '<button '
+        + (hasShops ? 'onclick="openDropList(this)" data-shop-id="' + shopId + '"' : 'disabled')
+        + ' title="Drop List" style="width:38px;height:38px;border-radius:50%;border:none;font-size:1.1rem;flex-shrink:0;align-self:center;' + loopeBtnStyle + '">🔍</button>';
 
       // Result card : image gauche | infos droite
       // La fonction reçoit optionnellement img/kw/pUrl pour l'affichage dans la carte
@@ -515,6 +516,12 @@
         '</div>' +
         loupeBtn +
       '</div>';
+    }
+
+    function openDropList(btn) {
+      var id = btn.getAttribute('data-shop-id');
+      var shops = (window._dropListData && window._dropListData[id]) || [];
+      showDropshipList(shops);
     }
 
     function showDropshipList(shops) {
