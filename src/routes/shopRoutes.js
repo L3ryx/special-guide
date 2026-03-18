@@ -101,7 +101,10 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  const send = d => res.write('data: ' + JSON.stringify(d) + '\n\n');
+
+  const send = d => {
+    try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch {}
+  };
 
   try {
     const apiKey = process.env.SCRAPINGBEE_KEY || process.env.SCRAPEAPI_KEY;
@@ -296,7 +299,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       }
     }
 
-    // 2 workers en parallèle (Gemini a des rate limits)
+    // 2 workers en parallèle
     const queue = [...listings];
     async function worker() {
       while (queue.length > 0) {
