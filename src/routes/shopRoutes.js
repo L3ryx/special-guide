@@ -460,54 +460,56 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
   }
 });
 
-// Scrape Etsy search results — all listings, skip if shop already seen, max 400 total
+// Scrape Etsy search results — 1 listing par boutique unique, toutes les pages disponibles
 async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
-  const MAX_LISTINGS = 150; // 150 suffisant statistiquement, 3x plus rapide
-  const shopsSeen   = new Set(); // shops already analyzed
-  const listings    = [];
+  const MAX_PAGES  = 10;  // max 10 pages Etsy (~480 listings bruts max)
+  const shopsSeen  = new Set();
+  const listings   = [];
   let page = 1;
+  let emptyPages = 0;
 
-  while (listings.length < MAX_LISTINGS) {
+  while (page <= MAX_PAGES) {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&page=${page}`;
     let html = '';
     try {
-      html = await scrapingbeeFetch(etsyUrl, {
-        stealth_proxy: 'true',
-        wait:          '3000',
-      });
+      html = await scrapingbeeFetch(etsyUrl, { stealth_proxy: 'true', wait: '3000' });
     } catch (e) {
-      console.warn('Competition scrape page', page, '— scraping failed:', e.message);
+      console.warn('Competition scrape page', page, '— failed:', e.message);
       break;
     }
 
     const rawListings = parseSearchResultListings(html);
-
     let addedOnPage = 0;
+
     for (const l of rawListings) {
-      if (listings.length >= MAX_LISTINGS) break;
       if (!l.image) continue;
-
-      // Skip if this shop was already analyzed
+      // Une seule annonce par boutique — si shopName connu et déjà vu, skip
       if (l.shopName && shopsSeen.has(l.shopName)) continue;
-
-      // Mark shop as seen, add listing
       if (l.shopName) shopsSeen.add(l.shopName);
       listings.push({ shopName: l.shopName || null, image: l.image, link: l.link });
       addedOnPage++;
     }
 
     onPage(page, listings.length);
+    console.log(`Page ${page}: ${rawListings.length} raw, ${addedOnPage} new unique shops, total: ${listings.length}`);
 
-    // Stop si rien de nouveau sur cette page, pas de page suivante, ou limite atteinte
-    const hasNext = html.includes('pagination-next') || html.includes(`page=${page + 1}`);
-    if (!hasNext || listings.length >= MAX_LISTINGS) break;
-    // Stop anticipé : 2 pages consécutives sans nouvelles boutiques
-    if (addedOnPage === 0) break;
+    // Arrêt si plus de page suivante
+    const hasNext = html.includes('pagination-next') || html.includes('page=' + (page + 1));
+    if (!hasNext) { console.log('No next page — stopping'); break; }
+
+    // Arrêt anticipé si 2 pages consécutives sans nouvelles boutiques
+    if (addedOnPage === 0) {
+      emptyPages++;
+      if (emptyPages >= 2) { console.log('2 empty pages — stopping'); break; }
+    } else {
+      emptyPages = 0;
+    }
+
     page++;
-    await new Promise(r => setTimeout(r, 400)); // réduit de 800ms
+    await new Promise(r => setTimeout(r, 400));
   }
 
-  console.log('Competition: total listings to analyze:', listings.length);
+  console.log(`Competition scrape done: ${listings.length} unique shops across ${page} pages`);
   return listings;
 }
 
