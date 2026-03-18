@@ -330,8 +330,8 @@
       btn.classList.add('running');
       label.textContent = 'Analyse...';
       status.textContent = '';
-      resDiv.innerHTML = '';
-      progDiv.style.display = 'flex';
+      if (resDiv) resDiv.innerHTML = '';
+      if (progDiv) progDiv.style.display = 'flex';
 
       function setStep(name, state) {
         const el = document.getElementById('cstep-' + name + '-' + shopId);
@@ -380,7 +380,8 @@
         if (!response.ok) {
           const d = await response.json().catch(() => ({}));
           status.textContent = '❌ Error ' + response.status + ': ' + (d.error || '');
-          btn.disabled = false; btn.classList.remove('running'); label.textContent = '⚔️ Competition';
+          if (btn) { btn.disabled = false; btn.classList.remove('running'); }
+      if (label) label.textContent = '⚔️ Competition';
           return;
         }
 
@@ -412,8 +413,8 @@
                 status.textContent = ev.message;
               } else if (ev.step === 'complete') {
                 clearInterval(timerInterval);
-                progDiv.style.display = 'none';
-                status.textContent = '';
+                if (progDiv) progDiv.style.display = 'none';
+                if (status) status.textContent = '';
                 const shops = ev.dropshipperShops || [];
                 if (shops.length > 0) {
                   window._dropListData = window._dropListData || {};
@@ -432,15 +433,16 @@
                 }
               } else if (ev.step === 'error') {
                 clearInterval(timerInterval);
-                progDiv.style.display = 'none';
-                status.textContent = '❌ ' + ev.message;
+                if (progDiv) progDiv.style.display = 'none';
+                if (status) status.textContent = '❌ ' + ev.message;
               }
             } catch(e) {}
           }
         }
-      } catch(err) { clearInterval(timerInterval); progDiv.style.display = 'none'; status.textContent = '❌ ' + err.message; }
+      } catch(err) { clearInterval(timerInterval); if (progDiv) progDiv.style.display = 'none'; if (status) status.textContent = '❌ ' + err.message; }
 
-      btn.disabled = false; btn.classList.remove('running'); label.textContent = '⚔️ Competition';
+      if (btn) { btn.disabled = false; btn.classList.remove('running'); }
+      if (label) label.textContent = '⚔️ Competition';
     }
 
     function renderCompetitionResult(ev, shopId) {
