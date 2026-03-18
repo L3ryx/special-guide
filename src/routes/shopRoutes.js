@@ -516,7 +516,50 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
 // Extract listings from Etsy search result HTML (covers all 3 strategies)
 function parseSearchResultListings(html) {
   const results = [];
-  const seen = new Set();
+  const seen    = new Set();
+
+  // ── Pré-scan global : construire une map listingId → shopName ──
+  const shopMap = new Map();
+  // data-listing-id + data-shop-name (attributs HTML Etsy)
+  for (const m of html.matchAll(/data-listing-id="(\d+)"[^>]{0,200}?data-shop-name="([^"]+)"/g))
+    if (!shopMap.has(m[1])) shopMap.set(m[1], m[2]);
+  for (const m of html.matchAll(/data-shop-name="([^"]+)"[^>]{0,200}?data-listing-id="(\d+)"/g))
+    if (!shopMap.has(m[2])) shopMap.set(m[2], m[1]);
+  // JSON inline listing_id / shop_name
+  for (const m of html.matchAll(/"listing_id"\s*:\s*"?(\d+)"?[\s\S]{0,300}?"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/g))
+    if (!shopMap.has(m[1])) shopMap.set(m[1], m[2]);
+  for (const m of html.matchAll(/"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"[\s\S]{0,300}?"listing_id"\s*:\s*"?(\d+)"?/g))
+    if (!shopMap.has(m[2])) shopMap.set(m[2], m[1]);
+  // JSON-LD seller.name
+  for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const d = JSON.parse(raw);
+      const items = Array.isArray(d) ? d : (d['@graph'] || [d]);
+      for (const item of items) {
+        const url = item.url || item['@id'] || '';
+        const idM = url.match(/\/listing\/(\d+)\//);
+        if (!idM) continue;
+        const sn = item.seller?.name || item.brand?.name;
+        if (sn && !shopMap.has(idM[1])) shopMap.set(idM[1], sn);
+      }
+    } catch {}
+  }
+  // href /listing/ID voisin de href /shop/Name
+  for (const m of html.matchAll(/href="[^"]*\/listing\/(\d+)\/[^"]*"[\s\S]{0,600}?href="[^"]*\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|")[^"]*"/g))
+    if (!shopMap.has(m[1])) shopMap.set(m[1], m[2]);
+  for (const m of html.matchAll(/href="[^"]*\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|")[^"]*"[\s\S]{0,600}?href="[^"]*\/listing\/(\d+)\/[^"]*"/g))
+    if (!shopMap.has(m[2])) shopMap.set(m[2], m[1]);
+
+  console.log('[shopMap] ' + shopMap.size + ' listingId→shopName entries');
+
+  function resolveShop(listingId, localCtx) {
+    if (listingId && shopMap.has(listingId)) return shopMap.get(listingId);
+    if (!localCtx) return null;
+    const m = localCtx.match(/data-shop-name="([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/i)
+           || localCtx.match(/href="[^"]*\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|")"/i)
+           || localCtx.match(/"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/i);
+    return m ? m[1] : null;
+  }
 
   // Strategy 1: JSON-LD
   for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
@@ -531,26 +574,11 @@ function parseSearchResultListings(html) {
         const cleanUrl = url.split('?')[0];
         if (seen.has(cleanUrl)) continue;
         seen.add(cleanUrl);
-        // Try all possible shopName fields in JSON-LD
-        const shopName = item.seller?.name
-          || item.brand?.name
-          || item.offers?.seller?.name
-          || item.manufacturer?.name
-          || item.provider?.name
-          || null;
-        // Also try to extract shopName from the listing URL context in full HTML
-        let resolvedShop = shopName;
-        if (!resolvedShop) {
-          const idx = html.indexOf(cleanUrl.split('/listing/')[1]?.split('/')[0] || '');
-          if (idx > -1) {
-            const ctx = html.slice(Math.max(0, idx - 2000), idx + 2000);
-            const m = ctx.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i)
-                   || ctx.match(/"shopName"\s*:\s*"([^"]+)"/i);
-            if (m) resolvedShop = m[1];
-          }
-        }
-        const shopUrl = resolvedShop ? `https://www.etsy.com/shop/${resolvedShop}` : null;
-        results.push({ title: name, link: cleanUrl, image: img, shopName: resolvedShop, shopUrl });
+        const idM2 = cleanUrl.match(/\/listing\/(\d+)\//);
+        const shopName = item.seller?.name || item.brand?.name
+          || resolveShop(idM2?.[1], null);
+        const shopUrl = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
+        results.push({ title: name, link: cleanUrl, image: img, shopName, shopUrl });
       }
     } catch {}
   }
@@ -562,11 +590,12 @@ function parseSearchResultListings(html) {
     const b = block[1];
     const linkM = b.match(/href="(https:\/\/www\.etsy\.com\/listing\/\d+\/[^"?#]+)/);
     const imgM  = b.match(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+)"/i);
-    const shopM = b.match(/data-shop-name="([^"]+)"/i);
-    if (linkM && imgM && shopM && !seen.has(linkM[1])) {
+    const idM3 = linkM ? linkM[1].match(/\/listing\/(\d+)\//) : null;
+    if (linkM && imgM && !seen.has(linkM[1])) {
       seen.add(linkM[1]);
-      const shopName = shopM[1];
-      results.push({ link: linkM[1], image: imgM[1].split('?')[0], shopName, shopUrl: `https://www.etsy.com/shop/${shopName}` });
+      const shopName = resolveShop(idM3?.[1], b);
+      const shopUrl = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
+      results.push({ link: linkM[1], image: imgM[1].split('?')[0], shopName, shopUrl });
     }
   }
   if (results.length >= 2) return results;
@@ -588,12 +617,8 @@ function parseSearchResultListings(html) {
       seen.add(link.url);
       // Extract shopName from nearby HTML — wider context window
       const ctx = html.slice(Math.max(0, link.pos - 2000), link.pos + 2000);
-      const shopM = ctx.match(/data-shop-name="([^"]+)"/i)
-                 || ctx.match(/href="https:\/\/www\.etsy\.com\/shop\/([A-Za-z0-9_-]+)"/i)
-                 || ctx.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i)
-                 || ctx.match(/"shopName"\s*:\s*"([^"]+)"/i)
-                 || ctx.match(/"shop_name"\s*:\s*"([^"]+)"/i);
-      const shopName = shopM ? shopM[1] : null;
+      const idM4 = link.url.match(/\/listing\/(\d+)\//);
+      const shopName = resolveShop(idM4?.[1], ctx);
       results.push({ link: link.url, image: closest.url, shopName, shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null });
     }
   }
