@@ -33,7 +33,7 @@ router.post('/niche-keyword', async (req, res) => {
   try {
     const r = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      { contents: [{ parts: [{ text: 'Give me a single short English niche keyword (2-4 words) for an Etsy product search. It should be a specific, trending, or profitable niche for PHYSICAL products only. Do NOT suggest digital products, printables, SVG files, digital downloads, templates, or any non-physical items. Respond with ONLY the keyword, no punctuation, no explanation.' }] }] },
+      { contents: [{ parts: [{ text: `You are a creative Etsy niche researcher. Generate ONE unique and specific English product keyword (2-4 words) for an Etsy search. Rules: PHYSICAL products only (no digital, no printables, no SVG, no downloads). Be creative and vary across these categories randomly: jewelry, home decor, clothing, accessories, baby items, pet products, seasonal, vintage, personalized gifts, kitchen, candles, crystals, art, stationery, tools, toys, wedding, garden, sports, travel, wellness. Pick a random category and a specific niche within it. Use a random seed: ${Math.floor(Math.random()*100000)}. Reply with ONLY the keyword, no punctuation, no explanation.` }] }] },
       { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
     );
     const keyword = (r.data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
