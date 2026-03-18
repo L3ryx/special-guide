@@ -315,9 +315,9 @@
           <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword" style="width:48px;flex-shrink:0;">+<span id="kw-count-badge"></span></button>
         </div>
         <div id="keywords-list" style="display:none;width:100%;"></div>
-        <div style="display:flex;gap:8px;width:calc(100% - 56px);">
-          <button id="dice-btn" onclick="rollNiche()" style="flex:1;"><span class="dice-icon">🎲</span>Generate</button>
-          <button id="clear-keywords-btn" onclick="clearKeywords()">🗑</button>
+        <div style="position:relative;width:100%;">
+          <button id="dice-btn" onclick="rollNiche()" style="width:100%;"><span class="dice-icon">🎲</span>Generate</button>
+          <button id="clear-keywords-btn" onclick="clearKeywords()" style="position:absolute;right:-56px;top:0;">🗑</button>
         </div>
       </div>
       <button id="start-btn" onclick="startSearch()">START</button>
