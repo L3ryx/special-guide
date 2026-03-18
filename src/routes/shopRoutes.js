@@ -300,6 +300,33 @@ async function compareWithClaude(etsyImgUrl, aliImgUrl) {
 module.exports = router;
 
 // ── COMPETITION ──
+// ── DEBUG : voir ce que ScrapingBee retourne et combien de shopNames trouvés
+router.get('/debug-scrape', async (req, res) => {
+  const keyword = req.query.q || 'handmade ring';
+  const apiKey = process.env.SCRAPINGBEE_KEY || process.env.SCRAPEAPI_KEY;
+  if (!apiKey) return res.json({ error: 'no API key' });
+  try {
+    const html = await scrapingbeeFetch(
+      `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&page=1`,
+      { stealth_proxy: 'true', wait: '3000' }
+    );
+    const listings = parseSearchResultListings(html);
+    const withShop = listings.filter(l => l.shopName);
+    // Extraire un échantillon du HTML autour des premiers listings
+    const firstLink = html.match(/href="(https:\/\/www\.etsy\.com\/listing\/\d+\/[^"?#]+)"/);
+    const sampleCtx = firstLink ? html.slice(Math.max(0, html.indexOf(firstLink[1]) - 500), html.indexOf(firstLink[1]) + 1000) : '';
+    res.json({
+      htmlLength: html.length,
+      totalListings: listings.length,
+      withShopName: withShop.length,
+      sample: listings.slice(0, 3),
+      htmlSample: sampleCtx.slice(0, 2000),
+    });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
 router.post('/:id/competition', requireAuth, async (req, res) => {
   const shop = await SavedShop.findOne({ _id: req.params.id, userId: req.user.id });
   if (!shop) return res.status(404).json({ error: 'Shop not found' });
@@ -462,7 +489,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
 // Scrape Etsy search results — 1 listing par boutique unique, toutes les pages disponibles
 async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
-  const MAX_PAGES  = 1;   // max 1 pages Etsy
+  const MAX_PAGES  = 5;   // max 5 pages Etsy
   const shopsSeen  = new Set();
   const listings   = [];
   let page = 1;
