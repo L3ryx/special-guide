@@ -7,27 +7,30 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
-  const { productUrl, productImage, keyword } = req.body;
-  if (!productUrl) return res.status(400).json({ error: 'productUrl requis' });
+  let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
+  if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
+  if (shopUrl.includes('/listing/')) {
+    const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/);
+    shopUrl = m
+      ? `https://www.etsy.com/shop/${m[1]}`
+      : shopName
+        ? `https://www.etsy.com/shop/${shopName}`
+        : shopUrl.split('/listing/')[0].replace(/\/$/, '');
+  } else {
+    shopUrl = shopUrl.replace(/\/$/, '');
+  }
+  if (!shopName || shopName === 'Shop' || shopName === 'Boutique') {
+    const m = shopUrl.match(/\/shop\/([^/?#]+)/);
+    shopName = m ? m[1] : shopUrl.split('/').filter(Boolean).pop() || 'Shop';
+  }
   try {
     const shop = await SavedShop.findOneAndUpdate(
-      { userId: req.user.id, productUrl },
-      { $set: {
-          productUrl,
-          productImage: productImage || null,
-          keyword:      keyword      || null,
-          shopName:     null,
-          shopUrl:      null,
-          shopAvatar:   null,
-          savedAt:      new Date(),
-        },
-        $setOnInsert: { userId: req.user.id }
-      },
+      { userId: req.user.id, shopUrl },
+      { $set: { shopName, shopAvatar: shopAvatar || null, productImage: productImage || null, productUrl: productUrl || null, keyword: req.body.keyword || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ ok: true, shop });
   } catch (err) {
-    if (err.code === 11000) return res.json({ ok: true });
     res.status(500).json({ error: err.message });
   }
 });
@@ -311,106 +314,77 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 
   try {
     const apiKey = process.env.SCRAPINGBEE_KEY || process.env.SCRAPEAPI_KEY;
-    if (!apiKey) { send({ step: 'error', message: '❌ SCRAPINGBEE_KEY or SCRAPEAPI_KEY missing' }); return res.end(); }
-    if (!process.env.GEMINI_API_KEY) { send({ step: 'error', message: '❌ GEMINI_API_KEY missing' }); return res.end(); }
+    if (!apiKey)                     { send({ step: 'error', message: '❌ SCRAPINGBEE_KEY or SCRAPEAPI_KEY missing' }); return res.end(); }
     if (!process.env.SERPER_API_KEY) { send({ step: 'error', message: '❌ SERPER_API_KEY missing' }); return res.end(); }
     if (!process.env.IMGBB_API_KEY)  { send({ step: 'error', message: '❌ IMGBB_API_KEY missing' });  return res.end(); }
+    if (!process.env.GEMINI_API_KEY) { send({ step: 'error', message: '❌ GEMINI_API_KEY missing' }); return res.end(); }
 
-    // ── STEP 1 : Utiliser le keyword sauvegardé avec la boutique ──
+    // ── STEP 1 : Déterminer le mot-clé ──────────────────────────────
     let keyword = '';
-
-    // Priorité 1 : keyword sauvegardé lors de la recherche principale
     if (shop.keyword && shop.keyword.trim().length > 1) {
       keyword = shop.keyword.trim().toLowerCase();
-      console.log('Keyword from saved shop:', keyword);
-    }
-
-    // Priorité 2 : extraire depuis productUrl
-    if (!keyword && shop.productUrl) {
+    } else if (shop.productUrl) {
       const m = shop.productUrl.match(/\/listing\/\d+\/([^/?#]+)/);
-      if (m) {
-        keyword = m[1].replace(/-/g, ' ').replace(/[^a-z0-9 ]/gi, ' ').trim().toLowerCase();
-        keyword = keyword.split(/\s+/).slice(0, 3).join(' ');
-        console.log('Keyword from productUrl:', keyword);
-      }
-    }
-
-    // Priorité 3 : shopName en CamelCase
-    if (!keyword && shop.shopName) {
+      if (m) keyword = m[1].replace(/-/g, ' ').replace(/[^a-z0-9 ]/gi, ' ').trim().toLowerCase().split(/\s+/).slice(0, 4).join(' ');
+    } else if (shop.shopName) {
       keyword = shop.shopName.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().trim();
-      console.log('Keyword from shopName:', keyword);
     }
-
-    if (!keyword) {
-      send({ step: 'error', message: '❌ Could not determine a keyword for this shop.' });
-      return res.end();
-    }
+    if (!keyword) { send({ step: 'error', message: '❌ Could not determine keyword' }); return res.end(); }
 
     send({ step: 'keyword', message: '🔑 Keyword: "' + keyword + '"', keyword });
-    // ── STEP 3 : Scrape Etsy listings (1 per unique shop) ──
-    send({ step: 'status', message: '🔍 Scraping Etsy listings for "' + keyword + '"...' });
 
+    // ── STEP 2 : Scraper les listings Etsy ──────────────────────────
+    send({ step: 'status', message: '🔍 Scraping Etsy for "' + keyword + '"...' });
     const listings = await scrapeEtsyListingsForCompetition(apiKey, keyword, (page, count) => {
-      send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + '/400 listings collected...' });
+      send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + ' listings...' });
     });
 
-    const totalShops = listings.length;
-    if (totalShops === 0) {
-      send({ step: 'error', message: '❌ No listings found on Etsy for this keyword' });
-      return res.end();
-    }
-    send({ step: 'status', message: '✅ ' + totalShops + ' unique shops found. Starting reverse image search...' });
+    if (listings.length === 0) { send({ step: 'error', message: '❌ No listings found for this keyword' }); return res.end(); }
 
-    // ── STEP 4 : Recherche image Google Lens + comparaison Gemini ──
-    const { uploadToImgBB } = require('../services/imgbbUploader');
-    let dropshippers = 0;
-    let analyzed = 0;
-    const dropshipperShops = [];
-    const dropshipperShopNames = new Set(); // évite les doublons dans la drop list
-    // Compter les boutiques uniques pour un taux réaliste
+    // Boutiques uniques pour le calcul du taux
     const uniqueShopNames = new Set(listings.filter(l => l.shopName).map(l => l.shopName));
     const totalUniqueShops = uniqueShopNames.size || listings.length;
-    const SIMILARITY_THRESHOLD = 0.55;
+    send({ step: 'analyzing', totalShops: totalUniqueShops, message: '✅ ' + listings.length + ' listings (' + totalUniqueShops + ' unique shops). Analyzing...' });
 
-    // Cache ImgBB — évite de re-uploader la même image
-    const imgbbCache = new Map();
+    // ── STEP 3 : Comparaison image par image ──────────────────────────
+    const { uploadToImgBB }       = require('../services/imgbbUploader');
+    const { geminiVisionScore }   = require('../services/imageSimilarity');
+    const GEMINI_THRESHOLD = 60; // score >= 60 = dropshipping confirmé
+
+    let dropshippers = 0;
+    let analyzed     = 0;
+    const dropshipperShops    = [];
+    const dropshipperNames    = new Set(); // dédoublonnage drop list
+    const shopsAnalyzed       = new Set(); // 1 image par boutique max
+    const imgbbCache          = new Map();
+
     async function uploadCached(url) {
       if (imgbbCache.has(url)) return imgbbCache.get(url);
-      const result = await uploadToImgBB(url);
-      imgbbCache.set(url, result);
-      return result;
+      const r = await uploadToImgBB(url);
+      imgbbCache.set(url, r);
+      return r;
     }
 
-    // Set des boutiques déjà analysées — on saute si déjà vue
-    const shopsAnalyzed = new Set();
-
     async function analyzeOne(listing) {
-      try {
-        // ── Sauter si boutique déjà analysée ──────────────────────────
-        const shopKey = listing.shopName || listing.link;
-        if (shopKey && shopsAnalyzed.has(shopKey)) {
-          console.log('Skip (already analyzed):', shopKey);
-          return;
-        }
-        if (shopKey) shopsAnalyzed.add(shopKey);
+      // ── Skip si boutique déjà analysée (une image par boutique suffit)
+      if (listing.shopName && shopsAnalyzed.has(listing.shopName)) {
+        analyzed++;
+        send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' });
+        return;
+      }
+      if (listing.shopName) shopsAnalyzed.add(listing.shopName);
 
-        // ── 1. Upload image Etsy sur ImgBB pour URL publique ──────────
-        // Serper Lens a besoin d'une URL publique accessible
+      try {
         if (!listing.image) return;
 
+        // 1. Upload image Etsy → URL publique pour Serper Lens
         let etsyPublicUrl;
-        try {
-          etsyPublicUrl = await uploadCached(listing.image);
-        } catch (e) {
-          console.warn('ImgBB upload (Etsy) failed:', e.message);
-          return;
-        }
+        try { etsyPublicUrl = await uploadCached(listing.image); }
+        catch (e) { console.warn('ImgBB upload failed:', e.message); return; }
         if (!etsyPublicUrl) return;
 
-        // ── 2. Serper Google Lens — recherche par image ───────────────
-        // On envoie l'image Etsy à Google Lens et on cherche
-        // un résultat AliExpress parmi les correspondances visuelles
-        await new Promise(r => setTimeout(r, 100)); // éviter Serper 429
+        // 2. Google Lens — chercher un produit AliExpress visuellement similaire
+        await new Promise(r => setTimeout(r, 150));
         let aliResult = null;
         try {
           const lensRes = await axios.post(
@@ -418,67 +392,52 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
             { url: etsyPublicUrl, gl: 'us', hl: 'en' },
             { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
           );
-
-          // Chercher AliExpress dans visual_matches d'abord, puis organic
-          const allResults = [
-            ...(lensRes.data.visual_matches || []),
-            ...(lensRes.data.organic        || []),
-          ];
-
-          console.log('🔍 Lens:', (lensRes.data.visual_matches || []).length, 'visual +', (lensRes.data.organic || []).length, 'organic');
-
-          aliResult = allResults.find(r => {
-            const url = r.link || r.url || '';
-            return url.includes('aliexpress.com') && url.includes('/item/') && (r.imageUrl || r.thumbnailUrl);
+          const all = [...(lensRes.data.visual_matches || []), ...(lensRes.data.organic || [])];
+          aliResult = all.find(r => {
+            const u = r.link || r.url || '';
+            return u.includes('aliexpress.com') && u.includes('/item/') && (r.imageUrl || r.thumbnailUrl);
           });
-
         } catch (e) {
-          const status = e.response?.status;
-          if (status === 401) {
-            send({ step: 'error', message: '❌ Serper API key invalid (401)' });
-            throw new Error('Serper 401 — abort');
-          }
-          console.warn('Serper Lens error:', e.message);
-          return;
+          if (e.response?.status === 401) { send({ step: 'error', message: '❌ Serper key invalid' }); throw new Error('abort'); }
+          console.warn('Lens error:', e.message); return;
         }
 
-        if (!aliResult) {
-          console.log('🛒 Result: none');
-          return;
-        }
+        if (!aliResult) { console.log('No AliExpress match for', listing.shopName); return; }
 
         const aliImageUrl = aliResult.imageUrl || aliResult.thumbnailUrl;
         const aliUrl      = aliResult.link || aliResult.url;
-        console.log('🛒 Result:', aliUrl);
 
-        // ── 3. Lens match = dropshipper direct ─────
-        if (listing.shopName) {
-          if (!dropshipperShopNames.has(listing.shopName)) {
-            dropshipperShopNames.add(listing.shopName);
-            dropshippers++;
-            dropshipperShops.push({
-              shopName: listing.shopName,
-              shopUrl:  'https://www.etsy.com/shop/' + listing.shopName,
-              aliUrl:   aliUrl,
-            });
-          }
-        } else {
-          dropshippers++;
+        // 3. Comparaison Gemini Vision — confirmer que les images sont similaires
+        const score = await geminiVisionScore(etsyPublicUrl, aliImageUrl);
+        console.log('Gemini score:', score, 'for', listing.shopName);
+
+        if (score === null || score < GEMINI_THRESHOLD) {
+          console.log('Not similar enough (' + score + ') — skip');
+          return;
         }
-        console.log('✅ Lens match direct —', listing.shopName || '(no shopName)');
-        send({ step: 'match', totalUniqueShops, message: '🛒 Match — ' + (listing.shopName || '?') + ' (' + dropshippers + ' dropshippers)' });
+
+        // 4. Dropshipping confirmé — enregistrer la boutique
+        dropshippers++;
+        if (listing.shopName && !dropshipperNames.has(listing.shopName)) {
+          dropshipperNames.add(listing.shopName);
+          dropshipperShops.push({
+            shopName: listing.shopName,
+            shopUrl:  'https://www.etsy.com/shop/' + listing.shopName,
+          });
+        }
+        console.log('✅ Dropshipper confirmed —', listing.shopName, '(score ' + score + ')');
+        send({ step: 'match', totalShops: totalUniqueShops, message: '🛒 ' + listing.shopName + ' (' + dropshippers + ' dropshippers)' });
 
       } catch (e) {
-        if (e.message.includes('abort')) throw e;
-        console.warn('analyzeOne failed for', listing.shopName, e.message);
+        if (e.message === 'abort') throw e;
+        console.warn('analyzeOne error:', e.message);
       } finally {
-        // Toujours incrémenter le compteur, même en cas d'erreur ou de skip
         analyzed++;
-        send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' analyzed — ' + dropshippers + ' dropshippers found' });
+        send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' });
       }
     }
 
-    // 3 workers en parallèle — Gemini désactivé donc pas de rate limit
+    // 2 workers en parallèle (Gemini a des rate limits)
     const queue = [...listings];
     async function worker() {
       while (queue.length > 0) {
@@ -486,13 +445,11 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         if (listing) await analyzeOne(listing);
       }
     }
-    await Promise.all(Array.from({ length: 3 }, worker));
+    await Promise.all(Array.from({ length: 2 }, worker));
 
-    // ── STEP 5 : Compute score ──
+    // ── STEP 4 : Score et sauvegarde ────────────────────────────────
     const score = computeDropshipScore(dropshippers, totalUniqueShops);
 
-    // Save competition result to MongoDB
-    // Utiliser $set avec les champs pointés pour forcer la mise à jour du sous-document
     await SavedShop.findByIdAndUpdate(req.params.id, {
       $set: {
         'lastCompetition.runAt':            new Date(),
@@ -506,20 +463,10 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         'lastCompetition.saturation':       score.saturation,
       }
     }, { new: true });
-    console.log('Competition saved — totalUniqueShops:', totalUniqueShops, 'dropshippers:', dropshippers, 'saturation:', score.saturation);
 
-    send({
-      step: 'complete',
-      keyword,
-      totalShops: totalUniqueShops,
-      dropshippers,
-      dropshipperShops,
-      score,
-      label:       score.label,
-      color:       score.color,
-      description: score.description,
-      saturation:  score.saturation,
-    });
+    console.log('Competition done — shops:', totalUniqueShops, 'dropshippers:', dropshippers, 'saturation:', score.saturation + '%');
+    send({ step: 'complete', keyword, totalShops: totalUniqueShops, dropshippers, dropshipperShops, score,
+      label: score.label, color: score.color, description: score.description, saturation: score.saturation });
     res.end();
 
   } catch (err) {
@@ -579,57 +526,10 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
   return listings;
 }
 
-// ── Scanne tout le HTML une fois et construit une map listingId → shopName
-function buildShopMapFromHtml(html) {
-  const map = new Map();
-  // 1. JSON inline listing_id / shop_name (et variantes camelCase)
-  for (const m of html.matchAll(/"listing_id"\s*:\s*"?(\d+)"?[\s\S]{0,400}?"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/g))
-    if (!map.has(m[1])) map.set(m[1], m[2]);
-  for (const m of html.matchAll(/"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"[\s\S]{0,400}?"listing_id"\s*:\s*"?(\d+)"?/g))
-    if (!map.has(m[2])) map.set(m[2], m[1]);
-  for (const m of html.matchAll(/"listingId"\s*:\s*"?(\d+)"?[\s\S]{0,400}?"shopName"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/g))
-    if (!map.has(m[1])) map.set(m[1], m[2]);
-  for (const m of html.matchAll(/"shopName"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"[\s\S]{0,400}?"listingId"\s*:\s*"?(\d+)"?/g))
-    if (!map.has(m[2])) map.set(m[2], m[1]);
-  // 2. JSON-LD seller.name
-  for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
-    try {
-      const data = JSON.parse(raw);
-      const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
-      for (const item of items) {
-        const url = item.url || item['@id'] || '';
-        const idM = url.match(/\/listing\/(\d+)\//);
-        if (!idM) continue;
-        const sn = item.seller?.name || item.brand?.name;
-        if (sn && !map.has(idM[1])) map.set(idM[1], sn);
-      }
-    } catch {}
-  }
-  // 3. href /listing/ID voisin d'un href /shop/Name
-  for (const m of html.matchAll(/href="[^"]*\/listing\/(\d+)\/[^"]*"[\s\S]{0,600}?href="[^"]*\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|")[^"]*"/g))
-    if (!map.has(m[1])) map.set(m[1], m[2]);
-  for (const m of html.matchAll(/href="[^"]*\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|")[^"]*"[\s\S]{0,600}?href="[^"]*\/listing\/(\d+)\/[^"]*"/g))
-    if (!map.has(m[2])) map.set(m[2], m[1]);
-  console.log(`[buildShopMapFromHtml] ${map.size} listingId→shopName found`);
-  return map;
-}
-
-// Extract listings from Etsy search result HTML
+// Extract listings from Etsy search result HTML (covers all 3 strategies)
 function parseSearchResultListings(html) {
   const results = [];
-  const seen    = new Set();
-  const shopMap = buildShopMapFromHtml(html);
-
-  function resolveShop(listingId, localCtx) {
-    if (listingId && shopMap.has(listingId)) return shopMap.get(listingId);
-    if (!localCtx) return null;
-    const m = localCtx.match(/data-shop-name="([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/i)
-           || localCtx.match(/data-shop_name="([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/i)
-           || localCtx.match(/href="[^"]*\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|")"/i)
-           || localCtx.match(/"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/i)
-           || localCtx.match(/"shopName"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/i);
-    return m ? m[1] : null;
-  }
+  const seen = new Set();
 
   // Strategy 1: JSON-LD
   for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
@@ -637,38 +537,59 @@ function parseSearchResultListings(html) {
       const data  = JSON.parse(raw);
       const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
       for (const item of items) {
-        const url = item.url || item['@id'];
-        const img = Array.isArray(item.image) ? item.image[0] : item.image;
-        if (!url?.includes('/listing/') || !img) continue;
+        const url  = item.url || item['@id'];
+        const img  = item.image?.[0] || item.image;
+        const name = item.name;
+        if (!url || !url.includes('/listing/') || !img || !name) continue;
         const cleanUrl = url.split('?')[0];
         if (seen.has(cleanUrl)) continue;
         seen.add(cleanUrl);
-        const idM = cleanUrl.match(/\/listing\/(\d+)\//);
-        const shopName = item.seller?.name || item.brand?.name || resolveShop(idM?.[1], null);
-        results.push({ link: cleanUrl, image: img, shopName: shopName || null,
-          shopUrl: shopName ? 'https://www.etsy.com/shop/' + shopName : null });
+        // Try all possible shopName fields in JSON-LD
+        const shopName = item.seller?.name
+          || item.brand?.name
+          || item.offers?.seller?.name
+          || item.manufacturer?.name
+          || item.provider?.name
+          || null;
+        // Also try to extract shopName from the listing URL context in full HTML
+        let resolvedShop = shopName;
+        if (!resolvedShop) {
+          const idx = html.indexOf(cleanUrl.split('/listing/')[1]?.split('/')[0] || '');
+          if (idx > -1) {
+            const ctx = html.slice(Math.max(0, idx - 2000), idx + 2000);
+            const m = ctx.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i)
+                   || ctx.match(/"shopName"\s*:\s*"([^"]+)"/i);
+            if (m) resolvedShop = m[1];
+          }
+        }
+        const shopUrl = resolvedShop ? `https://www.etsy.com/shop/${resolvedShop}` : null;
+        results.push({ title: name, link: cleanUrl, image: img, shopName: resolvedShop, shopUrl });
       }
     } catch {}
   }
   if (results.filter(r => r.shopName).length >= 2) return results;
 
   // Strategy 2: data-listing-id blocks
-  for (const [, b, listingId] of html.matchAll(/(<(?:li|div)[^>]*data-listing-id="(\d+)"[^>]*>[\s\S]*?<\/(?:li|div)>)/gi)) {
+  const blocks = [...html.matchAll(/(<(?:li|div)[^>]*data-listing-id[^>]*>[\s\S]*?<\/(?:li|div)>)/gi)];
+  for (const block of blocks) {
+    const b = block[1];
     const linkM = b.match(/href="(https:\/\/www\.etsy\.com\/listing\/\d+\/[^"?#]+)/);
     const imgM  = b.match(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+)"/i);
-    if (!linkM || !imgM || seen.has(linkM[1])) continue;
-    seen.add(linkM[1]);
-    const shopName = resolveShop(listingId, b);
-    results.push({ link: linkM[1], image: imgM[1].split('?')[0], shopName,
-      shopUrl: shopName ? 'https://www.etsy.com/shop/' + shopName : null });
+    const shopM = b.match(/data-shop-name="([^"]+)"/i);
+    if (linkM && imgM && shopM && !seen.has(linkM[1])) {
+      seen.add(linkM[1]);
+      const shopName = shopM[1];
+      results.push({ link: linkM[1], image: imgM[1].split('?')[0], shopName, shopUrl: `https://www.etsy.com/shop/${shopName}` });
+    }
   }
-  if (results.filter(r => r.shopName).length >= 2) return results;
+  if (results.length >= 2) return results;
 
-  // Strategy 3: proximity
+  // Strategy 3: proximity (links + images near each other in HTML)
   const allLinks  = [...html.matchAll(/href="(https:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"?#]+)/g)];
   const allImages = [...html.matchAll(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+\.(?:jpg|jpeg|png|webp))/gi)];
-  const linkPos   = allLinks.map(m => ({ url: m[1].split('?')[0], id: m[2], pos: m.index }));
+  const linkPos   = allLinks.map(m  => ({ url: m[1].split('?')[0], pos: m.index }));
   const imgPos    = allImages.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
+
   for (const link of linkPos) {
     if (seen.has(link.url)) continue;
     let closest = null, minDist = Infinity;
@@ -676,15 +597,23 @@ function parseSearchResultListings(html) {
       const d = Math.abs(img.pos - link.pos);
       if (d < minDist && d < 5000) { minDist = d; closest = img; }
     }
-    if (!closest) continue;
-    seen.add(link.url);
-    const ctx = html.slice(Math.max(0, link.pos - 1500), link.pos + 1500);
-    const shopName = resolveShop(link.id, ctx);
-    results.push({ link: link.url, image: closest.url, shopName,
-      shopUrl: shopName ? 'https://www.etsy.com/shop/' + shopName : null });
+    if (closest) {
+      seen.add(link.url);
+      // Extract shopName from nearby HTML — wider context window
+      const ctx = html.slice(Math.max(0, link.pos - 2000), link.pos + 2000);
+      const shopM = ctx.match(/data-shop-name="([^"]+)"/i)
+                 || ctx.match(/href="https:\/\/www\.etsy\.com\/shop\/([A-Za-z0-9_-]+)"/i)
+                 || ctx.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i)
+                 || ctx.match(/"shopName"\s*:\s*"([^"]+)"/i)
+                 || ctx.match(/"shop_name"\s*:\s*"([^"]+)"/i);
+      const shopName = shopM ? shopM[1] : null;
+      results.push({ link: link.url, image: closest.url, shopName, shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null });
+    }
   }
+
   return results;
 }
+
 
 function extractAboutText(html) {
   const patterns = [
@@ -728,11 +657,11 @@ function computeDropshipScore(dropshippers, totalShops) {
   const pct = totalShops > 0 ? Math.round((dropshippers / totalShops) * 100) : 0;
   const saturation = pct;
 
-  if (pct <= 5)  return { label: 'Very Low',  color: '#22c55e', description: 'Almost no dropshippers — excellent original niche!',         saturation };
-  if (pct <= 15) return { label: 'Low',        color: '#86efac', description: 'Few dropshippers — good opportunity with differentiation.',  saturation };
-  if (pct <= 33) return { label: 'Moderate',   color: '#fbbf24', description: 'Some dropshipping presence. Stand out with quality.',        saturation };
-  if (pct <= 55) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',        saturation };
-  return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.', saturation };
+  if (pct <= 10) return { label: 'Very Low',  color: '#22c55e', description: 'Almost no dropshippers — excellent original niche!',          saturation };
+  if (pct <= 25) return { label: 'Low',        color: '#86efac', description: 'Few dropshippers — good opportunity with differentiation.',   saturation };
+  if (pct <= 45) return { label: 'Moderate',   color: '#fbbf24', description: 'Some dropshipping presence. Stand out with quality.',         saturation };
+  if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
+  return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
     }
 
 
