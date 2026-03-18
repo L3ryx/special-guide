@@ -163,9 +163,12 @@
       const wrap = document.createElement('div');
       wrap.id = 'shop-wrapper-' + shop._id;
 
-      const avatarUrl  = shop.shopAvatar || shop.productImage || null;
-      const shopUrl    = shop.shopUrl || shop.productUrl || '#';
-      const shopName   = shop.shopName || '—';
+      // Reconstruire shopUrl proprement depuis shopName
+      const shopName = shop.shopName || null;
+      const shopUrl  = shopName
+        ? 'https://www.etsy.com/shop/' + shopName
+        : (shop.shopUrl || shop.productUrl || '#');
+      const avatarUrl = shop.shopAvatar || shop.productImage || null;
 
       const row = document.createElement('div');
       row.className = 'shop-row';
