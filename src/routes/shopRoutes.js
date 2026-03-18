@@ -183,8 +183,8 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     const dropshipperShops    = [];
     const dropshipperNames    = new Set();
     // 5 images par boutique, 3 matches minimum pour confirmer dropshipping
-    const IMAGES_PER_SHOP   = 5;
-    const MATCHES_REQUIRED  = 3;
+    const IMAGES_PER_SHOP   = 2;
+    const MATCHES_REQUIRED  = 2;
     const shopMatchCount    = new Map(); // shopName → nb matches AliExpress
     const shopAnalyzedCount = new Map(); // shopName → nb images analysées
     const shopMatchData     = new Map(); // shopName → données du 1er match
@@ -199,100 +199,129 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       return r;
     }
 
+    // ── Scraper les 2 premières images d'une page boutique Etsy
+    async function scrapeShopImages(shopName) {
+      try {
+        const shopUrl = 'https://www.etsy.com/shop/' + shopName;
+        const html = await scrapingbeeFetch(shopUrl, { stealth_proxy: 'true', wait: '2000' });
+        const images = [];
+        const links  = [];
+
+        // JSON-LD ItemList
+        for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
+          try {
+            const d = JSON.parse(raw);
+            for (const el of (d.itemListElement || [])) {
+              const p = el.item || el;
+              const img = Array.isArray(p.image) ? p.image[0] : p.image;
+              if (img && p.url?.includes('/listing/')) {
+                images.push(img);
+                links.push(p.url.split('?')[0]);
+                if (images.length >= 2) break;
+              }
+            }
+          } catch {}
+          if (images.length >= 2) break;
+        }
+
+        // Fallback : etsystatic images
+        if (images.length < 2) {
+          const imgMatches = [...html.matchAll(/https:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp)/gi)];
+          const linkMatches = [...html.matchAll(/href="(https:\/\/www\.etsy\.com\/listing\/\d+\/[^"?#]+)"/g)];
+          for (const m of imgMatches) {
+            if (images.includes(m[0])) continue;
+            images.push(m[0].split('?')[0]);
+            links.push(linkMatches[images.length - 1]?.[1] || null);
+            if (images.length >= 2) break;
+          }
+        }
+
+        console.log('[scrapeShopImages]', shopName, '—', images.length, 'images found');
+        return images.slice(0, 2).map((img, i) => ({ image: img, link: links[i] || null, shopName }));
+      } catch (e) {
+        console.warn('[scrapeShopImages] failed for', shopName, e.message);
+        return [];
+      }
+    }
+
+    // ── Tester une image avec Google Lens → retourne le match AliExpress ou null
+    async function lensMatch(imageUrl) {
+      try {
+        const publicUrl = await uploadCached(imageUrl);
+        if (!publicUrl) return null;
+        await new Promise(r => setTimeout(r, 150));
+        const lensRes = await axios.post(
+          'https://google.serper.dev/lens',
+          { url: publicUrl, gl: 'us', hl: 'en' },
+          { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
+        );
+        const all = [...(lensRes.data.visual_matches || []), ...(lensRes.data.organic || [])];
+        return all.find(r => {
+          const u = r.link || r.url || '';
+          return u.includes('aliexpress.com') && u.includes('/item/') && (r.imageUrl || r.thumbnailUrl);
+        }) || null;
+      } catch (e) {
+        if (e.response?.status === 401) throw new Error('abort');
+        console.warn('Lens error:', e.message);
+        return null;
+      }
+    }
+
     async function analyzeOne(listing) {
-      // ── Skip si boutique confirmée/rejetée ou quota d'images atteint
-      if (listing.shopName) {
-        if (shopsConfirmed.has(listing.shopName) || shopsRejected.has(listing.shopName)) {
-          analyzed++;
-          send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' });
-          return;
-        }
-        const alreadyAnalyzed = shopAnalyzedCount.get(listing.shopName) || 0;
-        if (alreadyAnalyzed >= IMAGES_PER_SHOP) {
-          shopsRejected.add(listing.shopName);
-          analyzed++;
-          send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' });
-          return;
-        }
-        shopAnalyzedCount.set(listing.shopName, alreadyAnalyzed + 1);
+      // ── Skip si boutique déjà traitée
+      if (!listing.shopName) { analyzed++; send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' }); return; }
+      if (shopsConfirmed.has(listing.shopName) || shopsRejected.has(listing.shopName)) {
+        analyzed++;
+        send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' });
+        return;
       }
 
       try {
-        if (!listing.image) return;
+        const shopName = listing.shopName;
+        send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — Scraping shop: ' + shopName });
 
-        // 1. Upload image Etsy → URL publique pour Serper Lens
-        let etsyPublicUrl;
-        try { etsyPublicUrl = await uploadCached(listing.image); }
-        catch (e) { console.warn('ImgBB upload failed:', e.message); return; }
-        if (!etsyPublicUrl) return;
-
-        // 2. Google Lens — chercher un produit AliExpress visuellement similaire
-        await new Promise(r => setTimeout(r, 150));
-        let aliResult = null;
-        try {
-          const lensRes = await axios.post(
-            'https://google.serper.dev/lens',
-            { url: etsyPublicUrl, gl: 'us', hl: 'en' },
-            { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
-          );
-          const all = [...(lensRes.data.visual_matches || []), ...(lensRes.data.organic || [])];
-          aliResult = all.find(r => {
-            const u = r.link || r.url || '';
-            return u.includes('aliexpress.com') && u.includes('/item/') && (r.imageUrl || r.thumbnailUrl);
-          });
-        } catch (e) {
-          if (e.response?.status === 401) { send({ step: 'error', message: '❌ Serper key invalid' }); throw new Error('abort'); }
-          console.warn('Lens error:', e.message); return;
+        // 1. Récupérer les 2 premières images de la boutique
+        const shopImages = await scrapeShopImages(shopName);
+        if (shopImages.length < 2) {
+          console.log('Not enough images for', shopName, '— skip');
+          shopsRejected.add(shopName);
+          return;
         }
 
-        if (!aliResult) { console.log('No AliExpress match for', listing.shopName); return; }
+        // 2. Google Lens sur les 2 images
+        const [match1, match2] = await Promise.all([
+          lensMatch(shopImages[0].image),
+          lensMatch(shopImages[1].image),
+        ]);
 
-        const aliImageUrl = aliResult.imageUrl || aliResult.thumbnailUrl;
-        const aliUrl      = aliResult.link || aliResult.url;
+        console.log('[' + shopName + '] match1:', !!match1, '| match2:', !!match2);
 
-        // 3. Match AliExpress — 3 matches sur 5 images requis
-        const shopName = listing.shopName || null;
-        if (!shopName) { console.log('⚠️  Match sans shopName:', listing.link); }
-        else if (!shopsConfirmed.has(shopName)) {
-          const prevMatches = shopMatchCount.get(shopName) || 0;
-          const newMatches  = prevMatches + 1;
-          shopMatchCount.set(shopName, newMatches);
-
-          if (prevMatches === 0) {
-            shopMatchData.set(shopName, {
-              listingImage: listing.image || null,
-              listingUrl:   listing.link  || null,
-              aliImage:     aliImageUrl   || null,
-              aliUrl:       aliUrl        || null,
+        // 3. Les 2 doivent matcher AliExpress → dropshipping confirmé
+        if (match1 && match2) {
+          shopsConfirmed.add(shopName);
+          dropshippers++;
+          if (!dropshipperNames.has(shopName)) {
+            dropshipperNames.add(shopName);
+            dropshipperShops.push({
+              shopName,
+              shopUrl:      'https://www.etsy.com/shop/' + shopName,
+              listingImage: shopImages[0].image || null,
+              listingUrl:   shopImages[0].link  || null,
+              aliImage:     match1.imageUrl || match1.thumbnailUrl || null,
+              aliUrl:       match1.link || match1.url || null,
             });
           }
-
-          const analyzed5 = shopAnalyzedCount.get(shopName) || 0;
-          console.log('🔶 ' + shopName + ' — match ' + newMatches + '/' + MATCHES_REQUIRED + ' (' + analyzed5 + '/' + IMAGES_PER_SHOP + ' images)');
-
-          if (newMatches >= MATCHES_REQUIRED) {
-            shopsConfirmed.add(shopName);
-            dropshippers++;
-            if (!dropshipperNames.has(shopName)) {
-              dropshipperNames.add(shopName);
-              const first = shopMatchData.get(shopName) || {};
-              dropshipperShops.push({
-                shopName,
-                shopUrl:      'https://www.etsy.com/shop/' + shopName,
-                listingImage: first.listingImage || listing.image || null,
-                listingUrl:   first.listingUrl   || listing.link  || null,
-                aliImage:     first.aliImage     || aliImageUrl   || null,
-                aliUrl:       first.aliUrl       || aliUrl        || null,
-              });
-            }
-            console.log('✅ Confirmed (' + newMatches + '/5) —', shopName);
-            send({ step: 'match', totalShops: totalUniqueShops, message: '✅ ' + shopName + ' (' + dropshippers + ' dropshippers)' });
-          }
+          console.log('✅ Dropshipping confirmed (2/2) —', shopName);
+          send({ step: 'match', totalShops: totalUniqueShops, message: '✅ ' + shopName + ' (' + dropshippers + ' dropshippers)' });
+        } else {
+          shopsRejected.add(shopName);
+          console.log('❌ Not confirmed —', shopName);
         }
 
       } catch (e) {
         if (e.message === 'abort') throw e;
         console.warn('analyzeOne error:', e.message);
+        if (listing.shopName) shopsRejected.add(listing.shopName);
       } finally {
         analyzed++;
         send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' });
@@ -519,4 +548,3 @@ function computeDropshipScore(dropshippers, totalShops) {
     }
 
 module.exports = router;
-
