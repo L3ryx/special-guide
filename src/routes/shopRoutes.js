@@ -7,30 +7,27 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
-  let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
-  if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
-  if (shopUrl.includes('/listing/')) {
-    const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/);
-    shopUrl = m
-      ? `https://www.etsy.com/shop/${m[1]}`
-      : shopName
-        ? `https://www.etsy.com/shop/${shopName}`
-        : shopUrl.split('/listing/')[0].replace(/\/$/, '');
-  } else {
-    shopUrl = shopUrl.replace(/\/$/, '');
-  }
-  if (!shopName || shopName === 'Shop' || shopName === 'Boutique') {
-    const m = shopUrl.match(/\/shop\/([^/?#]+)/);
-    shopName = m ? m[1] : shopUrl.split('/').filter(Boolean).pop() || 'Shop';
-  }
+  const { productUrl, productImage, keyword } = req.body;
+  if (!productUrl) return res.status(400).json({ error: 'productUrl requis' });
   try {
     const shop = await SavedShop.findOneAndUpdate(
-      { userId: req.user.id, shopUrl },
-      { $set: { shopName, shopAvatar: shopAvatar || null, productImage: productImage || null, productUrl: productUrl || null, keyword: req.body.keyword || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
+      { userId: req.user.id, productUrl },
+      { $set: {
+          productUrl,
+          productImage: productImage || null,
+          keyword:      keyword      || null,
+          shopName:     null,
+          shopUrl:      null,
+          shopAvatar:   null,
+          savedAt:      new Date(),
+        },
+        $setOnInsert: { userId: req.user.id }
+      },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ ok: true, shop });
   } catch (err) {
+    if (err.code === 11000) return res.json({ ok: true });
     res.status(500).json({ error: err.message });
   }
 });
@@ -317,7 +314,6 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     if (!apiKey)                     { send({ step: 'error', message: '❌ SCRAPINGBEE_KEY or SCRAPEAPI_KEY missing' }); return res.end(); }
     if (!process.env.SERPER_API_KEY) { send({ step: 'error', message: '❌ SERPER_API_KEY missing' }); return res.end(); }
     if (!process.env.IMGBB_API_KEY)  { send({ step: 'error', message: '❌ IMGBB_API_KEY missing' });  return res.end(); }
-    if (!process.env.GEMINI_API_KEY) { send({ step: 'error', message: '❌ GEMINI_API_KEY missing' }); return res.end(); }
 
     // ── STEP 1 : Déterminer le mot-clé ──────────────────────────────
     let keyword = '';
@@ -347,9 +343,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     send({ step: 'analyzing', totalShops: totalUniqueShops, message: '✅ ' + listings.length + ' listings (' + totalUniqueShops + ' unique shops). Analyzing...' });
 
     // ── STEP 3 : Comparaison image par image ──────────────────────────
-    const { uploadToImgBB }       = require('../services/imgbbUploader');
-    const { geminiVisionScore }   = require('../services/imageSimilarity');
-    const GEMINI_THRESHOLD = 60; // score >= 60 = dropshipping confirmé
+    const { uploadToImgBB } = require('../services/imgbbUploader');
 
     let dropshippers = 0;
     let analyzed     = 0;
@@ -407,16 +401,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         const aliImageUrl = aliResult.imageUrl || aliResult.thumbnailUrl;
         const aliUrl      = aliResult.link || aliResult.url;
 
-        // 3. Comparaison Gemini Vision — confirmer que les images sont similaires
-        const score = await geminiVisionScore(etsyPublicUrl, aliImageUrl);
-        console.log('Gemini score:', score, 'for', listing.shopName);
-
-        if (score === null || score < GEMINI_THRESHOLD) {
-          console.log('Not similar enough (' + score + ') — skip');
-          return;
-        }
-
-        // 4. Dropshipping confirmé — enregistrer la boutique
+        // 3. Lens match AliExpress = dropshipping confirmé
         dropshippers++;
         if (listing.shopName && !dropshipperNames.has(listing.shopName)) {
           dropshipperNames.add(listing.shopName);
