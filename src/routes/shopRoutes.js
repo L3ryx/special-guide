@@ -151,17 +151,12 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       if (!keyword) throw new Error('Gemini returned empty keyword');
 
     } catch (e) {
-      console.warn('[Competition] Gemini keyword failed:', e.message, '— falling back to saved keyword');
-      // Fallback : keyword sauvegardé ou slug URL
-      if (shop.keyword && shop.keyword.trim().length > 1) {
-        keyword = shop.keyword.trim().toLowerCase();
-      } else if (shop.productUrl) {
-        const m = shop.productUrl.match(/\/listing\/\d+\/([^/?#]+)/);
-        if (m) keyword = m[1].replace(/-/g, ' ').replace(/[^a-z0-9 ]/gi, ' ').trim().toLowerCase().split(/\s+/).slice(0, 4).join(' ');
-      }
+      console.error('[Competition] Keyword generation failed:', e.message);
+      send({ step: 'error', message: '❌ Could not generate keyword: ' + e.message });
+      return res.end();
     }
 
-    if (!keyword) { send({ step: 'error', message: '❌ Could not determine keyword' }); return res.end(); }
+    if (!keyword) { send({ step: 'error', message: '❌ Gemini returned empty keyword' }); return res.end(); }
 
     send({ step: 'keyword', message: '🔑 Keyword: "' + keyword + '"', keyword });
 
