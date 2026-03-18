@@ -79,61 +79,6 @@ async function scrapeEtsy(keyword, maxCount = 10) {
   return allListings.slice(0, maxCount);
 }
 
-// Scrape all shop names for a keyword (for competition analysis) — no image needed
-async function scrapeEtsyShopNames(keyword) {
-  const apiKey = process.env.SCRAPINGBEE_KEY;
-  if (!apiKey) throw new Error('SCRAPINGBEE_KEY missing');
-
-  const allShops = new Set();
-  let page = 1;
-
-  while (page <= 20) { // max 20 pages
-    const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&ref=search_bar&page=${page}`;
-
-    let response;
-    try {
-      response = await axios.get('https://app.scrapingbee.com/api/v1/', {
-        params: {
-          api_key:       apiKey,
-          url:           etsyUrl,
-          render_js:     'true',
-          premium_proxy: 'true',
-          country_code:  'us',
-          wait:          '2000',
-          block_ads:     'true',
-          timeout:       '45000',
-        },
-        timeout: 120000,
-      });
-    } catch (err) {
-      console.warn(`Page ${page} error:`, err.message);
-      break;
-    }
-
-    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-    const listings = parseEtsyListings(html);
-    const shops = listings
-      .filter(l => l.shopName)
-      .map(l => l.shopName);
-
-    if (shops.length === 0) break;
-
-    shops.forEach(s => allShops.add(s));
-    console.log(`Competition page ${page}: +${shops.length} shops, total unique: ${allShops.size}`);
-
-    // Check if there's a next page
-    const hasNext = html.includes('pagination-next') || 
-                    listings.length >= 40 ||
-                    html.includes(`page=${page + 1}`);
-    if (!hasNext) break;
-
-    page++;
-    await new Promise(r => setTimeout(r, 800));
-  }
-
-  return Array.from(allShops);
-}
-
 function parseEtsyListings(html) {
   const listings = [];
   const seen = new Set();
@@ -241,23 +186,6 @@ function cleanEtsyImage(url) {
   return null;
 }
 
-async function debugEtsyHtml(keyword) {
-  const apiKey = process.env.SCRAPINGBEE_KEY;
-  if (!apiKey) return { ok: false, error: 'SCRAPINGBEE_KEY not defined' };
-  try {
-    const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}`;
-    const response = await axios.get('https://app.scrapingbee.com/api/v1/', {
-      params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2000', timeout: '45000' },
-      timeout: 120000,
-    });
-    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-    const listings = parseEtsyListings(html);
-    const valid = listings.filter(l => l.link && l.image);
-    return { ok: true, htmlLength: html.length, validListings: valid.length, sample: valid[0] || null };
-  } catch (err) {
-    return { ok: false, status: err.response?.status, error: err.message };
-  }
-}
+module.exports = { scrapeEtsy };
 
-module.exports = { scrapeEtsy, scrapeEtsyShopNames, debugEtsyHtml };
 
