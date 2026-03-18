@@ -477,11 +477,11 @@
 
       // Bouton loupe orange pour ouvrir la drop list
       var hasShops = shops.length > 0;
-      var shopOnClick = hasShops ? ('showDropshipList(window._dropListData[\''+shopId+'\'])') : '';
       var loopeBtnStyle = hasShops
         ? 'background:#f59e0b;color:#000;cursor:pointer;box-shadow:0 2px 8px rgba(245,158,11,0.35);'
         : 'background:rgba(245,158,11,0.15);color:rgba(0,0,0,0.3);cursor:default;';
-      var loupeBtn = '<button onclick="' + shopOnClick + '" title="Drop List" style="width:38px;height:38px;border-radius:50%;border:none;font-size:1.1rem;flex-shrink:0;align-self:center;' + loopeBtnStyle + '">🔍</button>';
+      var loupeOnclick = hasShops ? ('showDropshipList(window._dropListData[&quot;' + shopId + '&quot;])') : '';
+      var loupeBtn = '<button onclick="' + loupeOnclick + '" title="Drop List" style="width:38px;height:38px;border-radius:50%;border:none;font-size:1.1rem;flex-shrink:0;align-self:center;' + loopeBtnStyle + '">🔍</button>';
 
       // Result card : image gauche | infos droite
       // La fonction reçoit optionnellement img/kw/pUrl pour l'affichage dans la carte
