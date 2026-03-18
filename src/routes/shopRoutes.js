@@ -7,30 +7,27 @@ const { uploadToImgBB } = require('../services/imgbbUploader');
 
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
-  let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
-  if (!shopUrl) return res.status(400).json({ error: 'shopUrl requis' });
-  if (shopUrl.includes('/listing/')) {
-    const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/);
-    shopUrl = m
-      ? `https://www.etsy.com/shop/${m[1]}`
-      : shopName
-        ? `https://www.etsy.com/shop/${shopName}`
-        : shopUrl.split('/listing/')[0].replace(/\/$/, '');
-  } else {
-    shopUrl = shopUrl.replace(/\/$/, '');
-  }
-  if (!shopName || shopName === 'Shop' || shopName === 'Boutique') {
-    const m = shopUrl.match(/\/shop\/([^/?#]+)/);
-    shopName = m ? m[1] : shopUrl.split('/').filter(Boolean).pop() || 'Shop';
-  }
+  const { productUrl, productImage, keyword } = req.body;
+  if (!productUrl) return res.status(400).json({ error: 'productUrl requis' });
   try {
     const shop = await SavedShop.findOneAndUpdate(
-      { userId: req.user.id, shopUrl },
-      { $set: { shopName, shopAvatar: shopAvatar || null, productImage: productImage || null, productUrl: productUrl || null, keyword: req.body.keyword || null, savedAt: new Date() }, $setOnInsert: { userId: req.user.id } },
+      { userId: req.user.id, productUrl },
+      { $set: {
+          productUrl,
+          productImage: productImage || null,
+          keyword:      keyword      || null,
+          shopName:     null,
+          shopUrl:      null,
+          shopAvatar:   null,
+          savedAt:      new Date(),
+        },
+        $setOnInsert: { userId: req.user.id }
+      },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ ok: true, shop });
   } catch (err) {
+    if (err.code === 11000) return res.json({ ok: true });
     res.status(500).json({ error: err.message });
   }
 });
@@ -369,6 +366,10 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     let dropshippers = 0;
     let analyzed = 0;
     const dropshipperShops = [];
+    const dropshipperShopNames = new Set(); // évite les doublons dans la drop list
+    // Compter les boutiques uniques pour un taux réaliste
+    const uniqueShopNames = new Set(listings.filter(l => l.shopName).map(l => l.shopName));
+    const totalUniqueShops = uniqueShopNames.size || listings.length;
     const SIMILARITY_THRESHOLD = 0.55;
 
     // Cache ImgBB — évite de re-uploader la même image
@@ -451,16 +452,21 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         console.log('🛒 Result:', aliUrl);
 
         // ── 3. Lens match = dropshipper direct ─────
-        dropshippers++;
         if (listing.shopName) {
-          dropshipperShops.push({
-            shopName: listing.shopName,
-            shopUrl:  'https://www.etsy.com/shop/' + listing.shopName,
-            aliUrl:   aliUrl,
-          });
+          if (!dropshipperShopNames.has(listing.shopName)) {
+            dropshipperShopNames.add(listing.shopName);
+            dropshippers++;
+            dropshipperShops.push({
+              shopName: listing.shopName,
+              shopUrl:  'https://www.etsy.com/shop/' + listing.shopName,
+              aliUrl:   aliUrl,
+            });
+          }
+        } else {
+          dropshippers++;
         }
         console.log('✅ Lens match direct —', listing.shopName || '(no shopName)');
-        send({ step: 'match', totalShops, message: '🛒 Match — ' + (listing.shopName || '?') + ' (' + dropshippers + ' dropshippers)' });
+        send({ step: 'match', totalUniqueShops, message: '🛒 Match — ' + (listing.shopName || '?') + ' (' + dropshippers + ' dropshippers)' });
 
       } catch (e) {
         if (e.message.includes('abort')) throw e;
@@ -468,7 +474,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       } finally {
         // Toujours incrémenter le compteur, même en cas d'erreur ou de skip
         analyzed++;
-        send({ step: 'analyzing', totalShops, message: '🔎 ' + analyzed + '/' + totalShops + ' analyzed — ' + dropshippers + ' dropshippers found' });
+        send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' analyzed — ' + dropshippers + ' dropshippers found' });
       }
     }
 
@@ -483,7 +489,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     await Promise.all(Array.from({ length: 3 }, worker));
 
     // ── STEP 5 : Compute score ──
-    const score = computeDropshipScore(dropshippers, totalShops);
+    const score = computeDropshipScore(dropshippers, totalUniqueShops);
 
     // Save competition result to MongoDB
     // Utiliser $set avec les champs pointés pour forcer la mise à jour du sous-document
@@ -491,7 +497,7 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
       $set: {
         'lastCompetition.runAt':            new Date(),
         'lastCompetition.keyword':          keyword,
-        'lastCompetition.totalShops':       totalShops,
+        'lastCompetition.totalShops':       totalUniqueShops,
         'lastCompetition.dropshippers':     dropshippers,
         'lastCompetition.dropshipperShops': dropshipperShops,
         'lastCompetition.label':            score.label,
@@ -500,12 +506,12 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         'lastCompetition.saturation':       score.saturation,
       }
     }, { new: true });
-    console.log('Competition saved — totalShops:', totalShops, 'dropshippers:', dropshippers, 'saturation:', score.saturation);
+    console.log('Competition saved — totalUniqueShops:', totalUniqueShops, 'dropshippers:', dropshippers, 'saturation:', score.saturation);
 
     send({
       step: 'complete',
       keyword,
-      totalShops,
+      totalShops: totalUniqueShops,
       dropshippers,
       dropshipperShops,
       score,
@@ -722,11 +728,11 @@ function computeDropshipScore(dropshippers, totalShops) {
   const pct = totalShops > 0 ? Math.round((dropshippers / totalShops) * 100) : 0;
   const saturation = pct;
 
-  if (pct <= 10) return { label: 'Very Low',  color: '#22c55e', description: 'Almost no dropshippers — excellent original niche!',          saturation };
-  if (pct <= 25) return { label: 'Low',        color: '#86efac', description: 'Few dropshippers — good opportunity with differentiation.',   saturation };
-  if (pct <= 45) return { label: 'Moderate',   color: '#fbbf24', description: 'Some dropshipping presence. Stand out with quality.',         saturation };
-  if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
-  return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
+  if (pct <= 5)  return { label: 'Very Low',  color: '#22c55e', description: 'Almost no dropshippers — excellent original niche!',         saturation };
+  if (pct <= 15) return { label: 'Low',        color: '#86efac', description: 'Few dropshippers — good opportunity with differentiation.',  saturation };
+  if (pct <= 33) return { label: 'Moderate',   color: '#fbbf24', description: 'Some dropshipping presence. Stand out with quality.',        saturation };
+  if (pct <= 55) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',        saturation };
+  return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.', saturation };
     }
 
 
