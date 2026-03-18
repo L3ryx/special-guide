@@ -312,15 +312,37 @@ router.get('/debug-scrape', async (req, res) => {
     );
     const listings = parseSearchResultListings(html);
     const withShop = listings.filter(l => l.shopName);
-    // Extraire un échantillon du HTML autour des premiers listings
-    const firstLink = html.match(/href="(https:\/\/www\.etsy\.com\/listing\/\d+\/[^"?#]+)"/);
-    const sampleCtx = firstLink ? html.slice(Math.max(0, html.indexOf(firstLink[1]) - 500), html.indexOf(firstLink[1]) + 1000) : '';
+
+    // Chercher le premier lien listing dans le HTML
+    const firstListingMatch = html.match(/href="(https:\/\/www\.etsy\.com\/listing\/(\d+)\/[^"?#]+)"/);
+    const firstId = firstListingMatch ? firstListingMatch[2] : null;
+    const firstUrl = firstListingMatch ? firstListingMatch[1] : null;
+
+    // Extraire 3000 chars autour de ce lien
+    let htmlAround = '';
+    if (firstUrl) {
+      const pos = html.indexOf(firstUrl);
+      htmlAround = html.slice(Math.max(0, pos - 1000), pos + 2000);
+    }
+
+    // Chercher tous les patterns shop dans le HTML
+    const dataShopNames = [...html.matchAll(/data-shop-name="([^"]+)"/g)].map(m => m[1]).slice(0, 5);
+    const shopNameJson = [...html.matchAll(/"shop_name"\s*:\s*"([^"]+)"/g)].map(m => m[1]).slice(0, 5);
+    const shopHrefs = [...html.matchAll(/href="[^"]*\/shop\/([A-Za-z0-9_-]+)"/g)].map(m => m[1]).slice(0, 5);
+    const sellerNames = [...html.matchAll(/"seller"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/g)].map(m => m[1]).slice(0, 5);
+
     res.json({
       htmlLength: html.length,
       totalListings: listings.length,
       withShopName: withShop.length,
-      sample: listings.slice(0, 3),
-      htmlSample: sampleCtx.slice(0, 2000),
+      firstListingId: firstId,
+      // Patterns trouvés dans le HTML
+      dataShopNames,
+      shopNameJson,
+      shopHrefs,
+      sellerNames,
+      // 3000 chars autour du premier listing
+      htmlAround: htmlAround.slice(0, 3000),
     });
   } catch(e) {
     res.json({ error: e.message });
