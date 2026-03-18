@@ -220,9 +220,11 @@
     }
 
     function buildShopRow(shop) {
-      // ✅ CORRECTION : le wrapper contient maintenant tout le HTML de la boutique
       const wrap = document.createElement('div');
       wrap.id = 'shop-wrapper-' + shop._id;
+      wrap.dataset.keyword      = shop.keyword || '';
+      wrap.dataset.productImage = shop.productImage || '';
+      wrap.dataset.productUrl   = shop.productUrl || '';
 
       const productImg = shop.productImage || null;
       const productUrl = shop.productUrl  || shop.shopUrl || '#';
@@ -416,10 +418,9 @@
                 if (progDiv) progDiv.style.display = 'none';
                 if (status) status.textContent = '';
                 const shops = ev.dropshipperShops || [];
-                if (shops.length > 0) {
-                  window._dropListData = window._dropListData || {};
-                  window._dropListData[shopId] = shops;
-                }
+                // Stocker AVANT de rendre (le bouton en a besoin)
+                window._dropListData = window._dropListData || {};
+                window._dropListData[shopId] = shops;
                 // Récupérer keyword et image depuis le wrapper
                 const wrapEl = document.getElementById('shop-wrapper-' + shopId);
                 const kw   = wrapEl ? (wrapEl.dataset.keyword || '') : '';
@@ -445,7 +446,7 @@
       if (label) label.textContent = '⚔️ Competition';
     }
 
-    function renderCompetitionResult(ev, shopId) {
+    function renderCompetitionResult(ev, shopId, cardImg, cardKw, cardPUrl) {
       var totalShops   = (ev.totalShops   != null && ev.totalShops   !== '') ? Number(ev.totalShops)   : 0;
       var dropshippers = (ev.dropshippers != null && ev.dropshippers !== '') ? Number(ev.dropshippers) : 0;
       var shops        = ev.dropshipperShops || [];
@@ -486,13 +487,12 @@
         + (hasShops ? 'onclick="openDropList(this)" data-shop-id="' + shopId + '"' : 'disabled')
         + ' title="Drop List" style="width:38px;height:38px;border-radius:50%;border:none;font-size:1.1rem;flex-shrink:0;align-self:center;' + loopeBtnStyle + '">🔍</button>';
 
-      // Result card : image gauche | infos droite
-      // La fonction reçoit optionnellement img/kw/pUrl pour l'affichage dans la carte
-      var cardImg   = arguments[2] || '';
-      var cardKw    = arguments[3] || '';
-      var cardPUrl  = arguments[4] || '#';
+      // cardImg, cardKw, cardPUrl passés directement en paramètres
+      cardImg  = cardImg  || '';
+      cardKw   = cardKw   || '';
+      cardPUrl = cardPUrl || '#';
       var imgCol = cardImg
-        ? '<a href="' + cardPUrl + '" target="_blank" rel="noopener" style="flex-shrink:0;width:90px;height:90px;"><img src="' + cardImg + '" style="width:90px;height:90px;border-radius:10px;object-fit:cover;" /></a>'
+        ? '<a href="' + cardPUrl + '" target="_blank" rel="noopener" style="flex-shrink:0;"><img src="' + cardImg + '" style="width:80px;height:80px;border-radius:10px;object-fit:cover;display:block;" /></a>'
         : '';
 
       return '<div style="margin-top:10px;display:flex;flex-direction:row;align-items:center;gap:12px;' +
