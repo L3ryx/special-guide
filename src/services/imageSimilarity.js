@@ -70,5 +70,5 @@ async function compareEtsyWithAliexpress(etsyItem, aliItems, threshold = 60) {
   return results.slice(0, 1);
 }
 
-module.exports = { compareEtsyWithAliexpress };
+module.exports = { compareEtsyWithAliexpress, geminiVisionScore };
 
