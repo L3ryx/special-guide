@@ -751,11 +751,9 @@
 
     // ── PROGRESS ──
     const STEPS = [
-      { key: 'scraping_etsy', label: 'Etsy' },
-      { key: 'reverse_search', label: 'Reverse' },
-      { key: 'aliexpress_found', label: 'AliExpress' },
-      { key: 'comparing', label: 'AI' },
-      { key: 'finalizing', label: 'Results' },
+      { key: 'scraping',  label: 'Scraping' },
+      { key: 'analyzing', label: 'Analyzing' },
+      { key: 'match',     label: 'Dropshippers' },
     ];
 
     function initProgress(keyword) {
@@ -858,10 +856,10 @@
 
         try {
           document.getElementById('progress-msg').textContent = '⏳ Connecting...';
-          const response = await fetch('/api/search', {
+          const response = await fetch('/api/search-dropship', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keyword, similarityThreshold: 40, maxCount })
+            body: JSON.stringify({ keyword })
           });
 
           const ct = response.headers.get('content-type') || '';
@@ -890,21 +888,20 @@
                 const ev = JSON.parse(line.slice(6));
                 if (ev.step === 'complete') {
                   completeAllSteps();
-                  kwResults = ev.results || [];
-                  window._currentKeyword = keyword;
-                  kwResults.forEach(renderMatch);
-                  _allResults = _allResults.concat(kwResults);
-                  totalMatches += kwResults.length;
-                  // Collect dropshipper shops
-                  if (ev.dropshipperShops && ev.dropshipperShops.length) {
-                    ev.dropshipperShops.forEach(function(s) {
-                      if (!_dropshipperShops.find(function(x) { return x.shopUrl === s.shopUrl; })) {
-                        _dropshipperShops.push(s);
-                      }
-                    });
-                  }
-                  document.getElementById('progress-msg').textContent = '✅ ' + kwResults.length + ' match(es) found';
+                  const found = (ev.dropshippers || []).length;
+                  document.getElementById('progress-msg').textContent = '✅ ' + found + ' dropshipper(s) found';
                   if (tag) tag.className = 'keyword-tag done';
+                  totalMatches += found;
+                } else if (ev.step === 'match') {
+                  if (ev.shop) {
+                    renderShopResult(ev.shop);
+                    totalMatches++;
+                    document.getElementById('results-section').style.display = 'block';
+                    document.documentElement.classList.add('unlocked');
+                    document.documentElement.style.overflowY = 'auto';
+                    document.body.style.overflowY = 'auto';
+                  }
+                  advanceStep(ev.step, ev.message);
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
                   showErrorPopup(ev.message);
@@ -971,42 +968,66 @@
     function cleanAliUrl(url) {
       if (!url) return '#';
       var m = url.match(/\/item\/(\d{10,})/);
-      return m ? 'https://www.aliexpress.com/item/' + m[1] + '.html' : url;
+      // Utiliser le paramètre spm=a2g0o pour contourner les redirections régionales
+      return m ? 'https://www.aliexpress.com/item/' + m[1] + '.html?spm=a2g0o' : url;
+    }
+    function aliSearchUrl(title) {
+      // URL de recherche AliExpress — jamais bloquée régionalement
+      var q = (title || '').replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/\s+/).slice(0, 5).join('+');
+      return 'https://www.aliexpress.com/wholesale?SearchText=' + encodeURIComponent(q);
     }
 
 
     function encodeShopKey(u) { return (u || '').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40); }
 
-    function renderMatch(m) {
-      const etsy = m.etsy, ali = m.aliexpress;
-      const etsySrc = etsy.hostedImageUrl || etsy.image || '';
-      const aliSrc  = ali.image || '';
-      // Construire shopUrl — priorité : shopUrl > shopName > regex sur link
-      const productUrl = etsy.link || '';
+    function renderShopResult(shop) {
+      const productUrl = shop.listingUrl || shop.shopUrl || '#';
       const idx = Object.keys(window._shopDataMap).length;
-      window._shopDataMap[idx] = { productUrl, productImage: etsySrc, keyword: window._currentKeyword || null };
+      window._shopDataMap[idx] = { productUrl, productImage: shop.shopImage || null };
 
       const card = document.createElement('div');
       card.className = 'match-card';
-      card.innerHTML =
-        '<div class="match-body"><div class="product-panel"><div class="etsy-img-container">' +
-        '<button class="btn-heart-icon" id="heart-' + encodeShopKey(productUrl) + '" onclick="saveShop(' + idx + ',this)">❤️</button>' +
-        '<div class="img-wrap"><div class="img-box">' + (etsySrc ? '<img src="' + etsySrc + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') + '</div></div>' +
-        '</div>' +
-        (etsy.price ? '<div class="price-tag etsy-price">💰 ' + etsy.price + '</div>' : '') +
-        '<a class="prod-link etsy-link" href="' + etsy.link + '" target="_blank" rel="noopener">🛍 Etsy ↗</a>' +
-        '</div><div class="divider-line"></div><div class="product-panel">' +
-        '<div class="img-wrap"><div class="img-box">' + (aliSrc ? '<img src="' + aliSrc + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') + '</div></div>' +
-        (ali.price ? '<div class="price-tag ali-price">💰 ' + ali.price + '</div>' : '') +
-        (ali.link ? '<a class="prod-link ali-link" href="' + cleanAliUrl(ali.link) + '" target="_blank" rel="noopener">🛒 AliExpress ↗</a>' : '<span class="prod-link ali-link" style="opacity:0.4;cursor:default">🛒 AliExpress</span>') +
-        '</div></div>';
-      document.getElementById('results-container').appendChild(card);
+      const row = document.createElement('div');
+      row.className = 'shop-row-result';
 
-      if (_savedShopUrls.has(productUrl)) {
-        const hb = document.getElementById('heart-' + encodeShopKey(productUrl));
-        if (hb) { hb.classList.add('saved'); hb.textContent = '✔'; }
+      // Image
+      if (shop.shopImage) {
+        const img = document.createElement('img');
+        img.src = shop.shopImage; img.className = 'shop-result-img'; img.loading = 'lazy';
+        img.onerror = function() { this.style.display='none'; };
+        row.appendChild(img);
+      } else {
+        const ph = document.createElement('div');
+        ph.className = 'shop-result-img-placeholder'; ph.textContent = '🛍';
+        row.appendChild(ph);
       }
+
+      // Info
+      const info = document.createElement('div');
+      info.className = 'shop-result-info';
+      const nameEl = document.createElement('div'); nameEl.className = 'shop-result-name'; nameEl.textContent = shop.shopName || '—';
+      const tagEl  = document.createElement('div'); tagEl.className  = 'shop-result-tag';  tagEl.textContent  = '🛒 Dropshipping confirmed';
+      info.appendChild(nameEl); info.appendChild(tagEl);
+      row.appendChild(info);
+
+      // Heart
+      const heartBtn = document.createElement('button');
+      heartBtn.className = 'btn-heart-icon' + (_savedShopUrls.has(productUrl) ? ' saved' : '');
+      heartBtn.id = 'heart-' + encodeShopKey(productUrl);
+      heartBtn.textContent = _savedShopUrls.has(productUrl) ? '✔' : '❤️';
+      heartBtn.onclick = function() { saveShop(idx, this); };
+      row.appendChild(heartBtn);
+
+      // Visit
+      const visitBtn = document.createElement('a');
+      visitBtn.href = shop.shopUrl || '#'; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop';
+      row.appendChild(visitBtn);
+
+      card.appendChild(row);
+      document.getElementById('results-container').appendChild(card);
     }
+
 
     // ── FIND ──
 
@@ -1050,7 +1071,7 @@
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ productUrl: data.productUrl, productImage: data.productImage, keyword: data.keyword || null })
+          body: JSON.stringify({ productUrl: data.productUrl, productImage: data.productImage })
         });
         if (r.ok) {
           _savedShopUrls.add(data.productUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
