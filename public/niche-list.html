@@ -372,13 +372,7 @@
                 const pUrl = wrapEl ? (wrapEl.dataset.productUrl || '#') : '#';
 
                 if (wrapEl) {
-                  // Debug visuel
-                  var _shops = ev.dropshipperShops || [];
-                  var debugDiv = document.createElement('div');
-                  debugDiv.style.cssText = 'background:#1a1a1a;border:1px solid #f97316;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:0.75rem;font-family:monospace;color:#f97316;';
-                  debugDiv.textContent = 'DEBUG: totalShops=' + ev.totalShops + ' | dropshippers=' + ev.dropshippers + ' | dropshipperShops.length=' + _shops.length + ' | names=' + _shops.map(function(s){return s.shopName;}).join(',');
                   wrapEl.innerHTML = '';
-                  wrapEl.appendChild(debugDiv);
                   var resCard = renderCompetitionResult(ev, shopId, img, kw, pUrl);
                   wrapEl.appendChild(resCard);
                   var delDiv = document.createElement('div');
@@ -492,11 +486,6 @@
       }
       // Toujours cliquable — affiche la liste même si vide
       dropBtn.addEventListener('click', function() {
-        var dbg = document.createElement('div');
-        dbg.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#f97316;color:#000;padding:8px 16px;border-radius:8px;z-index:99999;font-weight:700;';
-        dbg.textContent = 'CLICK OK — shops: ' + shopsCopy.length;
-        document.body.appendChild(dbg);
-        setTimeout(function(){ dbg.remove(); }, 3000);
         showDropList(shopsCopy);
       });
       card.appendChild(dropBtn);
