@@ -397,9 +397,9 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     if (listings.length === 0) { send({ step: 'error', message: '❌ No listings found for this keyword' }); return res.end(); }
 
     // Boutiques uniques pour le calcul du taux
-    const uniqueShopNames = new Set(listings.filter(l => l.shopName).map(l => l.shopName));
-    const totalUniqueShops = uniqueShopNames.size || listings.length;
-    send({ step: 'analyzing', totalShops: totalUniqueShops, message: '✅ ' + listings.length + ' listings (' + totalUniqueShops + ' unique shops). Analyzing...' });
+    // totalShops = nombre réel de listings scrapés (pas seulement ceux avec shopName)
+    const totalUniqueShops = listings.length;
+    send({ step: 'analyzing', totalShops: totalUniqueShops, message: '✅ ' + totalUniqueShops + ' listings found. Analyzing...' });
 
     // ── STEP 3 : Comparaison image par image ──────────────────────────
     const { uploadToImgBB } = require('../services/imgbbUploader');
@@ -741,6 +741,7 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
     }
+
 
 
 
