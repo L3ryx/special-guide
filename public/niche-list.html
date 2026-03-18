@@ -261,7 +261,7 @@
           'background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px;">' +
             '<div style="font-size:0.78rem;font-weight:700;color:#f97316;letter-spacing:0.06em;text-transform:uppercase;font-family:Inter,sans-serif;text-align:center;">' + name + '</div>' +
             (shop.productImage ? '<a href="' + (shop.productUrl||'#') + '" target="_blank" rel="noopener" style="width:100%;max-width:160px;"><img src="' + shop.productImage + '" style="width:100%;border-radius:10px;object-fit:cover;aspect-ratio:1/1;" loading="lazy" /></a>' : '') +
-            renderCompetitionResult(shop.lastCompetition, shop._id) +
+            renderCompetitionResult(shop.lastCompetition, shop._id, shop.productImage||'', name, shop.productUrl||'#') +
             '<button onclick="deleteShop(\'' + shop._id + '\')" style="margin-top:2px;background:rgba(255,80,80,0.07);border:1px solid rgba(255,80,80,0.25);color:#f87171;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:0.8rem;">✕</button>' +
           '</div>';
       } else {
@@ -436,7 +436,7 @@
                     'background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px;">' +
                       '<div style="font-size:0.78rem;font-weight:700;color:#f97316;letter-spacing:0.06em;text-transform:uppercase;font-family:Inter,sans-serif;text-align:center;">' + (kw || '—') + '</div>' +
                       (img ? '<a href="' + pUrl + '" target="_blank" rel="noopener" style="width:100%;max-width:160px;"><img src="' + img + '" style="width:100%;border-radius:10px;object-fit:cover;aspect-ratio:1/1;" loading="lazy" /></a>' : '') +
-                      renderCompetitionResult(ev, shopId) +
+                      renderCompetitionResult(ev, shopId, img, kw, pUrl) +
                       '<button onclick="deleteShop(\'' + shopId + '\')" style="margin-top:2px;background:rgba(255,80,80,0.07);border:1px solid rgba(255,80,80,0.25);color:#f87171;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:0.8rem;">✕</button>' +
                     '</div>';
                 }
@@ -485,31 +485,45 @@
         '</svg>' +
         '<div style="text-align:center;font-size:0.58rem;font-weight:700;color:' + gaugeColor + ';font-family:Inter,sans-serif;margin-top:1px;letter-spacing:0.04em;">' + gaugeLabel + '</div>';
 
-      // Bouton Drop List
+      // Bouton loupe orange pour ouvrir la drop list
       var hasShops = shops.length > 0;
       var shopOnClick = hasShops ? ('showDropshipList(window._dropListData[\''+shopId+'\'])') : '';
-      var shopStyle   = hasShops
+      var loopeBtnStyle = hasShops
         ? 'background:#f59e0b;color:#000;cursor:pointer;box-shadow:0 2px 8px rgba(245,158,11,0.35);'
-        : 'background:rgba(245,158,11,0.2);color:rgba(0,0,0,0.35);cursor:default;';
-      var shopBtn = '<button onclick="' + shopOnClick + '" style="width:100%;padding:8px 18px;border-radius:9px;border:none;font-weight:800;font-size:0.78rem;font-family:Inter,sans-serif;white-space:nowrap;' + shopStyle + '">Drop List</button>';
+        : 'background:rgba(245,158,11,0.15);color:rgba(0,0,0,0.3);cursor:default;';
+      var loupeBtn = '<button onclick="' + shopOnClick + '" title="Drop List" style="width:38px;height:38px;border-radius:50%;border:none;font-size:1.1rem;flex-shrink:0;align-self:center;' + loopeBtnStyle + '">🔍</button>';
 
-      // Result card
-      return '<div style="margin-top:10px;display:flex;flex-direction:column;align-items:center;gap:10px;' +
-          'background:linear-gradient(135deg,rgba(37,99,235,0.3),rgba(59,130,246,0.15));' +
-          'border:1px solid rgba(59,130,246,0.4);border-radius:12px;padding:14px 16px;text-align:center;">' +
-        '<div style="font-size:0.7rem;font-weight:800;color:rgba(255,255,255,0.5);letter-spacing:0.1em;text-transform:uppercase;font-family:Inter,sans-serif;">Dropshipping</div>' +
-        svgGauge +
-        '<div style="display:flex;flex-direction:column;gap:6px;width:100%;">' +
-          '<div style="display:flex;justify-content:space-between;font-size:0.82rem;font-family:Inter,sans-serif;padding:0 4px;">' +
-            '<span style="color:rgba(255,255,255,0.5);">Total shops</span>' +
-            '<span style="color:#fff;font-weight:700;">' + totalShops + '</span>' +
-          '</div>' +
-          '<div style="display:flex;justify-content:space-between;font-size:0.82rem;font-family:Inter,sans-serif;padding:0 4px;">' +
-            '<span style="color:rgba(255,255,255,0.5);">Drop shops</span>' +
-            '<span style="color:' + gaugeColor + ';font-weight:700;">' + dropshippers + '</span>' +
+      // Result card : image gauche | infos droite
+      // La fonction reçoit optionnellement img/kw/pUrl pour l'affichage dans la carte
+      var cardImg   = arguments[2] || '';
+      var cardKw    = arguments[3] || '';
+      var cardPUrl  = arguments[4] || '#';
+      var imgCol = cardImg
+        ? '<a href="' + cardPUrl + '" target="_blank" rel="noopener" style="flex-shrink:0;width:90px;height:90px;"><img src="' + cardImg + '" style="width:90px;height:90px;border-radius:10px;object-fit:cover;" /></a>'
+        : '';
+
+      return '<div style="margin-top:10px;display:flex;flex-direction:row;align-items:center;gap:12px;' +
+          'background:linear-gradient(135deg,rgba(37,99,235,0.25),rgba(59,130,246,0.1));' +
+          'border:1px solid rgba(59,130,246,0.35);border-radius:14px;padding:12px 14px;">' +
+        imgCol +
+        '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">' +
+          // Keyword en haut
+          (cardKw ? '<div style="font-size:0.72rem;font-weight:700;color:#f97316;letter-spacing:0.05em;text-transform:uppercase;font-family:Inter,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + cardKw + '</div>' : '') +
+          // Jauge
+          svgGauge +
+          // Stats
+          '<div style="display:flex;flex-direction:column;gap:3px;">' +
+            '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-family:Inter,sans-serif;">' +
+              '<span style="color:rgba(255,255,255,0.45);">Total shops</span>' +
+              '<span style="color:#fff;font-weight:700;">' + totalShops + '</span>' +
+            '</div>' +
+            '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-family:Inter,sans-serif;">' +
+              '<span style="color:rgba(255,255,255,0.45);">Drop shops</span>' +
+              '<span style="color:' + gaugeColor + ';font-weight:700;">' + dropshippers + '</span>' +
+            '</div>' +
           '</div>' +
         '</div>' +
-        '<div style="width:100%;margin-top:4px;">' + shopBtn + '</div>' +
+        loupeBtn +
       '</div>';
     }
 
