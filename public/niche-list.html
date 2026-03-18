@@ -113,7 +113,7 @@
   <nav>
     <div class="nav-left">
       <button type="button" class="btn-back" onclick="goBack()">← Back</button>
-      <span class="nav-title">Dashboard</span>
+      <span class="nav-title">My List</span>
     </div>
   </nav>
 
@@ -163,11 +163,25 @@
       const wrap = document.createElement('div');
       wrap.id = 'shop-wrapper-' + shop._id;
 
-      // Reconstruire shopUrl proprement depuis shopName
-      const shopName = shop.shopName || null;
-      const shopUrl  = shopName
+      // Extraire shopName depuis toutes les sources disponibles
+      let shopName = shop.shopName || null;
+
+      // Essayer d'extraire depuis shopUrl
+      if (!shopName && shop.shopUrl) {
+        const m = shop.shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
+        if (m) shopName = m[1];
+      }
+      // Essayer d'extraire depuis productUrl
+      if (!shopName && shop.productUrl) {
+        const m = shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
+        if (m) shopName = m[1];
+      }
+
+      // Construire shopUrl proprement
+      const shopUrl = shopName
         ? 'https://www.etsy.com/shop/' + shopName
-        : (shop.shopUrl || shop.productUrl || '#');
+        : (shop.shopUrl || '#');
+
       const avatarUrl = shop.shopAvatar || shop.productImage || null;
 
       const row = document.createElement('div');
@@ -192,7 +206,7 @@
       const info = document.createElement('div');
       info.className = 'shop-row-info';
       const nameEl = document.createElement('div');
-      nameEl.className = 'shop-row-name'; nameEl.textContent = shopName;
+      nameEl.className = 'shop-row-name'; nameEl.textContent = shopName || '—';
       info.appendChild(nameEl);
       row.appendChild(info);
 
