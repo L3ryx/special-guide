@@ -159,49 +159,44 @@
 
     /* ── RESULTS ── */
     #results-section { position:relative; z-index:10; padding:0 20px 80px; display:none; }
-    .results-grid { max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:20px; }
+    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:12px; }
     .keyword-section-title { font-size:0.75rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#f97316; padding:8px 0 4px; border-bottom:1px solid rgba(249,115,22,0.2); }
     .results-count-bar { text-align:center; font-size:0.8rem; color:var(--muted); margin-bottom:4px; }
-    .match-card { background:var(--glass); border:1px solid var(--glass-border); border-radius:18px; overflow:hidden; backdrop-filter:blur(20px); animation:slideUp 0.4s ease; }
+    /* ── BANDEROLE CARD ── */
     @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:none} }
-    .match-body { display:grid; grid-template-columns:1fr 1px 1fr; align-items:start; }
-    .divider-line { background:var(--glass-border); align-self:stretch; }
-    .product-panel { display:flex; flex-direction:column; align-items:center; padding:16px 14px; gap:10px; min-width:0; box-sizing:border-box; }
+    @property --glow-angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
+    @keyframes glow-spin { to { --glow-angle: 360deg; } }
 
-    /* electric border */
-    .img-wrap { position:relative; width:100%; padding:3px; border-radius:14px; box-sizing:border-box; }
-    .img-wrap::before { content:''; position:absolute; inset:-2px; border-radius:15px; background:conic-gradient(from var(--angle,0deg),#00f0ff 0%,#0066ff 10%,transparent 20%,transparent 45%,#a855f7 50%,#00f0ff 60%,transparent 70%,transparent 90%,#0066ff 95%,#00f0ff 100%); animation:electric-spin 1.8s linear infinite; z-index:0; }
-    .img-wrap::after { content:''; position:absolute; inset:-4px; border-radius:16px; background:conic-gradient(from var(--angle,0deg),#00f0ff 0%,#0066ff 10%,transparent 20%,transparent 45%,#a855f7 50%,#00f0ff 60%,transparent 70%,transparent 90%,#0066ff 95%,#00f0ff 100%); animation:electric-spin 1.8s linear infinite; filter:blur(8px); opacity:0.6; z-index:0; }
-    @property --angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
-    @keyframes electric-spin { 0%{--angle:0deg} 100%{--angle:360deg} }
-    .img-box { position:relative; z-index:1; width:100%; aspect-ratio:1/1; border-radius:11px; overflow:hidden; background:rgba(10,10,10,0.9); }
-    .img-box img { width:100%; height:100%; object-fit:cover; transition:transform 0.4s; display:block; }
-    .img-box:hover img { transform:scale(1.04); }
-
-    /* heart + image layout */
-    .etsy-img-container { position:relative; width:100%; }
-    .btn-heart-icon { position:absolute; left:0; top:50%; transform:translateY(-50%); z-index:3; width:30px; height:52px; border-radius:0 10px 10px 0; border:none; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); cursor:pointer; display:flex; align-items:center; justify-content:center; color:#facc15; font-size:1.1rem; transition:all 0.2s; padding:0; }
-    .btn-heart-icon:hover { background:rgba(0,0,0,0.75); color:#fff; }
-    .btn-heart-icon.saved { color:#22c55e; }
-    .btn-heart-icon.saving { opacity:0.5; cursor:not-allowed; }
-
-    .prod-link { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:11px 16px; border-radius:10px; font-size:0.82rem; font-weight:600; text-decoration:none; transition:all 0.2s; box-sizing:border-box; text-align:center; }
-    .prod-link.etsy-link { background:rgba(241,100,30,0.15); border:1px solid rgba(241,100,30,0.3); color:#fb923c; }
-    .prod-link.etsy-link:hover { background:rgba(241,100,30,0.25); }
-    .prod-link.ali-link { background:rgba(227,24,55,0.15); border:1px solid rgba(227,24,55,0.3); color:#f87171; }
-    .prod-link.ali-link:hover { background:rgba(227,24,55,0.25); }
-    .price-tag { font-size:0.88rem; font-weight:700; border-radius:8px; padding:5px 12px; width:100%; text-align:center; }
-    .price-tag.etsy-price { color:#fb923c; border:1px solid rgba(241,100,30,0.3); background:rgba(241,100,30,0.08); }
-    .price-tag.ali-price  { color:#f87171; border:1px solid rgba(227,24,55,0.3); background:rgba(227,24,55,0.08); }
+    .match-card {
+      position:relative; border-radius:14px; padding:2px;
+      background:conic-gradient(from var(--glow-angle,0deg),
+        #ff6b00 0%, #ff00cc 15%, #7b2fff 30%, #00cfff 45%,
+        #00ff88 60%, #ffdd00 75%, #ff6b00 100%);
+      animation:slideUp 0.4s ease, glow-spin 3s linear infinite;
+      box-shadow:0 0 18px rgba(120,80,255,0.4), 0 0 40px rgba(0,200,255,0.15);
+    }
+    .match-card-inner {
+      background:rgba(8,8,16,0.92);
+      border-radius:12px;
+      display:flex; align-items:center; gap:12px;
+      padding:12px 14px;
+      backdrop-filter:blur(20px);
+    }
+    .shop-result-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.15); }
+    .shop-result-avatar-ph { width:48px; height:48px; border-radius:50%; flex-shrink:0; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:1.3rem; }
+    .shop-result-info { flex:1; min-width:0; }
+    .shop-result-name { font-weight:700; font-size:0.9rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .shop-result-tag { font-size:0.62rem; color:#a78bfa; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; margin-top:2px; }
+    .btn-save-shop { width:34px; height:34px; border-radius:8px; border:none; background:rgba(255,255,255,0.07); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:1rem; transition:all 0.2s; flex-shrink:0; }
+    .btn-save-shop:hover { background:rgba(255,255,255,0.14); transform:scale(1.1); }
+    .btn-save-shop.saved { color:#22c55e; }
+    .btn-save-shop.saving { opacity:0.5; cursor:not-allowed; }
+    .shop-result-btn { flex-shrink:0; padding:8px 14px; border-radius:9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; font-family:'Inter',sans-serif; font-size:0.75rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:all 0.2s; }
+    .shop-result-btn:hover { background:rgba(255,255,255,0.18); }
     .empty { text-align:center; padding:40px 20px; color:var(--muted); }
+    @media(max-width:640px){ #main-view{padding:70px 14px 20px} .input-row input{font-size:0.95rem;padding:14px 16px} #add-keyword-btn{width:46px;height:46px} }
 
-    /* FIND */
-
-    @keyframes findBlink { 0%,100%{background:#dc2626;box-shadow:0 4px 32px rgba(220,38,38,0.7)} 50%{background:#ff3333;box-shadow:0 0 48px rgba(255,50,50,1)} }
-
-    @media(max-width:640px){#main-view{padding:70px 14px 20px}.input-row input{font-size:0.95rem;padding:14px 16px}#add-keyword-btn{width:46px;height:46px}.match-body{display:flex;flex-direction:row}.divider-line{width:1px;flex-shrink:0}.product-panel{flex:1;min-width:0;padding:10px 6px;gap:6px}.prod-link{font-size:0.65rem;padding:6px 4px}.price-tag{font-size:0.7rem;padding:4px 6px}}
-
-    /* ── ERROR POPUP ── */
+        /* ── ERROR POPUP ── */
     #error-popup { position:fixed; inset:0; z-index:99999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); backdrop-filter:blur(6px); padding:20px; }
     #error-popup.open { display:flex; animation:epFade 0.2s ease; }
     @keyframes epFade { from{opacity:0} to{opacity:1} }
@@ -313,25 +308,17 @@
 
   <div id="main-view">
     <div class="search-card">
-      <!-- Grille CSS 2 colonnes : gauche flexible, droite 48px fixe -->
-      <div style="display:grid;grid-template-columns:1fr 48px;gap:8px;">
-
-        <!-- Ligne 1 col 1 : keyword -->
-        <input type="text" id="keyword-input" placeholder="Enter keyword"
-          style="padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
-
-        <!-- Ligne 1 col 2 : bouton + -->
-        <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword" style="width:48px;align-self:stretch;margin-top:4px;">+<span id="kw-count-badge"></span></button>
-
-        <!-- keywords-list span sur 2 colonnes -->
-        <div id="keywords-list" style="display:none;grid-column:1/3;"></div>
-
-        <!-- Ligne 2 : bouton generate pleine largeur sur 2 colonnes -->
-        <button id="dice-btn" onclick="rollNiche()" style="grid-column:1/3;"><span class="dice-icon">🎲</span>Generate</button>
-
-        <!-- Bouton trash caché (reste fonctionnel) -->
-        <button id="clear-keywords-btn" onclick="clearKeywords()" title="Clear all keywords" style="display:none;">🗑</button>
-
+      <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:8px;width:100%;">
+          <input type="text" id="keyword-input" placeholder="Enter keyword"
+            style="flex:1;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
+          <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword" style="width:48px;flex-shrink:0;">+<span id="kw-count-badge"></span></button>
+        </div>
+        <div id="keywords-list" style="display:none;width:100%;"></div>
+        <div style="display:flex;gap:8px;width:calc(100% - 56px);">
+          <button id="dice-btn" onclick="rollNiche()" style="flex:1;"><span class="dice-icon">🎲</span>Generate</button>
+          <button id="clear-keywords-btn" onclick="clearKeywords()" style="width:48px;flex-shrink:0;visibility:hidden;">🗑</button>
+        </div>
       </div>
       <button id="start-btn" onclick="startSearch()">START</button>
     </div>
@@ -694,7 +681,7 @@
       }
       // Trash button
       const trash = document.getElementById('clear-keywords-btn');
-      if (trash) trash.style.display = _keywords.length > 0 ? 'flex' : 'none';
+      if (trash) trash.style.visibility = _keywords.length > 0 ? 'visible' : 'hidden';
     }
 
     async function rollNiche() {
@@ -884,7 +871,7 @@
                     document.documentElement.style.overflowY = 'auto';
                     document.body.style.overflowY = 'auto';
                   }
-                  advanceStep(ev.step, ev.message);
+                  advanceStep('match', ev.message);
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
                   showErrorPopup(ev.message);
@@ -892,8 +879,7 @@
                   hasError = true;
                 } else {
                   advanceStep(ev.step, ev.message);
-                }
-              } catch(e) {}
+                }              } catch(e) {}
             }
           }
         } catch(err) {
@@ -944,22 +930,8 @@
       }
     }
 
-    // ── RENDER MATCH ──
+    // ── RENDER SHOP RESULT ──
     window._shopDataMap = {};
-
-    function cleanAliUrl(url) {
-      if (!url) return '#';
-      var m = url.match(/\/item\/(\d{10,})/);
-      // Utiliser le paramètre spm=a2g0o pour contourner les redirections régionales
-      return m ? 'https://www.aliexpress.com/item/' + m[1] + '.html?spm=a2g0o' : url;
-    }
-    function aliSearchUrl(title) {
-      // URL de recherche AliExpress — jamais bloquée régionalement
-      var q = (title || '').replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/\s+/).slice(0, 5).join('+');
-      return 'https://www.aliexpress.com/wholesale?SearchText=' + encodeURIComponent(q);
-    }
-
-
     function encodeShopKey(u) { return (u || '').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40); }
 
     function renderShopResult(shop) {
@@ -969,47 +941,48 @@
 
       const card = document.createElement('div');
       card.className = 'match-card';
-      const row = document.createElement('div');
-      row.className = 'shop-row-result';
+      const inner = document.createElement('div');
+      inner.className = 'match-card-inner';
 
-      // Image
-      if (shop.shopImage) {
+      // Bouton ❤️ en premier (à gauche)
+      const heartBtn = document.createElement('button');
+      heartBtn.className = 'btn-save-shop' + (_savedShopUrls.has(productUrl) ? ' saved' : '');
+      heartBtn.id = 'heart-' + encodeShopKey(productUrl);
+      heartBtn.textContent = _savedShopUrls.has(productUrl) ? '✔' : '❤️';
+      heartBtn.onclick = function() { saveShop(idx, this); };
+      inner.appendChild(heartBtn);
+
+      // Avatar boutique rond, chargé via proxy
+      const avatarUrl = shop.shopAvatar || shop.shopImage || null;
+      const ph = document.createElement('div');
+      ph.className = 'shop-result-avatar-ph'; ph.textContent = '🛍';
+      if (avatarUrl) {
         const img = document.createElement('img');
-        img.src = shop.shopImage; img.className = 'shop-result-img'; img.loading = 'lazy';
-        img.onerror = function() { this.style.display='none'; };
-        row.appendChild(img);
-      } else {
-        const ph = document.createElement('div');
-        ph.className = 'shop-result-img-placeholder'; ph.textContent = '🛍';
-        row.appendChild(ph);
+        img.className = 'shop-result-avatar'; img.loading = 'lazy';
+        img.src = '/proxy-image?url=' + encodeURIComponent(avatarUrl);
+        img.onerror = function() { this.style.display='none'; ph.style.display='flex'; };
+        ph.style.display = 'none';
+        inner.appendChild(img);
       }
+      inner.appendChild(ph);
 
-      // Info
+      // Infos boutique
       const info = document.createElement('div');
       info.className = 'shop-result-info';
       const nameEl = document.createElement('div'); nameEl.className = 'shop-result-name'; nameEl.textContent = shop.shopName || '—';
       const tagEl  = document.createElement('div'); tagEl.className  = 'shop-result-tag';  tagEl.textContent  = '🛒 Dropshipping confirmed';
       info.appendChild(nameEl); info.appendChild(tagEl);
-      row.appendChild(info);
+      inner.appendChild(info);
 
-      // Heart
-      const heartBtn = document.createElement('button');
-      heartBtn.className = 'btn-heart-icon' + (_savedShopUrls.has(productUrl) ? ' saved' : '');
-      heartBtn.id = 'heart-' + encodeShopKey(productUrl);
-      heartBtn.textContent = _savedShopUrls.has(productUrl) ? '✔' : '❤️';
-      heartBtn.onclick = function() { saveShop(idx, this); };
-      row.appendChild(heartBtn);
-
-      // Visit
+      // Bouton Visit shop
       const visitBtn = document.createElement('a');
       visitBtn.href = shop.shopUrl || '#'; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
-      visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop';
-      row.appendChild(visitBtn);
+      visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop ↗';
+      inner.appendChild(visitBtn);
 
-      card.appendChild(row);
+      card.appendChild(inner);
       document.getElementById('results-container').appendChild(card);
     }
-
 
     // ── FIND ──
 
@@ -1023,7 +996,7 @@
         const r = await fetch('/api/shops', { headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } });
         if (!r.ok) return;
         const shops = await r.json();
-        shops.forEach(function(s) { _savedShopUrls.add(s.productUrl || s.shopUrl); });
+        shops.forEach(function(s) { _savedShopUrls.add(s.shopUrl); });
         updateNlCount();
       } catch(e) {}
     }
@@ -1047,16 +1020,16 @@
       const token = localStorage.getItem('scout_token');
       if (!token) { showAuthModal(); return; }
       const data = window._shopDataMap && window._shopDataMap[idx];
-      if (!data) { showToast('Data not found', '#ef4444'); return; }
-      if (_savedShopUrls.has(data.productUrl)) { btn.classList.add('saved'); btn.textContent = '✔'; showToast('Already saved!', '#22c55e'); return; }
+      if (!data) { showToast('Shop data not found', '#ef4444'); return; }
+      if (_savedShopUrls.has(data.shopUrl)) { btn.classList.add('saved'); btn.textContent = '✔'; showToast('Already saved!', '#22c55e'); return; }
       btn.classList.add('saving'); btn.textContent = '⏳';
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ productUrl: data.productUrl, productImage: data.productImage })
+          body: JSON.stringify({ shopUrl: data.shopUrl, shopName: data.shopName, shopAvatar: data.shopAvatar, productImage: data.productImage, productUrl: data.productUrl })
         });
         if (r.ok) {
-          _savedShopUrls.add(data.productUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
+          _savedShopUrls.add(data.shopUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
           updateNlCount(); showToast('Saved! ❤️', '#22c55e');
         } else {
           const json = await r.json().catch(() => ({})); btn.classList.remove('saving'); btn.textContent = '❤️';
