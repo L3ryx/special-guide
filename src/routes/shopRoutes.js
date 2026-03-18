@@ -178,9 +178,16 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     let dropshippers = 0;
     let analyzed     = 0;
     const dropshipperShops    = [];
-    const dropshipperNames    = new Set(); // dédoublonnage drop list
-    const shopsAnalyzed       = new Set(); // 1 image par boutique max
-    const imgbbCache          = new Map();
+    const dropshipperNames    = new Set();
+    // 5 images par boutique, 3 matches minimum pour confirmer dropshipping
+    const IMAGES_PER_SHOP   = 5;
+    const MATCHES_REQUIRED  = 3;
+    const shopMatchCount    = new Map(); // shopName → nb matches AliExpress
+    const shopAnalyzedCount = new Map(); // shopName → nb images analysées
+    const shopMatchData     = new Map(); // shopName → données du 1er match
+    const shopsConfirmed    = new Set(); // boutiques confirmées
+    const shopsRejected     = new Set(); // boutiques rejetées (quota sans confirmation)
+    const imgbbCache        = new Map();
 
     async function uploadCached(url) {
       if (imgbbCache.has(url)) return imgbbCache.get(url);
@@ -190,13 +197,22 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
     }
 
     async function analyzeOne(listing) {
-      // ── Skip si boutique déjà analysée (une image par boutique suffit)
-      if (listing.shopName && shopsAnalyzed.has(listing.shopName)) {
-        analyzed++;
-        send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' });
-        return;
+      // ── Skip si boutique confirmée/rejetée ou quota d'images atteint
+      if (listing.shopName) {
+        if (shopsConfirmed.has(listing.shopName) || shopsRejected.has(listing.shopName)) {
+          analyzed++;
+          send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' });
+          return;
+        }
+        const alreadyAnalyzed = shopAnalyzedCount.get(listing.shopName) || 0;
+        if (alreadyAnalyzed >= IMAGES_PER_SHOP) {
+          shopsRejected.add(listing.shopName);
+          analyzed++;
+          send({ step: 'analyzing', totalShops: totalUniqueShops, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers + ' dropshippers' });
+          return;
+        }
+        shopAnalyzedCount.set(listing.shopName, alreadyAnalyzed + 1);
       }
-      if (listing.shopName) shopsAnalyzed.add(listing.shopName);
 
       try {
         if (!listing.image) return;
@@ -231,24 +247,27 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         const aliImageUrl = aliResult.imageUrl || aliResult.thumbnailUrl;
         const aliUrl      = aliResult.link || aliResult.url;
 
-        // 3. Match trouvé — 2 matches requis pour confirmer dropshipping
+        // 3. Match AliExpress — 3 matches sur 5 images requis
         const shopName = listing.shopName || null;
         if (!shopName) { console.log('⚠️  Match sans shopName:', listing.link); }
-        else {
+        else if (!shopsConfirmed.has(shopName)) {
           const prevMatches = shopMatchCount.get(shopName) || 0;
-          shopMatchCount.set(shopName, prevMatches + 1);
+          const newMatches  = prevMatches + 1;
+          shopMatchCount.set(shopName, newMatches);
 
           if (prevMatches === 0) {
-            // 1er match — stocker, attendre la confirmation
             shopMatchData.set(shopName, {
               listingImage: listing.image || null,
               listingUrl:   listing.link  || null,
               aliImage:     aliImageUrl   || null,
               aliUrl:       aliUrl        || null,
             });
-            console.log('🔶 1st match for', shopName, '— waiting for 2nd');
-          } else if (!shopsConfirmed.has(shopName)) {
-            // 2ème match — boutique confirmée dropshipping
+          }
+
+          const analyzed5 = shopAnalyzedCount.get(shopName) || 0;
+          console.log('🔶 ' + shopName + ' — match ' + newMatches + '/' + MATCHES_REQUIRED + ' (' + analyzed5 + '/' + IMAGES_PER_SHOP + ' images)');
+
+          if (newMatches >= MATCHES_REQUIRED) {
             shopsConfirmed.add(shopName);
             dropshippers++;
             if (!dropshipperNames.has(shopName)) {
@@ -263,8 +282,8 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
                 aliUrl:       first.aliUrl       || aliUrl        || null,
               });
             }
-            console.log('✅ Confirmed (2 matches) —', shopName);
-            send({ step: 'match', totalShops: totalUniqueShops, message: '✅ ' + shopName + ' confirmed (' + dropshippers + ' dropshippers)' });
+            console.log('✅ Confirmed (' + newMatches + '/5) —', shopName);
+            send({ step: 'match', totalShops: totalUniqueShops, message: '✅ ' + shopName + ' (' + dropshippers + ' dropshippers)' });
           }
         }
 
