@@ -465,8 +465,12 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
         if (listing.shopName && !dropshipperNames.has(listing.shopName)) {
           dropshipperNames.add(listing.shopName);
           dropshipperShops.push({
-            shopName: listing.shopName,
-            shopUrl:  'https://www.etsy.com/shop/' + listing.shopName,
+            shopName:     listing.shopName,
+            shopUrl:      'https://www.etsy.com/shop/' + listing.shopName,
+            listingImage: listing.image  || null,
+            listingUrl:   listing.link   || null,
+            aliImage:     aliImageUrl    || null,
+            aliUrl:       aliUrl         || null,
           });
         }
         console.log('✅ Dropshipper confirmed —', listing.shopName);
@@ -737,7 +741,6 @@ function computeDropshipScore(dropshippers, totalShops) {
   if (pct <= 65) return { label: 'High',        color: '#f97316', description: 'Many dropshippers in this niche. Tough competition.',         saturation };
   return                { label: 'Very High',   color: '#ef4444', description: 'Niche heavily flooded with dropshippers. Very hard to win.',  saturation };
     }
-
 
 
 
