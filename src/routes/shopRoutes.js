@@ -346,8 +346,9 @@ router.post('/:id/competition', requireAuth, async (req, res) => {
 });
 
 // Scrape Etsy search results — 1 listing par boutique unique, toutes les pages disponibles
+
 async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
-  const MAX_PAGES  = 5;   // max 5 pages Etsy
+  const MAX_PAGES  = 5;
   const shopsSeen  = new Set();
   const listings   = [];
   let page = 1;
@@ -368,49 +369,38 @@ async function scrapeEtsyListingsForCompetition(apiKey, keyword, onPage) {
 
     for (const l of rawListings) {
       if (!l.image) continue;
-      // Une seule annonce par boutique — si shopName connu et déjà vu, skip
       if (l.shopName && shopsSeen.has(l.shopName)) continue;
       if (l.shopName) shopsSeen.add(l.shopName);
       listings.push({ shopName: l.shopName || null, image: l.image, link: l.link });
       addedOnPage++;
     }
 
-    onPage(page, listings.length);
-    console.log(`Page ${page}: ${rawListings.length} raw, ${addedOnPage} new unique shops, total: ${listings.length}`);
+    if (onPage) onPage(page, listings.length);
+    console.log(`Page ${page}: ${rawListings.length} raw, ${addedOnPage} new, total: ${listings.length}`);
 
-    // Arrêt si plus de page suivante
     const hasNext = html.includes('pagination-next') || html.includes('page=' + (page + 1));
     if (!hasNext) { console.log('No next page — stopping'); break; }
-
-    // Arrêt anticipé si 2 pages consécutives sans nouvelles boutiques
     if (addedOnPage === 0) {
       emptyPages++;
-      if (emptyPages >= 2) { console.log('2 empty pages — stopping'); break; }
-    } else {
-      emptyPages = 0;
-    }
+      if (emptyPages >= 2) break;
+    } else { emptyPages = 0; }
 
     page++;
     await new Promise(r => setTimeout(r, 400));
   }
 
-  console.log(`Competition scrape done: ${listings.length} unique shops across ${page} pages`);
+  console.log(`Scrape done: ${listings.length} listings across ${page} pages`);
   return listings;
 }
 
-// Extract listings from Etsy search result HTML (covers all 3 strategies)
 function parseSearchResultListings(html) {
   const results = [];
   const seen    = new Set();
-
-  // ── Pré-scan JSON-LD Etsy ──
-  // Structure : {"@type":"ItemList","itemListElement":[{"@type":"ListItem","item":{"@type":"Product","brand":{"name":"ShopName"},"url":"..."}}]}
   const shopMap = new Map();
 
   for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
       const data = JSON.parse(raw);
-      // ItemList > ListItem > item (Product)
       for (const el of (data.itemListElement || [])) {
         const product = el.item || el;
         const url = product.url || product['@id'] || '';
@@ -419,7 +409,6 @@ function parseSearchResultListings(html) {
         const sn = product.brand?.name || product.seller?.name || product.manufacturer?.name;
         if (sn && !shopMap.has(idM[1])) shopMap.set(idM[1], sn);
       }
-      // @graph ou array direct
       for (const item of (Array.isArray(data) ? data : (data['@graph'] || []))) {
         const url = item.url || item['@id'] || '';
         const idM = url.match(/\/listing\/(\d+)\//);
@@ -430,13 +419,10 @@ function parseSearchResultListings(html) {
     } catch {}
   }
 
-  // JSON inline
   for (const m of html.matchAll(/"listing_id"\s*:\s*"?(\d+)"?[\s\S]{0,400}?"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/g))
     if (!shopMap.has(m[1])) shopMap.set(m[1], m[2]);
   for (const m of html.matchAll(/"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"[\s\S]{0,400}?"listing_id"\s*:\s*"?(\d+)"?/g))
     if (!shopMap.has(m[2])) shopMap.set(m[2], m[1]);
-
-  // /shop/Name voisin de /listing/ID
   for (const m of html.matchAll(/\/listing\/(\d+)\/[^"'\s]{0,100}[\s\S]{0,600}?\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|"|'| )/g))
     if (!shopMap.has(m[1])) shopMap.set(m[1], m[2]);
   for (const m of html.matchAll(/\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|"|'| )[\s\S]{0,600}?\/listing\/(\d+)\//g))
@@ -453,16 +439,13 @@ function parseSearchResultListings(html) {
     return m ? m[1] : null;
   }
 
-  // Strategy 1: JSON-LD ItemList (structure Etsy principale)
+  // Strategy 1: JSON-LD
   for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
       const data = JSON.parse(raw);
       const toProcess = [];
-      // ItemList
       for (const el of (data.itemListElement || [])) toProcess.push(el.item || el);
-      // @graph ou direct
       for (const item of (Array.isArray(data) ? data : (data['@graph'] || []))) toProcess.push(item);
-
       for (const product of toProcess) {
         const url  = product.url || product['@id'] || '';
         const rawImg = product.image;
@@ -480,7 +463,7 @@ function parseSearchResultListings(html) {
   }
   if (results.filter(r => r.shopName).length >= 2) return results;
 
-  // Strategy 2: data-listing-id blocks
+  // Strategy 2: data-listing-id
   for (const [, b] of html.matchAll(/(<(?:li|div)[^>]*data-listing-id[^>]*>[\s\S]*?<\/(?:li|div)>)/gi)) {
     const linkM = b.match(/href="(https:\/\/www\.etsy\.com\/listing\/\d+\/[^"?#]+)/);
     const imgM  = b.match(/(?:src|data-src|srcset)="(https:\/\/i\.etsystatic\.com\/[^"\s,]+)"/i);
@@ -493,11 +476,10 @@ function parseSearchResultListings(html) {
   }
   if (results.filter(r => r.shopName).length >= 2) return results;
 
-  // Strategy 3: proximity etsystatic images + listing IDs dans le HTML
+  // Strategy 3: proximity
   const allListingMatches = [...html.matchAll(/\/listing\/(\d+)\/([A-Za-z0-9_-]+)/g)];
   const allImages = [...html.matchAll(/(https:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp))/gi)];
   const imgPos = allImages.map(m => ({ url: m[1].split('?')[0], pos: m.index }));
-
   for (const lm of allListingMatches) {
     const fullUrl = 'https://www.etsy.com/listing/' + lm[1] + '/' + lm[2];
     if (seen.has(fullUrl)) continue;
@@ -515,6 +497,8 @@ function parseSearchResultListings(html) {
   }
   return results;
 }
+
+
 function computeDropshipScore(dropshippers, totalShops) {
   const pct = totalShops > 0 ? Math.round((dropshippers / totalShops) * 100) : 0;
   const saturation = pct;
@@ -527,5 +511,4 @@ function computeDropshipScore(dropshippers, totalShops) {
     }
 
 module.exports = router;
-module.exports.scrapeEtsyListingsForCompetition = scrapeEtsyListingsForCompetition;
 
