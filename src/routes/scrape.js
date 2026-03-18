@@ -153,22 +153,22 @@ router.post('/search-dropship', async (req, res) => {
     const { uploadToImgBB } = require('../services/imgbbUploader');
     const axios = require('axios');
 
-    // ── STEP 1 : Scraper les résultats Etsy ──
+    // ── STEP 1 : Scraper les résultats Etsy (même méthode que la compétition)
     send({ step: 'scraping', message: '🔍 Scraping Etsy for "' + keyword + '"...' });
 
-    const { scrapeEtsy } = require('../services/etsyScraper');
-    const rawListings = await scrapeEtsy(keyword, 48);
+    const shopRoutes = require('./shopRoutes');
+    let listings = await shopRoutes.scrapeEtsyListingsForCompetition(
+      apiKey, keyword,
+      (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + ' listings...' })
+    );
 
-    // Dédoublonner par boutique
-    const shopsSeen = new Set();
-    const listings  = [];
-    for (const l of rawListings) {
-      if (!l.shopName || shopsSeen.has(l.shopName)) continue;
-      shopsSeen.add(l.shopName);
-      listings.push(l);
+    listings = listings.filter(l => l.shopName);
+    console.log('[search-dropship] listings with shopName:', listings.length);
+
+    if (!listings.length) {
+      send({ step: 'error', message: '❌ No shop names found in Etsy results' });
+      return res.end();
     }
-
-    if (!listings.length) { send({ step: 'error', message: '❌ No listings found' }); return res.end(); }
     send({ step: 'scraping', message: '✅ ' + listings.length + ' unique shops found' });
 
     // ── STEP 2 : Scraper la page boutique + comparer 2 images ──
