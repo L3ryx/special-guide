@@ -219,6 +219,54 @@ router.post('/search-dropship', async (req, res) => {
     async function scrapeShopImages(shopName) {
       try {
         const html = await scrapingbeeFetch('https://www.etsy.com/shop/' + shopName, { stealth_proxy: 'true', wait: '2000' });
+
+        // ── Extraire l'avatar réel de la boutique ──
+        let shopAvatar = null;
+
+        // 1. JSON-LD "Store" → logo ou image
+        for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
+          try {
+            const d = JSON.parse(raw);
+            const nodes = Array.isArray(d) ? d : (d['@graph'] || [d]);
+            for (const node of nodes) {
+              if (node['@type'] === 'Store' || node['@type'] === 'Organization') {
+                const logo = node.logo?.url || node.logo || node.image;
+                if (typeof logo === 'string' && logo.startsWith('http')) { shopAvatar = logo.split('?')[0]; break; }
+              }
+            }
+          } catch {}
+          if (shopAvatar) break;
+        }
+
+        // 2. Balises img avec class shop-icon / shop-logo / shop__icon
+        if (!shopAvatar) {
+          const avatarPatterns = [
+            /class="[^"]*shop[_-]icon[^"]*"[^>]*src="([^"]+)"/i,
+            /class="[^"]*shop[_-]logo[^"]*"[^>]*src="([^"]+)"/i,
+            /class="[^"]*user-avatar[^"]*"[^>]*src="([^"]+)"/i,
+            /data-shop-icon="([^"]+)"/i,
+            /"icon_url"\s*:\s*"([^"]+)"/i,
+            /"shop_icon_url"\s*:\s*"([^"]+)"/i,
+            /"iconUrl"\s*:\s*"([^"]+)"/i,
+          ];
+          for (const pat of avatarPatterns) {
+            const m = html.match(pat);
+            if (m?.[1]?.startsWith('http')) { shopAvatar = m[1].split('?')[0]; break; }
+          }
+        }
+
+        // 3. Fallback : images ibb/etsystatic petites (avatars ~75x75)
+        if (!shopAvatar) {
+          for (const m of html.matchAll(/src="(https:\/\/[^"]*etsystatic[^"]*\/[^"]+\.(?:jpg|jpeg|png|webp))"/gi)) {
+            const url = m[1];
+            // Les avatars Etsy ont souvent 75x75 ou "il_75x75" dans l'URL
+            if (url.includes('il_75x75') || url.includes('il_100x100') || url.includes('icon')) {
+              shopAvatar = url.split('?')[0]; break;
+            }
+          }
+        }
+
+        // ── Extraire les 2 premières images de listing (pour Google Lens) ──
         const images = [], links = [];
         for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
           try {
@@ -237,8 +285,9 @@ router.post('/search-dropship', async (req, res) => {
             if (images.length >= 2) break;
           }
         }
-        return images.slice(0, 2).map((img, i) => ({ image: img, link: links[i] || null }));
-      } catch { return []; }
+
+        return { images: images.slice(0, 2).map((img, i) => ({ image: img, link: links[i] || null })), shopAvatar };
+      } catch { return { images: [], shopAvatar: null }; }
     }
 
     async function lensMatch(imageUrl) {
@@ -269,13 +318,14 @@ router.post('/search-dropship', async (req, res) => {
         analyzed++;
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers.length + ' dropshippers' });
         try {
-          const shopImages = await scrapeShopImages(listing.shopName);
+          const { images: shopImages, shopAvatar } = await scrapeShopImages(listing.shopName);
           if (shopImages.length < 2) continue;
           const [m1, m2] = await Promise.all([lensMatch(shopImages[0].image), lensMatch(shopImages[1].image)]);
           if (m1 && m2) {
             dropshippers.push({
               shopName:   listing.shopName,
               shopUrl:    'https://www.etsy.com/shop/' + listing.shopName,
+              shopAvatar: shopAvatar || shopImages[0].image,
               shopImage:  shopImages[0].image,
               listingUrl: shopImages[0].link || listing.link,
             });
