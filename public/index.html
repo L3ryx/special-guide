@@ -910,7 +910,7 @@
         shopUrl:      shopUrl,
         shopAvatar:   shop.shopAvatar || shop.shopImage || null,
         productImage: shop.shopImage || null,
-        productUrl:   shop.listingUrl || shopUrl,
+        productUrl:   shopUrl,   // toujours l'URL boutique pour que shopName soit extractible
       };
 
       const card = document.createElement('div');
