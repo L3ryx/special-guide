@@ -707,27 +707,44 @@
       document.getElementById('progress-msg').textContent = '';
     }
 
-    // ── Barre de progression fluide ──
-    var _progressTarget = 0;   // valeur cible
-    var _progressCurrent = 0;  // valeur affichée
-    var _progressRaf = null;   // requestAnimationFrame handle
-    var _progressSlow = false; // mode lent entre étapes
+    // ── Barre de progression synchronisée ──
+    var _progressCurrent = 0;
+    var _progressTarget  = 0;
+    var _progressRaf     = null;
 
+    // Estimation temporelle
+    var _totalShops   = 0;    // nombre total de boutiques à analyser
+    var _startTime    = 0;    // timestamp de début de la phase analyzing
+    var _estimated    = false; // estimation calculée ?
+    var _estimatedMs  = 0;    // durée estimée totale en ms
+
+    // Avance la barre vers _progressTarget à vitesse constante
     function _animateProgress() {
       var el = document.getElementById('progress-fill');
       if (!el) return;
-      // Avance lente quand on attend un step : +0.04% par frame (~2.4%/s à 60fps)
-      // Avance rapide vers la cible sinon
-      var step = _progressSlow ? 0.04 : 0.8;
-      var maxSlow = _progressTarget - 2; // ne pas dépasser target-2% en mode lent
-      if (_progressCurrent < _progressTarget) {
-        _progressCurrent = Math.min(_progressTarget, _progressCurrent + step);
-      } else if (_progressSlow && _progressCurrent < maxSlow) {
-        _progressCurrent = Math.min(maxSlow, _progressCurrent + 0.04);
+
+      var speed;
+      if (_estimated && _estimatedMs > 0) {
+        // Synchronisé : avancer pour couvrir 85% en _estimatedMs
+        // pct/frame = 85% / (estimatedMs / 16.67ms)
+        speed = (85 / (_estimatedMs / 16.67));
+        speed = Math.max(0.005, Math.min(speed, 0.5));
+      } else {
+        // Pas encore estimé : avance très lentement (phase scraping)
+        speed = 0.006;
       }
+
+      if (_progressCurrent < _progressTarget) {
+        _progressCurrent = Math.min(_progressTarget, _progressCurrent + 0.4);
+      } else {
+        // Dépasse pas la cible sauf en mode synchronisé
+        _progressCurrent = Math.min(94, _progressCurrent + speed);
+      }
+
       el.style.width = _progressCurrent.toFixed(2) + '%';
       if (_progressCurrent > 1 && _progressCurrent < 99) el.classList.add('burning');
       else el.classList.remove('burning');
+
       if (_progressCurrent < 100) {
         _progressRaf = requestAnimationFrame(_animateProgress);
       }
@@ -735,48 +752,62 @@
 
     function setProgress(target) {
       _progressTarget = target;
-      _progressSlow = false;
-      if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
-    }
-
-    function setProgressSlow() {
-      // Mode lent : avance doucement jusqu'à target-2% pour simuler du travail
-      _progressSlow = true;
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
     function resetProgress() {
       if (_progressRaf) { cancelAnimationFrame(_progressRaf); _progressRaf = null; }
-      _progressCurrent = 0; _progressTarget = 0; _progressSlow = false;
+      _progressCurrent = 0; _progressTarget = 0;
+      _totalShops = 0; _startTime = 0; _estimated = false; _estimatedMs = 0;
       var el = document.getElementById('progress-fill');
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
     }
 
+    // Appelé quand on reçoit analyzing avec total + done
+    function syncProgressFromAnalyzing(total, done) {
+      if (!_estimated && total > 0 && done >= 1) {
+        // Première estimation : temps écoulé pour `done` boutiques → extrapoler pour `total`
+        var elapsed = Date.now() - _startTime;
+        _estimatedMs = (elapsed / done) * total;
+        _estimated = true;
+        // Pas de log pour ne pas polluer
+      }
+      if (total > 0) {
+        // Cible synchronisée : 10% scraping + 85% analyzing proportionnel
+        var pct = 10 + Math.round((done / total) * 82);
+        _progressTarget = Math.max(_progressCurrent, pct);
+      }
+    }
+
     function advanceStep(k, msg) {
       const idx = STEPS.findIndex(function(s) { return s.key === k; });
-      if (idx === -1) {
-        // step inconnu : juste mettre à jour le message et passer en mode lent
-        if (msg) document.getElementById('progress-msg').textContent = msg;
-        setProgressSlow();
-        return;
-      }
       STEPS.forEach(function(s, i) {
         const el = document.getElementById('step-' + s.key); if (!el) return;
-        if (i < idx) el.className = 'step-dot done';
+        if (idx >= 0 && i < idx) el.className = 'step-dot done';
         else if (i === idx) el.className = 'step-dot active';
         else el.className = 'step-dot';
       });
-      // Chaque step occupe une tranche égale + on laisse 5% pour la fin
-      var pct = Math.round(((idx + 1) / STEPS.length) * 95);
-      setProgress(pct);
-      setProgressSlow(); // avance doucement jusqu'au prochain step
       if (msg) document.getElementById('progress-msg').textContent = msg;
+
+      if (k === 'scraping') {
+        // Phase scraping : cible 10%, avance lentement
+        setProgress(10);
+      } else if (k === 'analyzing') {
+        // Démarrer le timer si c'est le premier event analyzing
+        if (!_startTime) { _startTime = Date.now(); setProgress(12); }
+      } else if (k === 'match') {
+        // Un match trouvé : petite impulsion
+        _progressTarget = Math.min(94, _progressTarget + 1);
+      }
+
+      if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
     function completeAllSteps() {
       STEPS.forEach(function(s) { const el = document.getElementById('step-' + s.key); if (el) el.className = 'step-dot done'; });
-      _progressSlow = false;
-      setProgress(100);
+      _progressTarget = 100;
+      _progressCurrent = Math.min(99, _progressCurrent);
+      if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
     // ── SEARCH ──
@@ -880,6 +911,9 @@
                     document.body.style.overflowY = 'auto';
                   }
                   advanceStep('match', ev.message);
+                } else if (ev.step === 'analyzing' && ev.total && ev.done) {
+                  syncProgressFromAnalyzing(ev.total, ev.done);
+                  advanceStep('analyzing', ev.message);
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
                   showErrorPopup(ev.message);
@@ -1059,7 +1093,6 @@
   </script>
 </body>
 </html>
-
 
 
 
