@@ -316,7 +316,7 @@
             <span style="font-size:1.3rem; position:absolute; left:20px; top:50%; transform:translateY(-50%);">🎲</span>
             <button id="dice-btn" onclick="rollNiche()" style="width:100%;">Generate</button>
           </div>
-          <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
+          <button id="start-btn" onclick="startSearch()" style="width:100%;">START</button>
       </div>
 
     <div id="progress-wrap">
@@ -1095,43 +1095,52 @@
     (function() {
       var container = document.getElementById('floating-imgs');
       if (!container) return;
-      var COUNT = 6;
-      // Grille 3x2 pour éviter les chevauchements — chaque image dans sa propre cellule
+
+      var configs = [
+        { size: 120, col: 0, row: 0 },
+        { size: 55,  col: 1, row: 0 },
+        { size: 90,  col: 2, row: 0 },
+        { size: 70,  col: 0, row: 1 },
+        { size: 110, col: 1, row: 1 },
+        { size: 50,  col: 2, row: 1 },
+      ];
+
       var cols = 3, rows = 2;
       var cellW = 100 / cols, cellH = 100 / rows;
-      for (var i = 0; i < COUNT; i++) {
-        var col = i % cols, row = Math.floor(i / cols);
-        // Position dans la cellule avec marge pour ne pas toucher les bords
-        var margin = 15;
-        var x = col * cellW + margin + Math.random() * (cellW - margin * 2);
-        var y = row * cellH + margin + Math.random() * (cellH - margin * 2);
+      var totalCycle = 6;
+
+      configs.forEach(function(cfg, i) {
+        var margin = 12;
+        var x = cfg.col * cellW + margin + Math.random() * (cellW - margin * 2);
+        var y = cfg.row * cellH + margin + Math.random() * (cellH - margin * 2);
+
         var img = document.createElement('img');
-        img.src = 'luna.png';
+        img.src = '/luna.png';
         img.className = 'float-img';
-        img.style.left = x + '%';
-        img.style.top  = y + '%';
-        // Amplitude réduite pour rester dans la cellule
-        var maxMove = 60;
-        var dur  = 10 + Math.random() * 16;
-        var del  = -(Math.random() * 20);
-        var tx1  = (Math.random() - 0.5) * maxMove;
-        var ty1  = (Math.random() - 0.5) * maxMove;
-        var tx2  = (Math.random() - 0.5) * maxMove;
-        var ty2  = (Math.random() - 0.5) * maxMove;
-        var rot  = (Math.random() - 0.5) * 20;
-        var name = 'fi' + i;
-        var style = document.createElement('style');
-        style.textContent = '@keyframes ' + name + '{'
-          + '0%{transform:translate(0,0) rotate(0deg)}'
-          + '33%{transform:translate(' + tx1 + 'px,' + ty1 + 'px) rotate(' + rot + 'deg)}'
-          + '66%{transform:translate(' + tx2 + 'px,' + ty2 + 'px) rotate(' + (-rot) + 'deg)}'
-          + '100%{transform:translate(' + (tx1/2) + 'px,' + (ty2/2) + 'px) rotate(' + (rot/2) + 'deg)}'
+        img.style.width  = cfg.size + 'px';
+        img.style.height = cfg.size + 'px';
+        img.style.left   = x + '%';
+        img.style.top    = y + '%';
+        img.style.opacity = '0';
+
+        var name = 'fl' + i;
+        var styleEl = document.createElement('style');
+        styleEl.textContent = '@keyframes ' + name + '{'
+          + '0%   { opacity:0;   transform:scale(0.3) rotate(-4deg); }'
+          + '15%  { opacity:0.7; transform:scale(1)   rotate(0deg);  }'
+          + '65%  { opacity:0.5; transform:scale(1.1) rotate(3deg);  }'
+          + '85%  { opacity:0;   transform:scale(1.5) rotate(6deg);  }'
+          + '100% { opacity:0;   transform:scale(0.3) rotate(-4deg); }'
           + '}';
-        document.head.appendChild(style);
-        img.style.animation = name + ' ' + dur + 's ' + del + 's ease-in-out infinite alternate';
+        document.head.appendChild(styleEl);
+
+        var delay = -(i * (totalCycle / configs.length));
+        img.style.animation = name + ' ' + totalCycle + 's ' + delay + 's ease-in-out infinite';
+
         container.appendChild(img);
-      }
+      });
     })();
+
 
     // ── SHOOTING STARS ──
     (function(){const canvas=document.getElementById('shooting-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H;function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}window.addEventListener('resize',resize);resize();const rand=function(a,b){return Math.random()*(b-a)+a;};function mkStar(){const angle=rand(25,50)*Math.PI/180,spd=rand(6,16);return{x:rand(-100,W*0.8),y:rand(-60,H*0.4),vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,alpha:rand(0.6,1),w:rand(1,2.5),tail:rand(12,28),decay:rand(0.991,0.997)};}var stars=[mkStar(),mkStar(),mkStar(),mkStar()];function draw(){ctx.clearRect(0,0,W,H);if(Math.random()<0.02&&stars.length<10)stars.push(mkStar());stars=stars.filter(function(s){const grad=ctx.createLinearGradient(s.x,s.y,s.x-s.vx*s.tail,s.y-s.vy*s.tail);grad.addColorStop(0,'rgba(255,255,255,'+s.alpha+')');grad.addColorStop(0.4,'rgba(200,220,255,'+(s.alpha*0.5)+')');grad.addColorStop(1,'rgba(180,200,255,0)');ctx.beginPath();ctx.strokeStyle=grad;ctx.lineWidth=s.w;ctx.lineCap='round';ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx*s.tail,s.y-s.vy*s.tail);ctx.stroke();ctx.beginPath();ctx.arc(s.x,s.y,s.w*1.2,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+(s.alpha*0.8)+')';ctx.fill();s.x+=s.vx;s.y+=s.vy;s.alpha*=s.decay;return s.x<W+200&&s.y<H+200&&s.alpha>0.03;});requestAnimationFrame(draw);}draw();})();
