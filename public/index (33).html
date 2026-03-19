@@ -300,7 +300,7 @@
     </div>
   </div>
 
-  <!-- TITLE -->
+<!-- TITLE -->
   <div id="title-outer"><div id="title-wrap"><div id="niche-title"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span class="title-space"></span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div></div></div>
 
   <div id="main-view">
@@ -308,10 +308,9 @@
       <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
           <input type="text" id="keyword-input" placeholder="Enter keyword"
             style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
-          <button id="dice-btn" onclick="rollNiche()">Generate</button>
+          <button id="dice-btn" onclick="rollNiche()" style="width:100%;"><span style="margin-right:17px;">🎲</span>Generate</button>
+          <button id="start-btn" onclick="startSearch()" style="width:100%;">START</button>
       </div>
-      <button id="start-btn" onclick="startSearch()">START</button>
-    </div>
 
     <div id="progress-wrap">
       <div class="progress-keyword-label" id="progress-keyword-label"></div>
