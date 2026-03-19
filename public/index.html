@@ -19,7 +19,7 @@
     #shooting-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
 
     /* ── INTRO ── */
-    #intro { position:fixed; inset:0; z-index:9999; background:#000; display:flex; align-items:center; justify-content:flex-start; padding-left:22px; }
+    #intro { position:fixed; inset:0; z-index:9999; background:#000; display:flex; align-items:center; justify-content:center; }
     #intro-text { font-family:'Croissant One',cursive; font-size:clamp(2.8rem,9vw,6rem); color:#fff; letter-spacing:0.06em; text-align:center; text-shadow:0 0 40px rgba(255,255,255,0.3); animation:introAppear 0.8s ease forwards; }
     @keyframes introAppear { from{opacity:0;transform:scale(0.8)} to{opacity:1;transform:scale(1)} }
     #intro-text span { display:inline-block; }
@@ -28,7 +28,7 @@
     #bg-layer,#milkyway-canvas,#main-view { transition:opacity 0.7s ease; }
 
     /* ── AUTH MODAL ── */
-    #auth-overlay { position:fixed; inset:0; z-index:8000; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:flex-start; padding-left:22px; }
+    #auth-overlay { position:fixed; inset:0; z-index:8000; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; }
     #auth-box { width:100%; max-width:420px; margin:20px; background:rgba(15,15,15,0.95); border:1px solid rgba(255,255,255,0.12); border-radius:24px; padding:36px 32px; display:flex; flex-direction:column; gap:20px; }
     #auth-logo { text-align:center; font-family:'Croissant One',cursive; font-size:1.6rem; color:#fff; letter-spacing:0.05em; }
     #auth-subtitle { text-align:center; font-size:0.82rem; color:var(--muted); }
@@ -118,14 +118,14 @@
     .keyword-tag.error .tag-text { color:#f87171; }
     #clear-keywords-btn { width:48px; height:48px; flex-shrink:0; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:14px; color:#f87171; font-size:1.1rem; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; visibility:hidden; }
     #clear-keywords-btn:hover { background:rgba(239,68,68,0.25); border-color:rgba(239,68,68,0.6); }
-    #dice-btn { width:100%; height:52px; min-height:52px; max-height:52px; padding:0 20px; background:linear-gradient(135deg,#1d4ed8,#3b82f6); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-size:1rem; font-weight:700; letter-spacing:0.05em; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:flex-start; padding-left:22px; box-shadow:0 4px 20px rgba(59,130,246,0.35); }
+    #dice-btn { width:100%; height:52px; min-height:52px; max-height:52px; padding:0 20px; background:linear-gradient(135deg,#1d4ed8,#3b82f6); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-size:1.25rem; font-weight:700; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(59,130,246,0.35); }
     #dice-btn:hover { background:linear-gradient(135deg,#1e40af,#2563eb); transform:translateY(-1px); box-shadow:0 6px 24px rgba(59,130,246,0.5); }
     #dice-btn:active { transform:translateY(0); }
     #dice-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
 
 
 
-    #start-btn { width:100%; padding:22px; background:var(--green); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1.25rem; letter-spacing:0.12em; cursor:pointer; transition:all 0.25s ease; position:relative; overflow:hidden; box-shadow:0 4px 32px rgba(34,197,94,0.45); display:flex; align-items:center; justify-content:flex-start; padding-left:22px; }
+    #start-btn { width:100%; padding:0 20px; height:52px; background:var(--green); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1.25rem; letter-spacing:0.12em; cursor:pointer; transition:all 0.25s ease; position:relative; overflow:hidden; box-shadow:0 4px 32px rgba(34,197,94,0.45); display:flex; align-items:center; justify-content:center; }
     #start-btn::before { content:''; position:absolute; inset:0; background:linear-gradient(120deg,transparent 30%,rgba(255,255,255,0.15) 50%,transparent 70%); transform:translateX(-100%); transition:transform 0.6s ease; }
     #start-btn:hover::before { transform:translateX(100%); }
     #start-btn:hover { background:#16a34a; transform:translateY(-1px); }
@@ -300,7 +300,7 @@
     </div>
   </div>
 
-<!-- TITLE -->
+  <!-- TITLE -->
   <div id="title-outer"><div id="title-wrap"><div id="niche-title"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span class="title-space"></span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div></div></div>
 
   <div id="main-view">
@@ -308,7 +308,7 @@
       <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
           <input type="text" id="keyword-input" placeholder="Enter keyword"
             style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
-          <button id="dice-btn" onclick="rollNiche()" style="width:100%;"><span style="margin-right:17px;">🎲</span>Generate</button>
+          <button id="dice-btn" onclick="rollNiche()" style="width:100%;"><span style="margin-right:16px;">🎲</span>Generate</button
           <button id="start-btn" onclick="startSearch()" style="width:100%;">START</button>
       </div>
 
@@ -1089,6 +1089,7 @@
   </script>
 </body>
 </html>
+
 
 
 
