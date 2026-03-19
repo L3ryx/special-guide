@@ -116,7 +116,7 @@ async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
   while (page <= MAX_PAGES) {
     const url = 'https://www.etsy.com/search?q=' + encodeURIComponent(keyword) + '&page=' + page;
     let html;
-    try { html = await fetchFn(url, { stealth_proxy: 'true', wait: '3000' }); }
+    try { html = await fetchFn(url, { stealth_proxy: 'true', wait: '1500' }); }
     catch (e) { console.warn('Scrape page', page, 'failed:', e.message); break; }
     const raw = parseListingsFromHtml(html);
     let added = 0;
@@ -132,7 +132,7 @@ async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
     if (!hasNext) break;
     if (added === 0) { emptyPages++; if (emptyPages >= 2) break; } else emptyPages = 0;
     page++;
-    await new Promise(r => setTimeout(r, 400));
+    await new Promise(r => setTimeout(r, 200));
   }
   console.log('scrapeEtsyForDropship done:', listings.length, 'shops');
   return listings;
@@ -218,7 +218,7 @@ router.post('/search-dropship', async (req, res) => {
 
     async function scrapeShopImages(shopName) {
       try {
-        const html = await scrapingbeeFetch('https://www.etsy.com/shop/' + shopName, { stealth_proxy: 'true', wait: '2000' });
+        const html = await scrapingbeeFetch('https://www.etsy.com/shop/' + shopName, { stealth_proxy: 'true', wait: '1000' });
 
         // ── Extraire l'avatar réel de la boutique ──
         let shopAvatar = null;
@@ -319,7 +319,6 @@ router.post('/search-dropship', async (req, res) => {
       try {
         const pub = await uploadCached(imageUrl);
         if (!pub) return null;
-        await new Promise(r => setTimeout(r, 150));
         const r = await axios.post('https://google.serper.dev/lens',
           { url: pub, gl: 'us', hl: 'en' },
           { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
@@ -362,7 +361,7 @@ router.post('/search-dropship', async (req, res) => {
       }
     }
 
-    await Promise.all([worker(), worker()]);
+    await Promise.all([worker(), worker(), worker(), worker()]);
     send({ step: 'complete', dropshippers, total: listings.length });
     res.end();
 
