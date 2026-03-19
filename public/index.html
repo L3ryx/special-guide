@@ -128,7 +128,7 @@
 
 
 
-    #start-btn { width:100%; padding:22px; background:var(--green); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1.25rem; letter-spacing:0.12em; cursor:pointer; transition:all 0.25s ease; position:relative; overflow:hidden; box-shadow:0 4px 32px rgba(34,197,94,0.45); }
+    #start-btn { width:100%; padding:22px; background:var(--green); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1.25rem; letter-spacing:0.12em; cursor:pointer; transition:all 0.25s ease; position:relative; overflow:hidden; box-shadow:0 4px 32px rgba(34,197,94,0.45); display:flex; align-items:center; justify-content:center; }
     #start-btn::before { content:''; position:absolute; inset:0; background:linear-gradient(120deg,transparent 30%,rgba(255,255,255,0.15) 50%,transparent 70%); transform:translateX(-100%); transition:transform 0.6s ease; }
     #start-btn:hover::before { transform:translateX(100%); }
     #start-btn:hover { background:#16a34a; transform:translateY(-1px); }
@@ -703,31 +703,79 @@
         d.innerHTML = '<div class="dot"></div><span class="step-label">' + s.label + '</span>';
         c.appendChild(d);
       });
-      setProgress(0);
+      resetProgress();
       document.getElementById('progress-msg').textContent = '';
     }
 
-    function setProgress(p) {
-      const el = document.getElementById('progress-fill');
-      el.style.width = p + '%';
-      if (p > 0 && p < 100) el.classList.add('burning'); else el.classList.remove('burning');
+    // ── Barre de progression fluide ──
+    var _progressTarget = 0;   // valeur cible
+    var _progressCurrent = 0;  // valeur affichée
+    var _progressRaf = null;   // requestAnimationFrame handle
+    var _progressSlow = false; // mode lent entre étapes
+
+    function _animateProgress() {
+      var el = document.getElementById('progress-fill');
+      if (!el) return;
+      // Avance lente quand on attend un step : +0.04% par frame (~2.4%/s à 60fps)
+      // Avance rapide vers la cible sinon
+      var step = _progressSlow ? 0.04 : 0.8;
+      var maxSlow = _progressTarget - 2; // ne pas dépasser target-2% en mode lent
+      if (_progressCurrent < _progressTarget) {
+        _progressCurrent = Math.min(_progressTarget, _progressCurrent + step);
+      } else if (_progressSlow && _progressCurrent < maxSlow) {
+        _progressCurrent = Math.min(maxSlow, _progressCurrent + 0.04);
+      }
+      el.style.width = _progressCurrent.toFixed(2) + '%';
+      if (_progressCurrent > 1 && _progressCurrent < 99) el.classList.add('burning');
+      else el.classList.remove('burning');
+      if (_progressCurrent < 100) {
+        _progressRaf = requestAnimationFrame(_animateProgress);
+      }
+    }
+
+    function setProgress(target) {
+      _progressTarget = target;
+      _progressSlow = false;
+      if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
+    }
+
+    function setProgressSlow() {
+      // Mode lent : avance doucement jusqu'à target-2% pour simuler du travail
+      _progressSlow = true;
+      if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
+    }
+
+    function resetProgress() {
+      if (_progressRaf) { cancelAnimationFrame(_progressRaf); _progressRaf = null; }
+      _progressCurrent = 0; _progressTarget = 0; _progressSlow = false;
+      var el = document.getElementById('progress-fill');
+      if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
     }
 
     function advanceStep(k, msg) {
       const idx = STEPS.findIndex(function(s) { return s.key === k; });
-      if (idx === -1) return;
+      if (idx === -1) {
+        // step inconnu : juste mettre à jour le message et passer en mode lent
+        if (msg) document.getElementById('progress-msg').textContent = msg;
+        setProgressSlow();
+        return;
+      }
       STEPS.forEach(function(s, i) {
         const el = document.getElementById('step-' + s.key); if (!el) return;
         if (i < idx) el.className = 'step-dot done';
         else if (i === idx) el.className = 'step-dot active';
         else el.className = 'step-dot';
       });
-      setProgress(Math.round(((idx + 1) / STEPS.length) * 100));
-      document.getElementById('progress-msg').textContent = msg || '';
+      // Chaque step occupe une tranche égale + on laisse 5% pour la fin
+      var pct = Math.round(((idx + 1) / STEPS.length) * 95);
+      setProgress(pct);
+      setProgressSlow(); // avance doucement jusqu'au prochain step
+      if (msg) document.getElementById('progress-msg').textContent = msg;
     }
 
     function completeAllSteps() {
       STEPS.forEach(function(s) { const el = document.getElementById('step-' + s.key); if (el) el.className = 'step-dot done'; });
+      _progressSlow = false;
       setProgress(100);
     }
 
