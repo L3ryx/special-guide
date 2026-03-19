@@ -313,10 +313,10 @@
       <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
           <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;">
           <div style="position:relative;width:100%;">
-            <span style="font-size:1.3rem; position:absolute; left:60px; top:50%; transform:translateY(-50%);">🎲</span>
+            <span style="font-size:1.3rem; position:absolute; left:20px; top:50%; transform:translateY(-50%);">🎲</span>
             <button id="dice-btn" onclick="rollNiche()" style="width:100%;">Generate</button>
           </div>
-          <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
+          <button id="start-btn" onclick="startSearch()" style="width:100%;">START</button>
       </div>
 
     <div id="progress-wrap">
@@ -1095,22 +1095,30 @@
     (function() {
       var container = document.getElementById('floating-imgs');
       if (!container) return;
-      var COUNT = 15;
+      var COUNT = 6;
+      // Grille 3x2 pour éviter les chevauchements — chaque image dans sa propre cellule
+      var cols = 3, rows = 2;
+      var cellW = 100 / cols, cellH = 100 / rows;
       for (var i = 0; i < COUNT; i++) {
+        var col = i % cols, row = Math.floor(i / cols);
+        // Position dans la cellule avec marge pour ne pas toucher les bords
+        var margin = 15;
+        var x = col * cellW + margin + Math.random() * (cellW - margin * 2);
+        var y = row * cellH + margin + Math.random() * (cellH - margin * 2);
         var img = document.createElement('img');
         img.src = '/Anime.png';
         img.className = 'float-img';
-        var x = Math.random() * 100;
-        var y = Math.random() * 100;
         img.style.left = x + '%';
         img.style.top  = y + '%';
+        // Amplitude réduite pour rester dans la cellule
+        var maxMove = 60;
         var dur  = 10 + Math.random() * 16;
         var del  = -(Math.random() * 20);
-        var tx1  = (Math.random() - 0.5) * 260;
-        var ty1  = (Math.random() - 0.5) * 260;
-        var tx2  = (Math.random() - 0.5) * 260;
-        var ty2  = (Math.random() - 0.5) * 260;
-        var rot  = (Math.random() - 0.5) * 30;
+        var tx1  = (Math.random() - 0.5) * maxMove;
+        var ty1  = (Math.random() - 0.5) * maxMove;
+        var tx2  = (Math.random() - 0.5) * maxMove;
+        var ty2  = (Math.random() - 0.5) * maxMove;
+        var rot  = (Math.random() - 0.5) * 20;
         var name = 'fi' + i;
         var style = document.createElement('style');
         style.textContent = '@keyframes ' + name + '{'
