@@ -309,16 +309,9 @@
   <div id="main-view">
     <div class="search-card">
       <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
-        <div style="display:flex;gap:8px;width:100%;">
           <input type="text" id="keyword-input" placeholder="Enter keyword"
-            style="flex:1;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
-          <button id="add-keyword-btn" onclick="addKeyword()" title="Add keyword" style="width:48px;flex-shrink:0;">+<span id="kw-count-badge"></span></button>
-        </div>
-        <div id="keywords-list" style="display:none;width:100%;"></div>
-        <div style="position:relative;width:calc(100% - 56px);">
+            style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;" />
           <button id="dice-btn" onclick="rollNiche()" style="width:100%;"><span class="dice-icon">🎲</span>Generate</button>
-          <button id="clear-keywords-btn" onclick="clearKeywords()" style="position:absolute;right:-56px;top:0;">🗑</button>
-        </div>
       </div>
       <button id="start-btn" onclick="startSearch()">START</button>
     </div>
