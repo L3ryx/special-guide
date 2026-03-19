@@ -1,19 +1,10 @@
-<!DOCTYPE html><html lang="en"><head>
-            <title data-id="th-modified">Web Page</title>
-            
-          <meta property="og:title" content="Web Page" data-id="th-modified"><meta name="description" content="code" data-id="th-modified"><meta property="og:description" content="code" data-id="th-modified"><meta property="og:image" content="https://tiiny.host/assets/logo-purple-bg.png" data-id="th-modified"><meta property="og:url" content="https://aquamarine-cassey-88.tiiny.site/" data-id="th-modified"><meta property="og:type" content="website" data-id="th-modified"><script type="text/javascript" src="https://tiiny.host/ad-script.js"></script><script defer data-domain="aquamarine-cassey-88.tiiny.site" src="https://analytics.tiiny.site/js/plausible.js"></script></head>
-          <body><div style="position: fixed !important; bottom: 0% !important; left: 0% !important; right: 0% !important; width: 100% !important; height: 55px !important; z-index: 9999 !important;"><a href="https://tiiny.host?ref=free-site">
-    <div style="padding: 10px !important; height: 55px; text-align: center; background: rgb(220,137,232) !important; background: linear-gradient(141deg, rgba(220,137,232,1) 0%, rgba(144,64,204,1) 100%) !important;">
-      <img style="height: 35px !important; width: auto !important;" src="https://tiiny.host/assets/img/ad.png" alt="tiiny.host">
-    </div>
-  </a></div>
-            
-
-
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Finder Niche</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Croissant+One&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Croissant+One&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root { --green: #22c55e; --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12); --text: #ffffff; --muted: rgba(255,255,255,0.55); }
@@ -26,6 +17,10 @@
     #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.5); }
     #milkyway-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-2; pointer-events:none; }
     #shooting-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
+
+    /* ── FLOATING IMAGES ── */
+    #floating-imgs { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+    .float-img { position:absolute; width:70px; height:70px; object-fit:cover; border-radius:8px; opacity:0.35; }
 
     /* ── INTRO ── */
     #intro { position:fixed; inset:0; z-index:9999; background:#000; display:flex; align-items:center; justify-content:center; }
@@ -218,8 +213,8 @@
     .ep-close:hover { background:rgba(239,68,68,0.28); color:#fff; }
 
   </style>
-
-
+</head>
+<body>
   <!-- INTRO -->
   <!-- ERROR POPUP -->
   <div id="error-popup" onclick="closeErrorPopup(event)">
@@ -237,10 +232,11 @@
     </div>
   </div>
 
-  <div id="intro" style="display: none;"><div id="intro-text"><span class="blast" style="--tx: 154.91191376212012px; --ty: -253.77434528900207px; --tr: 284.16507103463266deg;">F</span><span class="blast" style="--tx: -178.10359058459989px; --ty: 152.31093271419044px; --tr: 191.85941363151983deg;">i</span><span class="blast" style="--tx: 99.82356131825881px; --ty: -355.18909186603577px; --tr: 200.60212740461492deg;">n</span><span class="blast" style="--tx: -137.44812691408555px; --ty: 456.4723148981449px; --tr: 239.9957474114941deg;">d</span><span class="blast" style="--tx: -224.20744365898878px; --ty: -64.16844890786288px; --tr: -205.4058141393524deg;">e</span><span class="blast" style="--tx: 175.2092144325458px; --ty: 165.3952064521454px; --tr: 263.6885905282453deg;">r</span><span class="blast" style="--tx: -116.94730932604399px; --ty: -106.23766169860663px; --tr: -169.50680773062174deg;">&nbsp;</span><span class="blast" style="--tx: -120.9733025426918px; --ty: -301.6258898653171px; --tr: -107.81446764197494deg;">N</span><span class="blast" style="--tx: -202.47620715240373px; --ty: 397.7324914736281px; --tr: 165.3430533575891deg;">i</span><span class="blast" style="--tx: -448.5016740468222px; --ty: -216.37839747597343px; --tr: -87.85678929311248deg;">c</span><span class="blast" style="--tx: -185.0345017470802px; --ty: 144.89200750528516px; --tr: 118.61251920210918deg;">h</span><span class="blast" style="--tx: -172.21102419760723px; --ty: 76.22603263751566px; --tr: 282.37350260883454deg;">e</span></div></div>
-  <div id="bg-layer" style="opacity: 1;"></div>
-  <canvas id="milkyway-canvas" width="384" height="627" style="opacity: 1;"></canvas>
-  <canvas id="shooting-canvas" width="384" height="627"></canvas>
+  <div id="intro"><div id="intro-text"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span>&nbsp;</span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div></div>
+  <div id="bg-layer"></div>
+  <div id="floating-imgs"></div>
+  <canvas id="milkyway-canvas"></canvas>
+  <canvas id="shooting-canvas"></canvas>
 
   <!-- AUTH MODAL -->
   <div id="auth-overlay" style="display:none;">
@@ -252,14 +248,14 @@
         <button class="auth-tab" onclick="authSwitchTab('register')">Register</button>
       </div>
       <div id="auth-main-form" style="display:flex;flex-direction:column;gap:12px;">
-        <input class="auth-input" id="auth-email" type="email" placeholder="Email">
-        <input class="auth-input" id="auth-password" type="password" placeholder="Password">
+        <input class="auth-input" id="auth-email" type="email" placeholder="Email" />
+        <input class="auth-input" id="auth-password" type="password" placeholder="Password" />
         <div id="auth-error"></div>
         <button id="auth-submit" onclick="authSubmit()">Login</button>
         <div id="auth-forgot" onclick="showForgot()">Forgot password?</div>
       </div>
       <div id="auth-forgot-form">
-        <input class="auth-input" id="forgot-email" type="email" placeholder="Your email">
+        <input class="auth-input" id="forgot-email" type="email" placeholder="Your email" />
         <div id="auth-forgot-msg"></div>
         <button id="auth-submit" style="width:100%;padding:15px;background:var(--green);border:none;border-radius:12px;color:#fff;font-family:Inter,sans-serif;font-weight:700;font-size:1rem;cursor:pointer;" onclick="sendForgot()">Send reset link</button>
         <div id="auth-forgot-back" onclick="hideForgot()">← Back to login</div>
@@ -271,14 +267,14 @@
   <a id="niche-list-btn" href="/niche-list">❤️<span class="nl-count" id="nl-count" style="position:absolute;top:-4px;right:-4px;">0</span></a>
   <div id="user-badge">
     <button id="user-avatar-btn" onclick="toggleUserDropdown()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"></circle><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"></path></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
     </button>
     <div class="user-dropdown" id="user-dropdown">
       <div class="user-dropdown-email" id="user-email-display">—</div>
-      <hr class="user-dropdown-sep">
+      <hr class="user-dropdown-sep"/>
       <button class="user-dropdown-item" onclick="openAcctModal('email')">✉️ Change email</button>
       <button class="user-dropdown-item" onclick="openAcctModal('password')">🔑 Change password</button>
-      <hr class="user-dropdown-sep">
+      <hr class="user-dropdown-sep"/>
       <button class="user-dropdown-item" onclick="logout()">🚪 Log out</button>
       <button class="user-dropdown-item danger" onclick="deleteAccount()">🗑 Delete account</button>
     </div>
@@ -287,8 +283,8 @@
   <div class="acct-overlay" id="acct-modal-email">
     <div class="acct-box">
       <div class="acct-box-title">✉️ Change email</div>
-      <input class="acct-field" id="acct-new-email" type="email" placeholder="New email address">
-      <input class="acct-field" id="acct-email-pwd" type="password" placeholder="Current password">
+      <input class="acct-field" id="acct-new-email" type="email" placeholder="New email address"/>
+      <input class="acct-field" id="acct-email-pwd" type="password" placeholder="Current password"/>
       <div class="acct-box-msg" id="acct-email-msg"></div>
       <div class="acct-box-btns">
         <button class="acct-box-btn cancel" onclick="closeAcctModals()">Cancel</button>
@@ -299,8 +295,8 @@
   <div class="acct-overlay" id="acct-modal-password">
     <div class="acct-box">
       <div class="acct-box-title">🔑 Change password</div>
-      <input class="acct-field" id="acct-old-pwd" type="password" placeholder="Current password">
-      <input class="acct-field" id="acct-new-pwd" type="password" placeholder="New password">
+      <input class="acct-field" id="acct-old-pwd" type="password" placeholder="Current password"/>
+      <input class="acct-field" id="acct-new-pwd" type="password" placeholder="New password"/>
       <div class="acct-box-msg" id="acct-pwd-msg"></div>
       <div class="acct-box-btns">
         <button class="acct-box-btn cancel" onclick="closeAcctModals()">Cancel</button>
@@ -317,7 +313,7 @@
       <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
           <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;">
           <div style="position:relative;width:100%;">
-            <span style="font-size:1.3rem; position:absolute; left:20px; top:50%; transform:translateY(-50%);">🎲</span>
+            <span style="font-size:1.3rem; position:absolute; left:60px; top:50%; transform:translateY(-50%);">🎲</span>
             <button id="dice-btn" onclick="rollNiche()" style="width:100%;">Generate</button>
           </div>
           <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
@@ -1095,14 +1091,46 @@
     // ── MILKY WAY ──
     (function(){const canvas=document.getElementById('milkyway-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H,cx,cy;const bandAngle=Math.PI/5,bandW=600,rand=function(a,b){return Math.random()*(b-a)+a;};let nebulae=[];function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;cx=W/2;cy=H/2;buildNebulae();}window.addEventListener('resize',resize);resize();function buildNebulae(){nebulae=[];const colors=[[180,100,200],[100,120,255],[255,120,80],[80,200,255],[200,80,255]];for(var i=0;i<5;i++){const col=colors[i],along=rand(-bandW*0.4,bandW*0.4),spread=rand(-60,60);nebulae.push({x:cx+Math.cos(bandAngle)*along-Math.sin(bandAngle)*spread,y:cy+Math.sin(bandAngle)*along+Math.cos(bandAngle)*spread,rx:rand(80,220),ry:rand(40,120),angle:bandAngle+rand(-0.3,0.3),r:col[0],g:col[1],b:col[2],alpha:rand(0.04,0.1),pulse:rand(0.001,0.003),pulseDir:1});}}var driftAngle=0;function draw(){ctx.clearRect(0,0,W,H);driftAngle+=0.00008;ctx.save();ctx.translate(W/2,H/2);ctx.rotate(driftAngle);ctx.translate(-W/2,-H/2);nebulae.forEach(function(n){n.alpha+=n.pulse*n.pulseDir;if(n.alpha>0.12||n.alpha<0.03)n.pulseDir*=-1;ctx.save();ctx.translate(n.x,n.y);ctx.rotate(n.angle);const g=ctx.createRadialGradient(0,0,0,0,0,n.rx);g.addColorStop(0,'rgba('+n.r+','+n.g+','+n.b+','+n.alpha+')');g.addColorStop(0.5,'rgba('+n.r+','+n.g+','+n.b+','+(n.alpha*0.4)+')');g.addColorStop(1,'rgba('+n.r+','+n.g+','+n.b+',0)');ctx.scale(1,n.ry/n.rx);ctx.beginPath();ctx.arc(0,0,n.rx,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();ctx.restore();});ctx.restore();requestAnimationFrame(draw);}draw();})();
 
+    // ── FLOATING IMAGES ──
+    (function() {
+      var container = document.getElementById('floating-imgs');
+      if (!container) return;
+      var COUNT = 15;
+      for (var i = 0; i < COUNT; i++) {
+        var img = document.createElement('img');
+        img.src = '/ton-image.jpg'; // ← remplace par ton image
+        img.className = 'float-img';
+        var x = Math.random() * 100;
+        var y = Math.random() * 100;
+        img.style.left = x + '%';
+        img.style.top  = y + '%';
+        var dur  = 10 + Math.random() * 16;
+        var del  = -(Math.random() * 20);
+        var tx1  = (Math.random() - 0.5) * 260;
+        var ty1  = (Math.random() - 0.5) * 260;
+        var tx2  = (Math.random() - 0.5) * 260;
+        var ty2  = (Math.random() - 0.5) * 260;
+        var rot  = (Math.random() - 0.5) * 30;
+        var name = 'fi' + i;
+        var style = document.createElement('style');
+        style.textContent = '@keyframes ' + name + '{'
+          + '0%{transform:translate(0,0) rotate(0deg)}'
+          + '33%{transform:translate(' + tx1 + 'px,' + ty1 + 'px) rotate(' + rot + 'deg)}'
+          + '66%{transform:translate(' + tx2 + 'px,' + ty2 + 'px) rotate(' + (-rot) + 'deg)}'
+          + '100%{transform:translate(' + (tx1/2) + 'px,' + (ty2/2) + 'px) rotate(' + (rot/2) + 'deg)}'
+          + '}';
+        document.head.appendChild(style);
+        img.style.animation = name + ' ' + dur + 's ' + del + 's ease-in-out infinite alternate';
+        container.appendChild(img);
+      }
+    })();
+
     // ── SHOOTING STARS ──
     (function(){const canvas=document.getElementById('shooting-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H;function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}window.addEventListener('resize',resize);resize();const rand=function(a,b){return Math.random()*(b-a)+a;};function mkStar(){const angle=rand(25,50)*Math.PI/180,spd=rand(6,16);return{x:rand(-100,W*0.8),y:rand(-60,H*0.4),vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,alpha:rand(0.6,1),w:rand(1,2.5),tail:rand(12,28),decay:rand(0.991,0.997)};}var stars=[mkStar(),mkStar(),mkStar(),mkStar()];function draw(){ctx.clearRect(0,0,W,H);if(Math.random()<0.02&&stars.length<10)stars.push(mkStar());stars=stars.filter(function(s){const grad=ctx.createLinearGradient(s.x,s.y,s.x-s.vx*s.tail,s.y-s.vy*s.tail);grad.addColorStop(0,'rgba(255,255,255,'+s.alpha+')');grad.addColorStop(0.4,'rgba(200,220,255,'+(s.alpha*0.5)+')');grad.addColorStop(1,'rgba(180,200,255,0)');ctx.beginPath();ctx.strokeStyle=grad;ctx.lineWidth=s.w;ctx.lineCap='round';ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx*s.tail,s.y-s.vy*s.tail);ctx.stroke();ctx.beginPath();ctx.arc(s.x,s.y,s.w*1.2,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+(s.alpha*0.8)+')';ctx.fill();s.x+=s.vx;s.y+=s.vy;s.alpha*=s.decay;return s.x<W+200&&s.y<H+200&&s.alpha>0.03;});requestAnimationFrame(draw);}draw();})();
   </script>
+</body>
+</html>
 
 
 
 
-
-
-          
-        </div><div style="height: 55px !important;"></div></body></html>
