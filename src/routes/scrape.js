@@ -17,7 +17,7 @@ router.post('/niche-keyword', async (req, res) => {
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
   try {
     const r = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       { contents: [{ parts: [{ text: 'You are a product trend expert. Give me ONE short English keyword (2-4 words) for a PHYSICAL product that is currently trending and selling well on Etsy. The keyword must be specific (not generic like "jewelry" or "bag"), for a physical handmade or unique product, currently popular or seasonal, profitable for a small seller. Do NOT suggest digital products, printables, SVG files, templates, downloads, or anything non-physical. Respond with ONLY the keyword, no punctuation, no explanation.' }] }] },
       { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
     );
