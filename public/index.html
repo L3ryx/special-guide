@@ -837,7 +837,7 @@
       if (!el) { _progressRaf = null; return; }
       var diff = _progressTarget - _progressCurrent;
       if (diff > 0.01) {
-        _progressCurrent += diff * 0.04;
+        _progressCurrent += diff * 0.06;
       }
       el.style.width = _progressCurrent.toFixed(2) + '%';
       if (_progressCurrent > 1 && _progressCurrent < 99) el.classList.add('burning');
@@ -962,7 +962,7 @@
       document.getElementById('search-inputs').style.display = 'none';
       document.getElementById('loading-spinner').style.display = 'flex';
       document.getElementById('current-keyword-label').textContent = '';
-      document.getElementById('progress-wrap').style.display = 'flex';
+      document.getElementById('progress-wrap').style.display = 'none';
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('results-container').innerHTML = '';
       document.getElementById('results-count').textContent = '';
@@ -985,7 +985,9 @@
         if (tag) tag.className = 'keyword-tag running';
 
         initProgress(keyword + ' (' + (ki + 1) + '/' + _keywords.length + ')');
+        document.getElementById('progress-wrap').style.display = 'flex';
         document.getElementById('current-keyword-label').textContent = '🔍 ' + keyword;
+        setProgressTarget(5);
 
         // Section titre dans les résultats
         if (_keywords.length > 1) {
