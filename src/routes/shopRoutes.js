@@ -308,17 +308,18 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     var sbKey = getSbKey();
     if (!sbKey) return res.status(500).json({ error: 'No ScrapingBee key configured' });
 
-    var jsScenario = JSON.stringify({
+    // ScrapingBee js_scenario doit être un objet JSON stringifié
+    var scenario = {
       instructions: [
-        { wait: 2000 },
+        { wait_for: '#email' },
         { fill: { selector: '#email', value: email } },
-        { wait: 500 },
+        { wait: 800 },
         { fill: { selector: '#password', value: password } },
-        { wait: 500 },
+        { wait: 800 },
         { click: '#join_neu_submit_btn' },
-        { wait: 4000 }
+        { wait: 5000 }
       ]
-    });
+    };
 
     var loginRes = await axios.get('https://app.scrapingbee.com/api/v1/', {
       params: {
@@ -326,8 +327,8 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
         url: 'https://www.etsy.com/signin',
         country_code: 'us',
         stealth_proxy: 'true',
-        js_scenario: jsScenario,
-        return_page_source: 'true',
+        js_scenario: JSON.stringify(scenario),
+        render_js: 'true',
       },
       timeout: 120000,
     });
@@ -338,26 +339,22 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
       || resultHtml.includes('signout')
       || resultHtml.includes('your-account')
       || resultHtml.includes('"isLoggedIn":true')
-      || resultHtml.includes('user_prefs');
+      || resultHtml.includes('user_prefs')
+      || resultHtml.includes('logout');
 
     if (!isLoggedIn) {
       return res.status(401).json({ error: 'Login failed — check your email and password' });
     }
 
-    var cookies = loginRes.headers && loginRes.headers['set-cookie']
-      ? (Array.isArray(loginRes.headers['set-cookie'])
-          ? loginRes.headers['set-cookie'].join('; ')
-          : loginRes.headers['set-cookie'])
-      : 'session_active';
-
+    // Stocker email/password chiffrés pour les réutiliser dans les requêtes ScrapingBee
     var AutoSearchState = require('../models/autoSearchModel');
     await AutoSearchState.findOneAndUpdate(
       { userId: req.user.id },
-      { $set: { etsyToken: cookies, etsyEmail: email, updatedAt: new Date() } },
+      { $set: { etsyToken: 'sb_session', etsyEmail: email, etsyPassword: password, updatedAt: new Date() } },
       { upsert: true }
     );
 
-    res.json({ ok: true, token: cookies });
+    res.json({ ok: true, token: 'sb_session' });
   } catch(e) {
     console.error('Etsy login error:', e.message);
     res.status(500).json({ error: e.message });
