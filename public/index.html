@@ -925,6 +925,18 @@
     let _searching = false;
     let _stopRequested = false;
 
+    function restoreUI() {
+      _searching = false;
+      _stopRequested = false;
+      document.getElementById('search-inputs').style.display = 'flex';
+      document.getElementById('loading-spinner').style.display = 'none';
+      document.getElementById('keyword-input').disabled = false;
+      const btn = document.getElementById('start-btn');
+      btn.disabled = false;
+      btn.classList.remove('loading', 'retry');
+      btn.textContent = 'Search';
+    }
+
     function stopSearch() {
       _stopRequested = true;
       _autoSearch = false;
@@ -932,6 +944,8 @@
       const label  = document.getElementById('auto-search-label');
       if (toggle) toggle.classList.remove('active');
       if (label)  label.innerHTML = '🤖 Automated search';
+      // Restaurer l'UI immédiatement
+      restoreUI();
     }
 
     function setRetryMode(btn) {
@@ -1099,21 +1113,17 @@
         if (_stopRequested) break; // arrêter la boucle keywords
       }
 
-      // Fin
-      _searching = false;
-      document.getElementById('search-inputs').style.display = 'flex';
-      document.getElementById('loading-spinner').style.display = 'none';
-      btn.disabled = false; btn.classList.remove('loading');
-      document.getElementById('keyword-input').disabled = false;
-      clearKeywords(); // clear keywords after search completes
-
-      if (hasError && totalMatches === 0) {
-        btn.classList.add('retry'); btn.textContent = 'RETRY';
-      } else {
-        btn.classList.remove('retry'); btn.textContent = 'START';
+      // Fin — restaurer l'UI sauf si stop déjà appelé
+      if (!_stopRequested) {
+        restoreUI();
+        clearKeywords();
+        if (hasError && totalMatches === 0) {
+          const btn2 = document.getElementById('start-btn');
+          btn2.classList.add('retry'); btn2.textContent = 'RETRY';
+        }
       }
 
-      if (totalMatches === 0 && !hasError) {
+      if (totalMatches === 0 && !hasError && !_autoSearch) {
         document.getElementById('results-container').innerHTML += '<div class="empty">Aucune correspondance trouvée.</div>';
         document.getElementById('results-section').style.display = 'block';
       }
@@ -1131,8 +1141,8 @@
         setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
       }
 
-      // Mode auto : enregistrer le keyword et relancer
-      if (_autoSearch && !hasError && !_stopRequested) {
+      // Mode auto : enregistrer le keyword et relancer (même si 0 résultats)
+      if (_autoSearch && !_stopRequested) {
         const usedKw = _keywords[0];
         if (usedKw) await saveUsedKeyword(usedKw);
         updateQueueDisplay();
