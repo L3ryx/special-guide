@@ -20,7 +20,8 @@
 
     /* ── FLOATING IMAGES ── */
     #floating-imgs { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
-    .float-img { position:absolute; object-fit:cover; border-radius:8px; opacity:0.9; }
+    .float-img { position:absolute; object-fit:cover; border-radius:8px; }
+
     /* ── INTRO ── */
     #intro { position:fixed; inset:0; z-index:9999; background:#000; display:flex; align-items:center; justify-content:center; }
     #intro-text { font-family:'Croissant One',cursive; font-size:clamp(2.8rem,9vw,6rem); color:#fff; letter-spacing:0.06em; text-align:center; text-shadow:0 0 40px rgba(255,255,255,0.3); animation:introAppear 0.8s ease forwards; }
@@ -312,7 +313,7 @@
       <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
           <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;">
           <div style="position:relative;width:100%;">
-            <span style="font-size:1.3rem; position:absolute; left:58px; top:50%; transform:translateY(-50%);">🎲</span>
+            <span style="font-size:1.3rem; position:absolute; left:80px; top:50%; transform:translateY(-50%);">🎲</span>
             <button id="dice-btn" onclick="rollNiche()" style="width:100%;">Generate</button>
           </div>
           <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
@@ -1096,12 +1097,12 @@
       if (!container) return;
 
       var configs = [
-        { size: 380, col: 0, row: 0 },
-        { size: 310,  col: 1, row: 0 },
-        { size: 280,  col: 2, row: 0 },
-        { size: 210,  col: 0, row: 1 },
-        { size: 150, col: 1, row: 1 },
-        { size: 100,  col: 2, row: 1 },
+        { size: 120, col: 0, row: 0 },
+        { size: 55,  col: 1, row: 0 },
+        { size: 90,  col: 2, row: 0 },
+        { size: 70,  col: 0, row: 1 },
+        { size: 110, col: 1, row: 1 },
+        { size: 50,  col: 2, row: 1 },
       ];
 
       var cols = 3, rows = 2;
@@ -1122,14 +1123,19 @@
         img.style.top    = y + '%';
         img.style.opacity = '0';
 
+        var tx1 = (Math.random() - 0.5) * 200;
+        var ty1 = (Math.random() - 0.5) * 200;
+        var tx2 = (Math.random() - 0.5) * 200;
+        var ty2 = (Math.random() - 0.5) * 200;
+        var rot = (Math.random() - 0.5) * 30;
         var name = 'fl' + i;
         var styleEl = document.createElement('style');
         styleEl.textContent = '@keyframes ' + name + '{'
-          + '0%   { opacity:0;   transform:scale(0.3) rotate(-4deg); }'
-          + '15%  { opacity:0.7; transform:scale(1)   rotate(0deg);  }'
-          + '65%  { opacity:0.5; transform:scale(1.1) rotate(3deg);  }'
-          + '85%  { opacity:0;   transform:scale(1.5) rotate(6deg);  }'
-          + '100% { opacity:0;   transform:scale(0.3) rotate(-4deg); }'
+          + '0%   { opacity:0;   transform:translate(0,0) scale(0.3) rotate(-4deg); }'
+          + '15%  { opacity:0.7; transform:translate(' + tx1 + 'px,' + ty1 + 'px) scale(1) rotate(' + rot + 'deg); }'
+          + '65%  { opacity:0.5; transform:translate(' + tx2 + 'px,' + ty2 + 'px) scale(1.1) rotate(' + (-rot) + 'deg); }'
+          + '85%  { opacity:0;   transform:translate(' + (tx1*0.5) + 'px,' + (ty2*0.5) + 'px) scale(1.5) rotate(' + (rot*2) + 'deg); }'
+          + '100% { opacity:0;   transform:translate(0,0) scale(0.3) rotate(-4deg); }'
           + '}';
         document.head.appendChild(styleEl);
 
