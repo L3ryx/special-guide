@@ -236,7 +236,7 @@ router.post('/search-dropship', async (req, res) => {
       const msg = (err.message || '').toLowerCase();
       const status = err.response?.status;
       const body = err.response?.data ? JSON.stringify(err.response.data).toLowerCase() : '';
-      return status === 429 || status === 402
+      return status === 401 || status === 429 || status === 402
         || msg.includes('credit') || msg.includes('quota') || msg.includes('limit')
         || body.includes('credit') || body.includes('insufficient') || body.includes('quota');
     }
