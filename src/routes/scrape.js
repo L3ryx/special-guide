@@ -17,15 +17,19 @@ router.post('/niche-keyword', async (req, res) => {
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
   try {
     const r = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      { contents: [{ parts: [{ text: 'You are a product trend expert. Give me ONE short English keyword (2-4 words) for a PHYSICAL product that is currently trending and selling well on Etsy. The keyword must be specific (not generic like "jewelry" or "bag"), for a physical handmade or unique product, currently popular or seasonal, profitable for a small seller. Do NOT suggest digital products, printables, SVG files, templates, downloads, or anything non-physical. Respond with ONLY the keyword, no punctuation, no explanation.' }] }] },
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      { contents: [{ parts: [{ text: 'Give me a single short English niche keyword (2-4 words) for an Etsy product search. It should be a specific, trending, or profitable niche for PHYSICAL products only. Do NOT suggest digital products, printables, SVG files, digital downloads, templates, or any non-physical items. Respond with ONLY the keyword, no punctuation, no explanation.' }] }] },
       { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
     );
-    const keyword = (r.data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-    if (!keyword) return res.status(500).json({ error: 'No keyword generated' });
+    console.log('[niche-keyword] raw:', JSON.stringify(r.data).slice(0, 200));
+    const parts = r.data.candidates?.[0]?.content?.parts || [];
+    const rawText = parts.map(p => p.text || '').join(' ');
+    const keyword = rawText.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+    if (!keyword) return res.status(500).json({ error: 'Empty response. Raw: ' + JSON.stringify(r.data).slice(0, 200) });
     res.json({ keyword });
   } catch(e) {
     const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+    console.error('[niche-keyword] error:', detail);
     res.status(500).json({ error: detail });
   }
 });
