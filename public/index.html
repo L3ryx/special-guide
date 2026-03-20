@@ -312,10 +312,7 @@
     <div class="search-card">
       <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
           <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;">
-          <div style="position:relative;width:100%;">
-            <span style="font-size:1.3rem; position:absolute; left:80px; top:50%; transform:translateY(-50%);">🎲</span>
-            <button id="dice-btn" onclick="rollNiche()" style="width:100%;">Generate</button>
-          </div>
+          <button id="dice-btn" onclick="rollNiche()" style="width:100%;position:relative;"><span style="font-size:1.3rem;position:absolute;left:85px;top:50%;transform:translateY(-50%);">🎲</span>Generate</button>
           <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
       </div>
 
@@ -1097,12 +1094,12 @@
       if (!container) return;
 
       var configs = [
-        { size: 320, col: 0, row: 0 },
-        { size: 180,  col: 1, row: 0 },
-        { size: 145,  col: 2, row: 0 },
-        { size: 120,  col: 0, row: 1 },
-        { size: 90, col: 1, row: 1 },
-        { size: 45,  col: 2, row: 1 },
+        { size: 340, col: 0, row: 0 },
+        { size: 280,  col: 1, row: 0 },
+        { size: 210,  col: 2, row: 0 },
+        { size: 175,  col: 0, row: 1 },
+        { size: 130, col: 1, row: 1 },
+        { size: 90,  col: 2, row: 1 },
       ];
 
       var cols = 3, rows = 2;
