@@ -150,23 +150,17 @@
     .spinner-ring { width:56px; height:56px; border:4px solid rgba(255,255,255,0.1); border-top:4px solid #f97316; border-radius:50%; animation:spinRing 0.9s linear infinite; }
     @keyframes spinRing { to { transform:rotate(360deg); } }
     .spinner-label { font-size:0.9rem; color:var(--muted); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
-    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:rgba(239,68,68,0.15); border:1.5px solid rgba(239,68,68,0.5); color:#f87171; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; letter-spacing:0.05em; }
-    #stop-btn:hover { background:rgba(239,68,68,0.35); color:#fff; border-color:#f87171; transform:scale(1.03); }
-    #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
-    /* Steps alignés avec la barre */
-    .progress-steps { display:flex; align-items:center; gap:0; width:100%; }
-    .step-dot { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; opacity:0.3; transition:opacity 0.3s; }
-    .step-dot.active { opacity:1; }
-    .step-dot.done { opacity:0.65; }
-    .step-dot .dot { width:10px; height:10px; border-radius:50%; background:var(--muted); transition:background 0.3s,box-shadow 0.3s; }
+    .progress-steps { display:flex; justify-content:space-between; gap:4px; }
+    .step-dot { flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; opacity:0.3; transition:opacity 0.3s; }
+    .step-dot.active { opacity:1; } .step-dot.done { opacity:0.6; }
+    .step-dot .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); transition:background 0.3s,box-shadow 0.3s; }
     .step-dot.active .dot { background:#f97316; box-shadow:0 0 8px #f97316; animation:blink 0.8s infinite; }
     .step-dot.done .dot { background:var(--green); }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-    .step-dot .step-label { font-size:0.6rem; color:var(--muted); text-align:center; white-space:nowrap; order:-1; }
-    /* Barre alignée sous les dots */
-    .progress-track { width:100%; height:8px; background:rgba(255,255,255,0.07); border-radius:10px; overflow:visible; position:relative; }
-    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c2d12,#dc2626,#f97316,#fbbf24,#fef08a); border-radius:10px; position:relative; box-shadow:0 0 6px #f97316,0 0 20px #dc2626; }
+    .step-dot .step-label { font-size:0.6rem; color:var(--muted); text-align:center; white-space:nowrap; }
+    .progress-track { width:100%; height:10px; background:rgba(255,255,255,0.07); border-radius:10px; overflow:visible; position:relative; }
+    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c2d12,#dc2626,#f97316,#fbbf24,#fef08a); border-radius:10px; position:relative; transition:width 0.5s ease; box-shadow:0 0 6px #f97316,0 0 20px #dc2626; }
     .progress-fill::after { content:"🔥"; position:absolute; right:-14px; top:50%; transform:translateY(-55%); font-size:1.3rem; filter:drop-shadow(0 0 6px #f97316); animation:flicker 0.3s infinite alternate; display:none; }
     .progress-fill.burning::after { display:block; }
     @keyframes flicker { 0%{transform:translateY(-55%)scale(1)rotate(-3deg)} 100%{transform:translateY(-60%)scale(1.08)rotate(3deg)} }
