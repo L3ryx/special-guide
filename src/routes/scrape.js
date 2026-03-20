@@ -218,18 +218,55 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
+    // ── ScrapingBee key rotation — essaie les 10 clés en cas de crédit insuffisant ──
+    function getScrapingBeeKeys() {
+      const keys = [];
+      // Clé principale
+      if (process.env.SCRAPINGBEE_KEY) keys.push(process.env.SCRAPINGBEE_KEY);
+      // Clés additionnelles SCRAPINGBEE_KEY_2 à SCRAPINGBEE_KEY_10
+      for (let i = 2; i <= 10; i++) {
+        const k = process.env['SCRAPINGBEE_KEY_' + i];
+        if (k) keys.push(k);
+      }
+      return keys;
+    }
+
+    function isInsufficientCredits(err) {
+      const msg = (err.message || '').toLowerCase();
+      const status = err.response?.status;
+      const body = err.response?.data ? JSON.stringify(err.response.data).toLowerCase() : '';
+      return status === 429 || status === 402
+        || msg.includes('credit') || msg.includes('quota') || msg.includes('limit')
+        || body.includes('credit') || body.includes('insufficient') || body.includes('quota');
+    }
+
     async function scrapingbeeFetch(targetUrl, sbParams = {}) {
-      const sbKey = process.env.SCRAPINGBEE_KEY;
-      if (sbKey) {
+      const sbKeys = getScrapingBeeKeys();
+
+      // Essayer chaque clé ScrapingBee dans l'ordre
+      for (let i = 0; i < sbKeys.length; i++) {
+        const sbKey = sbKeys[i];
         try {
           const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
             params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
             timeout: 120000,
           });
           const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-          if (html.length > 500) return html;
-        } catch (e) { console.warn('ScrapingBee failed:', e.message.slice(0, 60)); }
+          if (html.length > 500) {
+            if (i > 0) console.log(`[ScrapingBee] Used key #${i + 1}`);
+            return html;
+          }
+        } catch (e) {
+          if (isInsufficientCredits(e)) {
+            console.warn(`[ScrapingBee] Key #${i + 1} insufficient credits — trying next key`);
+            continue; // essayer la clé suivante
+          }
+          console.warn(`[ScrapingBee] Key #${i + 1} failed: ${e.message.slice(0, 80)}`);
+          if (i === sbKeys.length - 1) break; // toutes les clés épuisées
+        }
       }
+
+      // Fallback ScraperAPI
       const saKey = process.env.SCRAPEAPI_KEY;
       if (saKey) {
         const r = await axios.get('http://api.scraperapi.com', {
@@ -239,7 +276,7 @@ router.post('/search-dropship', async (req, res) => {
         const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
         if (html.length > 500) return html;
       }
-      throw new Error('All scrapers failed');
+      throw new Error('All scrapers failed — ScrapingBee credits exhausted on all keys');
     }
 
     async function scrapeShopImages(shopName) {
