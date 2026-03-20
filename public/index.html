@@ -826,45 +826,75 @@
       document.getElementById('progress-msg').textContent = '';
     }
 
-    // ── Barre de progression ──
+    // ── Barre de progression synchronisée ──
     var _progressCurrent = 0;
     var _progressTarget  = 0;
     var _progressRaf     = null;
 
-    // RAF : tourne en continu pendant la recherche
+    // Estimation temporelle
+    var _totalShops   = 0;    // nombre total de boutiques à analyser
+    var _startTime    = 0;    // timestamp de début de la phase analyzing
+    var _estimated    = false; // estimation calculée ?
+    var _estimatedMs  = 0;    // durée estimée totale en ms
+
+    // Avance la barre vers _progressTarget à vitesse constante
     function _animateProgress() {
       var el = document.getElementById('progress-fill');
-      if (!el) { _progressRaf = null; return; }
-      var diff = _progressTarget - _progressCurrent;
-      if (diff > 0.01) {
-        _progressCurrent += diff * 0.06;
+      if (!el) return;
+
+      var speed;
+      if (_estimated && _estimatedMs > 0) {
+        // Synchronisé : avancer pour couvrir 85% en _estimatedMs
+        // pct/frame = 85% / (estimatedMs / 16.67ms)
+        speed = (85 / (_estimatedMs / 16.67));
+        speed = Math.max(0.005, Math.min(speed, 0.5));
+      } else {
+        // Pas encore estimé : avance très lentement (phase scraping)
+        speed = 0.006;
       }
+
+      if (_progressCurrent < _progressTarget) {
+        _progressCurrent = Math.min(_progressTarget, _progressCurrent + 0.4);
+      } else {
+        // Dépasse pas la cible sauf en mode synchronisé
+        _progressCurrent = Math.min(94, _progressCurrent + speed);
+      }
+
       el.style.width = _progressCurrent.toFixed(2) + '%';
       if (_progressCurrent > 1 && _progressCurrent < 99) el.classList.add('burning');
       else el.classList.remove('burning');
-      // Continue toujours — s'arrête seulement via resetProgress
-      _progressRaf = requestAnimationFrame(_animateProgress);
+
+      if (_progressCurrent < 100) {
+        _progressRaf = requestAnimationFrame(_animateProgress);
+      }
     }
 
-    function setProgressTarget(target) {
-      _progressTarget = Math.max(_progressTarget, target);
-      // Démarrer le RAF s'il n'est pas déjà actif
+    function setProgress(target) {
+      _progressTarget = target;
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
     function resetProgress() {
       if (_progressRaf) { cancelAnimationFrame(_progressRaf); _progressRaf = null; }
       _progressCurrent = 0; _progressTarget = 0;
+      _totalShops = 0; _startTime = 0; _estimated = false; _estimatedMs = 0;
       var el = document.getElementById('progress-fill');
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
     }
 
-    // Appelé à chaque event analyzing avec done/total
+    // Appelé quand on reçoit analyzing avec total + done
     function syncProgressFromAnalyzing(total, done) {
-      if (total > 0 && done > 0) {
-        // 15% scraping + 75% analyzing proportionnel
-        var pct = 15 + (done / total) * 75;
-        setProgressTarget(pct);
+      if (!_estimated && total > 0 && done >= 1) {
+        // Première estimation : temps écoulé pour `done` boutiques → extrapoler pour `total`
+        var elapsed = Date.now() - _startTime;
+        _estimatedMs = (elapsed / done) * total;
+        _estimated = true;
+        // Pas de log pour ne pas polluer
+      }
+      if (total > 0) {
+        // Cible synchronisée : 10% scraping + 85% analyzing proportionnel
+        var pct = 10 + Math.round((done / total) * 82);
+        _progressTarget = Math.max(_progressCurrent, pct);
       }
     }
 
@@ -877,14 +907,26 @@
         else el.className = 'step-dot';
       });
       if (msg) document.getElementById('progress-msg').textContent = msg;
-      if (k === 'scraping') setProgressTarget(10);
-      else if (k === 'analyzing') setProgressTarget(15);
+
+      if (k === 'scraping') {
+        // Phase scraping : cible 10%, avance lentement
+        setProgress(10);
+      } else if (k === 'analyzing') {
+        // Démarrer le timer si c'est le premier event analyzing
+        if (!_startTime) { _startTime = Date.now(); setProgress(12); }
+      } else if (k === 'match') {
+        // Un match trouvé : petite impulsion
+        _progressTarget = Math.min(94, _progressTarget + 1);
+      }
+
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
     function completeAllSteps() {
       STEPS.forEach(function(s) { const el = document.getElementById('step-' + s.key); if (el) el.className = 'step-dot done'; });
-      setProgressTarget(100);
+      _progressTarget = 100;
+      _progressCurrent = Math.min(99, _progressCurrent);
+      if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
     // ── SEARCH ──
