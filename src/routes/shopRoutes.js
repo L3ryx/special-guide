@@ -427,5 +427,71 @@ router.get('/etsy-callback', async (req, res) => {
 
 
 
+
+// ── ETSY LOGIN via Puppeteer ──
+router.post('/etsy-login', requireAuth, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+    let puppeteer;
+    try {
+      puppeteer = require('puppeteer');
+    } catch(e) {
+      return res.status(500).json({ error: 'Puppeteer not installed: ' + e.message });
+    }
+
+    const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || null;
+    const browser = await puppeteer.launch({
+      headless: true,
+      executablePath: execPath || undefined,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'],
+    });
+
+    try {
+      const page = await browser.newPage();
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+      await page.waitForSelector('#email', { timeout: 10000 });
+      await page.type('#email', email, { delay: 60 });
+      await page.waitForSelector('#password', { timeout: 5000 });
+      await page.type('#password', password, { delay: 60 });
+      await page.click('#join_neu_submit_btn');
+      await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+
+      const url = page.url();
+      const content = await page.content();
+      const isLoggedIn = url.includes('/your/') || url.includes('account')
+        || content.includes('sign-out') || content.includes('logout')
+        || content.includes('user_prefs') || !content.includes('signin');
+
+      if (!isLoggedIn) {
+        await browser.close();
+        return res.status(401).json({ error: 'Login failed — check your email and password' });
+      }
+
+      const cookies = await page.cookies();
+      const cookieStr = cookies.map(c => c.name + '=' + c.value).join('; ');
+      await browser.close();
+
+      const AutoSearchState = require('../models/autoSearchModel');
+      await AutoSearchState.findOneAndUpdate(
+        { userId: req.user.id },
+        { $set: { etsyToken: cookieStr, etsyEmail: email, updatedAt: new Date() } },
+        { upsert: true }
+      );
+
+      res.json({ ok: true, token: cookieStr });
+    } catch(e) {
+      await browser.close().catch(() => {});
+      throw e;
+    }
+  } catch(e) {
+    console.error('Etsy login error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
 
