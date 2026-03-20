@@ -153,16 +153,19 @@
     #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:rgba(239,68,68,0.15); border:1.5px solid rgba(239,68,68,0.5); color:#f87171; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; letter-spacing:0.05em; }
     #stop-btn:hover { background:rgba(239,68,68,0.35); color:#fff; border-color:#f87171; transform:scale(1.03); }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
-    .progress-steps { display:flex; justify-content:space-between; gap:4px; }
-    .step-dot { flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; opacity:0.3; transition:opacity 0.3s; }
-    .step-dot.active { opacity:1; } .step-dot.done { opacity:0.6; }
-    .step-dot .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); transition:background 0.3s,box-shadow 0.3s; }
+    /* Steps alignés avec la barre */
+    .progress-steps { display:flex; align-items:center; gap:0; width:100%; }
+    .step-dot { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; opacity:0.3; transition:opacity 0.3s; }
+    .step-dot.active { opacity:1; }
+    .step-dot.done { opacity:0.65; }
+    .step-dot .dot { width:10px; height:10px; border-radius:50%; background:var(--muted); transition:background 0.3s,box-shadow 0.3s; }
     .step-dot.active .dot { background:#f97316; box-shadow:0 0 8px #f97316; animation:blink 0.8s infinite; }
     .step-dot.done .dot { background:var(--green); }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-    .step-dot .step-label { font-size:0.6rem; color:var(--muted); text-align:center; white-space:nowrap; }
-    .progress-track { width:100%; height:10px; background:rgba(255,255,255,0.07); border-radius:10px; overflow:visible; position:relative; }
-    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c2d12,#dc2626,#f97316,#fbbf24,#fef08a); border-radius:10px; position:relative; transition:width 0.5s ease; box-shadow:0 0 6px #f97316,0 0 20px #dc2626; }
+    .step-dot .step-label { font-size:0.6rem; color:var(--muted); text-align:center; white-space:nowrap; order:-1; }
+    /* Barre alignée sous les dots */
+    .progress-track { width:100%; height:8px; background:rgba(255,255,255,0.07); border-radius:10px; overflow:visible; position:relative; }
+    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c2d12,#dc2626,#f97316,#fbbf24,#fef08a); border-radius:10px; position:relative; box-shadow:0 0 6px #f97316,0 0 20px #dc2626; }
     .progress-fill::after { content:"🔥"; position:absolute; right:-14px; top:50%; transform:translateY(-55%); font-size:1.3rem; filter:drop-shadow(0 0 6px #f97316); animation:flicker 0.3s infinite alternate; display:none; }
     .progress-fill.burning::after { display:block; }
     @keyframes flicker { 0%{transform:translateY(-55%)scale(1)rotate(-3deg)} 100%{transform:translateY(-60%)scale(1.08)rotate(3deg)} }
@@ -826,42 +829,20 @@
     var _progressTarget  = 0;
     var _progressRaf     = null;
 
-    // Estimation temporelle
-    var _totalShops   = 0;    // nombre total de boutiques à analyser
-    var _startTime    = 0;    // timestamp de début de la phase analyzing
-    var _estimated    = false; // estimation calculée ?
-    var _estimatedMs  = 0;    // durée estimée totale en ms
-
-    // Avance la barre vers _progressTarget à vitesse constante
+    // Avance doucement vers _progressTarget (phase scraping/idle)
     function _animateProgress() {
       var el = document.getElementById('progress-fill');
       if (!el) return;
-
-      var speed;
-      if (_estimated && _estimatedMs > 0) {
-        // Synchronisé : avancer pour couvrir 85% en _estimatedMs
-        // pct/frame = 85% / (estimatedMs / 16.67ms)
-        speed = (85 / (_estimatedMs / 16.67));
-        speed = Math.max(0.003, Math.min(speed, 0.15));
-      } else {
-        // Pas encore estimé : avance très lentement (phase scraping)
-        speed = 0.006;
-      }
-
+      // Avance très lentement en phase scraping (avant d'avoir des données)
       if (_progressCurrent < _progressTarget) {
-        _progressCurrent = Math.min(_progressTarget, _progressCurrent + 0.12);
+        _progressCurrent = Math.min(_progressTarget, _progressCurrent + 0.08);
       } else {
-        // Dépasse pas la cible sauf en mode synchronisé
-        _progressCurrent = Math.min(94, _progressCurrent + speed);
+        _progressCurrent = Math.min(12, _progressCurrent + 0.004);
       }
-
       el.style.width = _progressCurrent.toFixed(2) + '%';
       if (_progressCurrent > 1 && _progressCurrent < 99) el.classList.add('burning');
       else el.classList.remove('burning');
-
-      if (_progressCurrent < 100) {
-        _progressRaf = requestAnimationFrame(_animateProgress);
-      }
+      if (_progressCurrent < 100) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
     function setProgress(target) {
@@ -872,24 +853,23 @@
     function resetProgress() {
       if (_progressRaf) { cancelAnimationFrame(_progressRaf); _progressRaf = null; }
       _progressCurrent = 0; _progressTarget = 0;
-      _totalShops = 0; _startTime = 0; _estimated = false; _estimatedMs = 0;
       var el = document.getElementById('progress-fill');
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
     }
 
-    // Appelé quand on reçoit analyzing avec total + done
+    // Synchronisation directe done/total → pas d'estimation, juste proportionnel
     function syncProgressFromAnalyzing(total, done) {
-      if (!_estimated && total > 0 && done >= 1) {
-        // Première estimation : temps écoulé pour `done` boutiques → extrapoler pour `total`
-        var elapsed = Date.now() - _startTime;
-        _estimatedMs = (elapsed / done) * total;
-        _estimated = true;
-        // Pas de log pour ne pas polluer
-      }
       if (total > 0) {
-        // Cible synchronisée : 10% scraping + 85% analyzing proportionnel
-        var pct = 10 + Math.round((done / total) * 82);
-        _progressTarget = Math.max(_progressCurrent, pct);
+        // 10% scraping + 80% analyzing proportionnel au nombre de boutiques analysées
+        var pct = 10 + Math.round((done / total) * 80);
+        // Appliquer directement sans animation pour rester synchronisé
+        _progressCurrent = Math.max(_progressCurrent, pct);
+        _progressTarget = _progressCurrent;
+        var el = document.getElementById('progress-fill');
+        if (el) {
+          el.style.width = _progressCurrent.toFixed(2) + '%';
+          if (_progressCurrent > 1 && _progressCurrent < 99) el.classList.add('burning');
+        }
       }
     }
 
@@ -945,8 +925,10 @@
       _autoSearch = false;
       const toggle = document.getElementById('auto-search-toggle');
       const label  = document.getElementById('auto-search-label');
+      const input  = document.getElementById('keyword-input');
       if (toggle) toggle.classList.remove('active');
       if (label)  label.innerHTML = '🤖 Automated search';
+      if (input)  input.style.display = 'block';
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
       restoreUI();
