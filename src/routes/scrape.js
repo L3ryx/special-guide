@@ -19,7 +19,11 @@ router.post('/niche-keyword', async (req, res) => {
     const now = new Date();
     const month = now.toLocaleString('en', { month: 'long' });
     const year = now.getFullYear();
-    const prompt = `It is ${month} ${year}. Give me a single short English niche keyword (2-4 words) for an Etsy product search. It must be a PHYSICAL product that is trending RIGHT NOW this season. Consider current holidays, seasons, and trends for ${month}. Be specific (not generic like "jewelry" or "bag"). Do NOT suggest digital products, printables, SVG files, downloads, or templates. Respond with ONLY the keyword, no punctuation, no explanation.`;
+    const usedKeywords = req.body?.usedKeywords || [];
+    const excludeList = usedKeywords.length > 0
+      ? `\n\nDo NOT suggest any of these already-used product categories: ${usedKeywords.join(', ')}.`
+      : '';
+    const prompt = `It is ${month} ${year}. Give me a single short English niche keyword (2-4 words) for an Etsy product search. It must be a PHYSICAL product that is trending RIGHT NOW this season. Be specific (not generic like "jewelry" or "bag"). Do NOT suggest digital products, printables, SVG files, downloads, or templates. Respond with ONLY the keyword, no punctuation, no explanation.${excludeList}`;
     const r = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
       { contents: [{ parts: [{ text: prompt }] }] },
