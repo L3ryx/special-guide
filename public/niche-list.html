@@ -161,9 +161,11 @@
   <div id="etsy-modal">
     <div class="etsy-modal-box">
       <div class="etsy-modal-title">🔗 Etsy Login</div>
-      <div class="etsy-modal-sub">Enter your Etsy API access token to enable automatic publishing. You can find it in your Etsy Developer account.</div>
-      <input class="etsy-modal-input" type="text" id="etsy-token-input" placeholder="Paste your Etsy access token..."/>
-      <button class="etsy-modal-save" onclick="saveEtsyToken()">Save token</button>
+      <div class="etsy-modal-sub">Connect your Etsy account to enable automatic publishing.</div>
+      <input class="etsy-modal-input" type="email" id="etsy-email-input" placeholder="Etsy email address"/>
+      <input class="etsy-modal-input" type="password" id="etsy-password-input" placeholder="Etsy password"/>
+      <div id="etsy-login-msg" style="font-size:0.78rem;min-height:1em;color:#f87171;text-align:center;"></div>
+      <button class="etsy-modal-save" id="etsy-login-submit" onclick="loginEtsy()">Connect</button>
       <div class="etsy-modal-close" onclick="closeEtsyModal()">Cancel</div>
     </div>
   </div>
@@ -417,19 +419,32 @@
     function openEtsyModal() { document.getElementById('etsy-modal').classList.add('open'); }
     function closeEtsyModal() { document.getElementById('etsy-modal').classList.remove('open'); }
 
-    async function saveEtsyToken() {
-      var t = document.getElementById('etsy-token-input').value.trim();
-      if (!t) return;
+    async function loginEtsy() {
+      var email = document.getElementById('etsy-email-input').value.trim();
+      var password = document.getElementById('etsy-password-input').value;
+      var msg = document.getElementById('etsy-login-msg');
+      var btn = document.getElementById('etsy-login-submit');
+      if (!email || !password) { msg.textContent = 'Fill in all fields'; return; }
+      btn.disabled = true; btn.textContent = 'Connecting...';
+      msg.textContent = '';
       var authToken = localStorage.getItem('scout_token');
       try {
         var r = await fetch('/api/shops/etsy-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-          body: JSON.stringify({ accessToken: t })
+          body: JSON.stringify({ email: email, password: password })
         });
-        if (r.ok) { _etsyToken = t; updateEtsyBtn(true); closeEtsyModal(); showToast('Etsy token saved!', '#22c55e'); }
-        else { var d = await r.json(); showToast('Error: ' + (d.error || r.status), '#ef4444'); }
-      } catch(e) { showToast(e.message, '#ef4444'); }
+        var d = await r.json();
+        if (r.ok && d.token) {
+          _etsyToken = d.token;
+          updateEtsyBtn(true);
+          closeEtsyModal();
+          showToast('Etsy connected! ✅', '#22c55e');
+        } else {
+          msg.textContent = d.error || 'Login failed';
+        }
+      } catch(e) { msg.textContent = e.message; }
+      btn.disabled = false; btn.textContent = 'Connect';
     }
 
     // ── CLONE SHOP ──
