@@ -647,13 +647,15 @@
     function renderKeywords() {
       // Hidden tags for status tracking during search
       const list = document.getElementById('keywords-list');
-      list.innerHTML = '';
-      _keywords.forEach(function(kw) {
-        const tag = document.createElement('div');
-        tag.className = 'keyword-tag';
-        tag.id = 'tag-' + encodeKw(kw);
-        list.appendChild(tag);
-      });
+      if (list) {
+        list.innerHTML = '';
+        _keywords.forEach(function(kw) {
+          const tag = document.createElement('div');
+          tag.className = 'keyword-tag';
+          tag.id = 'tag-' + encodeKw(kw);
+          list.appendChild(tag);
+        });
+      }
       // Counter badge on + button
       const badge = document.getElementById('kw-count-badge');
       if (badge) {
@@ -677,7 +679,7 @@
       const label  = document.getElementById('auto-search-label');
       if (_autoSearch) {
         toggle.classList.add('active');
-        label.innerHTML = '🤖 Automated search ';
+        label.innerHTML = '🤖 Automated search';
       } else {
         toggle.classList.remove('active');
         label.innerHTML = '🤖 Automated search';
