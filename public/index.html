@@ -831,30 +831,24 @@
     var _progressTarget  = 0;
     var _progressRaf     = null;
 
-    // RAF : avance doucement de current vers target
+    // RAF : tourne en continu pendant la recherche
     function _animateProgress() {
       var el = document.getElementById('progress-fill');
-      if (!el) return;
+      if (!el) { _progressRaf = null; return; }
       var diff = _progressTarget - _progressCurrent;
-      if (diff > 0.05) {
-        // Avance proportionnellement au gap — plus lent si proche de la cible
+      if (diff > 0.01) {
         _progressCurrent += diff * 0.04;
-      } else {
-        _progressCurrent = _progressTarget;
       }
       el.style.width = _progressCurrent.toFixed(2) + '%';
       if (_progressCurrent > 1 && _progressCurrent < 99) el.classList.add('burning');
       else el.classList.remove('burning');
-      if (_progressCurrent < 99.9) {
-        _progressRaf = requestAnimationFrame(_animateProgress);
-      } else {
-        _progressRaf = null;
-      }
+      // Continue toujours — s'arrête seulement via resetProgress
+      _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
     function setProgressTarget(target) {
-      // Ne jamais reculer
       _progressTarget = Math.max(_progressTarget, target);
+      // Démarrer le RAF s'il n'est pas déjà actif
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
