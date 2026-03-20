@@ -299,17 +299,16 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 
     const axios = require('axios');
 
-    function getSbKey() {
-      if (process.env.SCRAPINGBEE_KEY) return process.env.SCRAPINGBEE_KEY;
-      for (var i = 2; i <= 10; i++) { var k = process.env['SCRAPINGBEE_KEY_' + i]; if (k) return k; }
-      return null;
+    function getAllSbKeys() {
+      var keys = [];
+      if (process.env.SCRAPINGBEE_KEY) keys.push(process.env.SCRAPINGBEE_KEY);
+      for (var i = 2; i <= 10; i++) { var k = process.env['SCRAPINGBEE_KEY_' + i]; if (k) keys.push(k); }
+      return keys;
     }
 
-    var sbKey = getSbKey();
-    if (!sbKey) return res.status(500).json({ error: 'No ScrapingBee key configured' });
+    var sbKeys = getAllSbKeys();
+    if (!sbKeys.length) return res.status(500).json({ error: 'No ScrapingBee key configured' });
 
-    // ScrapingBee js_scenario doit être un objet JSON stringifié
-    // ScrapingBee GET avec js_scenario stringifié
     var scenario = JSON.stringify({
       instructions: [
         { wait: 2000 },
@@ -322,17 +321,28 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
       ]
     });
 
-    var loginRes = await axios.get('https://app.scrapingbee.com/api/v1/', {
-      params: {
-        api_key: sbKey,
-        url: 'https://www.etsy.com/signin',
-        country_code: 'us',
-        stealth_proxy: 'true',
-        render_js: 'true',
-        js_scenario: scenario,
-      },
-      timeout: 120000,
-    });
+    var loginRes = null;
+    var lastErr = null;
+    for (var ki = 0; ki < sbKeys.length; ki++) {
+      try {
+        loginRes = await axios.get('https://app.scrapingbee.com/api/v1/', {
+          params: {
+            api_key: sbKeys[ki],
+            url: 'https://www.etsy.com/signin',
+            country_code: 'us',
+            stealth_proxy: 'true',
+            render_js: 'true',
+            js_scenario: scenario,
+          },
+          timeout: 120000,
+        });
+        break;
+      } catch(e) {
+        lastErr = e;
+      }
+    }
+    if (!loginRes) return res.status(500).json({ error: 'All ScrapingBee keys failed: ' + (lastErr && lastErr.message) });
+
 
     var resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
 
