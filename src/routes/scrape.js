@@ -21,19 +21,35 @@ router.post('/niche-keyword', async (req, res) => {
     const year = now.getFullYear();
     const usedKeywords = req.body?.usedKeywords || [];
     const excludeList = usedKeywords.length > 0
-      ? `\n\nDo NOT suggest any of these already-used product categories: ${usedKeywords.join(', ')}.`
+      ? `\nDo NOT include any of these already-used keywords: ${usedKeywords.join(', ')}.`
       : '';
-    const prompt = `It is ${month} ${year}. Give me a single short English niche keyword (2-4 words) for an Etsy product search. It must be a PHYSICAL product that is trending RIGHT NOW this season. Be specific (not generic like "jewelry" or "bag"). Do NOT suggest digital products, printables, SVG files, downloads, or templates. Respond with ONLY the keyword, no punctuation, no explanation.${excludeList}`;
+
+    const prompt = `It is ${month} ${year}. Generate a list of exactly 50 unique English niche keywords for Etsy product searches.
+
+Rules:
+- Each keyword must be 2-4 words
+- ALL must be PHYSICAL products only (no digital, no printables, no SVG, no downloads, no templates)
+- All 50 must be DIFFERENT product types — no variations of the same product
+- Mix categories: home decor, jewelry, clothing, accessories, ceramics, candles, toys, stationery, wellness, outdoors, pets, baby, kitchen, garden, etc.
+- Each must be specific and searchable (not generic like "handmade gift")
+- Prioritize products trending in ${month} ${year}${excludeList}
+
+Respond with ONLY a JSON array of 50 strings, no explanation, no markdown, no numbering.
+Example format: ["keyword one","keyword two","keyword three"]`;
+
     const r = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
       { contents: [{ parts: [{ text: prompt }] }] },
-      { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+      { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
     );
     const parts = r.data.candidates?.[0]?.content?.parts || [];
-    const rawText = parts.map(p => p.text || '').join(' ');
-    const keyword = rawText.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-    if (!keyword) return res.status(500).json({ error: 'No keyword generated' });
-    res.json({ keyword });
+    const rawText = parts.map(p => p.text || '').join(' ').trim();
+    const clean = rawText.replace(/```json|```/g, '').trim();
+    let keywords = JSON.parse(clean);
+    if (!Array.isArray(keywords)) throw new Error('Invalid response format');
+    // Nettoyer et dédupliquer
+    keywords = [...new Set(keywords.map(k => k.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()))].filter(k => k.length > 2).slice(0, 50);
+    res.json({ keywords });
   } catch(e) {
     const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
     res.status(500).json({ error: detail });
