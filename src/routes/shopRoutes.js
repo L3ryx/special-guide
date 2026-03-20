@@ -441,11 +441,9 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
       return res.status(500).json({ error: 'Puppeteer not installed: ' + e.message });
     }
 
-    const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || null;
     const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: execPath || undefined,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'],
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     });
 
     try {
