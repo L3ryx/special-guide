@@ -8,7 +8,7 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root { --green: #22c55e; --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12); --text: #ffffff; --muted: rgba(255,255,255,0.55); }
-    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); overflow: hidden; }
+    html, body { min-height: 100%; font-family: 'Croissant One', cursive; color: var(--text); overflow: hidden; }
     body { position: relative; }
     html.unlocked, html.unlocked body { overflow-y: auto; overflow-x: hidden; }
 
@@ -37,12 +37,12 @@
     #auth-logo { text-align:center; font-family:'Croissant One',cursive; font-size:1.6rem; color:#fff; letter-spacing:0.05em; }
     #auth-subtitle { text-align:center; font-size:0.82rem; color:var(--muted); }
     .auth-tabs { display:flex; gap:8px; background:rgba(255,255,255,0.06); border-radius:12px; padding:4px; }
-    .auth-tab { flex:1; padding:10px; border:none; background:transparent; color:var(--muted); font-family:'Inter',sans-serif; font-size:0.88rem; font-weight:600; border-radius:9px; cursor:pointer; transition:all 0.2s; }
+    .auth-tab { flex:1; padding:10px; border:none; background:transparent; color:var(--muted); font-family:'Croissant One',cursive; font-size:0.88rem; font-weight:600; border-radius:9px; cursor:pointer; transition:all 0.2s; }
     .auth-tab.active { background:rgba(255,255,255,0.12); color:#fff; }
-    .auth-input { width:100%; padding:14px 18px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#fff; font-family:'Inter',sans-serif; font-size:0.95rem; outline:none; transition:border-color 0.2s; }
+    .auth-input { width:100%; padding:14px 18px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#fff; font-family:'Croissant One',cursive; font-size:0.95rem; outline:none; transition:border-color 0.2s; }
     .auth-input:focus { border-color:var(--green); }
     .auth-input::placeholder { color:var(--muted); }
-    #auth-submit { width:100%; padding:15px; background:var(--green); border:none; border-radius:12px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1rem; cursor:pointer; transition:all 0.2s; }
+    #auth-submit { width:100%; padding:15px; background:var(--green); border:none; border-radius:12px; color:#fff; font-family:'Croissant One',cursive; font-weight:700; font-size:1rem; cursor:pointer; transition:all 0.2s; }
     #auth-submit:hover { background:#16a34a; }
     #auth-submit:disabled { opacity:0.6; cursor:not-allowed; }
     #auth-error { text-align:center; font-size:0.82rem; color:#f87171; min-height:1.2em; }
@@ -63,7 +63,7 @@
     @keyframes menuPop { from{opacity:0;transform:translateY(-6px)scale(0.97)} to{opacity:1;transform:none} }
     .user-dropdown-email { font-size:0.73rem; color:rgba(255,255,255,0.4); padding:6px 12px 8px; word-break:break-all; }
     .user-dropdown-sep { border:none; border-top:1px solid rgba(255,255,255,0.08); margin:4px 0; }
-    .user-dropdown-item { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:10px; border:none; background:transparent; color:rgba(255,255,255,0.8); font-family:'Inter',sans-serif; font-size:0.85rem; font-weight:500; cursor:pointer; text-align:left; transition:all 0.15s; width:100%; }
+    .user-dropdown-item { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:10px; border:none; background:transparent; color:rgba(255,255,255,0.8); font-family:'Croissant One',cursive; font-size:0.85rem; font-weight:500; cursor:pointer; text-align:left; transition:all 0.15s; width:100%; }
     .user-dropdown-item:hover { background:rgba(255,255,255,0.09); color:#fff; }
     .user-dropdown-item.danger { color:#f87171; }
     .user-dropdown-item.danger:hover { background:rgba(248,113,113,0.1); color:#fca5a5; }
@@ -72,11 +72,11 @@
     .acct-overlay.open { display:flex; }
     .acct-box { background:rgba(12,12,12,0.97); border:1px solid rgba(255,255,255,0.12); border-radius:20px; padding:30px 28px; width:100%; max-width:380px; margin:20px; display:flex; flex-direction:column; gap:16px; }
     .acct-box-title { font-size:1.05rem; font-weight:700; color:#fff; }
-    .acct-field { width:100%; padding:13px 16px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:11px; color:#fff; font-family:'Inter',sans-serif; font-size:0.95rem; outline:none; }
+    .acct-field { width:100%; padding:13px 16px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:11px; color:#fff; font-family:'Croissant One',cursive; font-size:0.95rem; outline:none; }
     .acct-field:focus { border-color:#3b82f6; }
     .acct-field::placeholder { color:rgba(255,255,255,0.3); }
     .acct-box-btns { display:flex; gap:10px; }
-    .acct-box-btn { flex:1; padding:12px; border-radius:10px; border:none; font-family:'Inter',sans-serif; font-weight:700; font-size:0.9rem; cursor:pointer; }
+    .acct-box-btn { flex:1; padding:12px; border-radius:10px; border:none; font-family:'Croissant One',cursive; font-weight:700; font-size:0.9rem; cursor:pointer; }
     .acct-box-btn.primary { background:#3b82f6; color:#fff; }
     .acct-box-btn.primary:hover { background:#2563eb; }
     .acct-box-btn.cancel { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.1); }
@@ -103,7 +103,7 @@
 
     /* Input row: input + add btn + tags inline + trash */
     .input-row { width:100%; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .input-row input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Inter',sans-serif; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
+    .input-row input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
     .input-row input::placeholder { color:var(--muted); }
     .input-row input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
     #add-keyword-btn { width:48px; height:48px; flex-shrink:0; background:var(--green); border:none; border-radius:14px; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(34,197,94,0.4); position:relative; }
@@ -133,7 +133,7 @@
 
 
 
-    #start-btn { width:100%; padding:0 20px; height:52px; background:var(--green); border:none; border-radius:16px; color:#fff; font-family:'Inter',sans-serif; font-weight:700; font-size:1.25rem; letter-spacing:0.12em; cursor:pointer; transition:all 0.25s ease; position:relative; overflow:hidden; box-shadow:0 4px 32px rgba(34,197,94,0.45); display:flex; align-items:center; justify-content:center; }
+    #start-btn { width:100%; padding:0 20px; height:52px; background:var(--green); border:none; border-radius:16px; color:#fff; font-family:'Croissant One',cursive; font-weight:700; font-size:1.25rem; letter-spacing:0.12em; cursor:pointer; transition:all 0.25s ease; position:relative; overflow:hidden; box-shadow:0 4px 32px rgba(34,197,94,0.45); display:flex; align-items:center; justify-content:center; }
     #start-btn::before { content:''; position:absolute; inset:0; background:linear-gradient(120deg,transparent 30%,rgba(255,255,255,0.15) 50%,transparent 70%); transform:translateX(-100%); transition:transform 0.6s ease; }
     #start-btn:hover::before { transform:translateX(100%); }
     #start-btn:hover { background:#16a34a; transform:translateY(-1px); }
@@ -200,7 +200,7 @@
     .btn-save-shop:hover { background:rgba(255,255,255,0.14); transform:scale(1.1); }
     .btn-save-shop.saved { color:#22c55e; }
     .btn-save-shop.saving { opacity:0.5; cursor:not-allowed; }
-    .shop-result-btn { flex-shrink:0; padding:8px 14px; border-radius:9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; font-family:'Inter',sans-serif; font-size:0.75rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:all 0.2s; }
+    .shop-result-btn { flex-shrink:0; padding:8px 14px; border-radius:9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; font-family:'Croissant One',cursive; font-size:0.75rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:all 0.2s; }
     .shop-result-btn:hover { background:rgba(255,255,255,0.18); }
     .empty { text-align:center; padding:40px 20px; color:var(--muted); }
     @media(max-width:640px){ #main-view{padding:70px 14px 20px} .input-row input{font-size:0.95rem;padding:14px 16px} #add-keyword-btn{width:46px;height:46px} }
@@ -217,7 +217,7 @@
     .ep-api-badge { display:inline-block; padding:3px 10px; border-radius:6px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; font-size:0.72rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }
     .ep-message { font-size:0.85rem; color:rgba(255,255,255,0.65); line-height:1.6; background:rgba(255,255,255,0.04); border-radius:10px; padding:12px 14px; border:1px solid rgba(255,255,255,0.07); word-break:break-word; font-family:'Menlo','Courier New',monospace; }
     .ep-hint { font-size:0.78rem; color:rgba(255,255,255,0.38); line-height:1.5; }
-    .ep-close { align-self:flex-end; padding:10px 24px; border-radius:10px; border:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; font-family:'Inter',sans-serif; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s; }
+    .ep-close { align-self:flex-end; padding:10px 24px; border-radius:10px; border:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; font-family:'Croissant One',cursive; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s; }
     .ep-close:hover { background:rgba(239,68,68,0.28); color:#fff; }
 
   </style>
@@ -265,7 +265,7 @@
       <div id="auth-forgot-form">
         <input class="auth-input" id="forgot-email" type="email" placeholder="Your email" />
         <div id="auth-forgot-msg"></div>
-        <button id="auth-submit" style="width:100%;padding:15px;background:var(--green);border:none;border-radius:12px;color:#fff;font-family:Inter,sans-serif;font-weight:700;font-size:1rem;cursor:pointer;" onclick="sendForgot()">Send reset link</button>
+        <button id="auth-submit" style="width:100%;padding:15px;background:var(--green);border:none;border-radius:12px;color:#fff;font-family:'Croissant One',cursive;font-weight:700;font-size:1rem;cursor:pointer;" onclick="sendForgot()">Send reset link</button>
         <div id="auth-forgot-back" onclick="hideForgot()">← Back to login</div>
       </div>
     </div>
@@ -319,7 +319,7 @@
   <div id="main-view" style="opacity: 1;">
     <div class="search-card">
       <div id="search-inputs" style="width:100%;display:flex;flex-direction:column;gap:8px;">
-          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;">
+          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Croissant One',cursive;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;">
           <div id="auto-search-row">
             <span id="auto-search-label">🤖 Automated search</span>
             <button id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></button>
