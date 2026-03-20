@@ -313,7 +313,7 @@
       <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
           <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Inter',sans-serif;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;">
           <button id="dice-btn" onclick="rollNiche()" style="width:100%;position:relative;"><span style="font-size:1.3rem;position:absolute;left:85px;top:50%;transform:translateY(-50%);">🎲</span>Generate</button>
-          <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
+          <button id="start-btn" onclick="startSearch()" style="width:100%;"position:relative;"><span style="font-size:1.3rem;position:absolute;left:85px;top:50%;transform:translateY(-50%);">🔍</span>Search</button>
       </div>
 
     <div id="progress-wrap">
@@ -813,6 +813,13 @@
     // ── SEARCH ──
     let _searching = false;
 
+    function setRetryMode(btn) {
+      btn.classList.remove('loading');
+      btn.classList.add('retry');
+      btn.textContent = 'Retry';
+      btn.disabled = false;
+    }
+
     async function startSearch() {
       if (_searching) return;
 
@@ -879,7 +886,9 @@
             document.getElementById('progress-msg').textContent = '❌ ' + errMsg;
             showErrorPopup(errMsg);
             if (tag) tag.className = 'keyword-tag error';
-            hasError = true; continue;
+            hasError = true;
+            setRetryMode(btn);
+            continue;
           }
 
           const reader = response.body.getReader();
@@ -919,6 +928,7 @@
                   showErrorPopup(ev.message);
                   if (tag) tag.className = 'keyword-tag error';
                   hasError = true;
+                  setRetryMode(btn);
                 } else {
                   advanceStep(ev.step, ev.message);
                 }              } catch(e) {}
@@ -929,6 +939,7 @@
           showErrorPopup(err.message);
           if (tag) tag.className = 'keyword-tag error';
           hasError = true;
+          setRetryMode(btn);
         }
 
         // Montre les résultats au fur et à mesure
@@ -1149,6 +1160,7 @@
   </script>
 </body>
 </html>
+
 
 
 
