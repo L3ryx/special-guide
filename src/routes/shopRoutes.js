@@ -281,5 +281,88 @@ router.post('/clone', requireAuth, async (req, res) => {
   } catch(e) { send({ step: 'error', message: '❌ ' + e.message }); res.end(); }
 });
 
+
+// ── ETSY TOKEN GET ──
+router.get('/etsy-token', requireAuth, async (req, res) => {
+  try {
+    const AutoSearchState = require('../models/autoSearchModel');
+    const state = await AutoSearchState.findOne({ userId: req.user.id });
+    res.json({ token: state && state.etsyToken ? state.etsyToken : null });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ETSY LOGIN via ScrapingBee ──
+router.post('/etsy-login', requireAuth, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+    const axios = require('axios');
+
+    function getSbKey() {
+      if (process.env.SCRAPINGBEE_KEY) return process.env.SCRAPINGBEE_KEY;
+      for (var i = 2; i <= 10; i++) { var k = process.env['SCRAPINGBEE_KEY_' + i]; if (k) return k; }
+      return null;
+    }
+
+    var sbKey = getSbKey();
+    if (!sbKey) return res.status(500).json({ error: 'No ScrapingBee key configured' });
+
+    var jsScenario = JSON.stringify({
+      instructions: [
+        { wait: 2000 },
+        { fill: { selector: '#email', value: email } },
+        { wait: 500 },
+        { fill: { selector: '#password', value: password } },
+        { wait: 500 },
+        { click: '#join_neu_submit_btn' },
+        { wait: 4000 }
+      ]
+    });
+
+    var loginRes = await axios.get('https://app.scrapingbee.com/api/v1/', {
+      params: {
+        api_key: sbKey,
+        url: 'https://www.etsy.com/signin',
+        country_code: 'us',
+        stealth_proxy: 'true',
+        js_scenario: jsScenario,
+        return_page_source: 'true',
+      },
+      timeout: 120000,
+    });
+
+    var resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
+
+    var isLoggedIn = resultHtml.includes('sign-out')
+      || resultHtml.includes('signout')
+      || resultHtml.includes('your-account')
+      || resultHtml.includes('"isLoggedIn":true')
+      || resultHtml.includes('user_prefs');
+
+    if (!isLoggedIn) {
+      return res.status(401).json({ error: 'Login failed — check your email and password' });
+    }
+
+    var cookies = loginRes.headers && loginRes.headers['set-cookie']
+      ? (Array.isArray(loginRes.headers['set-cookie'])
+          ? loginRes.headers['set-cookie'].join('; ')
+          : loginRes.headers['set-cookie'])
+      : 'session_active';
+
+    var AutoSearchState = require('../models/autoSearchModel');
+    await AutoSearchState.findOneAndUpdate(
+      { userId: req.user.id },
+      { $set: { etsyToken: cookies, etsyEmail: email, updatedAt: new Date() } },
+      { upsert: true }
+    );
+
+    res.json({ ok: true, token: cookies });
+  } catch(e) {
+    console.error('Etsy login error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
 
