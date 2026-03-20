@@ -152,6 +152,7 @@
     .spinner-label { font-size:0.9rem; color:var(--muted); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
     #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:rgba(239,68,68,0.15); border:1.5px solid rgba(239,68,68,0.5); color:#f87171; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; letter-spacing:0.05em; }
     #stop-btn:hover { background:rgba(239,68,68,0.35); color:#fff; border-color:#f87171; transform:scale(1.03); }
+    #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
     /* Steps alignés avec la barre */
     .progress-steps { display:flex; align-items:center; gap:0; width:100%; }
@@ -334,7 +335,8 @@
       <div id="loading-spinner">
         <div class="spinner-ring"></div>
         <div class="spinner-label">Loading...</div>
-        <button id="stop-btn" onclick="stopSearch()">⏹ Stop</button>
+        <button id="stop-btn" onclick="stopSearch()">⛔️ Stop</button>
+        <div id="current-keyword-label"></div>
       </div>
 
     <div id="progress-wrap">
@@ -978,6 +980,7 @@
 
       document.getElementById('search-inputs').style.display = 'none';
       document.getElementById('loading-spinner').style.display = 'flex';
+      document.getElementById('current-keyword-label').textContent = '';
       document.getElementById('progress-wrap').style.display = 'flex';
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('results-container').innerHTML = '';
@@ -1001,6 +1004,7 @@
         if (tag) tag.className = 'keyword-tag running';
 
         initProgress(keyword + ' (' + (ki + 1) + '/' + _keywords.length + ')');
+        document.getElementById('current-keyword-label').textContent = '🔍 ' + keyword;
 
         // Section titre dans les résultats
         if (_keywords.length > 1) {
