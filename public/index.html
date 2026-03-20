@@ -667,45 +667,53 @@
 
     // ── AUTO SEARCH ──
     var _autoSearch = false;
-    var _usedKeywords = JSON.parse(localStorage.getItem('used_keywords') || '[]');
-    var _usedShops = JSON.parse(localStorage.getItem('used_shops') || '[]');
-    var _autoRunning = false;
+    var _keywordQueue = JSON.parse(localStorage.getItem('kw_queue') || '[]');   // file d'attente des 50 keywords
+    var _usedKeywords = JSON.parse(localStorage.getItem('used_keywords') || '[]'); // keywords déjà recherchés
+    var _usedShops    = JSON.parse(localStorage.getItem('used_shops') || '[]');    // boutiques déjà vues
 
     function toggleAutoSearch() {
       _autoSearch = !_autoSearch;
       const toggle = document.getElementById('auto-search-toggle');
-      const label = document.getElementById('auto-search-label');
+      const label  = document.getElementById('auto-search-label');
       if (_autoSearch) {
         toggle.classList.add('active');
-        label.innerHTML = '🤖 Automated search ✅';
+        label.innerHTML = '🤖 Automated search ';
         showToast('Automated search enabled', '#22c55e');
       } else {
         toggle.classList.remove('active');
         label.innerHTML = '🤖 Automated search';
-        _autoRunning = false;
         showToast('Automated search disabled', '#f97316');
       }
     }
 
-    async function generateAutoKeyword() {
-      try {
-        const res = await fetch('/api/niche-keyword', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('scout_token') || ''), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ usedKeywords: _usedKeywords })
-        });
-        const data = await res.json();
-        const kw = (data.keyword || '').trim();
-        if (!kw) throw new Error('No keyword generated');
-        // Vérifier que ce keyword n'a pas déjà été utilisé
-        if (_usedKeywords.includes(kw)) {
-          // Essayer une autre fois
-          return await generateAutoKeyword();
-        }
-        return kw;
-      } catch(e) {
-        throw new Error('Keyword generation failed: ' + e.message);
+    // Générer 50 keywords d'un coup et les stocker dans la queue
+    async function generateKeywordBatch() {
+      showToast('⏳ Generating 50 keywords with Gemini…', '#f97316');
+      const res = await fetch('/api/niche-keyword', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('scout_token') || '') },
+        body: JSON.stringify({ usedKeywords: _usedKeywords })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.keywords) throw new Error(data.error || 'Failed to generate keywords');
+      // Filtrer ceux déjà utilisés
+      const fresh = data.keywords.filter(function(k) { return !_usedKeywords.includes(k); });
+      _keywordQueue = fresh;
+      localStorage.setItem('kw_queue', JSON.stringify(_keywordQueue));
+      showToast('✅ ' + fresh.length + ' keywords ready!', '#22c55e');
+      return fresh;
+    }
+
+    // Prendre le prochain keyword de la queue
+    async function getNextKeyword() {
+      // Si la queue est vide, en générer 50 nouveaux
+      if (_keywordQueue.length === 0) {
+        await generateKeywordBatch();
       }
+      if (_keywordQueue.length === 0) throw new Error('No keywords available');
+      const kw = _keywordQueue.shift();
+      localStorage.setItem('kw_queue', JSON.stringify(_keywordQueue));
+      return kw;
     }
 
     function saveUsedShops(shopNames) {
@@ -718,6 +726,16 @@
     function saveUsedKeyword(kw) {
       if (!_usedKeywords.includes(kw)) _usedKeywords.push(kw);
       localStorage.setItem('used_keywords', JSON.stringify(_usedKeywords));
+    }
+
+    // Afficher le nombre de keywords restants dans la queue
+    function updateQueueDisplay() {
+      const label = document.getElementById('auto-search-label');
+      if (_autoSearch) {
+        const remaining = _keywordQueue.length;
+        const suffix = remaining > 0 ? ' (' + remaining + ' left)' : '';
+        label.innerHTML = '🤖 Automated search ' + suffix;
+      }
     }
 
     function clearKeywords() {
@@ -870,14 +888,15 @@
     async function startSearch() {
       if (_searching) return;
 
-      // Mode auto : générer le keyword avec Gemini
+      // Mode auto : prendre le prochain keyword de la queue
       if (_autoSearch) {
         try {
-          const kw = await generateAutoKeyword();
+          const kw = await getNextKeyword();
           document.getElementById('keyword-input').value = kw;
           _keywords = [kw];
           renderKeywords();
           document.getElementById('keyword-input').value = '';
+          updateQueueDisplay();
         } catch(e) {
           showToast('❌ Auto keyword failed: ' + e.message, '#ef4444');
           return;
@@ -1053,11 +1072,11 @@
         setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
       }
 
-      // Mode auto : enregistrer le keyword et relancer une nouvelle recherche
+      // Mode auto : enregistrer le keyword et relancer
       if (_autoSearch && !hasError) {
         const usedKw = _keywords[0];
         if (usedKw) saveUsedKeyword(usedKw);
-        // Petite pause avant la prochaine recherche
+        updateQueueDisplay();
         setTimeout(function() {
           if (_autoSearch) {
             document.getElementById('keyword-input').value = '';
