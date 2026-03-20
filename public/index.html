@@ -12,8 +12,8 @@
     body { position: relative; }
     html.unlocked, html.unlocked body { overflow-y: auto; overflow-x: hidden; }
 
-    #bg-layer { position: fixed; inset: 0; z-index: -3; background: #0a0a0a url('/background.png') center center / cover no-repeat; animation: bgDrift 18s ease-in-out infinite alternate; transform-origin: center; }
-    @keyframes bgDrift { 0%{transform:scale(1.08)translate(0,0)} 25%{transform:scale(1.1)translate(-12px,-8px)} 50%{transform:scale(1.08)translate(8px,-14px)} 75%{transform:scale(1.1)translate(-6px,10px)} 100%{transform:scale(1.08)translate(10px,6px)} }
+    #bg-layer { position: fixed; inset: 0; z-index: -3; background: #0a0a0a url('/background.png') center center / cover no-repeat; animation: bgDrift 18s ease-in-out infinite alternate; }
+    @keyframes bgDrift { 0%{transform:translate(0,0)} 25%{transform:translate(-8px,-5px)} 50%{transform:translate(5px,-8px)} 75%{transform:translate(-4px,6px)} 100%{transform:translate(6px,3px)} }
     #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.5); }
     #milkyway-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-2; pointer-events:none; }
     #shooting-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
@@ -150,6 +150,8 @@
     .spinner-ring { width:56px; height:56px; border:4px solid rgba(255,255,255,0.1); border-top:4px solid #f97316; border-radius:50%; animation:spinRing 0.9s linear infinite; }
     @keyframes spinRing { to { transform:rotate(360deg); } }
     .spinner-label { font-size:0.9rem; color:var(--muted); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
+    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:rgba(239,68,68,0.15); border:1.5px solid rgba(239,68,68,0.5); color:#f87171; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; letter-spacing:0.05em; }
+    #stop-btn:hover { background:rgba(239,68,68,0.35); color:#fff; border-color:#f87171; transform:scale(1.03); }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
     .progress-steps { display:flex; justify-content:space-between; gap:4px; }
     .step-dot { flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; opacity:0.3; transition:opacity 0.3s; }
@@ -329,6 +331,7 @@
       <div id="loading-spinner">
         <div class="spinner-ring"></div>
         <div class="spinner-label">Loading...</div>
+        <button id="stop-btn" onclick="stopSearch()">⏹ Stop</button>
       </div>
 
     <div id="progress-wrap">
@@ -421,6 +424,7 @@
       document.getElementById('user-badge').style.display = 'flex';
       document.getElementById('niche-list-btn').style.display = 'flex';
       initSavedShops();
+      loadAutoState(); // charger l'état auto-search depuis MongoDB
     }
 
     // ── ERROR POPUP ──
@@ -669,9 +673,50 @@
 
     // ── AUTO SEARCH ──
     var _autoSearch = false;
-    var _keywordQueue = JSON.parse(localStorage.getItem('kw_queue') || '[]');   // file d'attente des 50 keywords
-    var _usedKeywords = JSON.parse(localStorage.getItem('used_keywords') || '[]'); // keywords déjà recherchés
-    var _usedShops    = JSON.parse(localStorage.getItem('used_shops') || '[]');    // boutiques déjà vues
+    var _keywordQueue = [];
+    var _usedKeywords = [];
+    var _usedShops    = [];
+
+    // Charger l'état depuis MongoDB au démarrage
+    async function loadAutoState() {
+      const token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        const r = await fetch('/api/shops/auto-state', { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!r.ok) return;
+        const d = await r.json();
+        _keywordQueue = d.keywordQueue || [];
+        _usedKeywords = d.usedKeywords || [];
+        _usedShops    = d.usedShops    || [];
+        updateQueueDisplay();
+      } catch(e) { console.warn('loadAutoState failed:', e.message); }
+    }
+
+    // Sauvegarder la queue + usedKeywords en MongoDB
+    async function saveQueueState(usedKeyword) {
+      const token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        await fetch('/api/shops/auto-state/queue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ keywordQueue: _keywordQueue, usedKeyword: usedKeyword || null })
+        });
+      } catch(e) {}
+    }
+
+    // Sauvegarder une boutique vue en MongoDB
+    async function saveShopToDb(shopName) {
+      const token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        await fetch('/api/shops/auto-state/shop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ shopName })
+        });
+      } catch(e) {}
+    }
 
     function toggleAutoSearch() {
       _autoSearch = !_autoSearch;
@@ -686,55 +731,57 @@
       }
     }
 
-    // Générer 50 keywords d'un coup et les stocker dans la queue
+    // Générer 50 keywords d'un coup et les stocker
     async function generateKeywordBatch() {
       showToast('⏳ Generating 50 keywords with Gemini…', '#f97316');
+      const token = localStorage.getItem('scout_token') || '';
       const res = await fetch('/api/niche-keyword', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('scout_token') || '') },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({ usedKeywords: _usedKeywords })
       });
       const data = await res.json();
       if (!res.ok || !data.keywords) throw new Error(data.error || 'Failed to generate keywords');
-      // Filtrer ceux déjà utilisés
       const fresh = data.keywords.filter(function(k) { return !_usedKeywords.includes(k); });
       _keywordQueue = fresh;
-      localStorage.setItem('kw_queue', JSON.stringify(_keywordQueue));
+      // Sauvegarder en MongoDB
+      await saveQueueState(null);
       showToast('✅ ' + fresh.length + ' keywords ready!', '#22c55e');
       return fresh;
     }
 
     // Prendre le prochain keyword de la queue
     async function getNextKeyword() {
-      // Si la queue est vide, en générer 50 nouveaux
       if (_keywordQueue.length === 0) {
         await generateKeywordBatch();
       }
       if (_keywordQueue.length === 0) throw new Error('No keywords available');
       const kw = _keywordQueue.shift();
-      localStorage.setItem('kw_queue', JSON.stringify(_keywordQueue));
+      await saveQueueState(null); // mettre à jour la queue en DB
       return kw;
     }
 
     function saveUsedShops(shopNames) {
       shopNames.forEach(function(name) {
-        if (name && !_usedShops.includes(name)) _usedShops.push(name);
+        if (name && !_usedShops.includes(name)) {
+          _usedShops.push(name);
+          saveShopToDb(name); // persistance MongoDB
+        }
       });
-      localStorage.setItem('used_shops', JSON.stringify(_usedShops));
     }
 
-    function saveUsedKeyword(kw) {
+    async function saveUsedKeyword(kw) {
       if (!_usedKeywords.includes(kw)) _usedKeywords.push(kw);
-      localStorage.setItem('used_keywords', JSON.stringify(_usedKeywords));
+      await saveQueueState(kw); // enregistrer keyword utilisé en DB
     }
 
-    // Afficher le nombre de keywords restants dans la queue
     function updateQueueDisplay() {
       const label = document.getElementById('auto-search-label');
+      if (!label) return;
       if (_autoSearch) {
         const remaining = _keywordQueue.length;
         const suffix = remaining > 0 ? ' (' + remaining + ' left)' : '';
-        label.innerHTML = '🤖 Automated search ' + suffix;
+        label.innerHTML = '🤖 Automated search' + suffix;
       }
     }
 
@@ -877,6 +924,16 @@
 
     // ── SEARCH ──
     let _searching = false;
+    let _stopRequested = false;
+
+    function stopSearch() {
+      _stopRequested = true;
+      _autoSearch = false;
+      const toggle = document.getElementById('auto-search-toggle');
+      const label  = document.getElementById('auto-search-label');
+      if (toggle) toggle.classList.remove('active');
+      if (label)  label.innerHTML = '🤖 Automated search';
+    }
 
     function setRetryMode(btn) {
       btn.classList.remove('loading');
@@ -913,6 +970,7 @@
       }
 
       _searching = true;
+      _stopRequested = false;
       window._shopDataMap = {};
 
       const btn = document.getElementById('start-btn');
@@ -986,6 +1044,7 @@
               if (!line.startsWith('data: ')) continue;
               try {
                 const ev = JSON.parse(line.slice(6));
+                if (_stopRequested) { reader.cancel(); break; }
                 if (ev.step === 'complete') {
                   completeAllSteps();
                   const found = (ev.dropshippers || []).length;
@@ -1038,6 +1097,7 @@
           document.documentElement.style.overflowY = 'auto';
           document.body.style.overflowY = 'auto';
         }
+        if (_stopRequested) break; // arrêter la boucle keywords
       }
 
       // Fin
@@ -1073,9 +1133,9 @@
       }
 
       // Mode auto : enregistrer le keyword et relancer
-      if (_autoSearch && !hasError) {
+      if (_autoSearch && !hasError && !_stopRequested) {
         const usedKw = _keywords[0];
-        if (usedKw) saveUsedKeyword(usedKw);
+        if (usedKw) await saveUsedKeyword(usedKw);
         updateQueueDisplay();
         setTimeout(function() {
           if (_autoSearch) {
