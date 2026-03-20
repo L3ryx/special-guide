@@ -704,7 +704,6 @@
     ];
 
     function initProgress(keyword) {
-      document.getElementById('progress-keyword-label').textContent = keyword ? '🔍 ' + keyword : '';
       const c = document.getElementById('progress-steps');
       c.innerHTML = '';
       STEPS.forEach(function(s) {
