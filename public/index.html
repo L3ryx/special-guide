@@ -947,7 +947,7 @@
       const label  = document.getElementById('auto-search-label');
       if (toggle) toggle.classList.remove('active');
       if (label)  label.innerHTML = '🤖 Automated search';
-      // Restaurer l'UI immédiatement
+      resetProgress();
       restoreUI();
     }
 
