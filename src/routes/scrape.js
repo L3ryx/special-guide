@@ -167,6 +167,9 @@ async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
 // ── SEARCH DROPSHIP ──
 // Fonctionne exactement comme la recherche de compétition :
 // scrape Etsy → page boutique → 2 images → Google Lens → dropshipping confirmé si 2 matches
+// Index de la clé ScrapingBee courante — niveau module
+let _currentKeyIndex = 0;
+
 router.post('/search-dropship', async (req, res) => {
   const { keyword } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
@@ -237,10 +240,6 @@ router.post('/search-dropship', async (req, res) => {
         || msg.includes('credit') || msg.includes('quota') || msg.includes('limit')
         || body.includes('credit') || body.includes('insufficient') || body.includes('quota');
     }
-
-    // Index de la clé courante — persiste pendant toute la durée du process
-    // Ne change QUE quand crédits épuisés. Revient à 0 après la clé 10.
-    let _currentKeyIndex = 0;
 
     async function scrapingbeeFetch(targetUrl, sbParams = {}) {
       const sbKeys = getScrapingBeeKeys();
