@@ -291,83 +291,86 @@ router.get('/etsy-token', requireAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── ETSY LOGIN via ScrapeAPI ──
-router.post('/etsy-login', requireAuth, async (req, res) => {
+// ── ETSY OAUTH PKCE — Step 1 : générer l'URL d'autorisation ──
+router.get('/etsy-oauth-url', requireAuth, async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    const crypto = require('crypto');
+    const clientId = process.env.ETSY_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
 
-    const axios = require('axios');
-    const saKey = process.env.SCRAPEAPI_KEY;
-    if (!saKey) return res.status(500).json({ error: 'SCRAPEAPI_KEY not configured' });
+    // Générer code_verifier et code_challenge (PKCE)
+    const codeVerifier = crypto.randomBytes(32).toString('base64url');
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+    const state = crypto.randomBytes(16).toString('hex');
 
-    // ScrapeAPI avec session + JS rendering pour simuler le login Etsy
-    var loginRes = await axios.get('https://api.scraperapi.com', {
-      params: {
-        api_key: saKey,
-        url: 'https://www.etsy.com/signin',
-        render: 'true',
-        country_code: 'us',
-        session_number: '1',
-      },
-      timeout: 60000,
-    });
-
-    var html = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
-
-    // Extraire le CSRF token
-    var csrfMatch = html.match(/name="_nnc"\s+value="([^"]+)"/i)
-      || html.match(/csrf[_-]token[^>]+content="([^"]+)"/i)
-      || html.match(/"form_key"\s*:\s*"([^"]+)"/i);
-    var csrf = csrfMatch ? csrfMatch[1] : '';
-
-    // Soumettre le formulaire de login via POST direct
-    var FormData = require('form-data');
-    var form = new FormData();
-    form.append('email', email);
-    form.append('password', password);
-    form.append('_nnc', csrf);
-    form.append('signin_submitted', '1');
-
-    var submitRes = await axios.get('https://api.scraperapi.com', {
-      params: {
-        api_key: saKey,
-        url: 'https://www.etsy.com/signin',
-        render: 'true',
-        country_code: 'us',
-        session_number: '1',
-        method: 'POST',
-        body: 'email=' + encodeURIComponent(email) + '&password=' + encodeURIComponent(password) + '&_nnc=' + encodeURIComponent(csrf) + '&signin_submitted=1',
-      },
-      timeout: 60000,
-    });
-
-    var resultHtml = typeof submitRes.data === 'string' ? submitRes.data : JSON.stringify(submitRes.data);
-
-    var isLoggedIn = resultHtml.includes('sign-out')
-      || resultHtml.includes('signout')
-      || resultHtml.includes('your-account')
-      || resultHtml.includes('"isLoggedIn":true')
-      || resultHtml.includes('user_prefs')
-      || resultHtml.includes('logout');
-
-    if (!isLoggedIn) {
-      return res.status(401).json({ error: 'Login failed — check your credentials' });
-    }
-
-    var AutoSearchState = require('../models/autoSearchModel');
+    // Stocker le verifier en session (MongoDB)
+    const AutoSearchState = require('../models/autoSearchModel');
     await AutoSearchState.findOneAndUpdate(
       { userId: req.user.id },
-      { $set: { etsyToken: 'sa_session_1', etsyEmail: email, etsyPassword: password, updatedAt: new Date() } },
+      { $set: { oauthVerifier: codeVerifier, oauthState: state, updatedAt: new Date() } },
       { upsert: true }
     );
 
-    res.json({ ok: true, token: 'sa_session_1' });
+    const redirectUri = process.env.ETSY_REDIRECT_URI || (req.protocol + '://' + req.get('host') + '/api/shops/etsy-callback');
+    const scopes = 'listings_w listings_r shops_r';
+
+    const url = 'https://www.etsy.com/oauth/connect' +
+      '?response_type=code' +
+      '&redirect_uri=' + encodeURIComponent(redirectUri) +
+      '&scope=' + encodeURIComponent(scopes) +
+      '&client_id=' + clientId +
+      '&state=' + state +
+      '&code_challenge=' + codeChallenge +
+      '&code_challenge_method=S256';
+
+    res.json({ url, state });
   } catch(e) {
-    console.error('Etsy login error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
+
+// ── ETSY OAUTH PKCE — Step 2 : callback + échange du code ──
+router.get('/etsy-callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    if (!code) return res.status(400).send('Missing code');
+
+    const axios = require('axios');
+    const AutoSearchState = require('../models/autoSearchModel');
+
+    // Retrouver le verifier via le state
+    const stateDoc = await AutoSearchState.findOne({ oauthState: state });
+    if (!stateDoc) return res.status(400).send('Invalid state — please try again');
+
+    const clientId = process.env.ETSY_CLIENT_ID;
+    const redirectUri = process.env.ETSY_REDIRECT_URI || (req.protocol + '://' + req.get('host') + '/api/shops/etsy-callback');
+
+    // Échanger le code contre un token
+    const tokenRes = await axios.post('https://api.etsy.com/v3/public/oauth/token', {
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code: code,
+      code_verifier: stateDoc.oauthVerifier,
+    }, { headers: { 'Content-Type': 'application/json' } });
+
+    const { access_token, refresh_token } = tokenRes.data;
+
+    // Sauvegarder le token
+    await AutoSearchState.findOneAndUpdate(
+      { _id: stateDoc._id },
+      { $set: { etsyToken: access_token, etsyRefreshToken: refresh_token, oauthVerifier: null, oauthState: null, updatedAt: new Date() } }
+    );
+
+    // Fermer la popup et notifier la fenêtre parent
+    res.send('<html><body><script>if(window.opener){window.opener.postMessage({type:"etsy_oauth_success",token:"' + access_token + '"},"*");}window.close();</script><p>Connected! You can close this window.</p></body></html>');
+  } catch(e) {
+    console.error('Etsy callback error:', e.message);
+    res.send('<html><body><script>if(window.opener){window.opener.postMessage({type:"etsy_oauth_error",error:"' + e.message.replace(/"/g, '') + '"},"*");}window.close();</script><p>Error: ' + e.message + '</p></body></html>');
+  }
+});
+
+
 
 
 module.exports = router;
