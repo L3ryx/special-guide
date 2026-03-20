@@ -245,35 +245,33 @@ router.post('/search-dropship', async (req, res) => {
       const sbKeys = getScrapingBeeKeys();
       if (sbKeys.length === 0) throw new Error('No ScrapingBee keys configured');
 
-      const sbKey = sbKeys[_currentKeyIndex];
-
-      try {
-        const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-          params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
-          timeout: 120000,
-        });
-        const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-        if (html.length > 500) return html;
-        throw new Error('Response too short');
-      } catch (e) {
-        if (isInsufficientCredits(e)) {
-          // Crédits épuisés → passer à la clé suivante
-          const nextIndex = _currentKeyIndex + 1 >= sbKeys.length ? 0 : _currentKeyIndex + 1;
-              _currentKeyIndex = nextIndex;
-          // Réessayer avec la nouvelle clé
-          const newKey = sbKeys[_currentKeyIndex];
-          const r2 = await axios.get('https://app.scrapingbee.com/api/v1/', {
-            params: { api_key: newKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
+      // Essayer toutes les clés à partir de _currentKeyIndex
+      const startIndex = _currentKeyIndex % sbKeys.length;
+      for (let attempt = 0; attempt < sbKeys.length; attempt++) {
+        const idx = (startIndex + attempt) % sbKeys.length;
+        const sbKey = sbKeys[idx];
+        try {
+          const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+            params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
             timeout: 120000,
           });
-          const html2 = typeof r2.data === 'string' ? r2.data : JSON.stringify(r2.data);
-          if (html2.length > 500) return html2;
-          throw new Error('Response too short after key switch');
+          const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+          if (html.length > 500) {
+            _currentKeyIndex = idx; // rester sur cette clé pour les prochaines requêtes
+            return html;
+          }
+          throw new Error('Response too short');
+        } catch (e) {
+          if (isInsufficientCredits(e)) {
+            // Cette clé est épuisée → essayer la suivante
+            _currentKeyIndex = (idx + 1) % sbKeys.length;
+            continue;
+          }
+          throw e; // erreur non liée aux crédits → on propage
         }
-        throw e;
       }
 
-      // Fallback ScraperAPI
+      // Toutes les clés ScrapingBee épuisées → fallback ScraperAPI
       const saKey = process.env.SCRAPEAPI_KEY;
       if (saKey) {
         const r = await axios.get('http://api.scraperapi.com', {
