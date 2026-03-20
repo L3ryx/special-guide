@@ -75,10 +75,58 @@
       flex-shrink: 0; padding: 9px 18px; border-radius: 10px;
       border: 1px solid rgba(241,100,30,0.5);
       background: rgba(241,100,30,0.18); color: #fb923c;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.8rem;
+      font-family: 'Croissant One', cursive; font-weight: 700; font-size: 0.8rem;
       text-decoration: none; transition: all 0.2s; white-space: nowrap;
     }
     .btn-visit:hover { background: rgba(241,100,30,0.35); color: #fff; }
+    .btn-clone {
+      flex-shrink: 0; padding: 9px 18px; border-radius: 10px;
+      border: 1px solid rgba(59,130,246,0.5);
+      background: rgba(59,130,246,0.18); color: #60a5fa;
+      font-family: 'Croissant One', cursive; font-weight: 700; font-size: 0.8rem;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-clone:hover { background: rgba(59,130,246,0.35); color: #fff; }
+    .btn-clone:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* Etsy Login Button */
+    #etsy-login-btn {
+      position: fixed; top: 12px; right: 12px; z-index: 300;
+      padding: 9px 18px; border-radius: 12px;
+      background: rgba(241,100,30,0.18); border: 1.5px solid rgba(241,100,30,0.5);
+      color: #fb923c; font-family: 'Croissant One', cursive; font-weight: 700; font-size: 0.85rem;
+      cursor: pointer; transition: all 0.2s;
+    }
+    #etsy-login-btn:hover { background: rgba(241,100,30,0.35); color: #fff; }
+    #etsy-login-btn.connected { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.4); color: #4ade80; }
+
+    /* Etsy Login Modal */
+    #etsy-modal { position: fixed; inset: 0; z-index: 9000; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 20px; }
+    #etsy-modal.open { display: flex; }
+    .etsy-modal-box { background: rgba(12,12,12,0.97); border: 1px solid rgba(255,255,255,0.12); border-radius: 22px; padding: 32px 28px; max-width: 400px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
+    .etsy-modal-title { font-family: 'Croissant One', cursive; font-size: 1.2rem; color: #fff; }
+    .etsy-modal-sub { font-size: 0.8rem; color: rgba(255,255,255,0.5); line-height: 1.5; }
+    .etsy-modal-input { width: 100%; padding: 13px 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: #fff; font-family: 'Croissant One', cursive; font-size: 0.9rem; outline: none; }
+    .etsy-modal-input:focus { border-color: #f97316; }
+    .etsy-modal-save { padding: 14px; border-radius: 12px; border: none; background: #f97316; color: #fff; font-family: 'Croissant One', cursive; font-weight: 700; font-size: 1rem; cursor: pointer; transition: all 0.2s; }
+    .etsy-modal-save:hover { background: #ea6c0a; }
+    .etsy-modal-close { text-align: center; font-size: 0.78rem; color: rgba(255,255,255,0.4); cursor: pointer; }
+    .etsy-modal-close:hover { color: #fff; }
+
+    /* Clone Progress Modal */
+    #clone-modal { position: fixed; inset: 0; z-index: 8000; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 20px; }
+    #clone-modal.open { display: flex; }
+    .clone-modal-box { background: rgba(10,10,10,0.97); border: 1px solid rgba(255,255,255,0.1); border-radius: 22px; padding: 28px; max-width: 500px; width: 100%; max-height: 80vh; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .clone-modal-title { font-family: 'Croissant One', cursive; font-size: 1.1rem; color: #fff; }
+    .clone-log { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+    .clone-log-item { font-size: 0.8rem; color: rgba(255,255,255,0.7); padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,0.04); border-left: 2px solid rgba(255,255,255,0.1); }
+    .clone-log-item.published { border-left-color: #22c55e; color: #4ade80; }
+    .clone-log-item.error { border-left-color: #ef4444; color: #f87171; }
+    .clone-log-item.skip { border-left-color: #f97316; color: #fb923c; }
+    .clone-close-btn { padding: 12px; border-radius: 10px; border: none; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); font-family: 'Croissant One', cursive; font-size: 0.9rem; cursor: pointer; }
+    .clone-close-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .clone-progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.07); border-radius: 6px; overflow: hidden; }
+    .clone-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #60a5fa); border-radius: 6px; transition: width 0.4s ease; }
 
 
 
@@ -106,6 +154,30 @@
   </style>
 </head>
 <body>
+  <!-- ETSY LOGIN BUTTON -->
+  <button id="etsy-login-btn" onclick="openEtsyModal()">🔗 Etsy Login</button>
+
+  <!-- ETSY LOGIN MODAL -->
+  <div id="etsy-modal">
+    <div class="etsy-modal-box">
+      <div class="etsy-modal-title">🔗 Etsy Login</div>
+      <div class="etsy-modal-sub">Enter your Etsy API access token to enable automatic publishing. You can find it in your Etsy Developer account.</div>
+      <input class="etsy-modal-input" type="text" id="etsy-token-input" placeholder="Paste your Etsy access token..."/>
+      <button class="etsy-modal-save" onclick="saveEtsyToken()">Save token</button>
+      <div class="etsy-modal-close" onclick="closeEtsyModal()">Cancel</div>
+    </div>
+  </div>
+
+  <!-- CLONE PROGRESS MODAL -->
+  <div id="clone-modal">
+    <div class="clone-modal-box">
+      <div class="clone-modal-title">🔄 Cloning shop listings...</div>
+      <div class="clone-progress-bar"><div class="clone-progress-fill" id="clone-progress-fill"></div></div>
+      <div class="clone-log" id="clone-log"></div>
+      <button class="clone-close-btn" id="clone-close-btn" onclick="closeCloneModal()" style="display:none">Close</button>
+    </div>
+  </div>
+
   <div id="bg-layer"></div>
   <canvas id="milkyway-canvas"></canvas>
   <canvas id="shooting-canvas"></canvas>
@@ -113,12 +185,12 @@
   <nav>
     <div class="nav-left">
       <button type="button" class="btn-back" onclick="goBack()">← Back</button>
-      <span class="nav-title">Dashboard</span>
+      <span class="nav-title">My List</span>
     </div>
   </nav>
 
   <div class="container">
-    <h1>My shops</h1>
+    <h1>My List</h1>
     <div class="shops-list" id="shops-list"></div>
   </div>
 
@@ -217,6 +289,13 @@
       visitBtn.textContent = 'Visit shop ↗';
       row.appendChild(visitBtn);
 
+      // Bouton Clone
+      const cloneBtn = document.createElement('button');
+      cloneBtn.className = 'btn-clone';
+      cloneBtn.textContent = 'Clone';
+      cloneBtn.onclick = function() { cloneShop(shopName, cloneBtn); };
+      row.appendChild(cloneBtn);
+
       // Bouton supprimer
       const delBtn = document.createElement('button');
       delBtn.className = 'btn-delete'; delBtn.textContent = '✕';
@@ -314,6 +393,131 @@
         requestAnimationFrame(drawS);
       }
     })();
+
+    // ── ETSY LOGIN ──
+    var _etsyToken = null;
+
+    async function initEtsyToken() {
+      var token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        var r = await fetch('/api/shops/etsy-token', { headers: { 'Authorization': 'Bearer ' + token } });
+        var d = await r.json();
+        if (d.token) { _etsyToken = d.token; updateEtsyBtn(true); }
+      } catch(e) {}
+    }
+
+    function updateEtsyBtn(connected) {
+      var btn = document.getElementById('etsy-login-btn');
+      if (!btn) return;
+      if (connected) { btn.textContent = '✅ Etsy Connected'; btn.classList.add('connected'); }
+      else { btn.textContent = '🔗 Etsy Login'; btn.classList.remove('connected'); }
+    }
+
+    function openEtsyModal() { document.getElementById('etsy-modal').classList.add('open'); }
+    function closeEtsyModal() { document.getElementById('etsy-modal').classList.remove('open'); }
+
+    async function saveEtsyToken() {
+      var t = document.getElementById('etsy-token-input').value.trim();
+      if (!t) return;
+      var authToken = localStorage.getItem('scout_token');
+      try {
+        var r = await fetch('/api/shops/etsy-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+          body: JSON.stringify({ accessToken: t })
+        });
+        if (r.ok) { _etsyToken = t; updateEtsyBtn(true); closeEtsyModal(); showToast('Etsy token saved!', '#22c55e'); }
+        else { var d = await r.json(); showToast('Error: ' + (d.error || r.status), '#ef4444'); }
+      } catch(e) { showToast(e.message, '#ef4444'); }
+    }
+
+    // ── CLONE SHOP ──
+    function openCloneModal() {
+      document.getElementById('clone-log').innerHTML = '';
+      document.getElementById('clone-progress-fill').style.width = '0%';
+      document.getElementById('clone-close-btn').style.display = 'none';
+      document.getElementById('clone-modal').classList.add('open');
+    }
+    function closeCloneModal() { document.getElementById('clone-modal').classList.remove('open'); }
+
+    function addCloneLog(msg, type) {
+      var log = document.getElementById('clone-log');
+      var item = document.createElement('div');
+      item.className = 'clone-log-item' + (type ? ' ' + type : '');
+      item.textContent = msg;
+      log.appendChild(item);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function cloneShop(shopName, btn) {
+      if (!_etsyToken) { openEtsyModal(); return; }
+      if (!shopName) { showToast('No shop name', '#ef4444'); return; }
+      btn.disabled = true;
+      openCloneModal();
+
+      var authToken = localStorage.getItem('scout_token');
+      var total = 0;
+      var published = 0;
+
+      try {
+        var res = await fetch('/api/shops/clone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+          body: JSON.stringify({ shopName: shopName })
+        });
+
+        var ct = res.headers.get('content-type') || '';
+        if (!ct.includes('text/event-stream')) {
+          var d = await res.json();
+          addCloneLog('Error: ' + (d.error || 'Unknown'), 'error');
+          document.getElementById('clone-close-btn').style.display = 'block';
+          btn.disabled = false;
+          return;
+        }
+
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder();
+        var buf = '';
+
+        while (true) {
+          var read = await reader.read();
+          if (read.done) break;
+          buf += decoder.decode(read.value, { stream: true });
+          var lines = buf.split('\n'); buf = lines.pop();
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            if (!line.startsWith('data: ')) continue;
+            try {
+              var ev = JSON.parse(line.slice(6));
+              if (ev.step === 'found') {
+                total = ev.total || 0;
+                addCloneLog(ev.message);
+              } else if (ev.step === 'published') {
+                published++;
+                addCloneLog(ev.message, 'published');
+                if (total > 0) document.getElementById('clone-progress-fill').style.width = Math.round((ev.index + 1) / total * 100) + '%';
+              } else if (ev.step === 'skip') {
+                addCloneLog(ev.message, 'skip');
+              } else if (ev.step === 'error_listing' || ev.step === 'error') {
+                addCloneLog(ev.message, 'error');
+              } else if (ev.step === 'complete') {
+                addCloneLog(ev.message + ' (' + published + ' published)', 'published');
+                document.getElementById('clone-progress-fill').style.width = '100%';
+              } else {
+                addCloneLog(ev.message || ev.step);
+              }
+            } catch(e) {}
+          }
+        }
+      } catch(e) { addCloneLog('Connection error: ' + e.message, 'error'); }
+
+      document.getElementById('clone-close-btn').style.display = 'block';
+      btn.disabled = false;
+    }
+
+    // Init Etsy token au chargement
+    initEtsyToken();
   </script>
 </body>
 </html>
