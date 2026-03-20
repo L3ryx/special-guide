@@ -1090,8 +1090,8 @@
         if (_stopRequested) break; // arrêter la boucle keywords
       }
 
-      // Fin — restaurer l'UI sauf si stop déjà appelé
-      if (!_stopRequested) {
+      // Fin — restaurer l'UI sauf si stop ou mode auto
+      if (!_stopRequested && !_autoSearch) {
         restoreUI();
         clearKeywords();
         if (hasError && totalMatches === 0) {
