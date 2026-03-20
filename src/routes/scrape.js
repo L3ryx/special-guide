@@ -221,9 +221,7 @@ router.post('/search-dropship', async (req, res) => {
     // ── ScrapingBee key rotation — essaie les 10 clés en cas de crédit insuffisant ──
     function getScrapingBeeKeys() {
       const keys = [];
-      // Clé principale
       if (process.env.SCRAPINGBEE_KEY) keys.push(process.env.SCRAPINGBEE_KEY);
-      // Clés additionnelles SCRAPINGBEE_KEY_2 à SCRAPINGBEE_KEY_10
       for (let i = 2; i <= 10; i++) {
         const k = process.env['SCRAPINGBEE_KEY_' + i];
         if (k) keys.push(k);
@@ -240,30 +238,40 @@ router.post('/search-dropship', async (req, res) => {
         || body.includes('credit') || body.includes('insufficient') || body.includes('quota');
     }
 
+    // Index de la clé courante — persiste pendant toute la durée du process
+    // Ne change QUE quand crédits épuisés. Revient à 0 après la clé 10.
+    let _currentKeyIndex = 0;
+
     async function scrapingbeeFetch(targetUrl, sbParams = {}) {
       const sbKeys = getScrapingBeeKeys();
+      if (sbKeys.length === 0) throw new Error('No ScrapingBee keys configured');
 
-      // Essayer chaque clé ScrapingBee dans l'ordre
-      for (let i = 0; i < sbKeys.length; i++) {
-        const sbKey = sbKeys[i];
-        try {
-          const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-            params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
+      const sbKey = sbKeys[_currentKeyIndex];
+
+      try {
+        const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+          params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
+          timeout: 120000,
+        });
+        const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+        if (html.length > 500) return html;
+        throw new Error('Response too short');
+      } catch (e) {
+        if (isInsufficientCredits(e)) {
+          // Crédits épuisés → passer à la clé suivante
+          const nextIndex = _currentKeyIndex + 1 >= sbKeys.length ? 0 : _currentKeyIndex + 1;
+              _currentKeyIndex = nextIndex;
+          // Réessayer avec la nouvelle clé
+          const newKey = sbKeys[_currentKeyIndex];
+          const r2 = await axios.get('https://app.scrapingbee.com/api/v1/', {
+            params: { api_key: newKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
             timeout: 120000,
           });
-          const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-          if (html.length > 500) {
-            if (i > 0) console.log(`[ScrapingBee] Used key #${i + 1}`);
-            return html;
-          }
-        } catch (e) {
-          if (isInsufficientCredits(e)) {
-            console.warn(`[ScrapingBee] Key #${i + 1} insufficient credits — trying next key`);
-            continue; // essayer la clé suivante
-          }
-          console.warn(`[ScrapingBee] Key #${i + 1} failed: ${e.message.slice(0, 80)}`);
-          if (i === sbKeys.length - 1) break; // toutes les clés épuisées
+          const html2 = typeof r2.data === 'string' ? r2.data : JSON.stringify(r2.data);
+          if (html2.length > 500) return html2;
+          throw new Error('Response too short after key switch');
         }
+        throw e;
       }
 
       // Fallback ScraperAPI
