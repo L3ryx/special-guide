@@ -309,26 +309,30 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     if (!sbKey) return res.status(500).json({ error: 'No ScrapingBee key configured' });
 
     // ScrapingBee js_scenario doit être un objet JSON stringifié
-    // ScrapingBee : POST avec body JSON pour les scénarios complexes
-    var loginRes = await axios.post('https://app.scrapingbee.com/api/v1/', {
-      api_key: sbKey,
-      url: 'https://www.etsy.com/signin',
-      country_code: 'us',
-      stealth_proxy: true,
-      render_js: true,
-      js_scenario: {
-        instructions: [
-          { wait: 3000 },
-          { evaluate: 'document.querySelector("#email") && document.querySelector("#email").value' },
-          { fill: { selector: '#email', value: email } },
-          { wait: 1000 },
-          { fill: { selector: '#password', value: password } },
-          { wait: 1000 },
-          { click: '#join_neu_submit_btn' },
-          { wait: 5000 }
-        ]
-      }
-    }, { timeout: 120000 });
+    // ScrapingBee GET avec js_scenario stringifié
+    var scenario = JSON.stringify({
+      instructions: [
+        { wait: 2000 },
+        { fill: { selector: '#email', value: email } },
+        { wait: 500 },
+        { fill: { selector: '#password', value: password } },
+        { wait: 500 },
+        { click: '#join_neu_submit_btn' },
+        { wait: 5000 }
+      ]
+    });
+
+    var loginRes = await axios.get('https://app.scrapingbee.com/api/v1/', {
+      params: {
+        api_key: sbKey,
+        url: 'https://www.etsy.com/signin',
+        country_code: 'us',
+        stealth_proxy: 'true',
+        render_js: 'true',
+        js_scenario: scenario,
+      },
+      timeout: 120000,
+    });
 
     var resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
 
