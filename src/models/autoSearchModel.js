@@ -7,6 +7,7 @@ const autoSearchStateSchema = new mongoose.Schema({
   usedShops:    { type: [String], default: [] },
   etsyToken:    { type: String, default: null },
   etsyEmail:    { type: String, default: null },
+  etsyPassword: { type: String, default: null },
   updatedAt:    { type: Date, default: Date.now },
 });
 
