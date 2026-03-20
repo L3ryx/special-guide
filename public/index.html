@@ -335,7 +335,7 @@
       <div id="loading-spinner">
         <div class="spinner-ring"></div>
         <div class="spinner-label">Loading...</div>
-        <button id="stop-btn" onclick="stopSearch()">⛔️ Stop</button>
+        <button id="stop-btn" onclick="stopSearch()">⏹ Stop</button>
         <div id="current-keyword-label"></div>
       </div>
 
@@ -826,29 +826,35 @@
       document.getElementById('progress-msg').textContent = '';
     }
 
-    // ── Barre de progression synchronisée ──
+    // ── Barre de progression ──
     var _progressCurrent = 0;
     var _progressTarget  = 0;
     var _progressRaf     = null;
 
-    // Avance doucement vers _progressTarget (phase scraping/idle)
+    // RAF : avance doucement de current vers target
     function _animateProgress() {
       var el = document.getElementById('progress-fill');
       if (!el) return;
-      // Avance très lentement en phase scraping (avant d'avoir des données)
-      if (_progressCurrent < _progressTarget) {
-        _progressCurrent = Math.min(_progressTarget, _progressCurrent + 0.08);
+      var diff = _progressTarget - _progressCurrent;
+      if (diff > 0.05) {
+        // Avance proportionnellement au gap — plus lent si proche de la cible
+        _progressCurrent += diff * 0.04;
       } else {
-        _progressCurrent = Math.min(12, _progressCurrent + 0.004);
+        _progressCurrent = _progressTarget;
       }
       el.style.width = _progressCurrent.toFixed(2) + '%';
       if (_progressCurrent > 1 && _progressCurrent < 99) el.classList.add('burning');
       else el.classList.remove('burning');
-      if (_progressCurrent < 100) _progressRaf = requestAnimationFrame(_animateProgress);
+      if (_progressCurrent < 99.9) {
+        _progressRaf = requestAnimationFrame(_animateProgress);
+      } else {
+        _progressRaf = null;
+      }
     }
 
-    function setProgress(target) {
-      _progressTarget = target;
+    function setProgressTarget(target) {
+      // Ne jamais reculer
+      _progressTarget = Math.max(_progressTarget, target);
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
@@ -859,19 +865,12 @@
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
     }
 
-    // Synchronisation directe done/total → pas d'estimation, juste proportionnel
+    // Appelé à chaque event analyzing avec done/total
     function syncProgressFromAnalyzing(total, done) {
-      if (total > 0) {
-        // 10% scraping + 80% analyzing proportionnel au nombre de boutiques analysées
-        var pct = 10 + Math.round((done / total) * 80);
-        // Appliquer directement sans animation pour rester synchronisé
-        _progressCurrent = Math.max(_progressCurrent, pct);
-        _progressTarget = _progressCurrent;
-        var el = document.getElementById('progress-fill');
-        if (el) {
-          el.style.width = _progressCurrent.toFixed(2) + '%';
-          if (_progressCurrent > 1 && _progressCurrent < 99) el.classList.add('burning');
-        }
+      if (total > 0 && done > 0) {
+        // 15% scraping + 75% analyzing proportionnel
+        var pct = 15 + (done / total) * 75;
+        setProgressTarget(pct);
       }
     }
 
@@ -884,26 +883,14 @@
         else el.className = 'step-dot';
       });
       if (msg) document.getElementById('progress-msg').textContent = msg;
-
-      if (k === 'scraping') {
-        // Phase scraping : cible 10%, avance lentement
-        setProgress(10);
-      } else if (k === 'analyzing') {
-        // Démarrer le timer si c'est le premier event analyzing
-        if (!_startTime) { _startTime = Date.now(); setProgress(12); }
-      } else if (k === 'match') {
-        // Un match trouvé : petite impulsion
-        _progressTarget = Math.min(94, _progressTarget + 1);
-      }
-
+      if (k === 'scraping') setProgressTarget(10);
+      else if (k === 'analyzing') setProgressTarget(15);
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
     function completeAllSteps() {
       STEPS.forEach(function(s) { const el = document.getElementById('step-' + s.key); if (el) el.className = 'step-dot done'; });
-      _progressTarget = 100;
-      _progressCurrent = Math.min(99, _progressCurrent);
-      if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
+      setProgressTarget(100);
     }
 
     // ── SEARCH ──
