@@ -291,60 +291,58 @@ router.get('/etsy-token', requireAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── ETSY LOGIN via ScrapingBee ──
+// ── ETSY LOGIN via ScrapeAPI ──
 router.post('/etsy-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
     const axios = require('axios');
+    const saKey = process.env.SCRAPEAPI_KEY;
+    if (!saKey) return res.status(500).json({ error: 'SCRAPEAPI_KEY not configured' });
 
-    function getAllSbKeys() {
-      var keys = [];
-      if (process.env.SCRAPINGBEE_KEY) keys.push(process.env.SCRAPINGBEE_KEY);
-      for (var i = 2; i <= 10; i++) { var k = process.env['SCRAPINGBEE_KEY_' + i]; if (k) keys.push(k); }
-      return keys;
-    }
-
-    var sbKeys = getAllSbKeys();
-    if (!sbKeys.length) return res.status(500).json({ error: 'No ScrapingBee key configured' });
-
-    var scenario = JSON.stringify({
-      instructions: [
-        { wait: 2000 },
-        { fill: { selector: '#email', value: email } },
-        { wait: 500 },
-        { fill: { selector: '#password', value: password } },
-        { wait: 500 },
-        { click: '#join_neu_submit_btn' },
-        { wait: 5000 }
-      ]
+    // ScrapeAPI avec session + JS rendering pour simuler le login Etsy
+    var loginRes = await axios.get('https://api.scraperapi.com', {
+      params: {
+        api_key: saKey,
+        url: 'https://www.etsy.com/signin',
+        render: 'true',
+        country_code: 'us',
+        session_number: '1',
+      },
+      timeout: 60000,
     });
 
-    var loginRes = null;
-    var lastErr = null;
-    for (var ki = 0; ki < sbKeys.length; ki++) {
-      try {
-        loginRes = await axios.get('https://app.scrapingbee.com/api/v1/', {
-          params: {
-            api_key: sbKeys[ki],
-            url: 'https://www.etsy.com/signin',
-            country_code: 'us',
-            stealth_proxy: 'true',
-            render_js: 'true',
-            js_scenario: scenario,
-          },
-          timeout: 120000,
-        });
-        break;
-      } catch(e) {
-        lastErr = e;
-      }
-    }
-    if (!loginRes) return res.status(500).json({ error: 'All ScrapingBee keys failed: ' + (lastErr && lastErr.message) });
+    var html = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
 
+    // Extraire le CSRF token
+    var csrfMatch = html.match(/name="_nnc"\s+value="([^"]+)"/i)
+      || html.match(/csrf[_-]token[^>]+content="([^"]+)"/i)
+      || html.match(/"form_key"\s*:\s*"([^"]+)"/i);
+    var csrf = csrfMatch ? csrfMatch[1] : '';
 
-    var resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
+    // Soumettre le formulaire de login via POST direct
+    var FormData = require('form-data');
+    var form = new FormData();
+    form.append('email', email);
+    form.append('password', password);
+    form.append('_nnc', csrf);
+    form.append('signin_submitted', '1');
+
+    var submitRes = await axios.get('https://api.scraperapi.com', {
+      params: {
+        api_key: saKey,
+        url: 'https://www.etsy.com/signin',
+        render: 'true',
+        country_code: 'us',
+        session_number: '1',
+        method: 'POST',
+        body: 'email=' + encodeURIComponent(email) + '&password=' + encodeURIComponent(password) + '&_nnc=' + encodeURIComponent(csrf) + '&signin_submitted=1',
+      },
+      timeout: 60000,
+    });
+
+    var resultHtml = typeof submitRes.data === 'string' ? submitRes.data : JSON.stringify(submitRes.data);
 
     var isLoggedIn = resultHtml.includes('sign-out')
       || resultHtml.includes('signout')
@@ -354,23 +352,23 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
       || resultHtml.includes('logout');
 
     if (!isLoggedIn) {
-      return res.status(401).json({ error: 'Login failed — check your email and password' });
+      return res.status(401).json({ error: 'Login failed — check your credentials' });
     }
 
-    // Stocker email/password chiffrés pour les réutiliser dans les requêtes ScrapingBee
     var AutoSearchState = require('../models/autoSearchModel');
     await AutoSearchState.findOneAndUpdate(
       { userId: req.user.id },
-      { $set: { etsyToken: 'sb_session', etsyEmail: email, etsyPassword: password, updatedAt: new Date() } },
+      { $set: { etsyToken: 'sa_session_1', etsyEmail: email, etsyPassword: password, updatedAt: new Date() } },
       { upsert: true }
     );
 
-    res.json({ ok: true, token: 'sb_session' });
+    res.json({ ok: true, token: 'sa_session_1' });
   } catch(e) {
     console.error('Etsy login error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
+
 
 module.exports = router;
 
