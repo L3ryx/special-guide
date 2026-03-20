@@ -16,20 +16,22 @@ if (mongoose.connection.readyState === 0) {
 router.post('/niche-keyword', async (req, res) => {
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
   try {
+    const now = new Date();
+    const month = now.toLocaleString('en', { month: 'long' });
+    const year = now.getFullYear();
+    const prompt = `It is ${month} ${year}. Give me a single short English niche keyword (2-4 words) for an Etsy product search. It must be a PHYSICAL product that is trending RIGHT NOW this season. Consider current holidays, seasons, and trends for ${month}. Be specific (not generic like "jewelry" or "bag"). Do NOT suggest digital products, printables, SVG files, downloads, or templates. Respond with ONLY the keyword, no punctuation, no explanation.`;
     const r = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      { contents: [{ parts: [{ text: 'Give me a single short English niche keyword (2-4 words) for an Etsy product search. It should be a specific, trending, or profitable niche for PHYSICAL products only. Do NOT suggest digital products, printables, SVG files, digital downloads, templates, or any non-physical items. Respond with ONLY the keyword, no punctuation, no explanation.' }] }] },
+      { contents: [{ parts: [{ text: prompt }] }] },
       { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
     );
-    console.log('[niche-keyword] raw:', JSON.stringify(r.data).slice(0, 200));
     const parts = r.data.candidates?.[0]?.content?.parts || [];
     const rawText = parts.map(p => p.text || '').join(' ');
     const keyword = rawText.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-    if (!keyword) return res.status(500).json({ error: 'Empty response. Raw: ' + JSON.stringify(r.data).slice(0, 200) });
+    if (!keyword) return res.status(500).json({ error: 'No keyword generated' });
     res.json({ keyword });
   } catch(e) {
     const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-    console.error('[niche-keyword] error:', detail);
     res.status(500).json({ error: detail });
   }
 });
