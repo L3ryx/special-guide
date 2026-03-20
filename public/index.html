@@ -12,8 +12,8 @@
     body { position: relative; }
     html.unlocked, html.unlocked body { overflow-y: auto; overflow-x: hidden; }
 
-    #bg-layer { position: fixed; inset: 0; z-index: -3; background: #0a0a0a url('/background.png') center center / cover no-repeat; animation: bgDrift 18s ease-in-out infinite alternate; }
-    @keyframes bgDrift { 0%{transform:translate(0,0)} 25%{transform:translate(-8px,-5px)} 50%{transform:translate(5px,-8px)} 75%{transform:translate(-4px,6px)} 100%{transform:translate(6px,3px)} }
+    #bg-layer { position: fixed; inset: 0; z-index: -3; background: #0a0a0a url('/background.png') center center / cover no-repeat; animation: bgDrift 18s ease-in-out infinite alternate; transform-origin: center; will-change: transform; }
+    @keyframes bgDrift { 0%{transform:scale(1.08)translate(0,0)} 25%{transform:scale(1.1)translate(-12px,-8px)} 50%{transform:scale(1.08)translate(8px,-14px)} 75%{transform:scale(1.1)translate(-6px,10px)} 100%{transform:scale(1.08)translate(10px,6px)} }
     #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.5); }
     #milkyway-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-2; pointer-events:none; }
     #shooting-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
