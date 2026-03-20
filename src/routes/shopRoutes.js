@@ -434,16 +434,12 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    let puppeteer;
-    try {
-      puppeteer = require('puppeteer');
-    } catch(e) {
-      return res.status(500).json({ error: 'Puppeteer not installed: ' + e.message });
-    }
+    const puppeteer = require('puppeteer-core');
+    const blToken = process.env.BROWSERLESS_TOKEN;
+    if (!blToken) return res.status(500).json({ error: 'BROWSERLESS_TOKEN not configured' });
 
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    const browser = await puppeteer.connect({
+      browserWSEndpoint: 'wss://chrome.browserless.io?token=' + blToken,
     });
 
     try {
@@ -465,13 +461,13 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
         || content.includes('user_prefs') || !content.includes('signin');
 
       if (!isLoggedIn) {
-        await browser.close();
+        await browser.disconnect();
         return res.status(401).json({ error: 'Login failed — check your email and password' });
       }
 
       const cookies = await page.cookies();
       const cookieStr = cookies.map(c => c.name + '=' + c.value).join('; ');
-      await browser.close();
+      await browser.disconnect();
 
       const AutoSearchState = require('../models/autoSearchModel');
       await AutoSearchState.findOneAndUpdate(
@@ -482,7 +478,7 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 
       res.json({ ok: true, token: cookieStr });
     } catch(e) {
-      await browser.close().catch(() => {});
+      await browser.disconnect().catch(() => {});
       throw e;
     }
   } catch(e) {
