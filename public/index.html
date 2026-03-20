@@ -840,14 +840,14 @@
         // Synchronisé : avancer pour couvrir 85% en _estimatedMs
         // pct/frame = 85% / (estimatedMs / 16.67ms)
         speed = (85 / (_estimatedMs / 16.67));
-        speed = Math.max(0.005, Math.min(speed, 0.5));
+        speed = Math.max(0.003, Math.min(speed, 0.15));
       } else {
         // Pas encore estimé : avance très lentement (phase scraping)
         speed = 0.006;
       }
 
       if (_progressCurrent < _progressTarget) {
-        _progressCurrent = Math.min(_progressTarget, _progressCurrent + 0.4);
+        _progressCurrent = Math.min(_progressTarget, _progressCurrent + 0.12);
       } else {
         // Dépasse pas la cible sauf en mode synchronisé
         _progressCurrent = Math.min(94, _progressCurrent + speed);
