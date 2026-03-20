@@ -221,18 +221,72 @@ router.post('/clone', requireAuth, async (req, res) => {
         if (!aliFound) { send({ step: 'skip', message: 'Not on AliExpress: ' + rawTitle }); continue; }
         send({ step: 'ali_match', message: '✅ AliExpress confirmed!' });
 
-        // Upload images ImgBB
-        var uploadedUrls = [];
-        for (var ui = 0; ui < imgs.length; ui++) {
+        // ── Télécharger les 5 premières images ──
+        send({ step: 'images', message: '📸 Downloading images...' });
+        var rawImages = [];
+        for (var ui = 0; ui < Math.min(imgs.length, 5); ui++) {
           try {
-            var imgData = await axios.get(imgs[ui], { responseType: 'arraybuffer', timeout: 10000 });
-            var b64 = Buffer.from(imgData.data).toString('base64');
+            var imgData = await axios.get(imgs[ui], { responseType: 'arraybuffer', timeout: 12000 });
+            rawImages.push({
+              b64: Buffer.from(imgData.data).toString('base64'),
+              mimeType: 'image/jpeg'
+            });
+          } catch(e) { console.warn('Image download:', e.message); }
+        }
+
+        // ── Gemini Imagen — modifier chaque image (fond + angle différents) ──
+        send({ step: 'imagen', message: '🎨 Modifying images with Gemini Imagen...' });
+        var uploadedUrls = [];
+
+        var angles = ['front view', 'slight left angle', 'slight right angle', 'top-down view', '3/4 angle view'];
+        var backgrounds = [
+          'a clean white marble surface with soft natural light',
+          'a rustic wooden table with warm bokeh background',
+          'a light grey minimalist studio background',
+          'a cozy home setting with soft blurred background',
+          'an outdoor natural setting with green plants blurred in background'
+        ];
+
+        for (var ii = 0; ii < rawImages.length; ii++) {
+          try {
+            var imagePrompt = 'Recreate this product image with a different background and angle. '
+              + 'Keep the exact same product, colors, and details. '
+              + 'Use this background: ' + backgrounds[ii % backgrounds.length] + '. '
+              + 'Show the product from a ' + angles[ii % angles.length] + '. '
+              + 'Professional product photography style, high quality, clean composition.';
+
+            var imagenRes = await axios.post(
+              'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=' + GEMINI_KEY,
+              {
+                instances: [{ prompt: imagePrompt, referenceImages: [{ referenceType: 'REFERENCE_TYPE_RAW', referenceId: 1, referenceImage: { bytesBase64Encoded: rawImages[ii].b64 } }] }],
+                parameters: { sampleCount: 1, aspectRatio: '1:1', safetyFilterLevel: 'BLOCK_SOME' }
+              },
+              { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
+            );
+
+            var generatedB64 = imagenRes.data && imagenRes.data.predictions && imagenRes.data.predictions[0] && imagenRes.data.predictions[0].bytesBase64Encoded;
+            if (!generatedB64) throw new Error('No image generated');
+
+            // Upload vers ImgBB
             var form = new FormData();
             form.append('key', IMGBB_KEY);
-            form.append('image', b64);
+            form.append('image', generatedB64);
             var up = await axios.post('https://api.imgbb.com/1/upload', form, { headers: form.getHeaders(), timeout: 15000 });
-            if (up.data && up.data.data && up.data.data.url) uploadedUrls.push(up.data.data.url);
-          } catch(e) { console.warn('ImgBB:', e.message); }
+            if (up.data && up.data.data && up.data.data.url) {
+              uploadedUrls.push(up.data.data.url);
+              send({ step: 'imagen', message: '🎨 Image ' + (ii+1) + '/' + rawImages.length + ' modified' });
+            }
+          } catch(imgErr) {
+            console.warn('Imagen error:', imgErr.message);
+            // Fallback : utiliser l'image originale
+            try {
+              var form2 = new FormData();
+              form2.append('key', IMGBB_KEY);
+              form2.append('image', rawImages[ii].b64);
+              var up2 = await axios.post('https://api.imgbb.com/1/upload', form2, { headers: form2.getHeaders(), timeout: 15000 });
+              if (up2.data && up2.data.data && up2.data.data.url) uploadedUrls.push(up2.data.data.url);
+            } catch(e2) { console.warn('ImgBB fallback:', e2.message); }
+          }
         }
 
         // Gemini SEO
