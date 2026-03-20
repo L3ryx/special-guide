@@ -160,12 +160,10 @@
   <!-- ETSY LOGIN MODAL -->
   <div id="etsy-modal">
     <div class="etsy-modal-box">
-      <div class="etsy-modal-title">🔗 Etsy Login</div>
-      <div class="etsy-modal-sub">Connect your Etsy account to enable automatic publishing.</div>
-      <input class="etsy-modal-input" type="email" id="etsy-email-input" placeholder="Etsy email address"/>
-      <input class="etsy-modal-input" type="password" id="etsy-password-input" placeholder="Etsy password"/>
-      <div id="etsy-login-msg" style="font-size:0.78rem;min-height:1em;color:#f87171;text-align:center;"></div>
-      <button class="etsy-modal-save" id="etsy-login-submit" onclick="loginEtsy()">Connect</button>
+      <div class="etsy-modal-title">🔗 Connect Etsy</div>
+      <div class="etsy-modal-sub">Click below to connect your Etsy account. A popup will open where you can sign in securely on Etsy's official page.</div>
+      <button class="etsy-modal-save" id="etsy-login-submit" onclick="startOAuth()">🔗 Connect with Etsy</button>
+      <div id="etsy-login-msg" style="font-size:0.78rem;min-height:1em;color:#f87171;text-align:center;margin-top:8px;"></div>
       <div class="etsy-modal-close" onclick="closeEtsyModal()">Cancel</div>
     </div>
   </div>
@@ -419,32 +417,56 @@
     function openEtsyModal() { document.getElementById('etsy-modal').classList.add('open'); }
     function closeEtsyModal() { document.getElementById('etsy-modal').classList.remove('open'); }
 
-    async function loginEtsy() {
-      var email = document.getElementById('etsy-email-input').value.trim();
-      var password = document.getElementById('etsy-password-input').value;
-      var msg = document.getElementById('etsy-login-msg');
+    async function startOAuth() {
       var btn = document.getElementById('etsy-login-submit');
-      if (!email || !password) { msg.textContent = 'Fill in all fields'; return; }
-      btn.disabled = true; btn.textContent = 'Connecting...';
+      var msg = document.getElementById('etsy-login-msg');
+      btn.disabled = true; btn.textContent = '⏳ Opening Etsy...';
       msg.textContent = '';
       var authToken = localStorage.getItem('scout_token');
       try {
-        var r = await fetch('/api/shops/etsy-login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-          body: JSON.stringify({ email: email, password: password })
+        var r = await fetch('/api/shops/etsy-oauth-url', {
+          headers: { 'Authorization': 'Bearer ' + authToken }
         });
         var d = await r.json();
-        if (r.ok && d.token) {
-          _etsyToken = d.token;
-          updateEtsyBtn(true);
-          closeEtsyModal();
-          showToast('Etsy connected! ✅', '#22c55e');
-        } else {
-          msg.textContent = d.error || 'Login failed';
-        }
-      } catch(e) { msg.textContent = e.message; }
-      btn.disabled = false; btn.textContent = 'Connect';
+        if (!r.ok) { msg.textContent = d.error || 'Error'; btn.disabled = false; btn.textContent = '🔗 Connect with Etsy'; return; }
+
+        // Ouvrir popup OAuth
+        var popup = window.open(d.url, 'etsy_oauth', 'width=600,height=700,scrollbars=yes');
+        msg.textContent = '⏳ Waiting for Etsy authorization...';
+        msg.style.color = '#f97316';
+
+        // Écouter le message de la popup
+        window.addEventListener('message', function onMsg(e) {
+          if (e.data && e.data.type === 'etsy_oauth_success') {
+            window.removeEventListener('message', onMsg);
+            _etsyToken = e.data.token;
+            updateEtsyBtn(true);
+            closeEtsyModal();
+            showToast('Etsy connected! ✅', '#22c55e');
+          } else if (e.data && e.data.type === 'etsy_oauth_error') {
+            window.removeEventListener('message', onMsg);
+            msg.textContent = 'Error: ' + e.data.error;
+            msg.style.color = '#f87171';
+            btn.disabled = false; btn.textContent = '🔗 Connect with Etsy';
+          }
+        });
+
+        // Vérifier si la popup est fermée sans résultat
+        var checkClosed = setInterval(function() {
+          if (popup && popup.closed) {
+            clearInterval(checkClosed);
+            if (!_etsyToken) {
+              msg.textContent = 'Window closed without connecting';
+              msg.style.color = '#f87171';
+              btn.disabled = false; btn.textContent = '🔗 Connect with Etsy';
+            }
+          }
+        }, 1000);
+
+      } catch(e) {
+        msg.textContent = e.message;
+        btn.disabled = false; btn.textContent = '🔗 Connect with Etsy';
+      }
     }
 
     // ── CLONE SHOP ──
