@@ -448,23 +448,36 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     await page.goto('https://www.etsy.com/signin', { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 3000));
 
-    // Remplir email
-    const emailSelectors = ['#email', 'input[name="email"]', 'input[type="email"]', 'input[autocomplete="email"]'];
+    const currentUrl = page.url();
+    const inputs = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('input')).map(i => ({ id: i.id, name: i.name, type: i.type, placeholder: i.placeholder }))
+    );
+    console.log('[Etsy] URL:', currentUrl, 'Inputs:', JSON.stringify(inputs));
+
+    // Trouver le champ email
+    const emailSelectors = ['#email','input[name="email"]','input[type="email"]','input[autocomplete="email"]','input[autocomplete="username"]','input[placeholder*="email" i]'];
     let emailSel = null;
     for (const sel of emailSelectors) {
-      try { await page.waitForSelector(sel, { timeout: 3000 }); emailSel = sel; break; } catch(e) {}
+      try { const el = await page.$(sel); if (el) { emailSel = sel; break; } } catch(e) {}
     }
-    if (!emailSel) { await browser.disconnect(); return res.status(500).json({ error: 'Email field not found' }); }
+    if (!emailSel) {
+      await browser.disconnect();
+      return res.status(500).json({ error: 'Email field not found. URL: ' + currentUrl + ' Inputs: ' + JSON.stringify(inputs) });
+    }
+    await page.click(emailSel);
     await page.type(emailSel, email, { delay: 60 });
 
-    // Remplir password
-    const passwordSelectors = ['#password', 'input[name="password"]', 'input[type="password"]'];
+    // Trouver le champ password
+    const passwordSelectors = ['#password','input[name="password"]','input[type="password"]'];
     let passSel = null;
     for (const sel of passwordSelectors) {
-      try { await page.waitForSelector(sel, { timeout: 3000 }); passSel = sel; break; } catch(e) {}
+      try { const el = await page.$(sel); if (el) { passSel = sel; break; } } catch(e) {}
     }
     if (!passSel) { await browser.disconnect(); return res.status(500).json({ error: 'Password field not found' }); }
+    await page.click(passSel);
     await page.type(passSel, password, { delay: 60 });
 
     // Soumettre
