@@ -343,10 +343,16 @@ module.exports = router;
 
 module.exports = router;
 
+
+module.exports = router;
+
+
+module.exports = router;
+
 // ── Store temporaire sessions 2FA ──
 const _pendingSessions = new Map();
 
-// ── ETSY LOGIN via Apify ──
+// ── ETSY LOGIN via Apify Web Scraper ──
 router.post('/etsy-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -356,47 +362,48 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     const apifyToken = process.env.APIFY_TOKEN;
     if (!apifyToken) return res.status(500).json({ error: 'APIFY_TOKEN not configured' });
 
-    // Utiliser l'API Apify Tasks avec le bon endpoint
+    const pageFunction = `async function pageFunction(context) {
+      const { page, request, log } = context;
+      await page.waitForTimeout(4000);
+      const inputs = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('input')).map(i => ({ id: i.id, type: i.type, name: i.name }))
+      );
+      log.info('Inputs found: ' + JSON.stringify(inputs));
+      const emailEl = await page.$('#email') || await page.$('input[type="email"]') || await page.$('input[name="email"]');
+      if (!emailEl) return { error: 'Email field not found', inputs, url: request.url };
+      await emailEl.fill('` + email.replace(/'/g, "\\'") + `');
+      await page.waitForTimeout(500);
+      const passEl = await page.$('#password') || await page.$('input[type="password"]');
+      if (!passEl) return { error: 'Password field not found' };
+      await passEl.fill('` + password.replace(/'/g, "\\'") + `');
+      await page.waitForTimeout(500);
+      const btn = await page.$('#join_neu_submit_btn') || await page.$('button[type="submit"]');
+      if (btn) await btn.click();
+      await page.waitForTimeout(6000);
+      const cookies = await page.context().cookies();
+      return { url: page.url(), cookies: cookies.map(c => c.name + '=' + c.value).join('; '), title: await page.title() };
+    }`;
+
+    // Lancer l'Actor Apify Web Scraper (ID: moJRLRc85AitArpNN)
     const runRes = await axios.post(
-      'https://api.apify.com/v2/actor-tasks',
+      'https://api.apify.com/v2/acts/moJRLRc85AitArpNN/runs',
       {
-        actId: 'apify/playwright-scraper',
-        input: {
-          startUrls: [{ url: 'https://www.etsy.com/signin' }],
-          pageFunction: `async ({ page }) => {
-            await page.waitForTimeout(3000);
-            const emailEl = await page.$('#email') || await page.$('input[type="email"]') || await page.$('input[name="email"]');
-            if (!emailEl) return { error: 'Email field not found', inputs: await page.evaluate(() => Array.from(document.querySelectorAll('input')).map(i => ({ id: i.id, type: i.type, name: i.name }))) };
-            await emailEl.fill('${email.replace(/'/g, "\\'")}');
-            await page.waitForTimeout(500);
-            const passEl = await page.$('#password') || await page.$('input[type="password"]');
-            if (!passEl) return { error: 'Password field not found' };
-            await passEl.fill('${password.replace(/'/g, "\\'")}');
-            await page.waitForTimeout(500);
-            const btn = await page.$('#join_neu_submit_btn') || await page.$('button[type="submit"]');
-            if (btn) await btn.click();
-            await page.waitForTimeout(5000);
-            const cookies = await page.context().cookies();
-            return { url: page.url(), cookies: cookies.map(c => c.name + '=' + c.value).join('; '), title: await page.title() };
-          }`,
-          proxyConfiguration: { useApifyProxy: true },
-        }
+        startUrls: [{ url: 'https://www.etsy.com/signin' }],
+        pageFunction,
+        proxyConfiguration: { useApifyProxy: true },
+        headless: true,
+        maxPagesPerCrawl: 1,
+        waitUntil: ['networkidle2'],
       },
-      { headers: { Authorization: 'Bearer ' + apifyToken }, timeout: 30000 }
+      {
+        headers: { Authorization: 'Bearer ' + apifyToken, 'Content-Type': 'application/json' },
+        timeout: 30000
+      }
     );
 
-    const taskId = runRes.data.id;
+    const runId = runRes.data.data.id;
 
-    // Lancer la tâche
-    const startRes = await axios.post(
-      `https://api.apify.com/v2/actor-tasks/${taskId}/runs`,
-      {},
-      { headers: { Authorization: 'Bearer ' + apifyToken }, timeout: 30000 }
-    );
-
-    const runId = startRes.data.data.id;
-
-    // Attendre la fin
+    // Attendre la fin du run (max 2 minutes)
     let result = null;
     for (let i = 0; i < 24; i++) {
       await new Promise(r => setTimeout(r, 5000));
@@ -416,21 +423,15 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
       if (status === 'FAILED' || status === 'ABORTED') break;
     }
 
-    // Nettoyer la tâche
-    await axios.delete(
-      `https://api.apify.com/v2/actor-tasks/${taskId}`,
-      { headers: { Authorization: 'Bearer ' + apifyToken } }
-    ).catch(() => {});
-
     if (!result || result.error) {
-      return res.status(500).json({ error: result ? result.error : 'Apify run failed or timed out' });
+      return res.status(500).json({ error: result ? ('Apify: ' + result.error) : 'Apify run failed or timed out' });
     }
 
     const { url, cookies } = result;
     const needs2FA = url && (url.includes('verify') || url.includes('two-factor'));
-    const isLoggedIn = cookies && (url.includes('/your/') || url.includes('account') || !url.includes('signin'));
+    const isLoggedIn = cookies && !url.includes('signin') && !needs2FA;
 
-    if (isLoggedIn && !needs2FA) {
+    if (isLoggedIn) {
       const AutoSearchState = require('../models/autoSearchModel');
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
@@ -447,12 +448,12 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
       return res.json({ needs2FA: true, sessionId });
     }
 
-    res.status(401).json({ error: 'Login failed — check your credentials. URL: ' + url });
+    res.status(401).json({ error: 'Login failed. URL: ' + url });
   } catch(e) {
-    console.error('Etsy login error:', e.response?.data || e.message);
-    res.status(500).json({ error: e.response?.data ? JSON.stringify(e.response.data) : e.message });
+    const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+    console.error('Etsy login error:', detail);
+    res.status(500).json({ error: detail });
   }
 });
 
 module.exports = router;
-
