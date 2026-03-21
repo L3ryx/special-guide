@@ -446,29 +446,37 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     });
 
     const page = await browser.newPage();
+    // Headers pour ressembler à un vrai navigateur
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    await page.goto('https://www.etsy.com/signin', { waitUntil: 'networkidle2', timeout: 30000 });
-    await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await new Promise(r => setTimeout(r, 3000));
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+
+    // Aller sur la page signin et attendre que les inputs React se chargent
+    await page.goto('https://www.etsy.com/signin', { waitUntil: 'networkidle0', timeout: 45000 });
+
+    // Attendre qu'un input apparaisse (React peut prendre du temps)
+    let emailSel = null;
+    const emailSelectors = ['#email','input[name="email"]','input[type="email"]','input[autocomplete="email"]','input[autocomplete="username"]'];
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await new Promise(r => setTimeout(r, 1000));
+      for (const sel of emailSelectors) {
+        try { const el = await page.$(sel); if (el) { emailSel = sel; break; } } catch(e) {}
+      }
+      if (emailSel) break;
+    }
 
     const currentUrl = page.url();
     const inputs = await page.evaluate(() =>
       Array.from(document.querySelectorAll('input')).map(i => ({ id: i.id, name: i.name, type: i.type, placeholder: i.placeholder }))
     );
-    console.log('[Etsy] URL:', currentUrl, 'Inputs:', JSON.stringify(inputs));
+    console.log('[Etsy] URL:', currentUrl, 'Inputs after wait:', JSON.stringify(inputs));
 
-    // Trouver le champ email
-    const emailSelectors = ['#email','input[name="email"]','input[type="email"]','input[autocomplete="email"]','input[autocomplete="username"]','input[placeholder*="email" i]'];
-    let emailSel = null;
-    for (const sel of emailSelectors) {
-      try { const el = await page.$(sel); if (el) { emailSel = sel; break; } } catch(e) {}
-    }
     if (!emailSel) {
       await browser.disconnect();
-      return res.status(500).json({ error: 'Email field not found. URL: ' + currentUrl + ' Inputs: ' + JSON.stringify(inputs) });
+      return res.status(500).json({ error: 'Email field not found after 10s. URL: ' + currentUrl + ' Inputs: ' + JSON.stringify(inputs) });
     }
+
     await page.click(emailSel);
-    await page.type(emailSel, email, { delay: 60 });
+    await page.type(emailSel, email, { delay: 80 });
 
     // Trouver le champ password
     const passwordSelectors = ['#password','input[name="password"]','input[type="password"]'];
@@ -478,9 +486,8 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     }
     if (!passSel) { await browser.disconnect(); return res.status(500).json({ error: 'Password field not found' }); }
     await page.click(passSel);
-    await page.type(passSel, password, { delay: 60 });
+    await page.type(passSel, password, { delay: 80 });
 
-    // Soumettre
     const submitSelectors = ['#join_neu_submit_btn', 'button[type="submit"]', 'input[type="submit"]'];
     for (const sel of submitSelectors) {
       try { await page.click(sel); break; } catch(e) {}
