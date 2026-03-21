@@ -355,7 +355,7 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 
     // Lancer un Actor Apify pour le login Etsy
     const runRes = await axios.post(
-      'https://api.apify.com/v2/acts/apify~web-scraper/runs?token=' + apifyToken,
+      'https://api.apify.com/v2/acts/apify~playwright-scraper/runs?token=' + apifyToken,
       {
         startUrls: [{ url: 'https://www.etsy.com/signin' }],
         pageFunction: `async function pageFunction(context) {
@@ -390,10 +390,10 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     let result = null;
     for (let i = 0; i < 30; i++) {
       await new Promise(r => setTimeout(r, 5000));
-      const statusRes = await axios.get(`https://api.apify.com/v2/acts/apify~web-scraper/runs/${runId}?token=${apifyToken}`);
+      const statusRes = await axios.get(`https://api.apify.com/v2/acts/apify~playwright-scraper/runs/${runId}?token=${apifyToken}`);
       const status = statusRes.data.data.status;
       if (status === 'SUCCEEDED') {
-        const dataRes = await axios.get(`https://api.apify.com/v2/acts/apify~web-scraper/runs/${runId}/dataset/items?token=${apifyToken}`);
+        const dataRes = await axios.get(`https://api.apify.com/v2/acts/apify~playwright-scraper/runs/${runId}/dataset/items?token=${apifyToken}`);
         result = dataRes.data[0];
         break;
       }
@@ -442,7 +442,7 @@ router.post('/etsy-2fa', requireAuth, async (req, res) => {
     const apifyToken = process.env.APIFY_TOKEN;
 
     const runRes = await axios.post(
-      'https://api.apify.com/v2/acts/apify~web-scraper/runs?token=' + apifyToken,
+      'https://api.apify.com/v2/acts/apify~playwright-scraper/runs?token=' + apifyToken,
       {
         startUrls: [{ url: 'https://www.etsy.com/signin' }],
         pageFunction: `async function pageFunction(context) {
@@ -465,9 +465,9 @@ router.post('/etsy-2fa', requireAuth, async (req, res) => {
     let result = null;
     for (let i = 0; i < 20; i++) {
       await new Promise(r => setTimeout(r, 5000));
-      const statusRes = await axios.get(`https://api.apify.com/v2/acts/apify~web-scraper/runs/${runId}?token=${apifyToken}`);
+      const statusRes = await axios.get(`https://api.apify.com/v2/acts/apify~playwright-scraper/runs/${runId}?token=${apifyToken}`);
       if (statusRes.data.data.status === 'SUCCEEDED') {
-        const dataRes = await axios.get(`https://api.apify.com/v2/acts/apify~web-scraper/runs/${runId}/dataset/items?token=${apifyToken}`);
+        const dataRes = await axios.get(`https://api.apify.com/v2/acts/apify~playwright-scraper/runs/${runId}/dataset/items?token=${apifyToken}`);
         result = dataRes.data[0];
         break;
       }
@@ -493,3 +493,4 @@ router.post('/etsy-2fa', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
