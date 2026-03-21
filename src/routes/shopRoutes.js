@@ -338,13 +338,13 @@ router.post('/clone', requireAuth, async (req, res) => {
 
 // ── ETSY TOKEN GET ──
 
-module.exports = router;
 
 
-module.exports = router;
 
 
-module.exports = router;
+
+
+
 
 
 module.exports = router;
@@ -352,86 +352,73 @@ module.exports = router;
 // ── Store temporaire sessions 2FA ──
 const _pendingSessions = new Map();
 
-// ── ETSY LOGIN via Apify Web Scraper ──
+// ── ETSY LOGIN via Crawlbase ──
 router.post('/etsy-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
     const axios = require('axios');
-    const apifyToken = process.env.APIFY_TOKEN;
-    if (!apifyToken) return res.status(500).json({ error: 'APIFY_TOKEN not configured' });
+    const crawlbaseToken = process.env.CRAWLBASE_TOKEN;
+    if (!crawlbaseToken) return res.status(500).json({ error: 'CRAWLBASE_TOKEN not configured' });
 
-    const pageFunction = `async function pageFunction(context) {
-      const { page, request, log } = context;
-      await page.waitForTimeout(4000);
-      const inputs = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('input')).map(i => ({ id: i.id, type: i.type, name: i.name }))
-      );
-      log.info('Inputs found: ' + JSON.stringify(inputs));
-      const emailEl = await page.$('#email') || await page.$('input[type="email"]') || await page.$('input[name="email"]');
-      if (!emailEl) return { error: 'Email field not found', inputs, url: request.url };
-      await emailEl.fill('` + email.replace(/'/g, "\\'") + `');
-      await page.waitForTimeout(500);
-      const passEl = await page.$('#password') || await page.$('input[type="password"]');
-      if (!passEl) return { error: 'Password field not found' };
-      await passEl.fill('` + password.replace(/'/g, "\\'") + `');
-      await page.waitForTimeout(500);
-      const btn = await page.$('#join_neu_submit_btn') || await page.$('button[type="submit"]');
-      if (btn) await btn.click();
-      await page.waitForTimeout(6000);
-      const cookies = await page.context().cookies();
-      return { url: page.url(), cookies: cookies.map(c => c.name + '=' + c.value).join('; '), title: await page.title() };
-    }`;
-
-    // Lancer l'Actor Apify Web Scraper (ID: moJRLRc85AitArpNN)
-    const runRes = await axios.post(
-      'https://api.apify.com/v2/acts/moJRLRc85AitArpNN/runs',
-      {
-        startUrls: [{ url: 'https://www.etsy.com/signin' }],
-        pageFunction,
-        proxyConfiguration: { useApifyProxy: true },
-        headless: true,
-        maxPagesPerCrawl: 1,
-        waitUntil: ['networkidle2'],
+    // Step 1 : charger la page de login
+    const signinUrl = 'https://www.etsy.com/signin';
+    const pageRes = await axios.get('https://api.crawlbase.com', {
+      params: {
+        token: crawlbaseToken,
+        url: signinUrl,
+        autoparse: 'false',
+        ajax_wait: 'true',
+        page_wait: '3000',
       },
-      {
-        headers: { Authorization: 'Bearer ' + apifyToken, 'Content-Type': 'application/json' },
-        timeout: 30000
-      }
-    );
+      timeout: 60000,
+    });
 
-    const runId = runRes.data.data.id;
+    const html = typeof pageRes.data === 'string' ? pageRes.data : JSON.stringify(pageRes.data);
 
-    // Attendre la fin du run (max 2 minutes)
-    let result = null;
-    for (let i = 0; i < 24; i++) {
-      await new Promise(r => setTimeout(r, 5000));
-      const statusRes = await axios.get(
-        `https://api.apify.com/v2/actor-runs/${runId}`,
-        { headers: { Authorization: 'Bearer ' + apifyToken } }
-      );
-      const status = statusRes.data.data.status;
-      if (status === 'SUCCEEDED') {
-        const dataRes = await axios.get(
-          `https://api.apify.com/v2/actor-runs/${runId}/dataset/items`,
-          { headers: { Authorization: 'Bearer ' + apifyToken } }
-        );
-        result = dataRes.data[0];
-        break;
-      }
-      if (status === 'FAILED' || status === 'ABORTED') break;
-    }
+    // Extraire le CSRF token
+    const csrfMatch = html.match(/name="_nnc"\s+value="([^"]+)"/i)
+      || html.match(/"csrf_nonce"\s*:\s*"([^"]+)"/i)
+      || html.match(/name="csrf_token"\s+value="([^"]+)"/i);
+    const csrf = csrfMatch ? csrfMatch[1] : '';
 
-    if (!result || result.error) {
-      return res.status(500).json({ error: result ? ('Apify: ' + result.error) : 'Apify run failed or timed out' });
-    }
+    // Step 2 : soumettre le formulaire
+    const formData = 'email=' + encodeURIComponent(email)
+      + '&password=' + encodeURIComponent(password)
+      + '&_nnc=' + encodeURIComponent(csrf)
+      + '&signin_submitted=1';
 
-    const { url, cookies } = result;
-    const needs2FA = url && (url.includes('verify') || url.includes('two-factor'));
-    const isLoggedIn = cookies && !url.includes('signin') && !needs2FA;
+    const loginRes = await axios.get('https://api.crawlbase.com', {
+      params: {
+        token: crawlbaseToken,
+        url: 'https://www.etsy.com/signin',
+        autoparse: 'false',
+        ajax_wait: 'true',
+        page_wait: '4000',
+        'post_data': formData,
+        'post_content_type': 'application/x-www-form-urlencoded',
+      },
+      timeout: 90000,
+    });
+
+    const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
+    const resultUrl = loginRes.headers['original-status'] || '';
+
+    const needs2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
+      || resultHtml.includes('phone') || resultHtml.includes('two-factor');
+
+    const isLoggedIn = (resultHtml.includes('sign-out') || resultHtml.includes('user_prefs')
+      || resultHtml.includes('logout')) && !needs2FA;
 
     if (isLoggedIn) {
+      // Stocker les cookies retournés par Crawlbase
+      const cookies = loginRes.headers['set-cookie']
+        ? (Array.isArray(loginRes.headers['set-cookie'])
+            ? loginRes.headers['set-cookie'].join('; ')
+            : loginRes.headers['set-cookie'])
+        : 'crawlbase_session';
+
       const AutoSearchState = require('../models/autoSearchModel');
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
@@ -443,12 +430,12 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 
     if (needs2FA) {
       const sessionId = require('crypto').randomBytes(16).toString('hex');
-      _pendingSessions.set(sessionId, { userId: req.user.id, email, createdAt: Date.now() });
+      _pendingSessions.set(sessionId, { userId: req.user.id, email, html: resultHtml, createdAt: Date.now() });
       setTimeout(() => _pendingSessions.delete(sessionId), 5 * 60 * 1000);
       return res.json({ needs2FA: true, sessionId });
     }
 
-    res.status(401).json({ error: 'Login failed. URL: ' + url });
+    res.status(401).json({ error: 'Login failed — check your credentials' });
   } catch(e) {
     const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
     console.error('Etsy login error:', detail);
@@ -457,3 +444,4 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
