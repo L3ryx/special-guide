@@ -428,7 +428,10 @@ router.get('/etsy-callback', async (req, res) => {
 
 
 
-// ── ETSY LOGIN via Puppeteer ──
+// ── Store temporaire des sessions Puppeteer en attente de 2FA ──
+const _pendingSessions = new Map();
+
+// ── ETSY LOGIN Step 1 : email + password ──
 router.post('/etsy-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -442,47 +445,140 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
       browserWSEndpoint: 'wss://chrome.browserless.io?token=' + blToken,
     });
 
-    try {
-      const page = await browser.newPage();
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-      await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await page.goto('https://www.etsy.com/signin', { waitUntil: 'networkidle2', timeout: 30000 });
 
-      await page.waitForSelector('#email', { timeout: 10000 });
-      await page.type('#email', email, { delay: 60 });
-      await page.waitForSelector('#password', { timeout: 5000 });
-      await page.type('#password', password, { delay: 60 });
-      await page.click('#join_neu_submit_btn');
-      await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+    // Remplir email
+    const emailSelectors = ['#email', 'input[name="email"]', 'input[type="email"]', 'input[autocomplete="email"]'];
+    let emailSel = null;
+    for (const sel of emailSelectors) {
+      try { await page.waitForSelector(sel, { timeout: 3000 }); emailSel = sel; break; } catch(e) {}
+    }
+    if (!emailSel) { await browser.disconnect(); return res.status(500).json({ error: 'Email field not found' }); }
+    await page.type(emailSel, email, { delay: 60 });
 
-      const url = page.url();
-      const content = await page.content();
-      const isLoggedIn = url.includes('/your/') || url.includes('account')
-        || content.includes('sign-out') || content.includes('logout')
-        || content.includes('user_prefs') || !content.includes('signin');
+    // Remplir password
+    const passwordSelectors = ['#password', 'input[name="password"]', 'input[type="password"]'];
+    let passSel = null;
+    for (const sel of passwordSelectors) {
+      try { await page.waitForSelector(sel, { timeout: 3000 }); passSel = sel; break; } catch(e) {}
+    }
+    if (!passSel) { await browser.disconnect(); return res.status(500).json({ error: 'Password field not found' }); }
+    await page.type(passSel, password, { delay: 60 });
 
-      if (!isLoggedIn) {
-        await browser.disconnect();
-        return res.status(401).json({ error: 'Login failed — check your email and password' });
-      }
+    // Soumettre
+    const submitSelectors = ['#join_neu_submit_btn', 'button[type="submit"]', 'input[type="submit"]'];
+    for (const sel of submitSelectors) {
+      try { await page.click(sel); break; } catch(e) {}
+    }
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
 
+    const url = page.url();
+    const content = await page.content();
+
+    // Vérifier si 2FA demandé
+    const needs2FA = content.includes('verification') || content.includes('verify') 
+      || content.includes('code') || url.includes('verify') || url.includes('two-factor')
+      || content.includes('phone') || content.includes('sms');
+
+    // Vérifier si déjà connecté
+    const isLoggedIn = (url.includes('/your/') || url.includes('account') 
+      || content.includes('sign-out') || content.includes('user_prefs'))
+      && !needs2FA;
+
+    if (isLoggedIn) {
       const cookies = await page.cookies();
       const cookieStr = cookies.map(c => c.name + '=' + c.value).join('; ');
       await browser.disconnect();
-
       const AutoSearchState = require('../models/autoSearchModel');
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
         { $set: { etsyToken: cookieStr, etsyEmail: email, updatedAt: new Date() } },
         { upsert: true }
       );
-
-      res.json({ ok: true, token: cookieStr });
-    } catch(e) {
-      await browser.disconnect().catch(() => {});
-      throw e;
+      return res.json({ ok: true, token: cookieStr });
     }
+
+    if (needs2FA) {
+      // Stocker la session en attente
+      const sessionId = require('crypto').randomBytes(16).toString('hex');
+      _pendingSessions.set(sessionId, { browser, page, userId: req.user.id, email, createdAt: Date.now() });
+      // Nettoyer après 5 minutes
+      setTimeout(() => {
+        const s = _pendingSessions.get(sessionId);
+        if (s) { s.browser.disconnect().catch(()=>{}); _pendingSessions.delete(sessionId); }
+      }, 5 * 60 * 1000);
+      return res.json({ needs2FA: true, sessionId });
+    }
+
+    await browser.disconnect();
+    res.status(401).json({ error: 'Login failed — check your credentials' });
+
   } catch(e) {
     console.error('Etsy login error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── ETSY LOGIN Step 2 : soumettre le code 2FA ──
+router.post('/etsy-2fa', requireAuth, async (req, res) => {
+  try {
+    const { sessionId, code } = req.body;
+    if (!sessionId || !code) return res.status(400).json({ error: 'sessionId and code required' });
+
+    const session = _pendingSessions.get(sessionId);
+    if (!session) return res.status(400).json({ error: 'Session expired — please login again' });
+
+    const { browser, page, userId, email } = session;
+
+    // Trouver le champ de code 2FA
+    const codeSelectors = ['input[name="code"]', 'input[type="tel"]', 'input[autocomplete="one-time-code"]', 'input[name="otp"]', '#otp', 'input[maxlength="6"]'];
+    let codeSel = null;
+    for (const sel of codeSelectors) {
+      try { await page.waitForSelector(sel, { timeout: 3000 }); codeSel = sel; break; } catch(e) {}
+    }
+    if (!codeSel) { 
+      _pendingSessions.delete(sessionId);
+      await browser.disconnect().catch(()=>{});
+      return res.status(500).json({ error: '2FA field not found on page' }); 
+    }
+
+    await page.type(codeSel, code, { delay: 60 });
+
+    // Soumettre le code
+    const submitSelectors = ['button[type="submit"]', 'input[type="submit"]', '#submit-btn'];
+    for (const sel of submitSelectors) {
+      try { await page.click(sel); break; } catch(e) {}
+    }
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+
+    const url = page.url();
+    const content = await page.content();
+    const isLoggedIn = url.includes('/your/') || url.includes('account')
+      || content.includes('sign-out') || content.includes('user_prefs');
+
+    if (!isLoggedIn) {
+      _pendingSessions.delete(sessionId);
+      await browser.disconnect().catch(()=>{});
+      return res.status(401).json({ error: 'Invalid 2FA code' });
+    }
+
+    const cookies = await page.cookies();
+    const cookieStr = cookies.map(c => c.name + '=' + c.value).join('; ');
+    _pendingSessions.delete(sessionId);
+    await browser.disconnect().catch(()=>{});
+
+    const AutoSearchState = require('../models/autoSearchModel');
+    await AutoSearchState.findOneAndUpdate(
+      { userId: userId },
+      { $set: { etsyToken: cookieStr, etsyEmail: email, updatedAt: new Date() } },
+      { upsert: true }
+    );
+
+    res.json({ ok: true, token: cookieStr });
+  } catch(e) {
+    console.error('Etsy 2FA error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
