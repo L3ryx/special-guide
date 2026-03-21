@@ -442,7 +442,7 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     if (!blToken) return res.status(500).json({ error: 'BROWSERLESS_TOKEN not configured' });
 
     const browser = await puppeteer.connect({
-      browserWSEndpoint: 'wss://chrome.browserless.io?token=' + blToken,
+      browserWSEndpoint: 'wss://chrome.browserless.io?token=' + blToken + '&stealth=true&blockAds=true',
     });
 
     const page = await browser.newPage();
