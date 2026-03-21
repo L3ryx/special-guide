@@ -337,16 +337,6 @@ router.post('/clone', requireAuth, async (req, res) => {
 
 
 // ── ETSY TOKEN GET ──
-
-
-
-
-
-
-
-
-
-
 module.exports = router;
 
 // ── Store temporaire sessions 2FA ──
@@ -363,7 +353,7 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     if (!crawlbaseToken) return res.status(500).json({ error: 'CRAWLBASE_TOKEN not configured' });
 
     // Step 1 : charger la page de login
-    const signinUrl = 'https://www.etsy.com/signin';
+    const signinUrl = 'https://www.etsy.com/signin?from_page=https%3A%2F%2Fwww.etsy.com%2Ffr%2F%3Fref%3Dlgo&workflow=c3Vic2NyaWJlX3RvX2VtYWlsX2xpc3Q6bmV3X2F0X2V0c3k6MTc3NDA2MTkwMjo2OTAwZWM5NzM3YzNkYzM4NDVmN2EzYTg0YjdkYzMzYQ==';
     const pageRes = await axios.get('https://api.crawlbase.com', {
       params: {
         token: crawlbaseToken,
@@ -392,7 +382,7 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     const loginRes = await axios.get('https://api.crawlbase.com', {
       params: {
         token: crawlbaseToken,
-        url: 'https://www.etsy.com/signin',
+        url: 'https://www.etsy.com/signin?from_page=https%3A%2F%2Fwww.etsy.com%2Ffr%2F%3Fref%3Dlgo&workflow=c3Vic2NyaWJlX3RvX2VtYWlsX2xpc3Q6bmV3X2F0X2V0c3k6MTc3NDA2MTkwMjo2OTAwZWM5NzM3YzNkYzM4NDVmN2EzYTg0YjdkYzMzYQ==',
         autoparse: 'false',
         ajax_wait: 'true',
         page_wait: '4000',
