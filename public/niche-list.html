@@ -132,13 +132,39 @@
 
 
     .btn-delete {
-      width: 26px; height: 26px; border-radius: 50%;
-      border: 1px solid rgba(255,80,80,0.25); background: rgba(255,80,80,0.07);
-      color: #f87171; cursor: pointer; display: flex; align-items: center;
-      justify-content: center; font-size: 0.8rem; transition: all 0.2s;
-      flex-shrink: 0; margin-left: auto;
+      position: absolute; top: -8px; right: -8px;
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid rgba(10,10,10,0.8); background: #ef4444;
+      color: #fff; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; font-size: 0.7rem; font-weight: 700;
+      transition: all 0.2s; z-index: 10; line-height: 1;
     }
-    .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.5); }
+    .btn-delete:hover { background: #dc2626; transform: scale(1.15); }
+    .shop-row-wrap { position: relative; }
+    .clone-results { display: none; flex-direction: row; gap: 8px; padding: 10px 16px 14px; flex-wrap: wrap; }
+    .clone-results.open { display: flex; }
+    .btn-result {
+      flex: 1; min-width: 80px; padding: 9px 12px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.8); font-family: 'Croissant One', cursive;
+      font-size: 0.78rem; cursor: pointer; transition: all 0.2s; text-align: center;
+    }
+    .btn-result:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .btn-result.titre { border-color: rgba(249,115,22,0.4); color: #fb923c; }
+    .btn-result.titre:hover { background: rgba(249,115,22,0.15); }
+    .btn-result.description { border-color: rgba(168,85,247,0.4); color: #c084fc; }
+    .btn-result.description:hover { background: rgba(168,85,247,0.15); }
+    .btn-result.images { border-color: rgba(34,197,94,0.4); color: #4ade80; }
+    .btn-result.images:hover { background: rgba(34,197,94,0.15); }
+    .clone-result-panel {
+      display: none; padding: 12px 16px; margin: 0 16px 14px;
+      background: rgba(255,255,255,0.04); border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08); font-size: 0.82rem;
+      color: rgba(255,255,255,0.75); line-height: 1.6; word-break: break-word;
+    }
+    .clone-result-panel.open { display: block; }
+    .clone-images-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .clone-images-grid img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }
 
     .empty-state {
       text-align: center; padding: 60px 20px; color: var(--muted);
@@ -241,6 +267,7 @@
     function buildShopRow(shop) {
       const wrap = document.createElement('div');
       wrap.id = 'shop-wrapper-' + shop._id;
+      wrap.className = 'shop-row-wrap';
 
       // Extraire shopName depuis toutes les sources disponibles
       let shopName = shop.shopName || null;
@@ -300,17 +327,62 @@
       const cloneBtn = document.createElement('button');
       cloneBtn.className = 'btn-clone';
       cloneBtn.textContent = 'Clone';
-      cloneBtn.onclick = function() { cloneShop(shopName, cloneBtn); };
+      cloneBtn.onclick = function() { cloneShop(shopName, cloneBtn, shop._id); };
       row.appendChild(cloneBtn);
 
-      // Bouton supprimer
+      // Croix rouge suppression en haut à droite
       const delBtn = document.createElement('button');
       delBtn.className = 'btn-delete'; delBtn.textContent = '✕';
       delBtn.addEventListener('click', function() { deleteShop(shop._id); });
-      row.appendChild(delBtn);
-
       wrap.appendChild(row);
+      wrap.appendChild(delBtn);
+
+      // Zone résultats Clone (cachée au départ)
+      const resultsZone = document.createElement('div');
+      resultsZone.className = 'clone-results';
+      resultsZone.id = 'clone-results-' + shop._id;
+
+      const btnTitre = document.createElement('button');
+      btnTitre.className = 'btn-result titre'; btnTitre.textContent = '📝 Titre';
+      btnTitre.onclick = function() { toggleResultPanel(shop._id, 'titre'); };
+
+      const btnDesc = document.createElement('button');
+      btnDesc.className = 'btn-result description'; btnDesc.textContent = '📄 Description';
+      btnDesc.onclick = function() { toggleResultPanel(shop._id, 'description'); };
+
+      const btnImgs = document.createElement('button');
+      btnImgs.className = 'btn-result images'; btnImgs.textContent = '🖼 Images';
+      btnImgs.onclick = function() { toggleResultPanel(shop._id, 'images'); };
+
+      resultsZone.appendChild(btnTitre);
+      resultsZone.appendChild(btnDesc);
+      resultsZone.appendChild(btnImgs);
+      wrap.appendChild(resultsZone);
+
+      // Panels de contenu
+      const panelTitre = document.createElement('div');
+      panelTitre.className = 'clone-result-panel'; panelTitre.id = 'panel-titre-' + shop._id;
+      const panelDesc = document.createElement('div');
+      panelDesc.className = 'clone-result-panel'; panelDesc.id = 'panel-description-' + shop._id;
+      const panelImgs = document.createElement('div');
+      panelImgs.className = 'clone-result-panel'; panelImgs.id = 'panel-images-' + shop._id;
+      wrap.appendChild(panelTitre);
+      wrap.appendChild(panelDesc);
+      wrap.appendChild(panelImgs);
+
       return wrap;
+    }
+
+    function toggleResultPanel(shopId, type) {
+      var panel = document.getElementById('panel-' + type + '-' + shopId);
+      if (!panel) return;
+      var isOpen = panel.classList.contains('open');
+      // Fermer tous les panels de cette boutique
+      ['titre','description','images'].forEach(function(t) {
+        var p = document.getElementById('panel-' + t + '-' + shopId);
+        if (p) p.classList.remove('open');
+      });
+      if (!isOpen) panel.classList.add('open');
     }
     function deleteShop(id) {
       if (!confirm('Delete this listing?')) return;
@@ -519,8 +591,7 @@
       log.scrollTop = log.scrollHeight;
     }
 
-    async function cloneShop(shopName, btn) {
-      if (!_etsyToken) { openEtsyModal(); return; }
+    async function cloneShop(shopName, btn, shopId) {
       if (!shopName) { showToast('No shop name', '#ef4444'); return; }
       btn.disabled = true;
       openCloneModal();
@@ -566,6 +637,29 @@
                 published++;
                 addCloneLog(ev.message, 'published');
                 if (total > 0) document.getElementById('clone-progress-fill').style.width = Math.round((ev.index + 1) / total * 100) + '%';
+                // Stocker les résultats dans les panels
+                if (shopId && ev.title) {
+                  var pt = document.getElementById('panel-titre-' + shopId);
+                  if (pt) { pt.textContent = ev.title; }
+                }
+                if (shopId && ev.description) {
+                  var pd = document.getElementById('panel-description-' + shopId);
+                  if (pd) { pd.textContent = ev.description; }
+                }
+                if (shopId && ev.images && ev.images.length > 0) {
+                  var pi = document.getElementById('panel-images-' + shopId);
+                  if (pi) {
+                    pi.innerHTML = '';
+                    var grid = document.createElement('div');
+                    grid.className = 'clone-images-grid';
+                    ev.images.forEach(function(url) {
+                      var img = document.createElement('img');
+                      img.src = url; img.loading = 'lazy';
+                      grid.appendChild(img);
+                    });
+                    pi.appendChild(grid);
+                  }
+                }
               } else if (ev.step === 'skip') {
                 addCloneLog(ev.message, 'skip');
               } else if (ev.step === 'error_listing' || ev.step === 'error') {
@@ -573,6 +667,11 @@
               } else if (ev.step === 'complete') {
                 addCloneLog(ev.message + ' (' + published + ' published)', 'published');
                 document.getElementById('clone-progress-fill').style.width = '100%';
+                // Afficher la zone résultats sous la boutique
+                if (shopId) {
+                  var rz = document.getElementById('clone-results-' + shopId);
+                  if (rz) rz.classList.add('open');
+                }
               } else {
                 addCloneLog(ev.message || ev.step);
               }
