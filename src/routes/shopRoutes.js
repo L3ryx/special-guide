@@ -128,13 +128,7 @@ router.post('/clone', requireAuth, async (req, res) => {
   const axios = require('axios');
   const FormData = require('form-data');
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
-  const SERPER_KEY = process.env.SERPER_API_KEY;
   const IMGBB_KEY  = process.env.IMGBB_API_KEY;
-  const ETSY_CID   = process.env.ETSY_CLIENT_ID;
-
-  const AutoSearchState = require('../models/autoSearchModel');
-  const state = await AutoSearchState.findOne({ userId: req.user.id });
-  // Token Etsy optionnel — pas de publication pour l'instant
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -142,6 +136,7 @@ router.post('/clone', requireAuth, async (req, res) => {
   res.flushHeaders();
 
   const send = function(d) { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch(e){} };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   function getSbKey() {
     if (process.env.SCRAPINGBEE_KEY) return process.env.SCRAPINGBEE_KEY;
@@ -159,8 +154,39 @@ router.post('/clone', requireAuth, async (req, res) => {
     return typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
   }
 
+  async function modifyImageWithGemini(b64Image, background, angle) {
+    var prompt = 'You are a professional product photographer. '
+      + 'Generate a NEW product photo of the exact same product with: '
+      + 'Background: ' + background + '. '
+      + 'Angle: ' + angle + '. '
+      + 'Keep the product identical (same shape, colors, text, details). '
+      + 'Professional e-commerce photography, clean, high quality. '
+      + 'Return ONLY the new image, no text.';
+
+    var gemRes = await axios.post(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=' + GEMINI_KEY,
+      {
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: 'image/jpeg', data: b64Image } },
+            { text: prompt }
+          ]
+        }],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+      },
+      { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
+    );
+
+    var parts = (gemRes.data.candidates && gemRes.data.candidates[0] && gemRes.data.candidates[0].content && gemRes.data.candidates[0].content.parts) || [];
+    for (var p of parts) {
+      if (p.inline_data && p.inline_data.data) return p.inline_data.data;
+    }
+    throw new Error('Gemini returned no image');
+  }
+
   try {
-    send({ step: 'scraping', message: '🔍 Scraping shop listings...' });
+    // ── Étape 1 : scraper la boutique pour récupérer toutes les annonces ──
+    send({ step: 'scraping', message: '🔍 Scraping shop page...' });
     var shopHtml = await sbFetch('https://www.etsy.com/shop/' + shopName);
 
     var listingMatches = [];
@@ -172,170 +198,176 @@ router.post('/clone', requireAuth, async (req, res) => {
       if (listingMatches.length >= 20) break;
     }
 
-    send({ step: 'found', message: '✅ Found ' + listingMatches.length + ' listings', total: listingMatches.length });
+    if (listingMatches.length === 0) {
+      send({ step: 'error', message: '❌ No listings found in this shop' });
+      res.end(); return;
+    }
 
-    // Pas de publication Etsy — résultats envoyés au frontend
+    send({ step: 'found', message: '✅ Found ' + listingMatches.length + ' listings, searching for AliExpress match...' });
+
+    const SERPER_KEY = process.env.SERPER_API_KEY;
+
+    // ── Boucle sur les annonces jusqu'à trouver une correspondance AliExpress ──
+    var foundListing = null;
+    var foundImgs = [];
+    var foundTitle = '';
 
     for (var li = 0; li < listingMatches.length; li++) {
       var listing = listingMatches[li];
-      send({ step: 'listing', message: 'Processing ' + (li+1) + '/' + listingMatches.length, index: li });
+      send({ step: 'checking', message: '🔎 Checking listing ' + (li+1) + '/' + listingMatches.length + '...' });
+
       try {
         var listingUrl = 'https://www.etsy.com/listing/' + listing.id + '/' + listing.slug;
         var listingHtml = await sbFetch(listingUrl);
 
         var titleMatch = listingHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
         var rawTitle = titleMatch ? titleMatch[1].replace(' | Etsy', '').trim() : listing.slug.replace(/-/g, ' ');
-        var priceM = listingHtml.match(/\$([0-9]+\.?[0-9]*)/);
-        var price = priceM ? parseFloat(priceM[1]) : 25;
 
+        // Extraire les images de cette annonce
         var imgSet = new Set();
         var imgMatch;
         var imgRe = /https:\/\/i\.etsystatic\.com\/[^"' ]+\.jpg/g;
         while ((imgMatch = imgRe.exec(listingHtml)) !== null) imgSet.add(imgMatch[0]);
         var imgs = Array.from(imgSet).slice(0, 5);
-        if (imgs.length === 0) { send({ step: 'skip', message: 'No images: ' + rawTitle }); continue; }
 
-        // Google Lens
-        send({ step: 'lens', message: '🔎 Checking AliExpress...' });
+        if (imgs.length === 0) {
+          send({ step: 'skip', message: '⏭ No images in listing ' + (li+1) + ', skipping...' });
+          continue;
+        }
+
+        // ── Google Lens : vérifier si le produit est sur AliExpress ──
+        send({ step: 'lens', message: '🔎 Google Lens check on listing ' + (li+1) + '...' });
         var aliFound = false;
         try {
-          var lensRes = await axios.post('https://google.serper.dev/lens',
+          var lensRes = await axios.post(
+            'https://google.serper.dev/lens',
             { url: imgs[0], gl: 'us', hl: 'en' },
             { headers: { 'X-API-KEY': SERPER_KEY }, timeout: 20000 }
           );
           var organic = (lensRes.data && lensRes.data.organic) || [];
           for (var oi = 0; oi < organic.length; oi++) {
             if (organic[oi].link && (organic[oi].link.includes('aliexpress') || organic[oi].link.includes('alibaba'))) {
-              aliFound = true; break;
+              aliFound = true;
+              break;
             }
           }
-        } catch(e) { console.warn('Lens:', e.message); }
-
-        if (!aliFound) { send({ step: 'skip', message: 'Not on AliExpress: ' + rawTitle }); continue; }
-        send({ step: 'ali_match', message: '✅ AliExpress confirmed!' });
-
-        // ── Télécharger les 5 premières images ──
-        send({ step: 'images', message: '📸 Downloading images...' });
-        var rawImages = [];
-        for (var ui = 0; ui < Math.min(imgs.length, 5); ui++) {
-          try {
-            var imgData = await axios.get(imgs[ui], { responseType: 'arraybuffer', timeout: 12000 });
-            rawImages.push(Buffer.from(imgData.data).toString('base64'));
-          } catch(e) { console.warn('Image download:', e.message); }
+        } catch(lensErr) {
+          console.warn('Google Lens error:', lensErr.message);
+          send({ step: 'skip', message: '⚠️ Lens error on listing ' + (li+1) + ', skipping...' });
+          continue;
         }
 
-        // ── Gemini — modifier chaque image (fond + angle différents) ──
-        send({ step: 'imagen', message: '🎨 Modifying images with Gemini...' });
-        var uploadedUrls = [];
-        const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-        var angles = ['front view', 'slight left angle', 'slight right angle', 'top-down view', '3/4 angle view'];
-        var backgrounds = [
-          'clean white marble surface with soft natural light and subtle shadows',
-          'rustic wooden table, warm tones, soft bokeh background',
-          'light grey minimalist studio, gradient background',
-          'cozy lifestyle home setting, soft blurred interior',
-          'pure white seamless background, professional studio lighting'
-        ];
-
-        async function modifyImage(b64Image, background, angle) {
-          var prompt = 'You are a professional product photographer. '
-            + 'Generate a NEW product photo of the exact same product with: '
-            + 'Background: ' + background + '. '
-            + 'Angle: ' + angle + '. '
-            + 'Keep the product identical (same shape, colors, text, details). '
-            + 'Professional e-commerce photography, clean, high quality. '
-            + 'Return ONLY the new image, no text.';
-
-          var gemRes = await axios.post(
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=' + GEMINI_KEY,
-            {
-              contents: [{
-                parts: [
-                  { inline_data: { mime_type: 'image/jpeg', data: b64Image } },
-                  { text: prompt }
-                ]
-              }],
-              generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
-            },
-            { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
-          );
-
-          var parts = (gemRes.data.candidates && gemRes.data.candidates[0] && gemRes.data.candidates[0].content && gemRes.data.candidates[0].content.parts) || [];
-          for (var p of parts) {
-            if (p.inline_data && p.inline_data.data) return p.inline_data.data;
-          }
-          throw new Error('Gemini returned no image');
+        if (!aliFound) {
+          send({ step: 'skip', message: '⏭ Listing ' + (li+1) + ' not on AliExpress, trying next...' });
+          continue;
         }
 
-        for (var ii = 0; ii < rawImages.length; ii++) {
-          if (ii > 0) await sleep(4000);
-          send({ step: 'imagen', message: '🎨 Processing image ' + (ii+1) + '/' + rawImages.length + '...' });
-          var attempts = 0;
-          var success = false;
-          while (attempts < 3 && !success) {
-            try {
-              var modifiedB64 = await modifyImage(rawImages[ii], backgrounds[ii % backgrounds.length], angles[ii % angles.length]);
-              var form = new FormData();
-              form.append('key', IMGBB_KEY);
-              form.append('image', modifiedB64);
-              var up = await axios.post('https://api.imgbb.com/1/upload', form, { headers: form.getHeaders(), timeout: 20000 });
-              if (up.data && up.data.data && up.data.data.url) {
-                uploadedUrls.push(up.data.data.url);
-                send({ step: 'imagen', message: '✅ Image ' + (ii+1) + '/' + rawImages.length + ' modified & uploaded' });
-                success = true;
-              }
-            } catch(imgErr) {
-              attempts++;
-              var status = imgErr.response && imgErr.response.status;
-              console.warn('Gemini image error for image ' + (ii+1) + ' (attempt ' + attempts + '):', imgErr.message);
-              if (status === 429 && attempts < 3) {
-                send({ step: 'imagen', message: '⏳ Rate limit, waiting 15s...' });
-                await sleep(15000);
-              } else {
-                // Fallback image originale
-                try {
-                  var form2 = new FormData();
-                  form2.append('key', IMGBB_KEY);
-                  form2.append('image', rawImages[ii]);
-                  var up2 = await axios.post('https://api.imgbb.com/1/upload', form2, { headers: form2.getHeaders(), timeout: 15000 });
-                  if (up2.data && up2.data.data && up2.data.data.url) uploadedUrls.push(up2.data.data.url);
-                } catch(e2) { console.warn('ImgBB fallback:', e2.message); }
-                break;
-              }
-            }
-          }
-        }
+        // ✅ Trouvé sur AliExpress — on utilise cette annonce
+        send({ step: 'ali_match', message: '✅ AliExpress match on listing ' + (li+1) + '! (' + rawTitle + ')' });
+        foundListing = listing;
+        foundImgs = imgs;
+        foundTitle = rawTitle;
+        break;
 
-        // Gemini SEO
-        send({ step: 'gemini', message: '✨ Generating SEO content...' });
-        var prompt = 'You are an Etsy SEO expert. Original title: "' + rawTitle + '". Generate optimized content. Respond ONLY with JSON: {"title":"SEO title max 140 chars","description":"150-200 word English Etsy SEO description","tags":["t1","t2","t3","t4","t5","t6","t7","t8","t9","t10","t11","t12","t13"]}. Rules: exactly 13 tags, max 20 chars each, English only.';
-        var gemRes = await axios.post(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + GEMINI_KEY,
-          { contents: [{ parts: [{ text: prompt }] }] },
-          { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
-        );
-        var rawGem = ((gemRes.data.candidates || [])[0] || {});
-        var gemText = (rawGem.content && rawGem.content.parts && rawGem.content.parts[0] && rawGem.content.parts[0].text || '').replace(/```json|```/g, '').trim();
-        var gemContent = JSON.parse(gemText);
-
-        // Envoyer les résultats au frontend
-        send({
-          step: 'published',
-          message: '✅ ' + gemContent.title,
-          index: li,
-          title: gemContent.title,
-          description: gemContent.description,
-          tags: gemContent.tags,
-          images: uploadedUrls
-        });
-
-      } catch(e) { send({ step: 'error_listing', message: 'Error on listing ' + (li+1) + ': ' + e.message }); }
+      } catch(e) {
+        send({ step: 'skip', message: '⚠️ Error on listing ' + (li+1) + ': ' + e.message + ', skipping...' });
+        continue;
+      }
     }
 
-    send({ step: 'complete', message: '🎉 All listings processed!' });
+    if (!foundListing) {
+      send({ step: 'error', message: '❌ No listing found on AliExpress in this shop' });
+      res.end(); return;
+    }
+
+    var imgs = foundImgs;
+    var rawTitle = foundTitle;
+
+    send({ step: 'images', message: '📸 Downloading ' + imgs.length + ' image(s)...' });
+
+    // ── Télécharger les images en base64 ──
+    var rawImages = [];
+    for (var ui = 0; ui < imgs.length; ui++) {
+      try {
+        var imgData = await axios.get(imgs[ui], { responseType: 'arraybuffer', timeout: 12000 });
+        rawImages.push(Buffer.from(imgData.data).toString('base64'));
+        send({ step: 'images', message: '📥 Image ' + (ui+1) + '/' + imgs.length + ' downloaded' });
+      } catch(e) { console.warn('Image download error:', e.message); }
+    }
+
+    if (rawImages.length === 0) {
+      send({ step: 'error', message: '❌ Could not download any images' });
+      res.end(); return;
+    }
+
+    // ── Modifier chaque image avec Gemini ──
+    var angles = ['front view', 'slight left angle', 'slight right angle', 'top-down view', '3/4 angle view'];
+    var backgrounds = [
+      'clean white marble surface with soft natural light and subtle shadows',
+      'rustic wooden table, warm tones, soft bokeh background',
+      'light grey minimalist studio, gradient background',
+      'cozy lifestyle home setting, soft blurred interior',
+      'pure white seamless background, professional studio lighting'
+    ];
+
+    var uploadedUrls = [];
+
+    for (var ii = 0; ii < rawImages.length; ii++) {
+      if (ii > 0) await sleep(4000);
+      send({ step: 'imagen', message: '🎨 Modifying image ' + (ii+1) + '/' + rawImages.length + ' with Gemini...' });
+
+      var attempts = 0;
+      var success = false;
+      while (attempts < 3 && !success) {
+        try {
+          var modifiedB64 = await modifyImageWithGemini(rawImages[ii], backgrounds[ii % backgrounds.length], angles[ii % angles.length]);
+          var form = new FormData();
+          form.append('key', IMGBB_KEY);
+          form.append('image', modifiedB64);
+          var up = await axios.post('https://api.imgbb.com/1/upload', form, { headers: form.getHeaders(), timeout: 20000 });
+          if (up.data && up.data.data && up.data.data.url) {
+            uploadedUrls.push(up.data.data.url);
+            send({ step: 'imagen', message: '✅ Image ' + (ii+1) + '/' + rawImages.length + ' modified & uploaded' });
+            success = true;
+          }
+        } catch(imgErr) {
+          attempts++;
+          var status = imgErr.response && imgErr.response.status;
+          console.warn('Gemini image error (attempt ' + attempts + '):', imgErr.message);
+          if (status === 429 && attempts < 3) {
+            send({ step: 'imagen', message: '⏳ Rate limit, waiting 15s...' });
+            await sleep(15000);
+          } else {
+            // Fallback : uploader l'image originale
+            try {
+              var form2 = new FormData();
+              form2.append('key', IMGBB_KEY);
+              form2.append('image', rawImages[ii]);
+              var up2 = await axios.post('https://api.imgbb.com/1/upload', form2, { headers: form2.getHeaders(), timeout: 15000 });
+              if (up2.data && up2.data.data && up2.data.data.url) {
+                uploadedUrls.push(up2.data.data.url);
+                send({ step: 'imagen', message: '⚠️ Image ' + (ii+1) + ' kept original (Gemini error)' });
+              }
+            } catch(e2) { console.warn('ImgBB fallback error:', e2.message); }
+            break;
+          }
+        }
+      }
+    }
+
+    // ── Étape 6 : envoyer le résultat final ──
+    send({
+      step: 'complete',
+      message: '🎉 Done! ' + uploadedUrls.length + ' image(s) generated',
+      title: rawTitle,
+      images: uploadedUrls
+    });
+
     res.end();
-  } catch(e) { send({ step: 'error', message: '❌ ' + e.message }); res.end(); }
+  } catch(e) {
+    send({ step: 'error', message: '❌ ' + e.message });
+    res.end();
+  }
 });
 
 
@@ -447,4 +479,5 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
 
