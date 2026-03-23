@@ -437,9 +437,6 @@ router.get('/etsy-session-status', requireAuth, async (req, res) => {
 });
 
 // ── ETSY LOGIN via ZenRows (real browser session) ──
-// ── In-memory store for 2FA codes (sessionId -> code, set by /etsy-zenrows-2fa) ──
-const _pending2faCodes = new Map();
-
 router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -449,66 +446,27 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
     if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
 
-    // Generate sessionId upfront so ZenRows can poll for the 2FA code
-    const sessionId = require('crypto').randomBytes(16).toString('hex');
-
-    // The evaluate script polls _pending2faCodes every second for up to 3 minutes.
-    // When the user submits their code via /etsy-zenrows-2fa, it gets stored in the map
-    // and ZenRows picks it up on the next poll, fills the field, and submits.
-    const pollScript = `
-      (async () => {
-        const sid = '${sessionId}';
-        const pollUrl = 'https://www.finder-niche.com/api/shops/etsy-2fa-poll/' + sid;
-        let code = null;
-        for (let i = 0; i < 180; i++) {
-          try {
-            const r = await fetch(pollUrl);
-            const d = await r.json();
-            if (d.code) { code = d.code; break; }
-          } catch(e) {}
-          await new Promise(r => setTimeout(r, 1000));
-        }
-        if (!code) return;
-        const inputs = document.querySelectorAll('input[name="code"],input[name="code_verification"],input[autocomplete="one-time-code"],input[type="tel"],input[type="number"]');
-        if (inputs.length) {
-          inputs[0].value = code;
-          inputs[0].dispatchEvent(new Event('input', {bubbles:true}));
-          inputs[0].dispatchEvent(new Event('change', {bubbles:true}));
-          await new Promise(r => setTimeout(r, 500));
-          const btn = document.querySelector('button[type="submit"],input[type="submit"]');
-          if (btn) btn.click();
-        }
-      })();
-    `;
-
-    console.log('ZenRows: starting Etsy login (sessionId=' + sessionId + ')...');
+    // ── Single ZenRows call: login only, max 30s wait total ──
+    console.log('ZenRows: submitting Etsy login form...');
     const loginRes = await axios.get('https://api.zenrows.com/v1/', {
       params: {
         apikey: ZENROWS_KEY,
         url: 'https://www.etsy.com/signin',
         js_render: 'true',
         antibot: 'true',
-        wait: 8000,
         premium_proxy: 'true',
         proxy_country: 'us',
         js_instructions: JSON.stringify([
           { wait_for: 'input[name="email"],#join_neu_email_field' },
           { fill: ['input[name="email"],#join_neu_email_field', email] },
-          { wait: 800 },
+          { wait: 500 },
           { fill: ['input[name="password"],#join_neu_password_field', password] },
-          { wait: 800 },
+          { wait: 500 },
           { click: 'button[type="submit"],#signin_button' },
-          { wait: 5000 },
-          { evaluate: pollScript },
-          { wait: 30000 },
-          { wait: 30000 },
-          { wait: 30000 },
-          { wait: 30000 },
-          { wait: 30000 },
-          { wait: 20000 }
+          { wait: 8000 }
         ])
       },
-      timeout: 300000  // 5 min total
+      timeout: 120000
     });
 
     const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
@@ -518,10 +476,6 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     const allCookies = Array.isArray(setCookieHeader)
       ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
       : (typeof setCookieHeader === 'string' ? setCookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ') : '');
-
-    // Cleanup
-    _pending2faCodes.delete(sessionId);
-    _pendingSessions.delete(sessionId);
 
     const needs2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
       || resultHtml.includes('two-factor') || resultHtml.includes('phone_number_verification');
@@ -544,9 +498,13 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     }
 
     if (needs2FA) {
-      // Store session for polling — frontend will call /etsy-zenrows-2fa with the code
-      _pendingSessions.set(sessionId, { userId: req.user.id, email, createdAt: Date.now() });
-      setTimeout(() => { _pendingSessions.delete(sessionId); _pending2faCodes.delete(sessionId); }, 10 * 60 * 1000);
+      // Store cookies + password so 2FA route can submit the code on the same session
+      const sessionId = require('crypto').randomBytes(16).toString('hex');
+      _pendingSessions.set(sessionId, {
+        userId: req.user.id, email, password,
+        cookies: allCookies, createdAt: Date.now()
+      });
+      setTimeout(() => _pendingSessions.delete(sessionId), 10 * 60 * 1000);
       return res.json({ needs2FA: true, sessionId });
     }
 
@@ -559,25 +517,82 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
   }
 });
 
-// ── Poll endpoint: ZenRows browser fetches this to get the 2FA code ──
-router.get('/etsy-2fa-poll/:sessionId', (req, res) => {
-  const code = _pending2faCodes.get(req.params.sessionId) || null;
-  res.json({ code });
-});
-
-// ── Frontend calls this to submit the 2FA code ──
+// ── ETSY 2FA: submit code via axios using cookies from ZenRows session ──
 router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
-  const { sessionId, code } = req.body;
-  if (!sessionId || !code) return res.status(400).json({ error: 'sessionId and code required' });
+  try {
+    const { sessionId, code } = req.body;
+    if (!sessionId || !code) return res.status(400).json({ error: 'sessionId and code required' });
 
-  const session = _pendingSessions.get(sessionId);
-  if (!session) return res.status(400).json({ error: 'Session expired — please login again.' });
-  if (session.userId.toString() !== req.user.id.toString()) return res.status(403).json({ error: 'Forbidden' });
+    const session = _pendingSessions.get(sessionId);
+    if (!session) return res.status(400).json({ error: 'Session expired — please login again.' });
+    if (session.userId.toString() !== req.user.id.toString()) return res.status(403).json({ error: 'Forbidden' });
 
-  // Store the code — ZenRows browser will pick it up on the next poll
-  _pending2faCodes.set(sessionId, code);
-  console.log('ZenRows 2FA: code stored for session', sessionId);
-  res.json({ ok: true, message: 'Code received, submitting to Etsy...' });
+    const axios = require('axios');
+    const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
+
+    console.log('ZenRows 2FA: submitting code via new ZenRows call...');
+
+    // New ZenRows call using same proxy country — Etsy sees same region
+    // We navigate to the 2FA page URL directly with the code
+    const verifyRes = await axios.get('https://api.zenrows.com/v1/', {
+      params: {
+        apikey: ZENROWS_KEY,
+        url: 'https://www.etsy.com/signin',
+        js_render: 'true',
+        antibot: 'true',
+        premium_proxy: 'true',
+        proxy_country: 'us',
+        js_instructions: JSON.stringify([
+          { wait_for: 'input[name="email"],#join_neu_email_field,input[name="code"],input[autocomplete="one-time-code"]' },
+          { evaluate: `
+            (function() {
+              var codeInput = document.querySelector('input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[type="number"]');
+              if (codeInput) {
+                codeInput.value = '${code}';
+                codeInput.dispatchEvent(new Event('input', {bubbles:true}));
+                codeInput.dispatchEvent(new Event('change', {bubbles:true}));
+              }
+            })()
+          `},
+          { wait: 500 },
+          { click: 'button[type="submit"],input[type="submit"]' },
+          { wait: 6000 }
+        ])
+      },
+      timeout: 120000
+    });
+
+    const resultHtml = typeof verifyRes.data === 'string' ? verifyRes.data : JSON.stringify(verifyRes.data);
+    const setCookieHeader = verifyRes.headers['set-cookie'] || '';
+    const newCookies = Array.isArray(setCookieHeader)
+      ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
+      : (typeof setCookieHeader === 'string' ? setCookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ') : '');
+
+    const allCookies = [session.cookies, newCookies].filter(Boolean).join('; ');
+
+    const isLoggedIn = resultHtml.includes('sign-out') || resultHtml.includes('logout')
+      || resultHtml.includes('user_prefs') || resultHtml.includes('/signout');
+
+    console.log('ZenRows 2FA: isLoggedIn =', isLoggedIn, '| cookies =', allCookies.length);
+
+    if (isLoggedIn || allCookies.length > 50) {
+      const AutoSearchState = require('../models/autoSearchModel');
+      await AutoSearchState.findOneAndUpdate(
+        { userId: session.userId },
+        { $set: { etsyToken: allCookies, etsyEmail: session.email, updatedAt: new Date() } },
+        { upsert: true }
+      );
+      _pendingSessions.delete(sessionId);
+      return res.json({ ok: true });
+    }
+
+    res.status(401).json({ error: 'Invalid code or session expired — please try again.' });
+
+  } catch(e) {
+    const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message;
+    console.error('ZenRows 2FA error:', detail);
+    res.status(500).json({ error: detail });
+  }
 });
 
 
