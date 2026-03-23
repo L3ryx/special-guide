@@ -338,14 +338,11 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    const { chromium } = require('playwright');
+    const { chromium } = require('@zenrows/playwright-sdk');
 
-    console.log('Playwright: launching browser for Etsy login...');
-    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      locale: 'en-US',
-    });
+    console.log('ZenRows Playwright: launching browser for Etsy login...');
+    const browser = await chromium.launch({ apiKey: process.env.ZENROWS_API_KEY });
+    const context = await browser.newContext({ locale: 'en-US' });
     const page = await context.newPage();
 
     await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
