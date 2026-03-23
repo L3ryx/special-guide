@@ -163,8 +163,9 @@ router.post('/clone', requireAuth, async (req, res) => {
       + 'Professional e-commerce photography, clean, high quality. '
       + 'Return ONLY the new image, no text.';
 
+    // gemini-2.5-flash-image requires v1alpha endpoint (not v1beta)
     var gemRes = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' + GEMINI_KEY,
+      'https://generativelanguage.googleapis.com/v1alpha/models/gemini-2.5-flash-image:generateContent?key=' + GEMINI_KEY,
       {
         contents: [{
           parts: [
@@ -172,7 +173,7 @@ router.post('/clone', requireAuth, async (req, res) => {
             { text: prompt }
           ]
         }],
-        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+        generationConfig: { responseModalities: ['IMAGE'] }
       },
       { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
     );
