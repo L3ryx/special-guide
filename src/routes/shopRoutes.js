@@ -446,66 +446,37 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
     if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
 
-    // ── Step 1: Load Etsy signin page directly (no ZenRows, just get CSRF + cookies) ──
-    console.log('ZenRows: loading Etsy signin page (direct)...');
-    const pageRes = await axios.get('https://www.etsy.com/signin', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      timeout: 20000
-    });
-
-    const html1 = typeof pageRes.data === 'string' ? pageRes.data : JSON.stringify(pageRes.data);
-
-    // Extract CSRF token
-    const csrfMatch = html1.match(/name="_nnc"\s+value="([^"]+)"/i)
-      || html1.match(/"csrf_nonce"\s*:\s*"([^"]+)"/i)
-      || html1.match(/name="csrf_token"\s+value="([^"]+)"/i);
-    const csrf = csrfMatch ? csrfMatch[1] : '';
-    console.log('ZenRows: CSRF =', csrf ? 'found' : 'not found');
-
-    // Collect cookies from step 1
-    const setCookieHeader = pageRes.headers['set-cookie'] || '';
-    const cookiesFromPage = Array.isArray(setCookieHeader)
-      ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
-      : (typeof setCookieHeader === 'string' ? setCookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ') : '');
-
-    // ── Step 2: Submit login form via ZenRows JS actions (single request) ──
-    console.log('ZenRows: submitting login form...');
+    // ── Single ZenRows call: fill form + submit ──
+    console.log('ZenRows: submitting Etsy login form...');
     const loginRes = await axios.get('https://api.zenrows.com/v1/', {
       params: {
         apikey: ZENROWS_KEY,
         url: 'https://www.etsy.com/signin',
         js_render: 'true',
         antibot: 'true',
-        wait: 6000,
+        wait: 8000,
         premium_proxy: 'true',
         proxy_country: 'us',
         js_instructions: JSON.stringify([
-          { wait_for: 'input[name="email"],#join_neu_email_field', timeout: 10000 },
+          { wait_for: 'input[name="email"],#join_neu_email_field' },
           { fill: ['input[name="email"],#join_neu_email_field', email] },
-          { wait: 500 },
+          { wait: 800 },
           { fill: ['input[name="password"],#join_neu_password_field', password] },
-          { wait: 500 },
+          { wait: 800 },
           { click: 'button[type="submit"],#signin_button' },
-          { wait: 6000 }
+          { wait: 8000 }
         ])
       },
-      timeout: 120000
+      timeout: 150000
     });
 
     const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
 
     // Collect cookies from ZenRows response
     const setCookieHeader2 = loginRes.headers['set-cookie'] || '';
-    const cookiesFromLogin = Array.isArray(setCookieHeader2)
+    const allCookies = Array.isArray(setCookieHeader2)
       ? setCookieHeader2.map(c => c.split(';')[0]).join('; ')
       : (typeof setCookieHeader2 === 'string' ? setCookieHeader2.split(',').map(c => c.split(';')[0].trim()).join('; ') : '');
-
-    // Merge cookies
-    const allCookies = [cookiesFromPage, cookiesFromLogin].filter(Boolean).join('; ');
 
     // Detect login success / 2FA
     const needs2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
@@ -577,7 +548,7 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
         proxy_country: 'us',
         session_id: 1,
         js_instructions: JSON.stringify([
-          { wait_for: 'input[name="code"],input[name="verification_code"],input[type="number"],#verification-code', timeout: 8000 },
+          { wait_for: 'input[name="code"],input[name="verification_code"],input[type="number"],#verification-code' },
           { fill: ['input[name="code"],input[name="verification_code"],input[type="number"],#verification-code', code] },
           { click: 'button[type="submit"],input[type="submit"]' },
           { wait: 5000 }
