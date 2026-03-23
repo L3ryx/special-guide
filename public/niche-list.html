@@ -298,37 +298,21 @@
       wrap.appendChild(row);
       wrap.appendChild(delBtn);
 
-      // Zone résultats Clone (cachée au départ)
+      // Zone résultats Clone (cachée au départ) — uniquement le bouton Images
       const resultsZone = document.createElement('div');
       resultsZone.className = 'clone-results';
       resultsZone.id = 'clone-results-' + shop._id;
-
-      const btnTitre = document.createElement('button');
-      btnTitre.className = 'btn-result titre'; btnTitre.textContent = '📝 Titre';
-      btnTitre.onclick = function() { toggleResultPanel(shop._id, 'titre'); };
-
-      const btnDesc = document.createElement('button');
-      btnDesc.className = 'btn-result description'; btnDesc.textContent = '📄 Description';
-      btnDesc.onclick = function() { toggleResultPanel(shop._id, 'description'); };
 
       const btnImgs = document.createElement('button');
       btnImgs.className = 'btn-result images'; btnImgs.textContent = '🖼 Images';
       btnImgs.onclick = function() { toggleResultPanel(shop._id, 'images'); };
 
-      resultsZone.appendChild(btnTitre);
-      resultsZone.appendChild(btnDesc);
       resultsZone.appendChild(btnImgs);
       wrap.appendChild(resultsZone);
 
-      // Panels de contenu
-      const panelTitre = document.createElement('div');
-      panelTitre.className = 'clone-result-panel'; panelTitre.id = 'panel-titre-' + shop._id;
-      const panelDesc = document.createElement('div');
-      panelDesc.className = 'clone-result-panel'; panelDesc.id = 'panel-description-' + shop._id;
+      // Panel images uniquement
       const panelImgs = document.createElement('div');
       panelImgs.className = 'clone-result-panel'; panelImgs.id = 'panel-images-' + shop._id;
-      wrap.appendChild(panelTitre);
-      wrap.appendChild(panelDesc);
       wrap.appendChild(panelImgs);
 
       return wrap;
@@ -337,13 +321,7 @@
     function toggleResultPanel(shopId, type) {
       var panel = document.getElementById('panel-' + type + '-' + shopId);
       if (!panel) return;
-      var isOpen = panel.classList.contains('open');
-      // Fermer tous les panels de cette boutique
-      ['titre','description','images'].forEach(function(t) {
-        var p = document.getElementById('panel-' + t + '-' + shopId);
-        if (p) p.classList.remove('open');
-      });
-      if (!isOpen) panel.classList.add('open');
+      panel.classList.toggle('open');
     }
     function deleteShop(id) {
       if (!confirm('Delete this listing?')) return;
@@ -458,8 +436,6 @@
       openCloneModal();
 
       var authToken = localStorage.getItem('scout_token');
-      var total = 0;
-      var published = 0;
 
       try {
         var res = await fetch('/api/shops/clone', {
@@ -480,6 +456,7 @@
         var reader = res.body.getReader();
         var decoder = new TextDecoder();
         var buf = '';
+        var totalImages = 0;
 
         while (true) {
           var read = await reader.read();
@@ -491,22 +468,16 @@
             if (!line.startsWith('data: ')) continue;
             try {
               var ev = JSON.parse(line.slice(6));
-              if (ev.step === 'found') {
-                total = ev.total || 0;
-                addCloneLog(ev.message);
-              } else if (ev.step === 'published') {
-                published++;
+
+              if (ev.step === 'error') {
+                addCloneLog(ev.message, 'error');
+
+              } else if (ev.step === 'complete') {
+                // Calculer la progression à partir du nombre d'images générées
+                document.getElementById('clone-progress-fill').style.width = '100%';
                 addCloneLog(ev.message, 'published');
-                if (total > 0) document.getElementById('clone-progress-fill').style.width = Math.round((ev.index + 1) / total * 100) + '%';
-                // Stocker les résultats dans les panels
-                if (shopId && ev.title) {
-                  var pt = document.getElementById('panel-titre-' + shopId);
-                  if (pt) { pt.textContent = ev.title; }
-                }
-                if (shopId && ev.description) {
-                  var pd = document.getElementById('panel-description-' + shopId);
-                  if (pd) { pd.textContent = ev.description; }
-                }
+
+                // Stocker les images dans le panel
                 if (shopId && ev.images && ev.images.length > 0) {
                   var pi = document.getElementById('panel-images-' + shopId);
                   if (pi) {
@@ -521,18 +492,23 @@
                     pi.appendChild(grid);
                   }
                 }
-              } else if (ev.step === 'skip') {
-                addCloneLog(ev.message, 'skip');
-              } else if (ev.step === 'error_listing' || ev.step === 'error') {
-                addCloneLog(ev.message, 'error');
-              } else if (ev.step === 'complete') {
-                addCloneLog(ev.message + ' (' + published + ' published)', 'published');
-                document.getElementById('clone-progress-fill').style.width = '100%';
-                // Afficher la zone résultats sous la boutique
+
+                // Afficher UNIQUEMENT le bouton Images sous la boutique
                 if (shopId) {
                   var rz = document.getElementById('clone-results-' + shopId);
                   if (rz) rz.classList.add('open');
                 }
+
+              } else if (ev.step === 'imagen') {
+                // Mise à jour de la progression selon les images traitées
+                var imgMatch = ev.message.match(/Image (\d+)\/(\d+)/);
+                if (imgMatch) {
+                  totalImages = parseInt(imgMatch[2]);
+                  var done = parseInt(imgMatch[1]);
+                  document.getElementById('clone-progress-fill').style.width = Math.round(done / totalImages * 90) + '%';
+                }
+                addCloneLog(ev.message);
+
               } else {
                 addCloneLog(ev.message || ev.step);
               }
@@ -548,5 +524,6 @@
   </script>
 </body>
 </html>
+
 
 
