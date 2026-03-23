@@ -51,11 +51,7 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// ── DELETE SHOP ──
-router.delete('/:id', requireAuth, async (req, res) => {
-  await SavedShop.deleteOne({ _id: req.params.id, userId: req.user.id });
-  res.json({ ok: true });
-});
+// NOTE: router.delete('/:id') moved to end of file to avoid catching named routes
 
 // ── GET auto-search state ──
 router.get('/auto-state', requireAuth, async (req, res) => {
@@ -687,6 +683,13 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+// ── DELETE SHOP (must be last — /:id catches everything) ──
+router.delete('/:id', requireAuth, async (req, res) => {
+  await SavedShop.deleteOne({ _id: req.params.id, userId: req.user.id });
+  res.json({ ok: true });
+});
+
 
 
 
