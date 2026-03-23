@@ -261,18 +261,32 @@ router.post('/clone', requireAuth, async (req, res) => {
     ];
 
     var uploadedUrls = [];
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
 
     for (var ii = 0; ii < rawImages.length; ii++) {
       send({ step: 'imagen', message: '🎨 Processing image ' + (ii+1) + '/' + rawImages.length + '...' });
-      try {
-        var modifiedB64 = await modifyImageWithGemini(rawImages[ii], backgrounds[ii], angles[ii]);
-        var hostedUrl = await uploadToImgBB(modifiedB64);
-        uploadedUrls.push(hostedUrl);
-        send({ step: 'imagen', message: '✅ Image ' + (ii+1) + '/' + rawImages.length + ' modified & uploaded' });
-      } catch(imgErr) {
-        console.warn('Gemini image error for image ' + (ii+1) + ':', imgErr.message);
-        send({ step: 'imagen', message: '⚠️ Image ' + (ii+1) + ' failed: ' + imgErr.message });
-        // Pas de fallback image originale — on skip simplement cette image
+      if (ii > 0) await sleep(4000);
+      var attempts = 0;
+      var success = false;
+      while (attempts < 3 && !success) {
+        try {
+          var modifiedB64 = await modifyImageWithGemini(rawImages[ii], backgrounds[ii], angles[ii]);
+          var hostedUrl = await uploadToImgBB(modifiedB64);
+          uploadedUrls.push(hostedUrl);
+          send({ step: 'imagen', message: '✅ Image ' + (ii+1) + '/' + rawImages.length + ' modified & uploaded' });
+          success = true;
+        } catch(imgErr) {
+          attempts++;
+          var status = imgErr.response && imgErr.response.status;
+          console.warn('Gemini image error for image ' + (ii+1) + ' (attempt ' + attempts + '):', imgErr.message);
+          if (status === 429 && attempts < 3) {
+            send({ step: 'imagen', message: '⏳ Rate limit, waiting 15s before retry...' });
+            await sleep(15000);
+          } else {
+            send({ step: 'imagen', message: '⚠️ Image ' + (ii+1) + ' failed: ' + imgErr.message });
+            break;
+          }
+        }
       }
     }
 
