@@ -188,13 +188,7 @@ router.post('/clone', requireAuth, async (req, res) => {
       num_images: 1,
       guidance_scale: 7,
       init_image_id: initImageId,
-      init_strength: 0.35,         // 0.35 = reste très proche du produit original
-      controlnets: [{
-        initImageId: initImageId,
-        initImageType: 'UPLOADED',
-        preprocessorId: 67,        // Content Shuffle : préserve la structure du produit
-        strengthType: 'Mid'
-      }]
+      init_strength: 0.35
     };
 
     var genRes = await axios.post(
