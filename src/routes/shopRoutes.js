@@ -456,8 +456,6 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
         wait: 3000,
         premium_proxy: 'true',
         proxy_country: 'us',
-        original_status: 'true',
-        response_headers: 'true',
         session_id: 1          // keep same IP/session across requests
       },
       timeout: 90000
@@ -488,8 +486,6 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
         wait: 5000,
         premium_proxy: 'true',
         proxy_country: 'us',
-        original_status: 'true',
-        response_headers: 'true',
         session_id: 1,
         js_instructions: JSON.stringify([
           { wait_for: '#join_neu_email_field,input[name="email"]', timeout: 8000 },
@@ -581,8 +577,6 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
         wait: 5000,
         premium_proxy: 'true',
         proxy_country: 'us',
-        original_status: 'true',
-        response_headers: 'true',
         session_id: 1,
         js_instructions: JSON.stringify([
           { wait_for: 'input[name="code"],input[name="verification_code"],input[type="number"],#verification-code', timeout: 8000 },
