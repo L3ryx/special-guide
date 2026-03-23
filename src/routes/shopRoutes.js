@@ -530,7 +530,7 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
       const AutoSearchState = require('../models/autoSearchModel');
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
-        { : { etsyToken: allCookies, etsyEmail: email, updatedAt: new Date() } },
+        { $set: { etsyToken: allCookies, etsyEmail: email, updatedAt: new Date() } },
         { upsert: true }
       );
       return res.json({ ok: true });
@@ -613,7 +613,7 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
       const AutoSearchState = require('../models/autoSearchModel');
       await AutoSearchState.findOneAndUpdate(
         { userId: session.userId },
-        { : { etsyToken: allCookies, etsyEmail: session.email, updatedAt: new Date() } },
+        { $set: { etsyToken: allCookies, etsyEmail: session.email, updatedAt: new Date() } },
         { upsert: true }
       );
       _pendingSessions.delete(sessionId);
