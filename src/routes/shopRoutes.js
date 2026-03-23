@@ -446,19 +446,15 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
     if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
 
-    // ── Step 1: Load Etsy signin page with ZenRows JS rendering ──
-    console.log('ZenRows: loading Etsy signin page...');
-    const pageRes = await axios.get('https://api.zenrows.com/v1/', {
-      params: {
-        apikey: ZENROWS_KEY,
-        url: 'https://www.etsy.com/signin',
-        js_render: 'true',
-        wait: 3000,
-        premium_proxy: 'true',
-        proxy_country: 'us',
-        session_id: 1          // keep same IP/session across requests
+    // ── Step 1: Load Etsy signin page directly (no ZenRows, just get CSRF + cookies) ──
+    console.log('ZenRows: loading Etsy signin page (direct)...');
+    const pageRes = await axios.get('https://www.etsy.com/signin', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
       },
-      timeout: 90000
+      timeout: 20000
     });
 
     const html1 = typeof pageRes.data === 'string' ? pageRes.data : JSON.stringify(pageRes.data);
@@ -471,28 +467,29 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     console.log('ZenRows: CSRF =', csrf ? 'found' : 'not found');
 
     // Collect cookies from step 1
-    const setCookieHeader = pageRes.headers['set-cookie'] || pageRes.headers['zr-set-cookie'] || '';
+    const setCookieHeader = pageRes.headers['set-cookie'] || '';
     const cookiesFromPage = Array.isArray(setCookieHeader)
       ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
       : (typeof setCookieHeader === 'string' ? setCookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ') : '');
 
-    // ── Step 2: Submit login form via ZenRows JS actions ──
+    // ── Step 2: Submit login form via ZenRows JS actions (single request) ──
     console.log('ZenRows: submitting login form...');
     const loginRes = await axios.get('https://api.zenrows.com/v1/', {
       params: {
         apikey: ZENROWS_KEY,
         url: 'https://www.etsy.com/signin',
         js_render: 'true',
-        wait: 5000,
+        wait: 6000,
         premium_proxy: 'true',
         proxy_country: 'us',
-        session_id: 1,
         js_instructions: JSON.stringify([
-          { wait_for: '#join_neu_email_field,input[name="email"]', timeout: 8000 },
-          { fill: ['#join_neu_email_field,input[name="email"]', email] },
-          { fill: ['#join_neu_password_field,input[name="password"]', password] },
-          { click: 'button[type="submit"],input[type="submit"],#signin_button' },
-          { wait: 5000 }
+          { wait_for: 'input[name="email"],#join_neu_email_field', timeout: 10000 },
+          { fill: ['input[name="email"],#join_neu_email_field', email] },
+          { wait: 500 },
+          { fill: ['input[name="password"],#join_neu_password_field', password] },
+          { wait: 500 },
+          { click: 'button[type="submit"],#signin_button' },
+          { wait: 6000 }
         ])
       },
       timeout: 120000
@@ -500,23 +497,22 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
 
     const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
 
-    // Collect cookies from step 2
-    const setCookieHeader2 = loginRes.headers['set-cookie'] || loginRes.headers['zr-set-cookie'] || '';
+    // Collect cookies from ZenRows response
+    const setCookieHeader2 = loginRes.headers['set-cookie'] || '';
     const cookiesFromLogin = Array.isArray(setCookieHeader2)
       ? setCookieHeader2.map(c => c.split(';')[0]).join('; ')
       : (typeof setCookieHeader2 === 'string' ? setCookieHeader2.split(',').map(c => c.split(';')[0].trim()).join('; ') : '');
 
-    // Merge cookies (login cookies take priority)
+    // Merge cookies
     const allCookies = [cookiesFromPage, cookiesFromLogin].filter(Boolean).join('; ');
 
-    // Detect login success
+    // Detect login success / 2FA
     const needs2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
-      || resultHtml.includes('two-factor') || resultHtml.includes('phone');
+      || resultHtml.includes('two-factor') || resultHtml.includes('phone_number_verification');
 
     const isLoggedIn = (
       resultHtml.includes('sign-out') || resultHtml.includes('logout')
       || resultHtml.includes('user_prefs') || resultHtml.includes('/signout')
-      || loginRes.headers['x-original-url']?.includes('/home')
     ) && !needs2FA;
 
     console.log('ZenRows: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA);
