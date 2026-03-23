@@ -3,9 +3,9 @@ const router       = express.Router();
 const { requireAuth } = require('./auth');
 const SavedShop    = require('../models/shopModel');
 const AutoSearchState = require('../models/autoSearchModel');
-const PendingSession  = require('../models/pendingSessionModel');
 
-// Les sessions 2FA sont désormais persistées en MongoDB (résistant aux redémarrages serveur)
+// Sessions Playwright en attente de 2FA : { browser, page, email, userId, timer }
+const _playwrightSessions = new Map();
 
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
@@ -322,116 +322,88 @@ router.get('/etsy-session-status', requireAuth, async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// HELPER zenrowsRun
-// ZenRows ne retourne PAS les cookies dans les headers set-cookie.
-// On injecte un evaluate JS à la fin qui écrit document.cookie dans un
-// élément DOM caché, puis on le parse depuis le HTML retourné.
+// HELPER : fermer proprement un browser Playwright en attente
 // ──────────────────────────────────────────────────────────────────────────────
-async function zenrowsRun(ZENROWS_KEY, url, jsInstructions) {
-  const axios = require('axios');
-
-  const instructionsWithDump = [
-    ...jsInstructions,
-    {
-      evaluate: `
-        (function() {
-          try {
-            var el = document.getElementById('__zr_cookies__');
-            if (!el) { el = document.createElement('div'); el.id = '__zr_cookies__'; el.style.display='none'; document.body.appendChild(el); }
-            el.textContent = document.cookie;
-          } catch(e) {}
-        })()
-      `
-    },
-    { wait: 800 }
-  ];
-
-  const response = await axios.get('https://api.zenrows.com/v1/', {
-    params: {
-      apikey:          ZENROWS_KEY,
-      url:             url,
-      js_render:       'true',
-      antibot:         'true',
-      premium_proxy:   'true',
-      proxy_country:   'us',
-      js_instructions: JSON.stringify(instructionsWithDump)
-    },
-    timeout: 120000
-  });
-
-  const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-
-  // Extraire les cookies depuis l'élément DOM injecté
-  const cookieMatch = html.match(/<div id="__zr_cookies__"[^>]*>([^<]*)<\/div>/);
-  const cookies = cookieMatch ? cookieMatch[1].trim() : '';
-
-  console.log(`ZenRows [${url}] — cookies extracted: ${cookies.length} chars | HTML: ${html.length} chars`);
-  return { html, cookies };
+async function closePwSession(sessionId) {
+  const s = _playwrightSessions.get(sessionId);
+  if (!s) return;
+  clearTimeout(s.timer);
+  _playwrightSessions.delete(sessionId);
+  try { await s.browser.close(); } catch(e) { console.warn('browser.close error:', e.message); }
 }
 
-// ── ETSY LOGIN via ZenRows ──
+// ── ETSY LOGIN via Playwright ──
 router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
-    if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
+    const { chromium } = require('playwright');
 
-    console.log('ZenRows: submitting Etsy login form...');
+    console.log('Playwright: launching browser for Etsy login...');
+    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      locale: 'en-US',
+    });
+    const page = await context.newPage();
 
-    const { html: resultHtml, cookies: allCookies } = await zenrowsRun(
-      ZENROWS_KEY,
-      'https://www.etsy.com/signin',
-      [
-        { wait_for: 'input[name="email"],#join_neu_email_field' },
-        { fill:     ['input[name="email"],#join_neu_email_field', email] },
-        { wait:     500 },
-        { fill:     ['input[name="password"],#join_neu_password_field', password] },
-        { wait:     500 },
-        { click:    'button[type="submit"],#signin_button' },
-        { wait:     8000 }
-      ]
-    );
+    await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    const needs2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
-      || resultHtml.includes('two-factor') || resultHtml.includes('phone_number_verification')
-      || resultHtml.includes('one-time-code');
+    // Remplir email
+    await page.waitForSelector('input[name="email"],#join_neu_email_field', { timeout: 15000 });
+    await page.fill('input[name="email"],#join_neu_email_field', email);
+    await page.waitForTimeout(400);
+    await page.fill('input[name="password"],#join_neu_password_field', password);
+    await page.waitForTimeout(400);
+    await page.click('button[type="submit"],#signin_button');
+
+    // Attendre la réponse d'Etsy (2FA ou dashboard)
+    await page.waitForTimeout(6000);
+
+    const content = await page.content();
+    const needs2FA = content.includes('verification') || content.includes('verify')
+      || content.includes('two-factor') || content.includes('one-time-code')
+      || content.includes('phone_number_verification');
 
     const isLoggedIn = (
-      resultHtml.includes('sign-out') || resultHtml.includes('logout')
-      || resultHtml.includes('user_prefs') || resultHtml.includes('/signout')
+      content.includes('sign-out') || content.includes('logout')
+      || content.includes('user_prefs') || content.includes('/signout')
     ) && !needs2FA;
 
-    console.log('ZenRows login: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA, '| cookies =', allCookies.length);
+    console.log('Playwright login: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA);
 
     if (isLoggedIn) {
+      const cookies = await context.cookies();
+      const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      await browser.close();
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
-        { $set: { etsyToken: allCookies, etsyEmail: email, updatedAt: new Date() } },
+        { $set: { etsyToken: cookieStr, etsyEmail: email, updatedAt: new Date() } },
         { upsert: true }
       );
       return res.json({ ok: true });
     }
 
     if (needs2FA) {
-      const sessionId = require('crypto').randomBytes(16).toString('hex');
-      await PendingSession.create({
-        sessionId,
-        userId:    req.user.id,
-        email,
-        password,
-        cookies:   allCookies,
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes
-      });
+      const crypto = require('crypto');
+      const sessionId = crypto.randomBytes(16).toString('hex');
+
+      // Fermeture automatique après 10 minutes si l'utilisateur ne répond pas
+      const timer = setTimeout(() => closePwSession(sessionId), 10 * 60 * 1000);
+      _playwrightSessions.set(sessionId, { browser, context, page, email, userId: req.user.id, timer });
+
       return res.json({ needs2FA: true, sessionId });
     }
 
-    // Fallback : si on a des cookies, on accepte quand même
-    if (allCookies.length > 30) {
+    // Fallback cookies
+    const cookies = await context.cookies();
+    const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+    await browser.close();
+    if (cookieStr.length > 30) {
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
-        { $set: { etsyToken: allCookies, etsyEmail: email, updatedAt: new Date() } },
+        { $set: { etsyToken: cookieStr, etsyEmail: email, updatedAt: new Date() } },
         { upsert: true }
       );
       return res.json({ ok: true });
@@ -440,118 +412,63 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     res.status(401).json({ error: 'Login failed — check your Etsy credentials.' });
 
   } catch(e) {
-    const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message;
-    console.error('ZenRows Etsy login error:', detail);
-    res.status(500).json({ error: detail });
+    console.error('Playwright Etsy login error:', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 
-// ── ETSY 2FA via ZenRows ──
-// Stratégie : on refait le login complet + saisie du code dans le MÊME appel ZenRows.
-// C'est la seule approche fiable car ZenRows ne partage aucune session entre deux appels.
+// ── ETSY 2FA via Playwright ──
+// La page 2FA est déjà ouverte dans le browser en mémoire — on saisit juste le code.
 router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
   try {
     const { sessionId, code } = req.body;
     if (!sessionId || !code) return res.status(400).json({ error: 'sessionId and code required' });
 
-    const session = await PendingSession.findOne({
-      sessionId,
-      expiresAt: { $gt: new Date() }
-    });
+    const session = _playwrightSessions.get(sessionId);
     if (!session) return res.status(400).json({ error: 'Session expirée — veuillez vous reconnecter.' });
     if (session.userId.toString() !== req.user.id.toString()) return res.status(403).json({ error: 'Forbidden' });
 
-    const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
-    if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
+    const { page, context } = session;
 
-    console.log('ZenRows 2FA: full login + code in single call...');
+    // Saisir le code dans le champ 2FA déjà affiché
+    const codeSelector = 'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"],input[type="number"]';
+    await page.waitForSelector(codeSelector, { timeout: 10000 });
+    await page.fill(codeSelector, code);
+    await page.waitForTimeout(400);
+    await page.click('button[type="submit"],input[type="submit"],button[data-action="verify"],button[data-testid="submit"]');
+    await page.waitForTimeout(6000);
 
-    const { html: resultHtml, cookies: newCookies } = await zenrowsRun(
-      ZENROWS_KEY,
-      'https://www.etsy.com/signin',
-      [
-        // Étape 1 : saisir email + password
-        { wait_for: 'input[name="email"],#join_neu_email_field' },
-        { fill:     ['input[name="email"],#join_neu_email_field', session.email] },
-        { wait:     500 },
-        { fill:     ['input[name="password"],#join_neu_password_field', session.password] },
-        { wait:     500 },
-        { click:    'button[type="submit"],#signin_button' },
-        { wait:     8000 },
-        // Étape 2 : attendre le champ 2FA et saisir le code
-        { wait_for: 'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"],input[type="number"]' },
-        { fill: [
-            'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"],input[type="number"]',
-            code
-        ]},
-        { wait:  500 },
-        { click: 'button[type="submit"],input[type="submit"],button[data-action="verify"],button[data-testid="submit"]' },
-        { wait:  8000 }
-      ]
-    );
-
-    const mergedCookies = mergeCookies(session.cookies, newCookies);
-
+    const content = await page.content();
+    const still2FA = content.includes('verification') || content.includes('verify')
+      || content.includes('two-factor') || content.includes('one-time-code');
     const isLoggedIn = (
-      resultHtml.includes('sign-out') ||
-      resultHtml.includes('logout') ||
-      resultHtml.includes('user_prefs') ||
-      resultHtml.includes('/signout')
-    );
+      content.includes('sign-out') || content.includes('logout')
+      || content.includes('user_prefs') || content.includes('/signout')
+    ) && !still2FA;
 
-    const still2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
-      || resultHtml.includes('two-factor') || resultHtml.includes('phone_number_verification')
-      || resultHtml.includes('one-time-code');
+    console.log('Playwright 2FA: isLoggedIn =', isLoggedIn, '| still2FA =', still2FA);
 
-    console.log('ZenRows 2FA: isLoggedIn =', isLoggedIn, '| still2FA =', still2FA, '| mergedCookies =', mergedCookies.length);
-
-    if (isLoggedIn && !still2FA) {
+    if (isLoggedIn || !still2FA) {
+      const cookies = await context.cookies();
+      const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      await closePwSession(sessionId);
       await AutoSearchState.findOneAndUpdate(
         { userId: session.userId },
-        { $set: { etsyToken: mergedCookies, etsyEmail: session.email, updatedAt: new Date() } },
+        { $set: { etsyToken: cookieStr, etsyEmail: session.email, updatedAt: new Date() } },
         { upsert: true }
       );
-      await PendingSession.deleteOne({ sessionId });
       return res.json({ ok: true });
     }
 
-    if (still2FA) {
-      return res.status(401).json({ error: 'Invalid or expired code — please try again.' });
-    }
-
-    // Fallback : si on a des cookies, on accepte
-    if (mergedCookies.length > 30) {
-      await AutoSearchState.findOneAndUpdate(
-        { userId: session.userId },
-        { $set: { etsyToken: mergedCookies, etsyEmail: session.email, updatedAt: new Date() } },
-        { upsert: true }
-      );
-      await PendingSession.deleteOne({ sessionId });
-      return res.json({ ok: true });
+    // Code invalide — on garde le browser ouvert pour permettre une nouvelle tentative
+    return res.status(401).json({ error: 'Code invalide — veuillez réessayer.' });
 
   } catch(e) {
-    const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message;
-    console.error('ZenRows 2FA error:', detail);
-    res.status(500).json({ error: detail });
+    console.error('Playwright 2FA error:', e.message);
+    await closePwSession(req.body?.sessionId).catch(() => {});
+    res.status(500).json({ error: e.message });
   }
 });
-
-// ── Utilitaire : fusionner deux chaînes de cookies ──
-function mergeCookies(older, newer) {
-  const map = new Map();
-  for (const str of [older, newer]) {
-    if (!str) continue;
-    for (const part of str.split(';')) {
-      const trimmed = part.trim();
-      const eq = trimmed.indexOf('=');
-      if (eq === -1) continue;
-      const key = trimmed.slice(0, eq).trim();
-      const val = trimmed.slice(eq + 1).trim();
-      if (key) map.set(key, val);
-    }
-  }
-  return Array.from(map.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
-}
 
 module.exports = router;
 
