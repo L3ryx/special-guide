@@ -531,7 +531,6 @@
       status.textContent = '⏳ Sending code to Etsy...';
 
       try {
-        // Send code to server — ZenRows browser will pick it up and submit it
         var res = await fetch('/api/shops/etsy-zenrows-2fa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
@@ -540,48 +539,22 @@
         var data = await res.json();
 
         if (data.ok) {
-          status.textContent = '⏳ Code sent! Waiting for Etsy to validate...';
-          status.className = '';
-          // Poll for final result — the login request is still running server-side
-          _pollEtsyLoginResult();
+          status.textContent = '✅ Connected! Cookies saved.';
+          status.className = 'success';
+          var navBtn = document.getElementById('btn-etsy-login');
+          navBtn.innerHTML = '✅ Etsy Connected';
+          navBtn.classList.add('connected');
+          setTimeout(closeEtsyModal, 1500);
         } else {
-          status.textContent = '❌ ' + (data.error || 'Error sending code');
+          status.textContent = '❌ ' + (data.error || 'Invalid code');
           status.className = 'error';
-          btn.disabled = false;
         }
       } catch(e) {
         status.textContent = '❌ Network error: ' + e.message;
         status.className = 'error';
+      } finally {
         btn.disabled = false;
       }
-    }
-
-    function _pollEtsyLoginResult() {
-      var attempts = 0;
-      var interval = setInterval(async function() {
-        attempts++;
-        try {
-          var res = await fetch('/api/shops/etsy-session-status', {
-            headers: { 'Authorization': 'Bearer ' + TOKEN }
-          });
-          var data = await res.json();
-          if (data.connected) {
-            clearInterval(interval);
-            document.getElementById('etsy-modal-status').textContent = '✅ Connected! Cookies saved.';
-            document.getElementById('etsy-modal-status').className = 'success';
-            var navBtn = document.getElementById('btn-etsy-login');
-            navBtn.innerHTML = '✅ Etsy Connected';
-            navBtn.classList.add('connected');
-            setTimeout(closeEtsyModal, 1500);
-          } else if (attempts >= 60) { // 60 * 3s = 3min
-            clearInterval(interval);
-            document.getElementById('etsy-modal-status').textContent = '❌ Timeout — please try again.';
-            document.getElementById('etsy-modal-status').className = 'error';
-            document.getElementById('btn-etsy-2fa-submit').disabled = false;
-          }
-        } catch(e) {}
-      }, 3000);
-    }
 
     // Close modal on overlay click
     document.getElementById('etsy-modal-overlay').addEventListener('click', function(e) {
