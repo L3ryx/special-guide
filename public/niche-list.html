@@ -170,9 +170,6 @@
     .clone-progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.07); border-radius: 6px; overflow: hidden; }
     .clone-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #60a5fa); border-radius: 6px; transition: width 0.4s ease; }
 
-
-
-
     .btn-delete {
       position: absolute; top: -8px; right: -8px;
       width: 22px; height: 22px; border-radius: 50%;
@@ -320,21 +317,17 @@
       wrap.id = 'shop-wrapper-' + shop._id;
       wrap.className = 'shop-row-wrap';
 
-      // Extraire shopName depuis toutes les sources disponibles
       let shopName = shop.shopName || null;
 
-      // Essayer d'extraire depuis shopUrl
       if (!shopName && shop.shopUrl) {
         const m = shop.shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
         if (m) shopName = m[1];
       }
-      // Essayer d'extraire depuis productUrl
       if (!shopName && shop.productUrl) {
         const m = shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
         if (m) shopName = m[1];
       }
 
-      // Construire shopUrl proprement
       const shopUrl = shopName
         ? 'https://www.etsy.com/shop/' + shopName
         : (shop.shopUrl || '#');
@@ -345,7 +338,6 @@
       row.className = 'shop-row';
       row.id = 'shop-row-' + shop._id;
 
-      // Avatar rond
       const ph = document.createElement('div');
       ph.className = 'shop-avatar-ph'; ph.textContent = '🛍';
       if (avatarUrl) {
@@ -359,25 +351,22 @@
       }
       row.appendChild(ph);
 
-      // Bouton Visit shop
       const visitBtn = document.createElement('a');
       visitBtn.className = 'btn-visit';
       visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
       visitBtn.textContent = 'Visit shop ↗';
       row.appendChild(visitBtn);
 
-      // Bouton Clone
       const cloneBtn = document.createElement('button');
       cloneBtn.className = 'btn-clone';
       cloneBtn.textContent = 'Clone';
       cloneBtn.onclick = function() { cloneShop(shopName, cloneBtn, shop._id); };
       row.appendChild(cloneBtn);
 
-      // Croix rouge suppression en haut à droite
       const delBtn = document.createElement('button');
       delBtn.className = 'btn-delete'; delBtn.textContent = '✕';
       delBtn.addEventListener('click', function() { deleteShop(shop._id); });
-      // Nom de boutique affiché au-dessus des boutons
+
       const shopLabel = document.createElement('div');
       shopLabel.className = 'shop-name-label';
       shopLabel.textContent = shopName ? '🏪 ' + shopName : '';
@@ -386,7 +375,6 @@
       wrap.appendChild(row);
       wrap.appendChild(delBtn);
 
-      // Zone résultats Clone (cachée au départ) — uniquement le bouton Images
       const resultsZone = document.createElement('div');
       resultsZone.className = 'clone-results';
       resultsZone.id = 'clone-results-' + shop._id;
@@ -398,7 +386,6 @@
       resultsZone.appendChild(btnImgs);
       wrap.appendChild(resultsZone);
 
-      // Panel images uniquement
       const panelImgs = document.createElement('div');
       panelImgs.className = 'clone-result-panel'; panelImgs.id = 'panel-images-' + shop._id;
       wrap.appendChild(panelImgs);
@@ -411,6 +398,7 @@
       if (!panel) return;
       panel.classList.toggle('open');
     }
+
     function deleteShop(id) {
       if (!confirm('Delete this listing?')) return;
       apiFetch('/api/shops/' + id, { method: 'DELETE' }).then(() => {
@@ -430,6 +418,11 @@
       if (!TOKEN) { window.location.href = '/finder'; return; }
       loadShops();
       checkEtsyStatus();
+
+      // Fermer le modal en cliquant sur l'overlay
+      document.getElementById('etsy-modal-overlay').addEventListener('click', function(e) {
+        if (e.target === this) closeEtsyModal();
+      });
     });
 
     // ── Etsy Login via ZenRows ──
@@ -496,7 +489,6 @@
           navBtn.classList.add('connected');
           setTimeout(closeEtsyModal, 1500);
         } else if (data.needs2FA) {
-          // Switch to 2FA step
           _etsy2faSessionId = data.sessionId;
           document.getElementById('etsy-step-login').style.display = 'none';
           document.getElementById('etsy-step-2fa').style.display = 'block';
@@ -515,6 +507,7 @@
       }
     }
 
+    // ── FIX : accolade fermante correctement placée ──
     async function submitEtsy2FA() {
       var code   = document.getElementById('etsy-2fa-code').value.trim();
       var status = document.getElementById('etsy-modal-status');
@@ -555,12 +548,7 @@
       } finally {
         btn.disabled = false;
       }
-    } // end submitEtsy2FA
-
-    // Close modal on overlay click
-    document.getElementById('etsy-modal-overlay').addEventListener('click', function(e) {
-      if (e.target === this) closeEtsyModal();
-    });
+    } // ← FIX : fermeture correcte de submitEtsy2FA()
   </script>
 
   <script>
@@ -692,11 +680,9 @@
                 addCloneLog(ev.message, 'error');
 
               } else if (ev.step === 'complete') {
-                // Calculer la progression à partir du nombre d'images générées
                 document.getElementById('clone-progress-fill').style.width = '100%';
                 addCloneLog(ev.message, 'published');
 
-                // Stocker les images dans le panel
                 if (shopId && ev.images && ev.images.length > 0) {
                   var pi = document.getElementById('panel-images-' + shopId);
                   if (pi) {
@@ -712,14 +698,12 @@
                   }
                 }
 
-                // Afficher UNIQUEMENT le bouton Images sous la boutique
                 if (shopId) {
                   var rz = document.getElementById('clone-results-' + shopId);
                   if (rz) rz.classList.add('open');
                 }
 
               } else if (ev.step === 'imagen') {
-                // Mise à jour de la progression selon les images traitées
                 var imgMatch = ev.message.match(/Image (\d+)\/(\d+)/);
                 if (imgMatch) {
                   totalImages = parseInt(imgMatch[2]);
@@ -739,12 +723,6 @@
       document.getElementById('clone-close-btn').style.display = 'block';
       btn.disabled = false;
     }
-
   </script>
 </body>
 </html>
-
-
-
-
-
