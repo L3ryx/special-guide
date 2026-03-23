@@ -155,6 +155,9 @@ router.post('/clone', requireAuth, async (req, res) => {
   }
 
   async function modifyImageWithGemini(b64Image, background, angle) {
+    const { GoogleGenAI } = require('@google/genai');
+    const genaiClient = new GoogleGenAI({ apiKey: GEMINI_KEY });
+
     var prompt = 'You are a professional product photographer. '
       + 'Generate a NEW product photo of the exact same product with: '
       + 'Background: ' + background + '. '
@@ -163,23 +166,23 @@ router.post('/clone', requireAuth, async (req, res) => {
       + 'Professional e-commerce photography, clean, high quality. '
       + 'Return ONLY the new image, no text.';
 
-    var gemRes = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-image-generation:generateContent?key=' + GEMINI_KEY,
-      {
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: 'image/jpeg', data: b64Image } },
-            { text: prompt }
-          ]
-        }],
-        generationConfig: { responseModalities: ['IMAGE'] }
-      },
-      { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
-    );
+    var result = await genaiClient.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: [{
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: b64Image } },
+          { text: prompt }
+        ]
+      }],
+      config: {
+        responseModalities: ['IMAGE', 'TEXT']
+      }
+    });
 
-    var parts = (gemRes.data.candidates && gemRes.data.candidates[0] && gemRes.data.candidates[0].content && gemRes.data.candidates[0].content.parts) || [];
+    var parts = (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) || [];
     for (var p of parts) {
-      if (p.inline_data && p.inline_data.data) return p.inline_data.data;
+      if (p.inlineData && p.inlineData.data) return p.inlineData.data;
     }
     throw new Error('Gemini returned no image');
   }
@@ -313,7 +316,7 @@ router.post('/clone', requireAuth, async (req, res) => {
     var uploadedUrls = [];
 
     for (var ii = 0; ii < rawImages.length; ii++) {
-      if (ii > 0) await sleep(4000);
+      if (ii > 0) await sleep(10000);
       send({ step: 'imagen', message: '🎨 Modifying image ' + (ii+1) + '/' + rawImages.length + ' with Gemini...' });
 
       var attempts = 0;
@@ -335,8 +338,8 @@ router.post('/clone', requireAuth, async (req, res) => {
           var status = imgErr.response && imgErr.response.status;
           console.warn('Gemini image error (attempt ' + attempts + '):', imgErr.message);
           if (status === 429 && attempts < 3) {
-            send({ step: 'imagen', message: '⏳ Rate limit, waiting 15s...' });
-            await sleep(15000);
+            send({ step: 'imagen', message: '⏳ Rate limit, waiting 30s...' });
+            await sleep(30000);
           } else {
             // Fallback : uploader l'image originale
             try {
