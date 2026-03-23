@@ -186,7 +186,7 @@ router.post('/clone', requireAuth, async (req, res) => {
       width: 1024,
       height: 1024,
       num_images: 1,
-      guidanceScale: 7,
+      guidance_scale: 7,
       init_image_id: initImageId,
       init_strength: 0.35,         // 0.35 = reste très proche du produit original
       controlnets: [{
@@ -528,5 +528,6 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
 
 
