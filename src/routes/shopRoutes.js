@@ -164,7 +164,7 @@ router.post('/clone', requireAuth, async (req, res) => {
       + 'Return ONLY the new image, no text.';
 
     var gemRes = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=' + GEMINI_KEY,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' + GEMINI_KEY,
       {
         contents: [{
           parts: [
