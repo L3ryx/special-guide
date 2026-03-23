@@ -4,11 +4,13 @@ const { requireAuth } = require('./auth');
 const SavedShop    = require('../models/shopModel');
 const AutoSearchState = require('../models/autoSearchModel');
 
+// Map pour stocker les sessions 2FA en attente
+const _pendingSessions = new Map();
+
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
   let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
 
-  // Extraire shopName depuis différentes sources
   if (!shopName && shopUrl) {
     const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
     if (m) shopName = m[1];
@@ -18,7 +20,6 @@ router.post('/save', requireAuth, async (req, res) => {
     if (m) shopName = m[1];
   }
 
-  // Toujours reconstruire shopUrl proprement depuis shopName
   if (shopName) {
     shopUrl = 'https://www.etsy.com/shop/' + shopName;
   } else if (shopUrl) {
@@ -51,7 +52,11 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// NOTE: router.delete('/:id') moved to end of file to avoid catching named routes
+// ── DELETE SHOP ──
+router.delete('/:id', requireAuth, async (req, res) => {
+  await SavedShop.deleteOne({ _id: req.params.id, userId: req.user.id });
+  res.json({ ok: true });
+});
 
 // ── GET auto-search state ──
 router.get('/auto-state', requireAuth, async (req, res) => {
@@ -99,7 +104,7 @@ router.post('/auto-state/shop', requireAuth, async (req, res) => {
   }
 });
 
-// ── UPDATE keyword queue (après génération ou consommation) ──
+// ── UPDATE keyword queue ──
 router.post('/auto-state/queue', requireAuth, async (req, res) => {
   try {
     const { keywordQueue, usedKeyword } = req.body;
@@ -112,9 +117,6 @@ router.post('/auto-state/queue', requireAuth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-
-
 
 // ── CLONE SHOP ──
 router.post('/clone', requireAuth, async (req, res) => {
@@ -151,7 +153,6 @@ router.post('/clone', requireAuth, async (req, res) => {
   }
 
   async function modifyImageWithLeonardo(b64Image, background, angle) {
-    // ── Step 1: Upload the source image to Leonardo (init-image) ──
     var uploadRes = await axios.post(
       'https://cloud.leonardo.ai/api/rest/v1/init-image',
       { extension: 'jpg' },
@@ -159,10 +160,9 @@ router.post('/clone', requireAuth, async (req, res) => {
     );
     var uploadData   = uploadRes.data.uploadInitImage;
     var uploadUrl    = uploadData.url;
-    var uploadFields = uploadData.fields; // pre-signed S3 fields (string or object)
+    var uploadFields = uploadData.fields;
     var initImageId  = uploadData.id;
 
-    // Upload image bytes to the pre-signed S3 URL
     var FormDataLib = require('form-data');
     var fields = typeof uploadFields === 'string' ? JSON.parse(uploadFields) : uploadFields;
     var s3Form = new FormDataLib();
@@ -170,7 +170,6 @@ router.post('/clone', requireAuth, async (req, res) => {
     s3Form.append('file', Buffer.from(b64Image, 'base64'), { filename: 'product.jpg', contentType: 'image/jpeg' });
     await axios.post(uploadUrl, s3Form, { headers: s3Form.getHeaders(), timeout: 30000 });
 
-    // ── Step 2: Generate image-to-image via init_image + ControlNet ──
     var prompt = 'Professional e-commerce product photo. '
       + 'Background: ' + background + '. '
       + 'Angle: ' + angle + '. '
@@ -178,7 +177,7 @@ router.post('/clone', requireAuth, async (req, res) => {
 
     var genBody = {
       prompt: prompt,
-      modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3', // Leonardo Diffusion XL
+      modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3',
       width: 1024,
       height: 1024,
       num_images: 1,
@@ -193,15 +192,13 @@ router.post('/clone', requireAuth, async (req, res) => {
       { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 30000 }
     );
 
-    // Log body for debugging
     if (!genRes.data || !genRes.data.sdGenerationJob) {
       throw new Error('Leonardo gen response unexpected: ' + JSON.stringify(genRes.data));
     }
 
     var generationId = genRes.data.sdGenerationJob.generationId;
 
-    // ── Step 3: Poll until generation is COMPLETE ──
-    var maxWait = 120; // seconds
+    var maxWait = 120;
     var waited  = 0;
     while (waited < maxWait) {
       await sleep(4000);
@@ -223,7 +220,6 @@ router.post('/clone', requireAuth, async (req, res) => {
   }
 
   try {
-    // ── Étape 1 : scraper la boutique pour récupérer toutes les annonces ──
     send({ step: 'scraping', message: '🔍 Scraping shop page...' });
     var shopHtml = await sbFetch('https://www.etsy.com/shop/' + shopName);
 
@@ -245,7 +241,6 @@ router.post('/clone', requireAuth, async (req, res) => {
 
     const SERPER_KEY = process.env.SERPER_API_KEY;
 
-    // ── Boucle sur les annonces jusqu'à trouver une correspondance AliExpress ──
     var foundListing = null;
     var foundImgs = [];
     var foundTitle = '';
@@ -261,7 +256,6 @@ router.post('/clone', requireAuth, async (req, res) => {
         var titleMatch = listingHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
         var rawTitle = titleMatch ? titleMatch[1].replace(' | Etsy', '').trim() : listing.slug.replace(/-/g, ' ');
 
-        // Extraire les images de cette annonce
         var imgSet = new Set();
         var imgMatch;
         var imgRe = /https:\/\/i\.etsystatic\.com\/[^"' ]+\.jpg/g;
@@ -273,7 +267,6 @@ router.post('/clone', requireAuth, async (req, res) => {
           continue;
         }
 
-        // ── Google Lens : vérifier si le produit est sur AliExpress ──
         send({ step: 'lens', message: '🔎 Google Lens check on listing ' + (li+1) + '...' });
         var aliFound = false;
         try {
@@ -300,7 +293,6 @@ router.post('/clone', requireAuth, async (req, res) => {
           continue;
         }
 
-        // ✅ Trouvé sur AliExpress — on utilise cette annonce
         send({ step: 'ali_match', message: '✅ AliExpress match on listing ' + (li+1) + '! (' + rawTitle + ')' });
         foundListing = listing;
         foundImgs = imgs;
@@ -323,7 +315,6 @@ router.post('/clone', requireAuth, async (req, res) => {
 
     send({ step: 'images', message: '📸 Downloading ' + imgs.length + ' image(s)...' });
 
-    // ── Télécharger les images en base64 ──
     var rawImages = [];
     for (var ui = 0; ui < imgs.length; ui++) {
       try {
@@ -338,7 +329,6 @@ router.post('/clone', requireAuth, async (req, res) => {
       res.end(); return;
     }
 
-    // ── Modifier chaque image avec Gemini ──
     var angles = ['front view', 'slight left angle', 'slight right angle', 'top-down view', '3/4 angle view'];
     var backgrounds = [
       'clean white marble surface with soft natural light and subtle shadows',
@@ -377,7 +367,6 @@ router.post('/clone', requireAuth, async (req, res) => {
             send({ step: 'imagen', message: '⏳ Rate limit, waiting 30s...' });
             await sleep(30000);
           } else {
-            // Fallback : uploader l'image originale
             try {
               var form2 = new FormData();
               form2.append('key', IMGBB_KEY);
@@ -394,7 +383,6 @@ router.post('/clone', requireAuth, async (req, res) => {
       }
     }
 
-    // ── Étape 6 : envoyer le résultat final ──
     send({
       step: 'complete',
       message: '🎉 Done! ' + uploadedUrls.length + ' image(s) generated',
@@ -409,22 +397,9 @@ router.post('/clone', requireAuth, async (req, res) => {
   }
 });
 
-
-// ── ETSY TOKEN GET ──
-
-
-
-
-
-
-
-
-
-
 // ── ETSY SESSION STATUS ──
 router.get('/etsy-session-status', requireAuth, async (req, res) => {
   try {
-    const AutoSearchState = require('../models/autoSearchModel');
     const state = await AutoSearchState.findOne({ userId: req.user.id });
     res.json({ connected: !!(state && state.etsyToken) });
   } catch(e) {
@@ -442,7 +417,6 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
     if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
 
-    // ── Single ZenRows call: login only, max 30s wait total ──
     console.log('ZenRows: submitting Etsy login form...');
     const loginRes = await axios.get('https://api.zenrows.com/v1/', {
       params: {
@@ -467,7 +441,6 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
 
     const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
 
-    // Collect cookies
     const setCookieHeader = loginRes.headers['set-cookie'] || '';
     const allCookies = Array.isArray(setCookieHeader)
       ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
@@ -481,10 +454,9 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
       || resultHtml.includes('user_prefs') || resultHtml.includes('/signout')
     ) && !needs2FA;
 
-    console.log('ZenRows: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA, '| cookies =', allCookies.length);
+    console.log('ZenRows: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA, '| cookies length =', allCookies.length);
 
     if (isLoggedIn || (!needs2FA && allCookies.length > 50)) {
-      const AutoSearchState = require('../models/autoSearchModel');
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
         { $set: { etsyToken: allCookies, etsyEmail: email, updatedAt: new Date() } },
@@ -494,12 +466,12 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     }
 
     if (needs2FA) {
-      // Store cookies + password so 2FA route can submit the code on the same session
       const sessionId = require('crypto').randomBytes(16).toString('hex');
       _pendingSessions.set(sessionId, {
         userId: req.user.id, email, password,
         cookies: allCookies, createdAt: Date.now()
       });
+      // Expiration automatique après 10 minutes
       setTimeout(() => _pendingSessions.delete(sessionId), 10 * 60 * 1000);
       return res.json({ needs2FA: true, sessionId });
     }
@@ -513,7 +485,7 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
   }
 });
 
-// ── ETSY 2FA: submit code via axios using cookies from ZenRows session ──
+// ── ETSY 2FA: submit code via ZenRows with existing session cookies ──
 router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
   try {
     const { sessionId, code } = req.body;
@@ -525,11 +497,12 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
 
     const axios = require('axios');
     const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
+    if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
 
-    console.log('ZenRows 2FA: submitting code via new ZenRows call...');
+    console.log('ZenRows 2FA: submitting code with existing session cookies...');
 
-    // New ZenRows call using same proxy country — Etsy sees same region
-    // We navigate to the 2FA page URL directly with the code
+    // FIX : on passe les cookies existants via custom_headers pour que ZenRows
+    // reprenne la même session Etsy qui attend le code de vérification
     const verifyRes = await axios.get('https://api.zenrows.com/v1/', {
       params: {
         apikey: ZENROWS_KEY,
@@ -538,22 +511,39 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
         antibot: 'true',
         premium_proxy: 'true',
         proxy_country: 'us',
+        custom_headers: 'true',
         js_instructions: JSON.stringify([
-          { wait_for: 'input[name="email"],#join_neu_email_field,input[name="code"],input[autocomplete="one-time-code"]' },
+          // Attendre le chargement initial de la page
+          { wait: 3000 },
+          // Injecter les cookies de session existants dans le navigateur ZenRows
           { evaluate: `
             (function() {
-              var codeInput = document.querySelector('input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[type="number"]');
-              if (codeInput) {
-                codeInput.value = '${code}';
-                codeInput.dispatchEvent(new Event('input', {bubbles:true}));
-                codeInput.dispatchEvent(new Event('change', {bubbles:true}));
-              }
+              var cookies = ${JSON.stringify(session.cookies)};
+              cookies.split(';').forEach(function(c) {
+                var trimmed = c.trim();
+                if (trimmed) document.cookie = trimmed + '; domain=.etsy.com; path=/';
+              });
             })()
           `},
+          // Recharger la page pour que les cookies soient pris en compte par Etsy
+          { evaluate: 'window.location.reload()' },
+          { wait: 4000 },
+          // Attendre le champ de saisie du code 2FA
+          { wait_for: 'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"]' },
+          // Remplir le code
+          { fill: [
+            'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"]',
+            code
+          ]},
           { wait: 500 },
-          { click: 'button[type="submit"],input[type="submit"]' },
-          { wait: 6000 }
+          // Soumettre
+          { click: 'button[type="submit"],input[type="submit"],button[data-action="verify"]' },
+          { wait: 7000 }
         ])
+      },
+      headers: {
+        // Passer les cookies aussi dans les headers HTTP pour la requête initiale
+        'Cookie': session.cookies
       },
       timeout: 120000
     });
@@ -562,27 +552,51 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
     const setCookieHeader = verifyRes.headers['set-cookie'] || '';
     const newCookies = Array.isArray(setCookieHeader)
       ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
-      : (typeof setCookieHeader === 'string' ? setCookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ') : '');
+      : (typeof setCookieHeader === 'string'
+          ? setCookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ')
+          : '');
 
-    const allCookies = [session.cookies, newCookies].filter(Boolean).join('; ');
+    // FIX : fusionner les anciens et nouveaux cookies (les nouveaux écrasent en cas de doublon)
+    const mergedCookies = mergeCookies(session.cookies, newCookies);
 
-    const isLoggedIn = resultHtml.includes('sign-out') || resultHtml.includes('logout')
-      || resultHtml.includes('user_prefs') || resultHtml.includes('/signout');
+    const isLoggedIn = (
+      resultHtml.includes('sign-out') ||
+      resultHtml.includes('logout') ||
+      resultHtml.includes('user_prefs') ||
+      resultHtml.includes('/signout')
+    );
 
-    console.log('ZenRows 2FA: isLoggedIn =', isLoggedIn, '| cookies =', allCookies.length);
+    const still2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
+      || resultHtml.includes('two-factor') || resultHtml.includes('phone_number_verification');
 
-    if (isLoggedIn || allCookies.length > 50) {
-      const AutoSearchState = require('../models/autoSearchModel');
+    console.log('ZenRows 2FA: isLoggedIn =', isLoggedIn, '| still2FA =', still2FA, '| mergedCookies length =', mergedCookies.length);
+
+    if (isLoggedIn && !still2FA) {
       await AutoSearchState.findOneAndUpdate(
         { userId: session.userId },
-        { $set: { etsyToken: allCookies, etsyEmail: session.email, updatedAt: new Date() } },
+        { $set: { etsyToken: mergedCookies, etsyEmail: session.email, updatedAt: new Date() } },
         { upsert: true }
       );
       _pendingSessions.delete(sessionId);
       return res.json({ ok: true });
     }
 
-    res.status(401).json({ error: 'Invalid code or session expired — please try again.' });
+    if (still2FA) {
+      return res.status(401).json({ error: 'Invalid code — please check and try again.' });
+    }
+
+    // Fallback : si les cookies semblent valides, on accepte quand même
+    if (mergedCookies.length > 100) {
+      await AutoSearchState.findOneAndUpdate(
+        { userId: session.userId },
+        { $set: { etsyToken: mergedCookies, etsyEmail: session.email, updatedAt: new Date() } },
+        { upsert: true }
+      );
+      _pendingSessions.delete(sessionId);
+      return res.json({ ok: true });
+    }
+
+    res.status(401).json({ error: 'Verification failed — please try again.' });
 
   } catch(e) {
     const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message;
@@ -591,7 +605,7 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
   }
 });
 
-
+// ── ETSY LOGIN via Crawlbase (fallback) ──
 router.post('/etsy-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -601,7 +615,6 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     const crawlbaseToken = process.env.CRAWLBASE_TOKEN;
     if (!crawlbaseToken) return res.status(500).json({ error: 'CRAWLBASE_TOKEN not configured' });
 
-    // Step 1 : charger la page de login
     const signinUrl = 'https://www.etsy.com/signin';
     const pageRes = await axios.get('https://api.crawlbase.com', {
       params: {
@@ -616,13 +629,11 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 
     const html = typeof pageRes.data === 'string' ? pageRes.data : JSON.stringify(pageRes.data);
 
-    // Extraire le CSRF token
     const csrfMatch = html.match(/name="_nnc"\s+value="([^"]+)"/i)
       || html.match(/"csrf_nonce"\s*:\s*"([^"]+)"/i)
       || html.match(/name="csrf_token"\s+value="([^"]+)"/i);
     const csrf = csrfMatch ? csrfMatch[1] : '';
 
-    // Step 2 : soumettre le formulaire
     const formData = 'email=' + encodeURIComponent(email)
       + '&password=' + encodeURIComponent(password)
       + '&_nnc=' + encodeURIComponent(csrf)
@@ -642,7 +653,6 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     });
 
     const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
-    const resultUrl = loginRes.headers['original-status'] || '';
 
     const needs2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
       || resultHtml.includes('phone') || resultHtml.includes('two-factor');
@@ -651,14 +661,12 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
       || resultHtml.includes('logout')) && !needs2FA;
 
     if (isLoggedIn) {
-      // Stocker les cookies retournés par Crawlbase
       const cookies = loginRes.headers['set-cookie']
         ? (Array.isArray(loginRes.headers['set-cookie'])
             ? loginRes.headers['set-cookie'].join('; ')
             : loginRes.headers['set-cookie'])
         : 'crawlbase_session';
 
-      const AutoSearchState = require('../models/autoSearchModel');
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
         { $set: { etsyToken: cookies, etsyEmail: email, updatedAt: new Date() } },
@@ -682,14 +690,23 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
   }
 });
 
+// ── Utilitaire : fusionner deux chaînes de cookies ──
+// Les cookies de `newer` écrasent ceux de `older` en cas de clé identique
+function mergeCookies(older, newer) {
+  const map = new Map();
+  [older, newer].forEach(function(str) {
+    if (!str) return;
+    str.split(';').forEach(function(part) {
+      const trimmed = part.trim();
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) return;
+      const key = trimmed.slice(0, eq).trim();
+      const val = trimmed.slice(eq + 1).trim();
+      if (key) map.set(key, val);
+    });
+  });
+  return Array.from(map.entries()).map(function([k, v]) { return k + '=' + v; }).join('; ');
+}
+
 module.exports = router;
-
-// ── DELETE SHOP (must be last — /:id catches everything) ──
-router.delete('/:id', requireAuth, async (req, res) => {
-  await SavedShop.deleteOne({ _id: req.params.id, userId: req.user.id });
-  res.json({ ok: true });
-});
-
-
-
 
