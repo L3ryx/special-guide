@@ -123,7 +123,7 @@ router.post('/clone', requireAuth, async (req, res) => {
   const { shopName } = req.body;
   if (!shopName) return res.status(400).json({ error: 'shopName required' });
 
-  const axios = require('axios');
+  const axios    = require('axios');
   const FormData = require('form-data');
   const LEONARDO_KEY = process.env.LEONARDO_API_KEY;
   const IMGBB_KEY    = process.env.IMGBB_API_KEY;
@@ -133,204 +133,136 @@ router.post('/clone', requireAuth, async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  const send = function(d) { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch(e){} };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const send  = (d) => { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch(e){} };
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   function getSbKey() {
     if (process.env.SCRAPINGBEE_KEY) return process.env.SCRAPINGBEE_KEY;
-    for (var i = 2; i <= 10; i++) { var k = process.env['SCRAPINGBEE_KEY_' + i]; if (k) return k; }
+    for (let i = 2; i <= 10; i++) { const k = process.env['SCRAPINGBEE_KEY_' + i]; if (k) return k; }
     return null;
   }
 
   async function sbFetch(url) {
-    var key = getSbKey();
+    const key = getSbKey();
     if (!key) throw new Error('No ScrapingBee key');
-    var r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-      params: { api_key: key, url: url, country_code: 'us', timeout: '45000', stealth_proxy: 'true' },
+    const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
+      params: { api_key: key, url, country_code: 'us', timeout: '45000', stealth_proxy: 'true' },
       timeout: 120000
     });
     return typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
   }
 
   async function modifyImageWithLeonardo(b64Image, background, angle) {
-    var uploadRes = await axios.post(
+    const uploadRes = await axios.post(
       'https://cloud.leonardo.ai/api/rest/v1/init-image',
       { extension: 'jpg' },
       { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 15000 }
     );
-    var uploadData   = uploadRes.data.uploadInitImage;
-    var uploadUrl    = uploadData.url;
-    var uploadFields = uploadData.fields;
-    var initImageId  = uploadData.id;
+    const { url: uploadUrl, fields: uploadFields, id: initImageId } = uploadRes.data.uploadInitImage;
 
-    var FormDataLib = require('form-data');
-    var fields = typeof uploadFields === 'string' ? JSON.parse(uploadFields) : uploadFields;
-    var s3Form = new FormDataLib();
-    Object.entries(fields).forEach(function([k, v]) { s3Form.append(k, v); });
+    const FormDataLib = require('form-data');
+    const fields = typeof uploadFields === 'string' ? JSON.parse(uploadFields) : uploadFields;
+    const s3Form = new FormDataLib();
+    Object.entries(fields).forEach(([k, v]) => s3Form.append(k, v));
     s3Form.append('file', Buffer.from(b64Image, 'base64'), { filename: 'product.jpg', contentType: 'image/jpeg' });
     await axios.post(uploadUrl, s3Form, { headers: s3Form.getHeaders(), timeout: 30000 });
 
-    var prompt = 'Professional e-commerce product photo. '
-      + 'Background: ' + background + '. '
-      + 'Angle: ' + angle + '. '
-      + 'Same product, same colors and details. Clean studio photography, white seamless.';
-
-    var genBody = {
-      prompt: prompt,
-      modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3',
-      width: 1024,
-      height: 1024,
-      num_images: 1,
-      guidance_scale: 7,
-      init_image_id: initImageId,
-      init_strength: 0.35
-    };
-
-    var genRes = await axios.post(
+    const prompt = `Professional e-commerce product photo. Background: ${background}. Angle: ${angle}. Same product, same colors and details. Clean studio photography, white seamless.`;
+    const genRes = await axios.post(
       'https://cloud.leonardo.ai/api/rest/v1/generations',
-      genBody,
+      { prompt, modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3', width: 1024, height: 1024, num_images: 1, guidance_scale: 7, init_image_id: initImageId, init_strength: 0.35 },
       { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 30000 }
     );
 
-    if (!genRes.data || !genRes.data.sdGenerationJob) {
-      throw new Error('Leonardo gen response unexpected: ' + JSON.stringify(genRes.data));
-    }
+    if (!genRes.data?.sdGenerationJob) throw new Error('Leonardo gen response unexpected: ' + JSON.stringify(genRes.data));
+    const generationId = genRes.data.sdGenerationJob.generationId;
 
-    var generationId = genRes.data.sdGenerationJob.generationId;
-
-    var maxWait = 120;
-    var waited  = 0;
-    while (waited < maxWait) {
+    for (let waited = 0; waited < 120; waited += 4) {
       await sleep(4000);
-      waited += 4;
-      var pollRes = await axios.get(
-        'https://cloud.leonardo.ai/api/rest/v1/generations/' + generationId,
-        { headers: { Authorization: 'Bearer ' + LEONARDO_KEY }, timeout: 15000 }
-      );
-      var gen = pollRes.data.generations_by_pk;
-      if (gen && gen.status === 'COMPLETE') {
-        var imageUrl = gen.generated_images && gen.generated_images[0] && gen.generated_images[0].url;
+      const pollRes = await axios.get(`https://cloud.leonardo.ai/api/rest/v1/generations/${generationId}`, { headers: { Authorization: 'Bearer ' + LEONARDO_KEY }, timeout: 15000 });
+      const gen = pollRes.data.generations_by_pk;
+      if (gen?.status === 'COMPLETE') {
+        const imageUrl = gen.generated_images?.[0]?.url;
         if (!imageUrl) throw new Error('Leonardo returned no image URL');
-        var imgBuf = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 20000 });
+        const imgBuf = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 20000 });
         return Buffer.from(imgBuf.data).toString('base64');
       }
-      if (gen && gen.status === 'FAILED') throw new Error('Leonardo generation failed');
+      if (gen?.status === 'FAILED') throw new Error('Leonardo generation failed');
     }
     throw new Error('Leonardo generation timed out');
   }
 
   try {
     send({ step: 'scraping', message: '🔍 Scraping shop page...' });
-    var shopHtml = await sbFetch('https://www.etsy.com/shop/' + shopName);
+    const shopHtml = await sbFetch('https://www.etsy.com/shop/' + shopName);
 
-    var listingMatches = [];
-    var listingRegex = /listing\/([0-9]+)\/([^"? ]+)/g;
-    var seen = new Set();
-    var lm;
+    const listingMatches = [];
+    const listingRegex = /listing\/([0-9]+)\/([^"? ]+)/g;
+    const seen = new Set();
+    let lm;
     while ((lm = listingRegex.exec(shopHtml)) !== null) {
       if (!seen.has(lm[1])) { seen.add(lm[1]); listingMatches.push({ id: lm[1], slug: lm[2] }); }
       if (listingMatches.length >= 20) break;
     }
 
-    if (listingMatches.length === 0) {
-      send({ step: 'error', message: '❌ No listings found in this shop' });
-      res.end(); return;
-    }
-
-    send({ step: 'found', message: '✅ Found ' + listingMatches.length + ' listings, searching for AliExpress match...' });
+    if (!listingMatches.length) { send({ step: 'error', message: '❌ No listings found in this shop' }); res.end(); return; }
+    send({ step: 'found', message: `✅ Found ${listingMatches.length} listings, searching for AliExpress match...` });
 
     const SERPER_KEY = process.env.SERPER_API_KEY;
+    let foundListing = null, foundImgs = [], foundTitle = '';
 
-    var foundListing = null;
-    var foundImgs = [];
-    var foundTitle = '';
-
-    for (var li = 0; li < listingMatches.length; li++) {
-      var listing = listingMatches[li];
-      send({ step: 'checking', message: '🔎 Checking listing ' + (li+1) + '/' + listingMatches.length + '...' });
-
+    for (let li = 0; li < listingMatches.length; li++) {
+      const listing = listingMatches[li];
+      send({ step: 'checking', message: `🔎 Checking listing ${li+1}/${listingMatches.length}...` });
       try {
-        var listingUrl = 'https://www.etsy.com/listing/' + listing.id + '/' + listing.slug;
-        var listingHtml = await sbFetch(listingUrl);
+        const listingHtml = await sbFetch(`https://www.etsy.com/listing/${listing.id}/${listing.slug}`);
+        const titleMatch  = listingHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
+        const rawTitle    = titleMatch ? titleMatch[1].replace(' | Etsy', '').trim() : listing.slug.replace(/-/g, ' ');
 
-        var titleMatch = listingHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
-        var rawTitle = titleMatch ? titleMatch[1].replace(' | Etsy', '').trim() : listing.slug.replace(/-/g, ' ');
-
-        var imgSet = new Set();
-        var imgMatch;
-        var imgRe = /https:\/\/i\.etsystatic\.com\/[^"' ]+\.jpg/g;
+        const imgSet = new Set();
+        const imgRe  = /https:\/\/i\.etsystatic\.com\/[^"' ]+\.jpg/g;
+        let imgMatch;
         while ((imgMatch = imgRe.exec(listingHtml)) !== null) imgSet.add(imgMatch[0]);
-        var imgs = Array.from(imgSet).slice(0, 5);
+        const imgs = Array.from(imgSet).slice(0, 5);
 
-        if (imgs.length === 0) {
-          send({ step: 'skip', message: '⏭ No images in listing ' + (li+1) + ', skipping...' });
-          continue;
-        }
+        if (!imgs.length) { send({ step: 'skip', message: `⏭ No images in listing ${li+1}, skipping...` }); continue; }
 
-        send({ step: 'lens', message: '🔎 Google Lens check on listing ' + (li+1) + '...' });
-        var aliFound = false;
+        send({ step: 'lens', message: `🔎 Google Lens check on listing ${li+1}...` });
+        let aliFound = false;
         try {
-          var lensRes = await axios.post(
-            'https://google.serper.dev/lens',
-            { url: imgs[0], gl: 'us', hl: 'en' },
-            { headers: { 'X-API-KEY': SERPER_KEY }, timeout: 20000 }
-          );
-          var organic = (lensRes.data && lensRes.data.organic) || [];
-          for (var oi = 0; oi < organic.length; oi++) {
-            if (organic[oi].link && (organic[oi].link.includes('aliexpress') || organic[oi].link.includes('alibaba'))) {
-              aliFound = true;
-              break;
-            }
-          }
+          const lensRes = await axios.post('https://google.serper.dev/lens', { url: imgs[0], gl: 'us', hl: 'en' }, { headers: { 'X-API-KEY': SERPER_KEY }, timeout: 20000 });
+          const organic = lensRes.data?.organic || [];
+          aliFound = organic.some(o => o.link && (o.link.includes('aliexpress') || o.link.includes('alibaba')));
         } catch(lensErr) {
-          console.warn('Google Lens error:', lensErr.message);
-          send({ step: 'skip', message: '⚠️ Lens error on listing ' + (li+1) + ', skipping...' });
-          continue;
+          send({ step: 'skip', message: `⚠️ Lens error on listing ${li+1}, skipping...` }); continue;
         }
 
-        if (!aliFound) {
-          send({ step: 'skip', message: '⏭ Listing ' + (li+1) + ' not on AliExpress, trying next...' });
-          continue;
-        }
+        if (!aliFound) { send({ step: 'skip', message: `⏭ Listing ${li+1} not on AliExpress, trying next...` }); continue; }
 
-        send({ step: 'ali_match', message: '✅ AliExpress match on listing ' + (li+1) + '! (' + rawTitle + ')' });
-        foundListing = listing;
-        foundImgs = imgs;
-        foundTitle = rawTitle;
+        send({ step: 'ali_match', message: `✅ AliExpress match on listing ${li+1}! (${rawTitle})` });
+        foundListing = listing; foundImgs = imgs; foundTitle = rawTitle;
         break;
-
       } catch(e) {
-        send({ step: 'skip', message: '⚠️ Error on listing ' + (li+1) + ': ' + e.message + ', skipping...' });
-        continue;
+        send({ step: 'skip', message: `⚠️ Error on listing ${li+1}: ${e.message}, skipping...` });
       }
     }
 
-    if (!foundListing) {
-      send({ step: 'error', message: '❌ No listing found on AliExpress in this shop' });
-      res.end(); return;
-    }
+    if (!foundListing) { send({ step: 'error', message: '❌ No listing found on AliExpress in this shop' }); res.end(); return; }
 
-    var imgs = foundImgs;
-    var rawTitle = foundTitle;
-
-    send({ step: 'images', message: '📸 Downloading ' + imgs.length + ' image(s)...' });
-
-    var rawImages = [];
-    for (var ui = 0; ui < imgs.length; ui++) {
+    send({ step: 'images', message: `📸 Downloading ${foundImgs.length} image(s)...` });
+    const rawImages = [];
+    for (let ui = 0; ui < foundImgs.length; ui++) {
       try {
-        var imgData = await axios.get(imgs[ui], { responseType: 'arraybuffer', timeout: 12000 });
+        const imgData = await axios.get(foundImgs[ui], { responseType: 'arraybuffer', timeout: 12000 });
         rawImages.push(Buffer.from(imgData.data).toString('base64'));
-        send({ step: 'images', message: '📥 Image ' + (ui+1) + '/' + imgs.length + ' downloaded' });
+        send({ step: 'images', message: `📥 Image ${ui+1}/${foundImgs.length} downloaded` });
       } catch(e) { console.warn('Image download error:', e.message); }
     }
 
-    if (rawImages.length === 0) {
-      send({ step: 'error', message: '❌ Could not download any images' });
-      res.end(); return;
-    }
+    if (!rawImages.length) { send({ step: 'error', message: '❌ Could not download any images' }); res.end(); return; }
 
-    var angles = ['front view', 'slight left angle', 'slight right angle', 'top-down view', '3/4 angle view'];
-    var backgrounds = [
+    const angles      = ['front view', 'slight left angle', 'slight right angle', 'top-down view', '3/4 angle view'];
+    const backgrounds = [
       'clean white marble surface with soft natural light and subtle shadows',
       'rustic wooden table, warm tones, soft bokeh background',
       'light grey minimalist studio, gradient background',
@@ -338,44 +270,32 @@ router.post('/clone', requireAuth, async (req, res) => {
       'pure white seamless background, professional studio lighting'
     ];
 
-    var uploadedUrls = [];
-
-    for (var ii = 0; ii < rawImages.length; ii++) {
+    const uploadedUrls = [];
+    for (let ii = 0; ii < rawImages.length; ii++) {
       if (ii > 0) await sleep(10000);
-      send({ step: 'imagen', message: '🎨 Modifying image ' + (ii+1) + '/' + rawImages.length + ' with Leonardo AI...' });
-
-      var attempts = 0;
-      var success = false;
+      send({ step: 'imagen', message: `🎨 Modifying image ${ii+1}/${rawImages.length} with Leonardo AI...` });
+      let attempts = 0, success = false;
       while (attempts < 3 && !success) {
         try {
-          var modifiedB64 = await modifyImageWithLeonardo(rawImages[ii], backgrounds[ii % backgrounds.length], angles[ii % angles.length]);
-          var form = new FormData();
+          const modifiedB64 = await modifyImageWithLeonardo(rawImages[ii], backgrounds[ii % backgrounds.length], angles[ii % angles.length]);
+          const form = new FormData();
           form.append('key', IMGBB_KEY);
           form.append('image', modifiedB64);
-          var up = await axios.post('https://api.imgbb.com/1/upload', form, { headers: form.getHeaders(), timeout: 20000 });
-          if (up.data && up.data.data && up.data.data.url) {
-            uploadedUrls.push(up.data.data.url);
-            send({ step: 'imagen', message: '✅ Image ' + (ii+1) + '/' + rawImages.length + ' modified & uploaded' });
-            success = true;
-          }
+          const up = await axios.post('https://api.imgbb.com/1/upload', form, { headers: form.getHeaders(), timeout: 20000 });
+          if (up.data?.data?.url) { uploadedUrls.push(up.data.data.url); send({ step: 'imagen', message: `✅ Image ${ii+1}/${rawImages.length} modified & uploaded` }); success = true; }
         } catch(imgErr) {
           attempts++;
-          var status = imgErr.response && imgErr.response.status;
-          var errBody = imgErr.response && imgErr.response.data ? JSON.stringify(imgErr.response.data) : imgErr.message;
-          console.warn('Leonardo image error (attempt ' + attempts + ') [HTTP ' + (imgErr.response && imgErr.response.status) + ']:', errBody);
-          if (status === 429 && attempts < 3) {
-            send({ step: 'imagen', message: '⏳ Rate limit, waiting 30s...' });
-            await sleep(30000);
-          } else {
+          const httpStatus = imgErr.response?.status;
+          const errBody    = imgErr.response?.data ? JSON.stringify(imgErr.response.data) : imgErr.message;
+          console.warn(`Leonardo image error (attempt ${attempts}) [HTTP ${httpStatus}]:`, errBody);
+          if (httpStatus === 429 && attempts < 3) { send({ step: 'imagen', message: '⏳ Rate limit, waiting 30s...' }); await sleep(30000); }
+          else {
             try {
-              var form2 = new FormData();
+              const form2 = new FormData();
               form2.append('key', IMGBB_KEY);
               form2.append('image', rawImages[ii]);
-              var up2 = await axios.post('https://api.imgbb.com/1/upload', form2, { headers: form2.getHeaders(), timeout: 15000 });
-              if (up2.data && up2.data.data && up2.data.data.url) {
-                uploadedUrls.push(up2.data.data.url);
-                send({ step: 'imagen', message: '⚠️ Image ' + (ii+1) + ' kept original (Leonardo error)' });
-              }
+              const up2 = await axios.post('https://api.imgbb.com/1/upload', form2, { headers: form2.getHeaders(), timeout: 15000 });
+              if (up2.data?.data?.url) { uploadedUrls.push(up2.data.data.url); send({ step: 'imagen', message: `⚠️ Image ${ii+1} kept original (Leonardo error)` }); }
             } catch(e2) { console.warn('ImgBB fallback error:', e2.message); }
             break;
           }
@@ -383,13 +303,7 @@ router.post('/clone', requireAuth, async (req, res) => {
       }
     }
 
-    send({
-      step: 'complete',
-      message: '🎉 Done! ' + uploadedUrls.length + ' image(s) generated',
-      title: rawTitle,
-      images: uploadedUrls
-    });
-
+    send({ step: 'complete', message: `🎉 Done! ${uploadedUrls.length} image(s) generated`, title: foundTitle, images: uploadedUrls });
     res.end();
   } catch(e) {
     send({ step: 'error', message: '❌ ' + e.message });
@@ -407,56 +321,91 @@ router.get('/etsy-session-status', requireAuth, async (req, res) => {
   }
 });
 
-// ── ETSY LOGIN via ZenRows (real browser session) ──
+// ──────────────────────────────────────────────────────────────────────────────
+// HELPER zenrowsRun
+// ZenRows ne retourne PAS les cookies dans les headers set-cookie.
+// On injecte un evaluate JS à la fin qui écrit document.cookie dans un
+// élément DOM caché, puis on le parse depuis le HTML retourné.
+// ──────────────────────────────────────────────────────────────────────────────
+async function zenrowsRun(ZENROWS_KEY, url, jsInstructions) {
+  const axios = require('axios');
+
+  const instructionsWithDump = [
+    ...jsInstructions,
+    {
+      evaluate: `
+        (function() {
+          try {
+            var el = document.getElementById('__zr_cookies__');
+            if (!el) { el = document.createElement('div'); el.id = '__zr_cookies__'; el.style.display='none'; document.body.appendChild(el); }
+            el.textContent = document.cookie;
+          } catch(e) {}
+        })()
+      `
+    },
+    { wait: 800 }
+  ];
+
+  const response = await axios.get('https://api.zenrows.com/v1/', {
+    params: {
+      apikey:          ZENROWS_KEY,
+      url:             url,
+      js_render:       'true',
+      antibot:         'true',
+      premium_proxy:   'true',
+      proxy_country:   'us',
+      js_instructions: JSON.stringify(instructionsWithDump)
+    },
+    timeout: 120000
+  });
+
+  const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+
+  // Extraire les cookies depuis l'élément DOM injecté
+  const cookieMatch = html.match(/<div id="__zr_cookies__"[^>]*>([^<]*)<\/div>/);
+  const cookies = cookieMatch ? cookieMatch[1].trim() : '';
+
+  console.log(`ZenRows [${url}] — cookies extracted: ${cookies.length} chars | HTML: ${html.length} chars`);
+  return { html, cookies };
+}
+
+// ── ETSY LOGIN via ZenRows ──
 router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    const axios = require('axios');
     const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
     if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
 
     console.log('ZenRows: submitting Etsy login form...');
-    const loginRes = await axios.get('https://api.zenrows.com/v1/', {
-      params: {
-        apikey: ZENROWS_KEY,
-        url: 'https://www.etsy.com/signin',
-        js_render: 'true',
-        antibot: 'true',
-        premium_proxy: 'true',
-        proxy_country: 'us',
-        js_instructions: JSON.stringify([
-          { wait_for: 'input[name="email"],#join_neu_email_field' },
-          { fill: ['input[name="email"],#join_neu_email_field', email] },
-          { wait: 500 },
-          { fill: ['input[name="password"],#join_neu_password_field', password] },
-          { wait: 500 },
-          { click: 'button[type="submit"],#signin_button' },
-          { wait: 8000 }
-        ])
-      },
-      timeout: 120000
-    });
 
-    const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
-
-    const setCookieHeader = loginRes.headers['set-cookie'] || '';
-    const allCookies = Array.isArray(setCookieHeader)
-      ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
-      : (typeof setCookieHeader === 'string' ? setCookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ') : '');
+    const { html: resultHtml, cookies: allCookies } = await zenrowsRun(
+      ZENROWS_KEY,
+      'https://www.etsy.com/signin',
+      [
+        { wait_for: 'input[name="email"],#join_neu_email_field' },
+        { fill:     ['input[name="email"],#join_neu_email_field', email] },
+        { wait:     500 },
+        { fill:     ['input[name="password"],#join_neu_password_field', password] },
+        { wait:     500 },
+        { click:    'button[type="submit"],#signin_button' },
+        { wait:     8000 }
+      ]
+    );
 
     const needs2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
-      || resultHtml.includes('two-factor') || resultHtml.includes('phone_number_verification');
+      || resultHtml.includes('two-factor') || resultHtml.includes('phone_number_verification')
+      || resultHtml.includes('one-time-code');
 
     const isLoggedIn = (
       resultHtml.includes('sign-out') || resultHtml.includes('logout')
       || resultHtml.includes('user_prefs') || resultHtml.includes('/signout')
     ) && !needs2FA;
 
-    console.log('ZenRows: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA, '| cookies length =', allCookies.length);
+    console.log('ZenRows login: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA, '| cookies =', allCookies.length);
 
-    if (isLoggedIn || (!needs2FA && allCookies.length > 50)) {
+    if (isLoggedIn) {
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
         { $set: { etsyToken: allCookies, etsyEmail: email, updatedAt: new Date() } },
@@ -471,9 +420,18 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
         userId: req.user.id, email, password,
         cookies: allCookies, createdAt: Date.now()
       });
-      // Expiration automatique après 10 minutes
       setTimeout(() => _pendingSessions.delete(sessionId), 10 * 60 * 1000);
       return res.json({ needs2FA: true, sessionId });
+    }
+
+    // Fallback : si on a des cookies, on accepte quand même
+    if (allCookies.length > 30) {
+      await AutoSearchState.findOneAndUpdate(
+        { userId: req.user.id },
+        { $set: { etsyToken: allCookies, etsyEmail: email, updatedAt: new Date() } },
+        { upsert: true }
+      );
+      return res.json({ ok: true });
     }
 
     res.status(401).json({ error: 'Login failed — check your Etsy credentials.' });
@@ -485,7 +443,9 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
   }
 });
 
-// ── ETSY 2FA: submit code via ZenRows with existing session cookies ──
+// ── ETSY 2FA via ZenRows ──
+// Stratégie : on refait le login complet + saisie du code dans le MÊME appel ZenRows.
+// C'est la seule approche fiable car ZenRows ne partage aucune session entre deux appels.
 router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
   try {
     const { sessionId, code } = req.body;
@@ -495,68 +455,35 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
     if (!session) return res.status(400).json({ error: 'Session expired — please login again.' });
     if (session.userId.toString() !== req.user.id.toString()) return res.status(403).json({ error: 'Forbidden' });
 
-    const axios = require('axios');
     const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
     if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
 
-    console.log('ZenRows 2FA: submitting code with existing session cookies...');
+    console.log('ZenRows 2FA: full login + code in single call...');
 
-    // FIX : on passe les cookies existants via custom_headers pour que ZenRows
-    // reprenne la même session Etsy qui attend le code de vérification
-    const verifyRes = await axios.get('https://api.zenrows.com/v1/', {
-      params: {
-        apikey: ZENROWS_KEY,
-        url: 'https://www.etsy.com/signin',
-        js_render: 'true',
-        antibot: 'true',
-        premium_proxy: 'true',
-        proxy_country: 'us',
-        custom_headers: 'true',
-        js_instructions: JSON.stringify([
-          // Attendre le chargement initial de la page
-          { wait: 3000 },
-          // Injecter les cookies de session existants dans le navigateur ZenRows
-          { evaluate: `
-            (function() {
-              var cookies = ${JSON.stringify(session.cookies)};
-              cookies.split(';').forEach(function(c) {
-                var trimmed = c.trim();
-                if (trimmed) document.cookie = trimmed + '; domain=.etsy.com; path=/';
-              });
-            })()
-          `},
-          // Recharger la page pour que les cookies soient pris en compte par Etsy
-          { evaluate: 'window.location.reload()' },
-          { wait: 4000 },
-          // Attendre le champ de saisie du code 2FA
-          { wait_for: 'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"]' },
-          // Remplir le code
-          { fill: [
-            'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"]',
+    const { html: resultHtml, cookies: newCookies } = await zenrowsRun(
+      ZENROWS_KEY,
+      'https://www.etsy.com/signin',
+      [
+        // Étape 1 : saisir email + password
+        { wait_for: 'input[name="email"],#join_neu_email_field' },
+        { fill:     ['input[name="email"],#join_neu_email_field', session.email] },
+        { wait:     500 },
+        { fill:     ['input[name="password"],#join_neu_password_field', session.password] },
+        { wait:     500 },
+        { click:    'button[type="submit"],#signin_button' },
+        { wait:     8000 },
+        // Étape 2 : attendre le champ 2FA et saisir le code
+        { wait_for: 'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"],input[type="number"]' },
+        { fill: [
+            'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"],input[type="number"]',
             code
-          ]},
-          { wait: 500 },
-          // Soumettre
-          { click: 'button[type="submit"],input[type="submit"],button[data-action="verify"]' },
-          { wait: 7000 }
-        ])
-      },
-      headers: {
-        // Passer les cookies aussi dans les headers HTTP pour la requête initiale
-        'Cookie': session.cookies
-      },
-      timeout: 120000
-    });
+        ]},
+        { wait:  500 },
+        { click: 'button[type="submit"],input[type="submit"],button[data-action="verify"],button[data-testid="submit"]' },
+        { wait:  8000 }
+      ]
+    );
 
-    const resultHtml = typeof verifyRes.data === 'string' ? verifyRes.data : JSON.stringify(verifyRes.data);
-    const setCookieHeader = verifyRes.headers['set-cookie'] || '';
-    const newCookies = Array.isArray(setCookieHeader)
-      ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
-      : (typeof setCookieHeader === 'string'
-          ? setCookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ')
-          : '');
-
-    // FIX : fusionner les anciens et nouveaux cookies (les nouveaux écrasent en cas de doublon)
     const mergedCookies = mergeCookies(session.cookies, newCookies);
 
     const isLoggedIn = (
@@ -567,9 +494,10 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
     );
 
     const still2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
-      || resultHtml.includes('two-factor') || resultHtml.includes('phone_number_verification');
+      || resultHtml.includes('two-factor') || resultHtml.includes('phone_number_verification')
+      || resultHtml.includes('one-time-code');
 
-    console.log('ZenRows 2FA: isLoggedIn =', isLoggedIn, '| still2FA =', still2FA, '| mergedCookies length =', mergedCookies.length);
+    console.log('ZenRows 2FA: isLoggedIn =', isLoggedIn, '| still2FA =', still2FA, '| mergedCookies =', mergedCookies.length);
 
     if (isLoggedIn && !still2FA) {
       await AutoSearchState.findOneAndUpdate(
@@ -582,11 +510,11 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
     }
 
     if (still2FA) {
-      return res.status(401).json({ error: 'Invalid code — please check and try again.' });
+      return res.status(401).json({ error: 'Invalid or expired code — please try again.' });
     }
 
-    // Fallback : si les cookies semblent valides, on accepte quand même
-    if (mergedCookies.length > 100) {
+    // Fallback : si on a des cookies, on accepte
+    if (mergedCookies.length > 30) {
       await AutoSearchState.findOneAndUpdate(
         { userId: session.userId },
         { $set: { etsyToken: mergedCookies, etsyEmail: session.email, updatedAt: new Date() } },
@@ -615,58 +543,28 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     const crawlbaseToken = process.env.CRAWLBASE_TOKEN;
     if (!crawlbaseToken) return res.status(500).json({ error: 'CRAWLBASE_TOKEN not configured' });
 
-    const signinUrl = 'https://www.etsy.com/signin';
     const pageRes = await axios.get('https://api.crawlbase.com', {
-      params: {
-        token: crawlbaseToken,
-        url: signinUrl,
-        autoparse: 'false',
-        ajax_wait: 'true',
-        page_wait: '3000',
-      },
+      params: { token: crawlbaseToken, url: 'https://www.etsy.com/signin', autoparse: 'false', ajax_wait: 'true', page_wait: '3000' },
       timeout: 120000,
     });
 
     const html = typeof pageRes.data === 'string' ? pageRes.data : JSON.stringify(pageRes.data);
-
-    const csrfMatch = html.match(/name="_nnc"\s+value="([^"]+)"/i)
-      || html.match(/"csrf_nonce"\s*:\s*"([^"]+)"/i)
-      || html.match(/name="csrf_token"\s+value="([^"]+)"/i);
+    const csrfMatch = html.match(/name="_nnc"\s+value="([^"]+)"/i) || html.match(/"csrf_nonce"\s*:\s*"([^"]+)"/i);
     const csrf = csrfMatch ? csrfMatch[1] : '';
 
-    const formData = 'email=' + encodeURIComponent(email)
-      + '&password=' + encodeURIComponent(password)
-      + '&_nnc=' + encodeURIComponent(csrf)
-      + '&signin_submitted=1';
+    const formData = `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&_nnc=${encodeURIComponent(csrf)}&signin_submitted=1`;
 
     const loginRes = await axios.get('https://api.crawlbase.com', {
-      params: {
-        token: crawlbaseToken,
-        url: 'https://www.etsy.com/signin',
-        autoparse: 'false',
-        ajax_wait: 'true',
-        page_wait: '4000',
-        'post_data': formData,
-        'post_content_type': 'application/x-www-form-urlencoded',
-      },
+      params: { token: crawlbaseToken, url: 'https://www.etsy.com/signin', autoparse: 'false', ajax_wait: 'true', page_wait: '4000', post_data: formData, post_content_type: 'application/x-www-form-urlencoded' },
       timeout: 120000,
     });
 
     const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
-
-    const needs2FA = resultHtml.includes('verification') || resultHtml.includes('verify')
-      || resultHtml.includes('phone') || resultHtml.includes('two-factor');
-
-    const isLoggedIn = (resultHtml.includes('sign-out') || resultHtml.includes('user_prefs')
-      || resultHtml.includes('logout')) && !needs2FA;
+    const needs2FA   = resultHtml.includes('verification') || resultHtml.includes('verify') || resultHtml.includes('phone') || resultHtml.includes('two-factor');
+    const isLoggedIn = (resultHtml.includes('sign-out') || resultHtml.includes('user_prefs') || resultHtml.includes('logout')) && !needs2FA;
 
     if (isLoggedIn) {
-      const cookies = loginRes.headers['set-cookie']
-        ? (Array.isArray(loginRes.headers['set-cookie'])
-            ? loginRes.headers['set-cookie'].join('; ')
-            : loginRes.headers['set-cookie'])
-        : 'crawlbase_session';
-
+      const cookies = Array.isArray(loginRes.headers['set-cookie']) ? loginRes.headers['set-cookie'].join('; ') : (loginRes.headers['set-cookie'] || 'crawlbase_session');
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
         { $set: { etsyToken: cookies, etsyEmail: email, updatedAt: new Date() } },
@@ -691,22 +589,20 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 });
 
 // ── Utilitaire : fusionner deux chaînes de cookies ──
-// Les cookies de `newer` écrasent ceux de `older` en cas de clé identique
 function mergeCookies(older, newer) {
   const map = new Map();
-  [older, newer].forEach(function(str) {
-    if (!str) return;
-    str.split(';').forEach(function(part) {
+  for (const str of [older, newer]) {
+    if (!str) continue;
+    for (const part of str.split(';')) {
       const trimmed = part.trim();
       const eq = trimmed.indexOf('=');
-      if (eq === -1) return;
+      if (eq === -1) continue;
       const key = trimmed.slice(0, eq).trim();
       const val = trimmed.slice(eq + 1).trim();
       if (key) map.set(key, val);
-    });
-  });
-  return Array.from(map.entries()).map(function([k, v]) { return k + '=' + v; }).join('; ');
+    }
+  }
+  return Array.from(map.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
 }
 
 module.exports = router;
-
