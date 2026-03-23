@@ -134,8 +134,7 @@ router.post('/clone', requireAuth, async (req, res) => {
 
   const AutoSearchState = require('../models/autoSearchModel');
   const state = await AutoSearchState.findOne({ userId: req.user.id });
-  const etsyToken = state && state.etsyToken;
-  if (!etsyToken) return res.status(401).json({ error: 'No Etsy token. Please login first.' });
+  // Token Etsy optionnel — pas de publication pour l'instant
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -175,13 +174,7 @@ router.post('/clone', requireAuth, async (req, res) => {
 
     send({ step: 'found', message: '✅ Found ' + listingMatches.length + ' listings', total: listingMatches.length });
 
-    var shopId = null;
-    try {
-      var meRes = await axios.get('https://openapi.etsy.com/v3/application/users/me', {
-        headers: { 'Authorization': 'Bearer ' + etsyToken, 'x-api-key': ETSY_CID }
-      });
-      shopId = meRes.data.shop_id;
-    } catch(e) { send({ step: 'error', message: 'Etsy auth failed: ' + e.message }); res.end(); return; }
+    // Pas de publication Etsy — résultats envoyés au frontend
 
     for (var li = 0; li < listingMatches.length; li++) {
       var listing = listingMatches[li];
@@ -301,31 +294,16 @@ router.post('/clone', requireAuth, async (req, res) => {
         var gemText = (rawGem.content && rawGem.content.parts && rawGem.content.parts[0] && rawGem.content.parts[0].text || '').replace(/```json|```/g, '').trim();
         var gemContent = JSON.parse(gemText);
 
-        // Publier sur Etsy
-        send({ step: 'publishing', message: '🚀 Publishing to Etsy...' });
-        var listingRes = await axios.post(
-          'https://openapi.etsy.com/v3/application/shops/' + shopId + '/listings',
-          { quantity: 1, title: gemContent.title, description: gemContent.description, price: price, who_made: 'i_did', when_made: 'made_to_order', taxonomy_id: 1, tags: gemContent.tags.slice(0, 13), state: 'active' },
-          { headers: { 'Authorization': 'Bearer ' + etsyToken, 'x-api-key': ETSY_CID, 'Content-Type': 'application/json' } }
-        );
-        var newListingId = listingRes.data.listing_id;
-
-        // Upload images Etsy
-        for (var ii = 0; ii < uploadedUrls.length; ii++) {
-          try {
-            var imgBuf = await axios.get(uploadedUrls[ii], { responseType: 'arraybuffer', timeout: 15000 });
-            var formImg = new FormData();
-            formImg.append('image', Buffer.from(imgBuf.data), { filename: 'img_' + ii + '.jpg', contentType: 'image/jpeg' });
-            formImg.append('rank', ii + 1);
-            await axios.post(
-              'https://openapi.etsy.com/v3/application/shops/' + shopId + '/listings/' + newListingId + '/images',
-              formImg,
-              { headers: Object.assign({}, formImg.getHeaders(), { 'Authorization': 'Bearer ' + etsyToken, 'x-api-key': ETSY_CID }) }
-            );
-          } catch(e) { console.warn('Etsy img:', e.message); }
-        }
-
-        send({ step: 'published', message: '✅ Published: ' + gemContent.title, listingId: newListingId, index: li });
+        // Envoyer les résultats au frontend
+        send({
+          step: 'published',
+          message: '✅ ' + gemContent.title,
+          index: li,
+          title: gemContent.title,
+          description: gemContent.description,
+          tags: gemContent.tags,
+          images: uploadedUrls
+        });
 
       } catch(e) { send({ step: 'error_listing', message: 'Error on listing ' + (li+1) + ': ' + e.message }); }
     }
@@ -337,6 +315,16 @@ router.post('/clone', requireAuth, async (req, res) => {
 
 
 // ── ETSY TOKEN GET ──
+
+
+
+
+
+
+
+
+
+
 module.exports = router;
 
 // ── Store temporaire sessions 2FA ──
@@ -353,7 +341,7 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     if (!crawlbaseToken) return res.status(500).json({ error: 'CRAWLBASE_TOKEN not configured' });
 
     // Step 1 : charger la page de login
-    const signinUrl = 'https://www.etsy.com/signin?from_page=https%3A%2F%2Fwww.etsy.com%2Ffr%2F%3Fref%3Dlgo&workflow=c3Vic2NyaWJlX3RvX2VtYWlsX2xpc3Q6bmV3X2F0X2V0c3k6MTc3NDA2MTkwMjo2OTAwZWM5NzM3YzNkYzM4NDVmN2EzYTg0YjdkYzMzYQ==';
+    const signinUrl = 'https://www.etsy.com/signin';
     const pageRes = await axios.get('https://api.crawlbase.com', {
       params: {
         token: crawlbaseToken,
@@ -362,7 +350,7 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
         ajax_wait: 'true',
         page_wait: '3000',
       },
-      timeout: 60000,
+      timeout: 120000,
     });
 
     const html = typeof pageRes.data === 'string' ? pageRes.data : JSON.stringify(pageRes.data);
@@ -382,14 +370,14 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
     const loginRes = await axios.get('https://api.crawlbase.com', {
       params: {
         token: crawlbaseToken,
-        url: 'https://www.etsy.com/signin?from_page=https%3A%2F%2Fwww.etsy.com%2Ffr%2F%3Fref%3Dlgo&workflow=c3Vic2NyaWJlX3RvX2VtYWlsX2xpc3Q6bmV3X2F0X2V0c3k6MTc3NDA2MTkwMjo2OTAwZWM5NzM3YzNkYzM4NDVmN2EzYTg0YjdkYzMzYQ==',
+        url: 'https://www.etsy.com/signin',
         autoparse: 'false',
         ajax_wait: 'true',
         page_wait: '4000',
         'post_data': formData,
         'post_content_type': 'application/x-www-form-urlencoded',
       },
-      timeout: 90000,
+      timeout: 120000,
     });
 
     const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
