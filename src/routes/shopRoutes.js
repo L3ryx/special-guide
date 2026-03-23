@@ -127,8 +127,8 @@ router.post('/clone', requireAuth, async (req, res) => {
 
   const axios = require('axios');
   const FormData = require('form-data');
-  const GEMINI_KEY = process.env.GEMINI_API_KEY;
-  const IMGBB_KEY  = process.env.IMGBB_API_KEY;
+  const LEONARDO_KEY = process.env.LEONARDO_API_KEY;
+  const IMGBB_KEY    = process.env.IMGBB_API_KEY;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -154,37 +154,72 @@ router.post('/clone', requireAuth, async (req, res) => {
     return typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
   }
 
-  async function modifyImageWithGemini(b64Image, background, angle) {
-    const { GoogleGenAI } = require('@google/genai');
-    const genaiClient = new GoogleGenAI({ apiKey: GEMINI_KEY });
+  async function modifyImageWithLeonardo(b64Image, background, angle) {
+    // ── Step 1: Upload the source image to Leonardo ──
+    var uploadRes = await axios.post(
+      'https://cloud.leonardo.ai/api/rest/v1/init-image',
+      { extension: 'jpg' },
+      { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 15000 }
+    );
+    var uploadData   = uploadRes.data.uploadInitImage;
+    var uploadUrl    = uploadData.url;
+    var uploadFields = uploadData.fields; // pre-signed S3 fields (JSON string or object)
+    var initImageId  = uploadData.id;
 
-    var prompt = 'You are a professional product photographer. '
-      + 'Generate a NEW product photo of the exact same product with: '
+    // Upload image bytes to the pre-signed S3 URL
+    var FormDataLib = require('form-data');
+    var fields = typeof uploadFields === 'string' ? JSON.parse(uploadFields) : uploadFields;
+    var s3Form = new FormDataLib();
+    Object.entries(fields).forEach(function([k, v]) { s3Form.append(k, v); });
+    s3Form.append('file', Buffer.from(b64Image, 'base64'), { filename: 'product.jpg', contentType: 'image/jpeg' });
+    await axios.post(uploadUrl, s3Form, { headers: s3Form.getHeaders(), timeout: 30000 });
+
+    // ── Step 2: Generate with Image Guidance (Image-to-Image) ──
+    var prompt = 'Professional e-commerce product photo of the exact same product. '
       + 'Background: ' + background + '. '
       + 'Angle: ' + angle + '. '
       + 'Keep the product identical (same shape, colors, text, details). '
-      + 'Professional e-commerce photography, clean, high quality. '
-      + 'Return ONLY the new image, no text.';
+      + 'Clean, high quality studio photography.';
 
-    var result = await genaiClient.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: [{
-        role: 'user',
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: b64Image } },
-          { text: prompt }
-        ]
-      }],
-      config: {
-        responseModalities: ['IMAGE', 'TEXT']
+    var genRes = await axios.post(
+      'https://cloud.leonardo.ai/api/rest/v1/generations',
+      {
+        prompt: prompt,
+        modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3', // Leonardo Diffusion XL
+        width: 1024,
+        height: 1024,
+        num_images: 1,
+        guidance_scale: 7,
+        init_image_id: initImageId,
+        init_strength: 0.45,
+        presetStyle: 'PRODUCT_PHOTOGRAPHY'
+      },
+      { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 30000 }
+    );
+
+    var generationId = genRes.data.sdGenerationJob.generationId;
+
+    // ── Step 3: Poll until generation is COMPLETE ──
+    var maxWait = 120; // seconds
+    var waited  = 0;
+    while (waited < maxWait) {
+      await sleep(4000);
+      waited += 4;
+      var pollRes = await axios.get(
+        'https://cloud.leonardo.ai/api/rest/v1/generations/' + generationId,
+        { headers: { Authorization: 'Bearer ' + LEONARDO_KEY }, timeout: 15000 }
+      );
+      var gen = pollRes.data.generations_by_pk;
+      if (gen && gen.status === 'COMPLETE') {
+        var imageUrl = gen.generated_images && gen.generated_images[0] && gen.generated_images[0].url;
+        if (!imageUrl) throw new Error('Leonardo returned no image URL');
+        // Download the generated image and convert to base64
+        var imgBuf = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 20000 });
+        return Buffer.from(imgBuf.data).toString('base64');
       }
-    });
-
-    var parts = (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) || [];
-    for (var p of parts) {
-      if (p.inlineData && p.inlineData.data) return p.inlineData.data;
+      if (gen && gen.status === 'FAILED') throw new Error('Leonardo generation failed');
     }
-    throw new Error('Gemini returned no image');
+    throw new Error('Leonardo generation timed out');
   }
 
   try {
@@ -317,13 +352,13 @@ router.post('/clone', requireAuth, async (req, res) => {
 
     for (var ii = 0; ii < rawImages.length; ii++) {
       if (ii > 0) await sleep(10000);
-      send({ step: 'imagen', message: '🎨 Modifying image ' + (ii+1) + '/' + rawImages.length + ' with Gemini...' });
+      send({ step: 'imagen', message: '🎨 Modifying image ' + (ii+1) + '/' + rawImages.length + ' with Leonardo AI...' });
 
       var attempts = 0;
       var success = false;
       while (attempts < 3 && !success) {
         try {
-          var modifiedB64 = await modifyImageWithGemini(rawImages[ii], backgrounds[ii % backgrounds.length], angles[ii % angles.length]);
+          var modifiedB64 = await modifyImageWithLeonardo(rawImages[ii], backgrounds[ii % backgrounds.length], angles[ii % angles.length]);
           var form = new FormData();
           form.append('key', IMGBB_KEY);
           form.append('image', modifiedB64);
@@ -336,7 +371,7 @@ router.post('/clone', requireAuth, async (req, res) => {
         } catch(imgErr) {
           attempts++;
           var status = imgErr.response && imgErr.response.status;
-          console.warn('Gemini image error (attempt ' + attempts + '):', imgErr.message);
+          console.warn('Leonardo image error (attempt ' + attempts + '):', imgErr.message);
           if (status === 429 && attempts < 3) {
             send({ step: 'imagen', message: '⏳ Rate limit, waiting 30s...' });
             await sleep(30000);
@@ -349,7 +384,7 @@ router.post('/clone', requireAuth, async (req, res) => {
               var up2 = await axios.post('https://api.imgbb.com/1/upload', form2, { headers: form2.getHeaders(), timeout: 15000 });
               if (up2.data && up2.data.data && up2.data.data.url) {
                 uploadedUrls.push(up2.data.data.url);
-                send({ step: 'imagen', message: '⚠️ Image ' + (ii+1) + ' kept original (Gemini error)' });
+                send({ step: 'imagen', message: '⚠️ Image ' + (ii+1) + ' kept original (Leonardo error)' });
               }
             } catch(e2) { console.warn('ImgBB fallback error:', e2.message); }
             break;
@@ -482,5 +517,6 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
 
 
