@@ -506,6 +506,7 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
       _pendingSessions.set(sessionId, {
         userId: req.user.id,
         email,
+        password,   // needed to replay login + 2FA in one ZenRows call
         cookies: allCookies,
         createdAt: Date.now()
       });
@@ -523,6 +524,9 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
 });
 
 // ── ETSY 2FA VERIFY via ZenRows ──
+// Strategy: do a fresh ZenRows login + immediately submit 2FA code in one call.
+// The session in _pendingSessions stores email+password so we can replay the login
+// and this time inject the 2FA code right after Etsy shows the verification field.
 router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
   try {
     const { sessionId, code } = req.body;
@@ -536,41 +540,48 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
     const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
     if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
 
-    console.log('ZenRows: submitting 2FA code...');
+    console.log('ZenRows 2FA: replaying login + submitting code...');
+
+    // Replay login in one call, then immediately fill the 2FA field
     const verifyRes = await axios.get('https://api.zenrows.com/v1/', {
       params: {
         apikey: ZENROWS_KEY,
         url: 'https://www.etsy.com/signin',
         js_render: 'true',
         antibot: 'true',
-        wait: 5000,
+        wait: 8000,
         premium_proxy: 'true',
         proxy_country: 'us',
-        session_id: 1,
         js_instructions: JSON.stringify([
-          { wait_for: 'input[name="code"],input[name="verification_code"],input[type="number"],#verification-code' },
-          { fill: ['input[name="code"],input[name="verification_code"],input[type="number"],#verification-code', code] },
+          { wait_for: 'input[name="email"],#join_neu_email_field' },
+          { fill: ['input[name="email"],#join_neu_email_field', session.email] },
+          { wait: 600 },
+          { fill: ['input[name="password"],#join_neu_password_field', session.password] },
+          { wait: 600 },
+          { click: 'button[type="submit"],#signin_button' },
+          { wait: 5000 },
+          { wait_for: 'input[name="code"],input[name="code_verification"],input[type="tel"],input[type="number"],#verification-code,input[autocomplete="one-time-code"]' },
+          { fill: ['input[name="code"],input[name="code_verification"],input[type="tel"],input[type="number"],#verification-code,input[autocomplete="one-time-code"]', code] },
+          { wait: 600 },
           { click: 'button[type="submit"],input[type="submit"]' },
-          { wait: 5000 }
+          { wait: 6000 }
         ])
       },
-      timeout: 120000
+      timeout: 180000
     });
 
     const resultHtml = typeof verifyRes.data === 'string' ? verifyRes.data : JSON.stringify(verifyRes.data);
 
-    // Collect new cookies
-    const setCookieHeader = verifyRes.headers['set-cookie'] || verifyRes.headers['zr-set-cookie'] || '';
-    const newCookies = Array.isArray(setCookieHeader)
+    // Collect cookies
+    const setCookieHeader = verifyRes.headers['set-cookie'] || '';
+    const allCookies = Array.isArray(setCookieHeader)
       ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
       : (typeof setCookieHeader === 'string' ? setCookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ') : '');
-
-    const allCookies = [session.cookies, newCookies].filter(Boolean).join('; ');
 
     const isLoggedIn = resultHtml.includes('sign-out') || resultHtml.includes('logout')
       || resultHtml.includes('user_prefs') || resultHtml.includes('/signout');
 
-    console.log('ZenRows 2FA: isLoggedIn =', isLoggedIn, '| cookies length =', allCookies.length);
+    console.log('ZenRows 2FA: isLoggedIn =', isLoggedIn, '| cookies =', allCookies.length);
 
     if (isLoggedIn || allCookies.length > 50) {
       const AutoSearchState = require('../models/autoSearchModel');
