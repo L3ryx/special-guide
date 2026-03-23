@@ -3,9 +3,9 @@ const router       = express.Router();
 const { requireAuth } = require('./auth');
 const SavedShop    = require('../models/shopModel');
 const AutoSearchState = require('../models/autoSearchModel');
+const PendingSession  = require('../models/pendingSessionModel');
 
-// Map pour stocker les sessions 2FA en attente
-const _pendingSessions = new Map();
+// Les sessions 2FA sont désormais persistées en MongoDB (résistant aux redémarrages serveur)
 
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
@@ -416,11 +416,14 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
 
     if (needs2FA) {
       const sessionId = require('crypto').randomBytes(16).toString('hex');
-      _pendingSessions.set(sessionId, {
-        userId: req.user.id, email, password,
-        cookies: allCookies, createdAt: Date.now()
+      await PendingSession.create({
+        sessionId,
+        userId:    req.user.id,
+        email,
+        password,
+        cookies:   allCookies,
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes
       });
-      setTimeout(() => _pendingSessions.delete(sessionId), 10 * 60 * 1000);
       return res.json({ needs2FA: true, sessionId });
     }
 
@@ -451,8 +454,11 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
     const { sessionId, code } = req.body;
     if (!sessionId || !code) return res.status(400).json({ error: 'sessionId and code required' });
 
-    const session = _pendingSessions.get(sessionId);
-    if (!session) return res.status(400).json({ error: 'Session expired — please login again.' });
+    const session = await PendingSession.findOne({
+      sessionId,
+      expiresAt: { $gt: new Date() }
+    });
+    if (!session) return res.status(400).json({ error: 'Session expirée — veuillez vous reconnecter.' });
     if (session.userId.toString() !== req.user.id.toString()) return res.status(403).json({ error: 'Forbidden' });
 
     const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
@@ -505,7 +511,7 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
         { $set: { etsyToken: mergedCookies, etsyEmail: session.email, updatedAt: new Date() } },
         { upsert: true }
       );
-      _pendingSessions.delete(sessionId);
+      await PendingSession.deleteOne({ sessionId });
       return res.json({ ok: true });
     }
 
@@ -520,70 +526,12 @@ router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
         { $set: { etsyToken: mergedCookies, etsyEmail: session.email, updatedAt: new Date() } },
         { upsert: true }
       );
-      _pendingSessions.delete(sessionId);
+      await PendingSession.deleteOne({ sessionId });
       return res.json({ ok: true });
-    }
-
-    res.status(401).json({ error: 'Verification failed — please try again.' });
 
   } catch(e) {
     const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message;
     console.error('ZenRows 2FA error:', detail);
-    res.status(500).json({ error: detail });
-  }
-});
-
-// ── ETSY LOGIN via Crawlbase (fallback) ──
-router.post('/etsy-login', requireAuth, async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-
-    const axios = require('axios');
-    const crawlbaseToken = process.env.CRAWLBASE_TOKEN;
-    if (!crawlbaseToken) return res.status(500).json({ error: 'CRAWLBASE_TOKEN not configured' });
-
-    const pageRes = await axios.get('https://api.crawlbase.com', {
-      params: { token: crawlbaseToken, url: 'https://www.etsy.com/signin', autoparse: 'false', ajax_wait: 'true', page_wait: '3000' },
-      timeout: 120000,
-    });
-
-    const html = typeof pageRes.data === 'string' ? pageRes.data : JSON.stringify(pageRes.data);
-    const csrfMatch = html.match(/name="_nnc"\s+value="([^"]+)"/i) || html.match(/"csrf_nonce"\s*:\s*"([^"]+)"/i);
-    const csrf = csrfMatch ? csrfMatch[1] : '';
-
-    const formData = `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&_nnc=${encodeURIComponent(csrf)}&signin_submitted=1`;
-
-    const loginRes = await axios.get('https://api.crawlbase.com', {
-      params: { token: crawlbaseToken, url: 'https://www.etsy.com/signin', autoparse: 'false', ajax_wait: 'true', page_wait: '4000', post_data: formData, post_content_type: 'application/x-www-form-urlencoded' },
-      timeout: 120000,
-    });
-
-    const resultHtml = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
-    const needs2FA   = resultHtml.includes('verification') || resultHtml.includes('verify') || resultHtml.includes('phone') || resultHtml.includes('two-factor');
-    const isLoggedIn = (resultHtml.includes('sign-out') || resultHtml.includes('user_prefs') || resultHtml.includes('logout')) && !needs2FA;
-
-    if (isLoggedIn) {
-      const cookies = Array.isArray(loginRes.headers['set-cookie']) ? loginRes.headers['set-cookie'].join('; ') : (loginRes.headers['set-cookie'] || 'crawlbase_session');
-      await AutoSearchState.findOneAndUpdate(
-        { userId: req.user.id },
-        { $set: { etsyToken: cookies, etsyEmail: email, updatedAt: new Date() } },
-        { upsert: true }
-      );
-      return res.json({ ok: true, token: cookies });
-    }
-
-    if (needs2FA) {
-      const sessionId = require('crypto').randomBytes(16).toString('hex');
-      _pendingSessions.set(sessionId, { userId: req.user.id, email, html: resultHtml, createdAt: Date.now() });
-      setTimeout(() => _pendingSessions.delete(sessionId), 5 * 60 * 1000);
-      return res.json({ needs2FA: true, sessionId });
-    }
-
-    res.status(401).json({ error: 'Login failed — check your credentials' });
-  } catch(e) {
-    const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-    console.error('Etsy login error:', detail);
     res.status(500).json({ error: detail });
   }
 });
@@ -606,3 +554,4 @@ function mergeCookies(older, newer) {
 }
 
 module.exports = router;
+
