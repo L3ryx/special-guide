@@ -155,7 +155,7 @@ router.post('/clone', requireAuth, async (req, res) => {
   }
 
   async function modifyImageWithLeonardo(b64Image, background, angle) {
-    // ── Step 1: Upload the source image to Leonardo ──
+    // ── Step 1: Upload the source image to Leonardo (init-image) ──
     var uploadRes = await axios.post(
       'https://cloud.leonardo.ai/api/rest/v1/init-image',
       { extension: 'jpg' },
@@ -163,7 +163,7 @@ router.post('/clone', requireAuth, async (req, res) => {
     );
     var uploadData   = uploadRes.data.uploadInitImage;
     var uploadUrl    = uploadData.url;
-    var uploadFields = uploadData.fields; // pre-signed S3 fields (JSON string or object)
+    var uploadFields = uploadData.fields; // pre-signed S3 fields (string or object)
     var initImageId  = uploadData.id;
 
     // Upload image bytes to the pre-signed S3 URL
@@ -174,28 +174,32 @@ router.post('/clone', requireAuth, async (req, res) => {
     s3Form.append('file', Buffer.from(b64Image, 'base64'), { filename: 'product.jpg', contentType: 'image/jpeg' });
     await axios.post(uploadUrl, s3Form, { headers: s3Form.getHeaders(), timeout: 30000 });
 
-    // ── Step 2: Generate with Image Guidance (Image-to-Image) ──
-    var prompt = 'Professional e-commerce product photo of the exact same product. '
+    // ── Step 2: Generate image-to-image via imagePrompts ──
+    var prompt = 'Professional e-commerce product photo. '
       + 'Background: ' + background + '. '
       + 'Angle: ' + angle + '. '
-      + 'Keep the product identical (same shape, colors, text, details). '
-      + 'Clean, high quality studio photography.';
+      + 'Same product, same colors and details. Clean studio photography, white seamless.';
+
+    var genBody = {
+      prompt: prompt,
+      modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3', // Leonardo Diffusion XL
+      width: 1024,
+      height: 1024,
+      num_images: 1,
+      guidanceScale: 7,
+      imagePrompts: [initImageId]  // correct param for image-to-image on this model
+    };
 
     var genRes = await axios.post(
       'https://cloud.leonardo.ai/api/rest/v1/generations',
-      {
-        prompt: prompt,
-        modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3', // Leonardo Diffusion XL
-        width: 1024,
-        height: 1024,
-        num_images: 1,
-        guidance_scale: 7,
-        init_image_id: initImageId,
-        init_strength: 0.45,
-        presetStyle: 'PRODUCT_PHOTOGRAPHY'
-      },
+      genBody,
       { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 30000 }
     );
+
+    // Log body for debugging
+    if (!genRes.data || !genRes.data.sdGenerationJob) {
+      throw new Error('Leonardo gen response unexpected: ' + JSON.stringify(genRes.data));
+    }
 
     var generationId = genRes.data.sdGenerationJob.generationId;
 
@@ -213,7 +217,6 @@ router.post('/clone', requireAuth, async (req, res) => {
       if (gen && gen.status === 'COMPLETE') {
         var imageUrl = gen.generated_images && gen.generated_images[0] && gen.generated_images[0].url;
         if (!imageUrl) throw new Error('Leonardo returned no image URL');
-        // Download the generated image and convert to base64
         var imgBuf = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 20000 });
         return Buffer.from(imgBuf.data).toString('base64');
       }
@@ -371,7 +374,8 @@ router.post('/clone', requireAuth, async (req, res) => {
         } catch(imgErr) {
           attempts++;
           var status = imgErr.response && imgErr.response.status;
-          console.warn('Leonardo image error (attempt ' + attempts + '):', imgErr.message);
+          var errBody = imgErr.response && imgErr.response.data ? JSON.stringify(imgErr.response.data) : imgErr.message;
+          console.warn('Leonardo image error (attempt ' + attempts + ') [HTTP ' + (imgErr.response && imgErr.response.status) + ']:', errBody);
           if (status === 429 && attempts < 3) {
             send({ step: 'imagen', message: '⏳ Rate limit, waiting 30s...' });
             await sleep(30000);
