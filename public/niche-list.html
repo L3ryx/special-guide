@@ -47,6 +47,64 @@
     }
     .btn-back:hover { background: rgba(255,255,255,0.13); color: #fff; }
     .nav-title { font-family: 'Croissant One', cursive; font-size: 1rem; color: rgba(255,255,255,0.7); }
+    .nav-right { display: flex; align-items: center; gap: 10px; }
+    .btn-etsy-login {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 16px; border-radius: 10px;
+      background: #f1641e; border: none;
+      color: #fff; font-family: 'Inter', sans-serif;
+      font-weight: 700; font-size: 0.82rem;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 2px 12px rgba(241,100,30,0.4);
+    }
+    .btn-etsy-login:hover { background: #e05518; transform: translateY(-1px); box-shadow: 0 4px 18px rgba(241,100,30,0.5); }
+    .btn-etsy-login.connected { background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); color: #4ade80; box-shadow: none; }
+    .btn-etsy-login.connected:hover { background: rgba(34,197,94,0.3); transform: none; }
+
+    /* Etsy Login Modal */
+    #etsy-modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+      align-items: center; justify-content: center;
+    }
+    #etsy-modal-overlay.open { display: flex; }
+    #etsy-modal {
+      background: #1a1a1a; border: 1px solid rgba(241,100,30,0.3);
+      border-radius: 20px; padding: 32px; width: 100%; max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      animation: slideUp 0.3s ease;
+    }
+    #etsy-modal h2 { font-size: 1.2rem; font-weight: 800; margin-bottom: 6px; }
+    #etsy-modal p { font-size: 0.82rem; color: rgba(255,255,255,0.5); margin-bottom: 24px; line-height: 1.5; }
+    .etsy-modal-input {
+      width: 100%; padding: 11px 14px; border-radius: 10px;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+      color: #fff; font-family: 'Inter', sans-serif; font-size: 0.9rem;
+      margin-bottom: 12px; outline: none; transition: border 0.2s;
+    }
+    .etsy-modal-input:focus { border-color: rgba(241,100,30,0.6); }
+    .etsy-modal-input::placeholder { color: rgba(255,255,255,0.3); }
+    .btn-etsy-submit {
+      width: 100%; padding: 12px; border-radius: 10px;
+      background: #f1641e; border: none; color: #fff;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.9rem;
+      cursor: pointer; transition: all 0.2s; margin-top: 4px;
+    }
+    .btn-etsy-submit:hover { background: #e05518; }
+    .btn-etsy-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-etsy-cancel {
+      width: 100%; padding: 10px; border-radius: 10px; margin-top: 8px;
+      background: transparent; border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.5); font-family: 'Inter', sans-serif;
+      font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-etsy-cancel:hover { border-color: rgba(255,255,255,0.25); color: #fff; }
+    #etsy-modal-status {
+      font-size: 0.82rem; text-align: center; margin-top: 12px;
+      min-height: 18px; color: rgba(255,255,255,0.6);
+    }
+    #etsy-modal-status.error { color: #f87171; }
+    #etsy-modal-status.success { color: #4ade80; }
 
     .container { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; position: relative; z-index: 10; }
     h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
@@ -183,7 +241,37 @@
       <button type="button" class="btn-back" onclick="goBack()">← Back</button>
       <span class="nav-title">My List</span>
     </div>
+    <div class="nav-right">
+      <button id="btn-etsy-login" class="btn-etsy-login" onclick="openEtsyModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+        Etsy Login
+      </button>
+    </div>
   </nav>
+
+  <!-- Etsy Login Modal -->
+  <div id="etsy-modal-overlay">
+    <div id="etsy-modal">
+      <!-- Step 1: email + password -->
+      <div id="etsy-step-login">
+        <h2>🛍️ Connect Etsy</h2>
+        <p>ZenRows will open a real Etsy session and save your cookies for scraping.</p>
+        <input id="etsy-email" class="etsy-modal-input" type="email" placeholder="Etsy email" autocomplete="username" />
+        <input id="etsy-password" class="etsy-modal-input" type="password" placeholder="Etsy password" autocomplete="current-password" />
+        <button class="btn-etsy-submit" id="btn-etsy-submit" onclick="submitEtsyLogin()">Connect with ZenRows</button>
+        <button class="btn-etsy-cancel" onclick="closeEtsyModal()">Cancel</button>
+      </div>
+      <!-- Step 2: 2FA code -->
+      <div id="etsy-step-2fa" style="display:none">
+        <h2>🔐 Verification Code</h2>
+        <p>Etsy sent a verification code to your email or phone. Enter it below.</p>
+        <input id="etsy-2fa-code" class="etsy-modal-input" type="text" placeholder="6-digit code" maxlength="8" autocomplete="one-time-code" style="letter-spacing:0.2em;font-size:1.1rem;text-align:center" />
+        <button class="btn-etsy-submit" id="btn-etsy-2fa-submit" onclick="submitEtsy2FA()">Verify</button>
+        <button class="btn-etsy-cancel" onclick="closeEtsyModal()">Cancel</button>
+      </div>
+      <div id="etsy-modal-status"></div>
+    </div>
+  </div>
 
   <div class="container">
     <h1>My List</h1>
@@ -341,6 +429,137 @@
       TOKEN = localStorage.getItem('scout_token');
       if (!TOKEN) { window.location.href = '/finder'; return; }
       loadShops();
+      checkEtsyStatus();
+    });
+
+    // ── Etsy Login via ZenRows ──
+    function checkEtsyStatus() {
+      fetch('/api/shops/etsy-session-status', {
+        headers: { 'Authorization': 'Bearer ' + TOKEN }
+      }).then(r => r.json()).then(data => {
+        var btn = document.getElementById('btn-etsy-login');
+        if (data.connected) {
+          btn.innerHTML = '✅ Etsy Connected';
+          btn.classList.add('connected');
+        }
+      }).catch(function(){});
+    }
+
+    function openEtsyModal() {
+      document.getElementById('etsy-modal-overlay').classList.add('open');
+      document.getElementById('etsy-modal-status').textContent = '';
+      document.getElementById('etsy-email').value = '';
+      document.getElementById('etsy-password').value = '';
+    }
+
+    function closeEtsyModal() {
+      document.getElementById('etsy-modal-overlay').classList.remove('open');
+      // Reset to step 1
+      document.getElementById('etsy-step-login').style.display = 'block';
+      document.getElementById('etsy-step-2fa').style.display = 'none';
+      document.getElementById('etsy-modal-status').textContent = '';
+      document.getElementById('etsy-modal-status').className = '';
+      _etsy2faSessionId = null;
+    }
+
+    var _etsy2faSessionId = null;
+
+    async function submitEtsyLogin() {
+      var email    = document.getElementById('etsy-email').value.trim();
+      var password = document.getElementById('etsy-password').value;
+      var status   = document.getElementById('etsy-modal-status');
+      var btn      = document.getElementById('btn-etsy-submit');
+
+      if (!email || !password) {
+        status.textContent = 'Please enter your email and password.';
+        status.className = 'error';
+        return;
+      }
+
+      btn.disabled = true;
+      status.className = '';
+      status.textContent = '⏳ Opening Etsy session via ZenRows...';
+
+      try {
+        var res = await fetch('/api/shops/etsy-zenrows-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+          body: JSON.stringify({ email, password })
+        });
+        var data = await res.json();
+
+        if (data.ok) {
+          status.textContent = '✅ Connected! Cookies saved.';
+          status.className = 'success';
+          var navBtn = document.getElementById('btn-etsy-login');
+          navBtn.innerHTML = '✅ Etsy Connected';
+          navBtn.classList.add('connected');
+          setTimeout(closeEtsyModal, 1500);
+        } else if (data.needs2FA) {
+          // Switch to 2FA step
+          _etsy2faSessionId = data.sessionId;
+          document.getElementById('etsy-step-login').style.display = 'none';
+          document.getElementById('etsy-step-2fa').style.display = 'block';
+          status.textContent = '';
+          status.className = '';
+          document.getElementById('etsy-2fa-code').focus();
+        } else {
+          status.textContent = '❌ ' + (data.error || 'Login failed');
+          status.className = 'error';
+        }
+      } catch(e) {
+        status.textContent = '❌ Network error: ' + e.message;
+        status.className = 'error';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function submitEtsy2FA() {
+      var code   = document.getElementById('etsy-2fa-code').value.trim();
+      var status = document.getElementById('etsy-modal-status');
+      var btn    = document.getElementById('btn-etsy-2fa-submit');
+
+      if (!code) {
+        status.textContent = 'Please enter the verification code.';
+        status.className = 'error';
+        return;
+      }
+
+      btn.disabled = true;
+      status.className = '';
+      status.textContent = '⏳ Verifying code...';
+
+      try {
+        var res = await fetch('/api/shops/etsy-zenrows-2fa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+          body: JSON.stringify({ sessionId: _etsy2faSessionId, code })
+        });
+        var data = await res.json();
+
+        if (data.ok) {
+          status.textContent = '✅ Connected! Cookies saved.';
+          status.className = 'success';
+          var navBtn = document.getElementById('btn-etsy-login');
+          navBtn.innerHTML = '✅ Etsy Connected';
+          navBtn.classList.add('connected');
+          setTimeout(closeEtsyModal, 1500);
+        } else {
+          status.textContent = '❌ ' + (data.error || 'Invalid code');
+          status.className = 'error';
+        }
+      } catch(e) {
+        status.textContent = '❌ Network error: ' + e.message;
+        status.className = 'error';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Close modal on overlay click
+    document.getElementById('etsy-modal-overlay').addEventListener('click', function(e) {
+      if (e.target === this) closeEtsyModal();
     });
   </script>
 
@@ -524,6 +743,7 @@
   </script>
 </body>
 </html>
+
 
 
 
