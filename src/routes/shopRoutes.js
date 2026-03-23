@@ -164,7 +164,7 @@ router.post('/clone', requireAuth, async (req, res) => {
       + 'Return ONLY the new image, no text.';
 
     var gemRes = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=' + GEMINI_KEY,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=' + GEMINI_KEY,
       {
         contents: [{
           parts: [
@@ -286,7 +286,7 @@ router.post('/clone', requireAuth, async (req, res) => {
       + '"tags":["t1","t2","t3","t4","t5","t6","t7","t8","t9","t10","t11","t12","t13"]}. '
       + 'Rules: exactly 13 tags, max 20 chars each, English only.';
     var gemSeoRes = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + GEMINI_KEY,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=' + GEMINI_KEY,
       { contents: [{ parts: [{ text: seoPrompt }] }] },
       { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
     );
