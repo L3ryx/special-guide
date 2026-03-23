@@ -174,7 +174,7 @@ router.post('/clone', requireAuth, async (req, res) => {
     s3Form.append('file', Buffer.from(b64Image, 'base64'), { filename: 'product.jpg', contentType: 'image/jpeg' });
     await axios.post(uploadUrl, s3Form, { headers: s3Form.getHeaders(), timeout: 30000 });
 
-    // ── Step 2: Generate image-to-image via imagePrompts ──
+    // ── Step 2: Generate image-to-image via init_image + ControlNet ──
     var prompt = 'Professional e-commerce product photo. '
       + 'Background: ' + background + '. '
       + 'Angle: ' + angle + '. '
@@ -187,7 +187,14 @@ router.post('/clone', requireAuth, async (req, res) => {
       height: 1024,
       num_images: 1,
       guidanceScale: 7,
-      imagePrompts: [initImageId]  // correct param for image-to-image on this model
+      init_image_id: initImageId,
+      init_strength: 0.35,         // 0.35 = reste très proche du produit original
+      controlnets: [{
+        initImageId: initImageId,
+        initImageType: 'UPLOADED',
+        preprocessorId: 67,        // Content Shuffle : préserve la structure du produit
+        strengthType: 'Mid'
+      }]
     };
 
     var genRes = await axios.post(
@@ -521,6 +528,5 @@ router.post('/etsy-login', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
-
 
 
