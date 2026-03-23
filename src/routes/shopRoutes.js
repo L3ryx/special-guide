@@ -500,7 +500,12 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
           { click: 'button[type="submit"],#signin_button' },
           { wait: 5000 },
           { evaluate: pollScript },
-          { wait: 200000 }
+          { wait: 30000 },
+          { wait: 30000 },
+          { wait: 30000 },
+          { wait: 30000 },
+          { wait: 30000 },
+          { wait: 20000 }
         ])
       },
       timeout: 300000  // 5 min total
