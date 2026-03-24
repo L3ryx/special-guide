@@ -354,6 +354,13 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
 
     await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
+    // Debug : screenshot + HTML pour voir ce qu'Etsy retourne
+    const debugHtml = await page.content();
+    const debugScreenshot = await page.screenshot({ encoding: 'base64', fullPage: false });
+    console.log('Etsy page URL:', page.url());
+    console.log('Etsy page HTML (500 chars):', debugHtml.slice(0, 500));
+    console.log('Etsy screenshot (base64, 100 chars):', debugScreenshot.slice(0, 100));
+
     // Remplir email
     await page.waitForSelector('input[name="email"],#join_neu_email_field', { timeout: 30000 });
     await page.fill('input[name="email"],#join_neu_email_field', email);
