@@ -211,6 +211,79 @@
     }
     .empty-state .emoji { font-size: 2.5rem; }
 
+    /* ── My First Listing Banner ── */
+    #my-listing-section {
+      margin-bottom: 24px;
+    }
+    .section-label {
+      font-family: 'Croissant One', cursive;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      padding-left: 4px;
+    }
+    #my-listing-card {
+      display: none;
+      background: rgba(241,100,30,0.08);
+      border: 1px solid rgba(241,100,30,0.3);
+      border-radius: 18px;
+      overflow: hidden;
+      backdrop-filter: blur(16px);
+      animation: slideUp 0.4s ease;
+      transition: border-color 0.2s;
+    }
+    #my-listing-card:hover { border-color: rgba(241,100,30,0.55); }
+    .my-listing-inner {
+      display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+    }
+    .my-listing-img {
+      width: 72px; height: 72px; border-radius: 12px; object-fit: cover;
+      border: 1px solid rgba(241,100,30,0.25); flex-shrink: 0;
+    }
+    .my-listing-img-ph {
+      width: 72px; height: 72px; border-radius: 12px; flex-shrink: 0;
+      background: rgba(241,100,30,0.1);
+      display: flex; align-items: center; justify-content: center; font-size: 1.8rem;
+    }
+    .my-listing-info { flex: 1; min-width: 0; }
+    .my-listing-shop {
+      font-size: 0.73rem; color: #fb923c; font-weight: 600;
+      letter-spacing: 0.03em; margin-bottom: 3px;
+    }
+    .my-listing-title {
+      font-size: 0.88rem; font-weight: 700; color: #fff;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .my-listing-price {
+      font-size: 0.8rem; color: rgba(255,255,255,0.5);
+    }
+    .btn-listing-visit {
+      flex-shrink: 0; padding: 9px 16px; border-radius: 10px;
+      border: 1px solid rgba(241,100,30,0.5);
+      background: rgba(241,100,30,0.2); color: #fb923c;
+      font-family: 'Croissant One', cursive; font-weight: 700; font-size: 0.78rem;
+      text-decoration: none; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-listing-visit:hover { background: rgba(241,100,30,0.38); color: #fff; }
+    #my-listing-skeleton {
+      display: none;
+      background: rgba(241,100,30,0.06);
+      border: 1px solid rgba(241,100,30,0.15);
+      border-radius: 18px; padding: 14px 16px;
+      gap: 14px; align-items: center;
+    }
+    #my-listing-skeleton.show { display: flex; }
+    .skel {
+      border-radius: 8px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
     .toast-msg {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
       padding: 12px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
@@ -272,6 +345,23 @@
 
   <div class="container">
     <h1>My List</h1>
+
+    <!-- ── Ma première annonce Etsy ── -->
+    <div id="my-listing-section">
+      <!-- Skeleton pendant le chargement -->
+      <div id="my-listing-skeleton">
+        <div class="skel" style="width:72px;height:72px;border-radius:12px;flex-shrink:0"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+          <div class="skel" style="height:12px;width:40%;border-radius:6px"></div>
+          <div class="skel" style="height:14px;width:80%;border-radius:6px"></div>
+          <div class="skel" style="height:11px;width:25%;border-radius:6px"></div>
+        </div>
+        <div class="skel" style="width:80px;height:36px;border-radius:10px;flex-shrink:0"></div>
+      </div>
+      <!-- Carte réelle -->
+      <div id="my-listing-card"></div>
+    </div>
+
     <div class="shops-list" id="shops-list"></div>
   </div>
 
@@ -434,8 +524,51 @@
         if (data.connected) {
           btn.innerHTML = '✅ Etsy Connected';
           btn.classList.add('connected');
+          loadMyFirstListing();
         }
       }).catch(function(){});
+    }
+
+    async function loadMyFirstListing() {
+      var skeleton = document.getElementById('my-listing-skeleton');
+      var card     = document.getElementById('my-listing-card');
+      skeleton.classList.add('show');
+
+      try {
+        var res  = await apiFetch('/api/shops/etsy-first-listing');
+        var data = await res.json();
+        skeleton.classList.remove('show');
+
+        if (!data.ok || !data.title) return; // silencieux si pas de listing
+
+        var imgHtml = data.images && data.images.length
+          ? '<img class="my-listing-img" src="' + data.images[0] + '" alt="" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+            + '<div class="my-listing-img-ph" style="display:none">🛍</div>'
+          : '<div class="my-listing-img-ph">🛍</div>';
+
+        card.innerHTML =
+          '<div class="my-listing-inner">'
+          + imgHtml
+          + '<div class="my-listing-info">'
+          +   '<div class="my-listing-shop">🏪 ' + (data.shopName || '') + '</div>'
+          +   '<div class="my-listing-title">' + data.title + '</div>'
+          +   (data.price ? '<div class="my-listing-price">' + data.price + '</div>' : '')
+          + '</div>'
+          + '<a class="btn-listing-visit" href="' + data.listingUrl + '" target="_blank" rel="noopener">View ↗</a>'
+          + '</div>';
+
+        card.style.display = 'block';
+
+        // Afficher le label de section
+        var section = document.getElementById('my-listing-section');
+        var label = document.createElement('div');
+        label.className = 'section-label';
+        label.textContent = 'My first listing';
+        section.insertBefore(label, section.firstChild);
+
+      } catch(e) {
+        skeleton.classList.remove('show');
+      }
     }
 
     function openEtsyModal() {
@@ -726,3 +859,4 @@
   </script>
 </body>
 </html>
+
