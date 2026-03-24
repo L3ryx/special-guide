@@ -369,13 +369,16 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     const isLoggedIn = html.includes('sign-out') || html.includes('user_prefs') || html.includes('/signout');
     const needs2FA   = html.includes('verification') || html.includes('two-factor') || html.includes('one-time-code');
 
-    console.log('ZenRows login: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA, '| cookies =', cookies.length);
+    // Cookie de session Etsy valide = contient 'user_prefs' ou 'etsy_ua' ou 'uaid'
+    const hasSessionCookie = /user_prefs=|etsy_ua=|uaid=/.test(cookies);
+
+    console.log('ZenRows login: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA, '| hasSessionCookie =', hasSessionCookie, '| cookies =', cookies.length);
 
     if (needs2FA) {
       return res.status(401).json({ error: 'Votre compte Etsy a le 2FA activé. Veuillez le désactiver dans les paramètres Etsy puis réessayer.' });
     }
 
-    if (isLoggedIn || cookies.length > 30) {
+    if (isLoggedIn && hasSessionCookie) {
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
         { $set: { etsyToken: cookies, etsyEmail: email, updatedAt: new Date() } },
