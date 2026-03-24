@@ -338,16 +338,21 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    const { chromium } = require('playwright');
-    const { ScrapingBrowser } = require('@zenrows/browser-sdk');
+    const { chromium } = require('playwright-core');
 
-    console.log('ZenRows Playwright: launching browser for Etsy login...');
-    const scrapingBrowser = new ScrapingBrowser({ apiKey: process.env.ZENROWS_API_KEY });
-    const browser = await chromium.connectOverCDP(scrapingBrowser.getConnectURL());
-    const context = await browser.newContext({ locale: 'en-US' });
+    const BROWSERLESS_TOKEN = process.env.BROWSERLESS_TOKEN;
+    if (!BROWSERLESS_TOKEN) return res.status(500).json({ error: 'BROWSERLESS_TOKEN not configured' });
+
+    console.log('Browserless: launching browser for Etsy login...');
+    const wsEndpoint = `wss://production-sfo.browserless.io/chromium/stealth?token=${BROWSERLESS_TOKEN}`;
+    const browser = await chromium.connectOverCDP(wsEndpoint);
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      locale: 'en-US',
+    });
     const page = await context.newPage();
 
-    await page.goto('https://www.etsy.com/signin', { waitUntil: 'networkidle', timeout: 60000 });
+    await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     // Remplir email
     await page.waitForSelector('input[name="email"],#join_neu_email_field', { timeout: 30000 });
