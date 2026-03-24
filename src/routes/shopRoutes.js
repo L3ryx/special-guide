@@ -312,7 +312,48 @@ router.post('/clone', requireAuth, async (req, res) => {
 router.get('/etsy-session-status', requireAuth, async (req, res) => {
   try {
     const state = await AutoSearchState.findOne({ userId: req.user.id });
-    res.json({ connected: !!(state && state.etsyToken) });
+    if (!state || !state.etsyToken) return res.json({ connected: false });
+
+    // Vérifier si la session est encore active en appelant une page Etsy authentifiée
+    const axios = require('axios');
+    const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
+
+    if (!ZENROWS_KEY) return res.json({ connected: true }); // pas de clé = on fait confiance
+
+    try {
+      const response = await axios.get('https://api.zenrows.com/v1/', {
+        params: {
+          apikey:        ZENROWS_KEY,
+          url:           'https://www.etsy.com/your/account',
+          js_render:     'false',
+          premium_proxy: 'true',
+          proxy_country: 'us',
+          custom_headers: 'true',
+        },
+        headers: { 'Cookie': state.etsyToken },
+        timeout: 30000
+      });
+
+      const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      const isStillLoggedIn = html.includes('sign-out') || html.includes('user_prefs') || html.includes('/signout');
+
+      if (!isStillLoggedIn) {
+        // Session expirée — on efface le token pour forcer la reconnexion
+        await AutoSearchState.findOneAndUpdate(
+          { userId: req.user.id },
+          { $set: { etsyToken: null, etsyEmail: null, updatedAt: new Date() } }
+        );
+        console.log('Etsy session expired for user', req.user.id, '— token cleared');
+        return res.json({ connected: false, reason: 'session_expired' });
+      }
+
+      res.json({ connected: true });
+    } catch(e) {
+      // En cas d'erreur réseau on ne déconnecte pas
+      console.warn('Etsy session check error:', e.message);
+      res.json({ connected: true });
+    }
+
   } catch(e) {
     res.json({ connected: false });
   }
