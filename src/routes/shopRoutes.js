@@ -4,9 +4,6 @@ const { requireAuth } = require('./auth');
 const SavedShop    = require('../models/shopModel');
 const AutoSearchState = require('../models/autoSearchModel');
 
-// Sessions Playwright en attente de 2FA : { browser, page, email, userId, timer }
-const _playwrightSessions = new Map();
-
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
   let { shopName, shopUrl, shopAvatar, productImage, productUrl } = req.body;
@@ -321,163 +318,78 @@ router.get('/etsy-session-status', requireAuth, async (req, res) => {
   }
 });
 
-// ──────────────────────────────────────────────────────────────────────────────
-// HELPER : fermer proprement un browser Playwright en attente
-// ──────────────────────────────────────────────────────────────────────────────
-async function closePwSession(sessionId) {
-  const s = _playwrightSessions.get(sessionId);
-  if (!s) return;
-  clearTimeout(s.timer);
-  _playwrightSessions.delete(sessionId);
-  try { await s.browser.close(); } catch(e) { console.warn('browser.close error:', e.message); }
-}
-
-// ── ETSY LOGIN via Playwright ──
+// ── ETSY LOGIN via ZenRows ──
 router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    const { chromium } = require('playwright-core');
+    const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
+    if (!ZENROWS_KEY) return res.status(500).json({ error: 'ZENROWS_API_KEY not configured' });
 
-    const BROWSERLESS_TOKEN = process.env.BROWSERLESS_TOKEN;
-    if (!BROWSERLESS_TOKEN) return res.status(500).json({ error: 'BROWSERLESS_TOKEN not configured' });
+    const axios = require('axios');
 
-    console.log('Browserless: launching browser for Etsy login...');
-    const wsEndpoint = `wss://production-sfo.browserless.io/chromium/stealth?token=${BROWSERLESS_TOKEN}`;
-    const browser = await chromium.connectOverCDP(wsEndpoint);
-    const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      locale: 'en-US',
+    console.log('ZenRows: submitting Etsy login...');
+
+    const jsInstructions = [
+      { wait_for: 'input[name="email"],#join_neu_email_field' },
+      { fill:     ['input[name="email"],#join_neu_email_field', email] },
+      { wait:     500 },
+      { fill:     ['input[name="password"],#join_neu_password_field', password] },
+      { wait:     500 },
+      { click:    'button[type="submit"],#signin_button' },
+      { wait:     8000 },
+      {
+        evaluate: `(function() {
+          var el = document.getElementById('__zr_cookies__');
+          if (!el) { el = document.createElement('div'); el.id = '__zr_cookies__'; el.style.display='none'; document.body.appendChild(el); }
+          el.textContent = document.cookie;
+        })()`
+      },
+      { wait: 500 }
+    ];
+
+    const response = await axios.get('https://api.zenrows.com/v1/', {
+      params: {
+        apikey:          ZENROWS_KEY,
+        url:             'https://www.etsy.com/signin',
+        js_render:       'true',
+        antibot:         'true',
+        premium_proxy:   'true',
+        proxy_country:   'us',
+        js_instructions: JSON.stringify(jsInstructions)
+      },
+      timeout: 120000
     });
-    const page = await context.newPage();
 
-    await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+    const cookieMatch = html.match(/<div id="__zr_cookies__"[^>]*>([^<]*)<\/div>/);
+    const cookies = cookieMatch ? cookieMatch[1].trim() : '';
 
-    // Debug : screenshot + HTML pour voir ce qu'Etsy retourne
-    const debugHtml = await page.content();
-    const debugScreenshot = await page.screenshot({ encoding: 'base64', fullPage: false });
-    console.log('Etsy page URL:', page.url());
-    console.log('Etsy page HTML (500 chars):', debugHtml.slice(0, 500));
-    console.log('Etsy screenshot (base64, 100 chars):', debugScreenshot.slice(0, 100));
+    const isLoggedIn = html.includes('sign-out') || html.includes('user_prefs') || html.includes('/signout');
+    const needs2FA   = html.includes('verification') || html.includes('two-factor') || html.includes('one-time-code');
 
-    // Remplir email
-    await page.waitForSelector('input[name="email"],#join_neu_email_field', { timeout: 30000 });
-    await page.fill('input[name="email"],#join_neu_email_field', email);
-    await page.waitForTimeout(400);
-    await page.fill('input[name="password"],#join_neu_password_field', password);
-    await page.waitForTimeout(400);
-    await page.click('button[type="submit"],#signin_button');
-
-    // Attendre la réponse d'Etsy (2FA ou dashboard)
-    await page.waitForTimeout(6000);
-
-    const content = await page.content();
-    const needs2FA = content.includes('verification') || content.includes('verify')
-      || content.includes('two-factor') || content.includes('one-time-code')
-      || content.includes('phone_number_verification');
-
-    const isLoggedIn = (
-      content.includes('sign-out') || content.includes('logout')
-      || content.includes('user_prefs') || content.includes('/signout')
-    ) && !needs2FA;
-
-    console.log('Playwright login: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA);
-
-    if (isLoggedIn) {
-      const cookies = await context.cookies();
-      const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-      await browser.close();
-      await AutoSearchState.findOneAndUpdate(
-        { userId: req.user.id },
-        { $set: { etsyToken: cookieStr, etsyEmail: email, updatedAt: new Date() } },
-        { upsert: true }
-      );
-      return res.json({ ok: true });
-    }
+    console.log('ZenRows login: isLoggedIn =', isLoggedIn, '| needs2FA =', needs2FA, '| cookies =', cookies.length);
 
     if (needs2FA) {
-      const crypto = require('crypto');
-      const sessionId = crypto.randomBytes(16).toString('hex');
-
-      // Fermeture automatique après 10 minutes si l'utilisateur ne répond pas
-      const timer = setTimeout(() => closePwSession(sessionId), 10 * 60 * 1000);
-      _playwrightSessions.set(sessionId, { browser, context, page, email, userId: req.user.id, timer });
-
-      return res.json({ needs2FA: true, sessionId });
+      return res.status(401).json({ error: 'Votre compte Etsy a le 2FA activé. Veuillez le désactiver dans les paramètres Etsy puis réessayer.' });
     }
 
-    // Fallback cookies
-    const cookies = await context.cookies();
-    const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-    await browser.close();
-    if (cookieStr.length > 30) {
+    if (isLoggedIn || cookies.length > 30) {
       await AutoSearchState.findOneAndUpdate(
         { userId: req.user.id },
-        { $set: { etsyToken: cookieStr, etsyEmail: email, updatedAt: new Date() } },
+        { $set: { etsyToken: cookies, etsyEmail: email, updatedAt: new Date() } },
         { upsert: true }
       );
       return res.json({ ok: true });
     }
 
-    res.status(401).json({ error: 'Login failed — check your Etsy credentials.' });
+    res.status(401).json({ error: 'Login failed — vérifiez vos identifiants Etsy.' });
 
   } catch(e) {
-    console.error('Playwright Etsy login error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ── ETSY 2FA via Playwright ──
-// La page 2FA est déjà ouverte dans le browser en mémoire — on saisit juste le code.
-router.post('/etsy-zenrows-2fa', requireAuth, async (req, res) => {
-  try {
-    const { sessionId, code } = req.body;
-    if (!sessionId || !code) return res.status(400).json({ error: 'sessionId and code required' });
-
-    const session = _playwrightSessions.get(sessionId);
-    if (!session) return res.status(400).json({ error: 'Session expirée — veuillez vous reconnecter.' });
-    if (session.userId.toString() !== req.user.id.toString()) return res.status(403).json({ error: 'Forbidden' });
-
-    const { page, context } = session;
-
-    // Saisir le code dans le champ 2FA déjà affiché
-    const codeSelector = 'input[name="code"],input[autocomplete="one-time-code"],input[type="tel"],input[name="otp"],input[type="number"]';
-    await page.waitForSelector(codeSelector, { timeout: 10000 });
-    await page.fill(codeSelector, code);
-    await page.waitForTimeout(400);
-    await page.click('button[type="submit"],input[type="submit"],button[data-action="verify"],button[data-testid="submit"]');
-    await page.waitForTimeout(6000);
-
-    const content = await page.content();
-    const still2FA = content.includes('verification') || content.includes('verify')
-      || content.includes('two-factor') || content.includes('one-time-code');
-    const isLoggedIn = (
-      content.includes('sign-out') || content.includes('logout')
-      || content.includes('user_prefs') || content.includes('/signout')
-    ) && !still2FA;
-
-    console.log('Playwright 2FA: isLoggedIn =', isLoggedIn, '| still2FA =', still2FA);
-
-    if (isLoggedIn || !still2FA) {
-      const cookies = await context.cookies();
-      const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-      await closePwSession(sessionId);
-      await AutoSearchState.findOneAndUpdate(
-        { userId: session.userId },
-        { $set: { etsyToken: cookieStr, etsyEmail: session.email, updatedAt: new Date() } },
-        { upsert: true }
-      );
-      return res.json({ ok: true });
-    }
-
-    // Code invalide — on garde le browser ouvert pour permettre une nouvelle tentative
-    return res.status(401).json({ error: 'Code invalide — veuillez réessayer.' });
-
-  } catch(e) {
-    console.error('Playwright 2FA error:', e.message);
-    await closePwSession(req.body?.sessionId).catch(() => {});
-    res.status(500).json({ error: e.message });
+    const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message;
+    console.error('ZenRows Etsy login error:', detail);
+    res.status(500).json({ error: detail });
   }
 });
 
