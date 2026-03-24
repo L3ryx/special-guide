@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Niche List</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green: #22c55e; --orange: #f1641e;
+      --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12);
+      --text: #ffffff; --muted: rgba(255,255,255,0.55);
+    }
+    #bg-layer {
+      position: fixed; inset: 0; z-index: 0;
+      background: #0a0a0a url('/background.png') center center / cover no-repeat;
+      animation: bgDrift 18s ease-in-out infinite alternate;
+      transform-origin: center;
+    }
+    @keyframes bgDrift {
+      0%   { transform: scale(1.08) translate(0px,0px); }
+      25%  { transform: scale(1.1)  translate(-12px,-8px); }
+      50%  { transform: scale(1.08) translate(8px,-14px); }
+      75%  { transform: scale(1.1)  translate(-6px,10px); }
+      100% { transform: scale(1.08) translate(10px,6px); }
+    }
+    #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.55); }
+    #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+    #shooting-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
+
+    nav {
+      position: sticky; top: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .nav-left { display: flex; align-items: center; gap: 12px; }
+    .btn-back {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.7);
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.8rem;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn-back:hover { background: rgba(255,255,255,0.13); color: #fff; }
+    .nav-title { font-family: 'Croissant One', cursive; font-size: 1rem; color: rgba(255,255,255,0.7); }
+    .nav-right { display: flex; align-items: center; gap: 10px; }
+    .btn-etsy-login {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 16px; border-radius: 10px;
+      background: #f1641e; border: none;
+      color: #fff; font-family: 'Inter', sans-serif;
+      font-weight: 700; font-size: 0.82rem;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 2px 12px rgba(241,100,30,0.4);
+    }
+    .btn-etsy-login:hover { background: #e05518; transform: translateY(-1px); box-shadow: 0 4px 18px rgba(241,100,30,0.5); }
+    .btn-etsy-login.connected { background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); color: #4ade80; box-shadow: none; }
+    .btn-etsy-login.connected:hover { background: rgba(34,197,94,0.3); transform: none; }
+
+    /* Etsy Login Modal */
+    #etsy-modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+      align-items: center; justify-content: center;
+    }
+    #etsy-modal-overlay.open { display: flex; }
+    #etsy-modal {
+      background: #1a1a1a; border: 1px solid rgba(241,100,30,0.3);
+      border-radius: 20px; padding: 32px; width: 100%; max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      animation: slideUp 0.3s ease;
+    }
+    #etsy-modal h2 { font-size: 1.2rem; font-weight: 800; margin-bottom: 6px; }
+    #etsy-modal p { font-size: 0.82rem; color: rgba(255,255,255,0.5); margin-bottom: 24px; line-height: 1.5; }
+    .etsy-modal-input {
+      width: 100%; padding: 11px 14px; border-radius: 10px;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+      color: #fff; font-family: 'Inter', sans-serif; font-size: 0.9rem;
+      margin-bottom: 12px; outline: none; transition: border 0.2s;
+    }
+    .etsy-modal-input:focus { border-color: rgba(241,100,30,0.6); }
+    .etsy-modal-input::placeholder { color: rgba(255,255,255,0.3); }
+    .btn-etsy-submit {
+      width: 100%; padding: 12px; border-radius: 10px;
+      background: #f1641e; border: none; color: #fff;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.9rem;
+      cursor: pointer; transition: all 0.2s; margin-top: 4px;
+    }
+    .btn-etsy-submit:hover { background: #e05518; }
+    .btn-etsy-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-etsy-cancel {
+      width: 100%; padding: 10px; border-radius: 10px; margin-top: 8px;
+      background: transparent; border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.5); font-family: 'Inter', sans-serif;
+      font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-etsy-cancel:hover { border-color: rgba(255,255,255,0.25); color: #fff; }
+    #etsy-modal-status {
+      font-size: 0.82rem; text-align: center; margin-top: 12px;
+      min-height: 18px; color: rgba(255,255,255,0.6);
+    }
+    #etsy-modal-status.error { color: #f87171; }
+    #etsy-modal-status.success { color: #4ade80; }
+
+    .container { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; position: relative; z-index: 10; }
+    h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
+
+    .shops-list { display: flex; flex-direction: column; gap: 12px; }
+    @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+    .shop-row {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: 16px; padding: 14px 16px;
+      backdrop-filter: blur(16px); animation: slideUp 0.4s ease;
+    }
+    .shop-avatar {
+      width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
+      border: 2px solid rgba(241,100,30,0.4); flex-shrink: 0;
+    }
+    .shop-avatar-ph {
+      width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(241,100,30,0.1); border: 2px solid rgba(241,100,30,0.3);
+      display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+    }
+    .shop-row-info { flex: 1; min-width: 0; }
+    .shop-row-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+    .btn-visit {
+      flex-shrink: 0; padding: 9px 18px; border-radius: 10px;
+      border: 1px solid rgba(241,100,30,0.5);
+      background: rgba(241,100,30,0.18); color: #fb923c;
+      font-family: 'Croissant One', cursive; font-weight: 700; font-size: 0.8rem;
+      text-decoration: none; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-visit:hover { background: rgba(241,100,30,0.35); color: #fff; }
+    .btn-clone {
+      flex-shrink: 0; padding: 9px 18px; border-radius: 10px;
+      border: 1px solid rgba(59,130,246,0.5);
+      background: rgba(59,130,246,0.18); color: #60a5fa;
+      font-family: 'Croissant One', cursive; font-weight: 700; font-size: 0.8rem;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-clone:hover { background: rgba(59,130,246,0.35); color: #fff; }
+    .btn-clone:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .shop-name-label {
+      font-family: 'Croissant One', cursive;
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.55);
+      padding: 8px 16px 0;
+      letter-spacing: 0.02em;
+    }
+
+    /* Clone Progress Modal */
+    #clone-modal { position: fixed; inset: 0; z-index: 8000; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 20px; }
+    #clone-modal.open { display: flex; }
+    .clone-modal-box { background: rgba(10,10,10,0.97); border: 1px solid rgba(255,255,255,0.1); border-radius: 22px; padding: 28px; max-width: 500px; width: 100%; max-height: 80vh; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .clone-modal-title { font-family: 'Croissant One', cursive; font-size: 1.1rem; color: #fff; }
+    .clone-log { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+    .clone-log-item { font-size: 0.8rem; color: rgba(255,255,255,0.7); padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,0.04); border-left: 2px solid rgba(255,255,255,0.1); }
+    .clone-log-item.published { border-left-color: #22c55e; color: #4ade80; }
+    .clone-log-item.error { border-left-color: #ef4444; color: #f87171; }
+    .clone-log-item.skip { border-left-color: #f97316; color: #fb923c; }
+    .clone-close-btn { padding: 12px; border-radius: 10px; border: none; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); font-family: 'Croissant One', cursive; font-size: 0.9rem; cursor: pointer; }
+    .clone-close-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .clone-progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.07); border-radius: 6px; overflow: hidden; }
+    .clone-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #60a5fa); border-radius: 6px; transition: width 0.4s ease; }
+
+    .btn-delete {
+      position: absolute; top: -8px; right: -8px;
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid rgba(10,10,10,0.8); background: #ef4444;
+      color: #fff; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; font-size: 0.7rem; font-weight: 700;
+      transition: all 0.2s; z-index: 10; line-height: 1;
+    }
+    .btn-delete:hover { background: #dc2626; transform: scale(1.15); }
+    .shop-row-wrap { position: relative; }
+    .clone-results { display: none; flex-direction: row; gap: 8px; padding: 10px 16px 14px; flex-wrap: wrap; }
+    .clone-results.open { display: flex; }
+    .btn-result {
+      flex: 1; min-width: 80px; padding: 9px 12px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.8); font-family: 'Croissant One', cursive;
+      font-size: 0.78rem; cursor: pointer; transition: all 0.2s; text-align: center;
+    }
+    .btn-result:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .btn-result.titre { border-color: rgba(249,115,22,0.4); color: #fb923c; }
+    .btn-result.titre:hover { background: rgba(249,115,22,0.15); }
+    .btn-result.description { border-color: rgba(168,85,247,0.4); color: #c084fc; }
+    .btn-result.description:hover { background: rgba(168,85,247,0.15); }
+    .btn-result.images { border-color: rgba(34,197,94,0.4); color: #4ade80; }
+    .btn-result.images:hover { background: rgba(34,197,94,0.15); }
+    .clone-result-panel {
+      display: none; padding: 12px 16px; margin: 0 16px 14px;
+      background: rgba(255,255,255,0.04); border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08); font-size: 0.82rem;
+      color: rgba(255,255,255,0.75); line-height: 1.6; word-break: break-word;
+    }
+    .clone-result-panel.open { display: block; }
+    .clone-images-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .clone-images-grid img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }
+
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .empty-state .emoji { font-size: 2.5rem; }
+
+    .toast-msg {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
+      z-index: 9999; pointer-events: none; color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <!-- CLONE PROGRESS MODAL -->
+  <div id="clone-modal">
+    <div class="clone-modal-box">
+      <div class="clone-modal-title">🔄 Cloning shop listings...</div>
+      <div class="clone-progress-bar"><div class="clone-progress-fill" id="clone-progress-fill"></div></div>
+      <div class="clone-log" id="clone-log"></div>
+      <button class="clone-close-btn" id="clone-close-btn" onclick="closeCloneModal()" style="display:none">Close</button>
+    </div>
+  </div>
+
+  <div id="bg-layer"></div>
+  <canvas id="milkyway-canvas"></canvas>
+  <canvas id="shooting-canvas"></canvas>
+
+  <nav>
+    <div class="nav-left">
+      <button type="button" class="btn-back" onclick="goBack()">← Back</button>
+      <span class="nav-title">My List</span>
+    </div>
+    <div class="nav-right">
+      <button id="btn-etsy-login" class="btn-etsy-login" onclick="openEtsyModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+        Etsy Login
+      </button>
+    </div>
+  </nav>
+
+  <!-- Etsy Login Modal -->
+  <div id="etsy-modal-overlay">
+    <div id="etsy-modal">
+      <!-- Step 1: email + password -->
+      <div id="etsy-step-login">
+        <h2>🛍️ Connect Etsy</h2>
+        <p>ZenRows will open a real Etsy session and save your cookies for scraping.</p>
+        <input id="etsy-email" class="etsy-modal-input" type="email" placeholder="Etsy email" autocomplete="username" />
+        <input id="etsy-password" class="etsy-modal-input" type="password" placeholder="Etsy password" autocomplete="current-password" />
+        <button class="btn-etsy-submit" id="btn-etsy-submit" onclick="submitEtsyLogin()">Connect with ZenRows</button>
+        <button class="btn-etsy-cancel" onclick="closeEtsyModal()">Cancel</button>
+      </div>
+      <!-- Step 2: 2FA code -->
+      <div id="etsy-step-2fa" style="display:none">
+        <h2>🔐 Verification Code</h2>
+        <p>Etsy sent a verification code to your email or phone. Enter it below.</p>
+        <input id="etsy-2fa-code" class="etsy-modal-input" type="text" placeholder="6-digit code" maxlength="8" autocomplete="one-time-code" style="letter-spacing:0.2em;font-size:1.1rem;text-align:center" />
+        <button class="btn-etsy-submit" id="btn-etsy-2fa-submit" onclick="submitEtsy2FA()">Verify</button>
+        <button class="btn-etsy-cancel" onclick="closeEtsyModal()">Cancel</button>
+      </div>
+      <div id="etsy-modal-status"></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <h1>My List</h1>
+    <div class="shops-list" id="shops-list"></div>
+  </div>
+
+  <script>
+    let TOKEN = localStorage.getItem('scout_token') || null;
+
+    function apiFetch(url, opts = {}) {
+      opts.headers = opts.headers || {};
+      TOKEN = localStorage.getItem('scout_token') || TOKEN;
+      opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+      return fetch(url, opts);
+    }
+
+    function showToast(msg, color) {
+      const t = document.createElement('div');
+      t.className = 'toast-msg';
+      t.textContent = msg;
+      t.style.background = color || '#222';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    async function loadShops() {
+      const list = document.getElementById('shops-list');
+      try {
+        const r     = await apiFetch('/api/shops');
+        const shops = await r.json();
+        if (!shops.length) {
+          list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved listings yet.<br>Save listings from your search results.</div>';
+          return;
+        }
+        list.innerHTML = '';
+        shops.forEach(shop => {
+          list.appendChild(buildShopRow(shop));
+        });
+      } catch(e) {
+        list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
+      }
+    }
+
+    function buildShopRow(shop) {
+      const wrap = document.createElement('div');
+      wrap.id = 'shop-wrapper-' + shop._id;
+      wrap.className = 'shop-row-wrap';
+
+      let shopName = shop.shopName || null;
+
+      if (!shopName && shop.shopUrl) {
+        const m = shop.shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
+        if (m) shopName = m[1];
+      }
+      if (!shopName && shop.productUrl) {
+        const m = shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
+        if (m) shopName = m[1];
+      }
+
+      const shopUrl = shopName
+        ? 'https://www.etsy.com/shop/' + shopName
+        : (shop.shopUrl || '#');
+
+      const avatarUrl = shop.shopAvatar || shop.productImage || null;
+
+      const row = document.createElement('div');
+      row.className = 'shop-row';
+      row.id = 'shop-row-' + shop._id;
+
+      const ph = document.createElement('div');
+      ph.className = 'shop-avatar-ph'; ph.textContent = '🛍';
+      if (avatarUrl) {
+        const img = document.createElement('img');
+        img.className = 'shop-avatar';
+        img.src = '/proxy-image?url=' + encodeURIComponent(avatarUrl);
+        img.loading = 'lazy'; img.alt = '';
+        img.onerror = function() { this.style.display='none'; ph.style.display='flex'; };
+        ph.style.display = 'none';
+        row.appendChild(img);
+      }
+      row.appendChild(ph);
+
+      const visitBtn = document.createElement('a');
+      visitBtn.className = 'btn-visit';
+      visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      visitBtn.textContent = 'Visit shop ↗';
+      row.appendChild(visitBtn);
+
+      const cloneBtn = document.createElement('button');
+      cloneBtn.className = 'btn-clone';
+      cloneBtn.textContent = 'Clone';
+      cloneBtn.onclick = function() { cloneShop(shopName, cloneBtn, shop._id); };
+      row.appendChild(cloneBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-delete'; delBtn.textContent = '✕';
+      delBtn.addEventListener('click', function() { deleteShop(shop._id); });
+
+      const shopLabel = document.createElement('div');
+      shopLabel.className = 'shop-name-label';
+      shopLabel.textContent = shopName ? '🏪 ' + shopName : '';
+      wrap.appendChild(shopLabel);
+
+      wrap.appendChild(row);
+      wrap.appendChild(delBtn);
+
+      const resultsZone = document.createElement('div');
+      resultsZone.className = 'clone-results';
+      resultsZone.id = 'clone-results-' + shop._id;
+
+      const btnImgs = document.createElement('button');
+      btnImgs.className = 'btn-result images'; btnImgs.textContent = '🖼 Images';
+      btnImgs.onclick = function() { toggleResultPanel(shop._id, 'images'); };
+
+      resultsZone.appendChild(btnImgs);
+      wrap.appendChild(resultsZone);
+
+      const panelImgs = document.createElement('div');
+      panelImgs.className = 'clone-result-panel'; panelImgs.id = 'panel-images-' + shop._id;
+      wrap.appendChild(panelImgs);
+
+      return wrap;
+    }
+
+    function toggleResultPanel(shopId, type) {
+      var panel = document.getElementById('panel-' + type + '-' + shopId);
+      if (!panel) return;
+      panel.classList.toggle('open');
+    }
+
+    function deleteShop(id) {
+      if (!confirm('Delete this listing?')) return;
+      apiFetch('/api/shops/' + id, { method: 'DELETE' }).then(() => {
+        document.getElementById('shop-wrapper-' + id)?.remove();
+        showToast('Listing deleted', '#ef4444');
+        loadShops();
+      });
+    }
+
+    function goBack() {
+      sessionStorage.setItem('skipIntro', '1');
+      window.location.href = '/finder';
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      TOKEN = localStorage.getItem('scout_token');
+      if (!TOKEN) { window.location.href = '/finder'; return; }
+      loadShops();
+      checkEtsyStatus();
+
+      // Fermer le modal en cliquant sur l'overlay
+      document.getElementById('etsy-modal-overlay').addEventListener('click', function(e) {
+        if (e.target === this) closeEtsyModal();
+      });
+    });
+
+    // ── Etsy Login via ZenRows ──
+    function checkEtsyStatus() {
+      fetch('/api/shops/etsy-session-status', {
+        headers: { 'Authorization': 'Bearer ' + TOKEN }
+      }).then(r => r.json()).then(data => {
+        var btn = document.getElementById('btn-etsy-login');
+        if (data.connected) {
+          btn.innerHTML = '✅ Etsy Connected';
+          btn.classList.add('connected');
+        }
+      }).catch(function(){});
+    }
+
+    function openEtsyModal() {
+      document.getElementById('etsy-modal-overlay').classList.add('open');
+      document.getElementById('etsy-modal-status').textContent = '';
+      document.getElementById('etsy-email').value = '';
+      document.getElementById('etsy-password').value = '';
+    }
+
+    function closeEtsyModal() {
+      document.getElementById('etsy-modal-overlay').classList.remove('open');
+      // Reset to step 1
+      document.getElementById('etsy-step-login').style.display = 'block';
+      document.getElementById('etsy-step-2fa').style.display = 'none';
+      document.getElementById('etsy-modal-status').textContent = '';
+      document.getElementById('etsy-modal-status').className = '';
+      _etsy2faSessionId = null;
+    }
+
+    var _etsy2faSessionId = null;
+
+    async function submitEtsyLogin() {
+      var email    = document.getElementById('etsy-email').value.trim();
+      var password = document.getElementById('etsy-password').value;
+      var status   = document.getElementById('etsy-modal-status');
+      var btn      = document.getElementById('btn-etsy-submit');
+
+      if (!email || !password) {
+        status.textContent = 'Please enter your email and password.';
+        status.className = 'error';
+        return;
+      }
+
+      btn.disabled = true;
+      status.className = '';
+      status.textContent = '⏳ Opening Etsy session via ZenRows...';
+
+      try {
+        var res = await fetch('/api/shops/etsy-zenrows-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+          body: JSON.stringify({ email, password })
+        });
+        var data = await res.json();
+
+        if (data.ok) {
+          status.textContent = '✅ Connected! Cookies saved.';
+          status.className = 'success';
+          var navBtn = document.getElementById('btn-etsy-login');
+          navBtn.innerHTML = '✅ Etsy Connected';
+          navBtn.classList.add('connected');
+          setTimeout(closeEtsyModal, 1500);
+        } else if (data.needs2FA) {
+          _etsy2faSessionId = data.sessionId;
+          document.getElementById('etsy-step-login').style.display = 'none';
+          document.getElementById('etsy-step-2fa').style.display = 'block';
+          status.textContent = '';
+          status.className = '';
+          document.getElementById('etsy-2fa-code').focus();
+        } else {
+          status.textContent = '❌ ' + (data.error || 'Login failed');
+          status.className = 'error';
+        }
+      } catch(e) {
+        status.textContent = '❌ Network error: ' + e.message;
+        status.className = 'error';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ── FIX : accolade fermante correctement placée ──
+    async function submitEtsy2FA() {
+      var code   = document.getElementById('etsy-2fa-code').value.trim();
+      var status = document.getElementById('etsy-modal-status');
+      var btn    = document.getElementById('btn-etsy-2fa-submit');
+
+      if (!code) {
+        status.textContent = 'Please enter the verification code.';
+        status.className = 'error';
+        return;
+      }
+
+      btn.disabled = true;
+      status.className = '';
+      status.textContent = '⏳ Sending code to Etsy...';
+
+      try {
+        var res = await fetch('/api/shops/etsy-zenrows-2fa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+          body: JSON.stringify({ sessionId: _etsy2faSessionId, code })
+        });
+        var data = await res.json();
+
+        if (data.ok) {
+          status.textContent = '✅ Connected! Cookies saved.';
+          status.className = 'success';
+          var navBtn = document.getElementById('btn-etsy-login');
+          navBtn.innerHTML = '✅ Etsy Connected';
+          navBtn.classList.add('connected');
+          setTimeout(closeEtsyModal, 1500);
+        } else {
+          status.textContent = '❌ ' + (data.error || 'Invalid code');
+          status.className = 'error';
+        }
+      } catch(e) {
+        status.textContent = '❌ Network error: ' + e.message;
+        status.className = 'error';
+      } finally {
+        btn.disabled = false;
+      }
+    } // ← FIX : fermeture correcte de submitEtsy2FA()
+  </script>
+
+  <script>
+    (function() {
+      const mCanvas = document.getElementById('milkyway-canvas');
+      if (mCanvas) {
+        const ctx = mCanvas.getContext('2d');
+        let W, H, stars = [];
+        function resizeM() {
+          W = mCanvas.width = window.innerWidth;
+          H = mCanvas.height = window.innerHeight;
+          stars = Array.from({length: 220}, () => ({
+            x: Math.random()*W, y: Math.random()*H,
+            r: Math.random()*1.4+0.2,
+            a: Math.random()*0.7+0.15,
+            speed: Math.random()*0.003+0.001,
+            phase: Math.random()*Math.PI*2
+          }));
+        }
+        function drawM(t) {
+          ctx.clearRect(0,0,W,H);
+          stars.forEach(s => {
+            const alpha = s.a*(0.6+0.4*Math.sin(t*s.speed+s.phase));
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255,255,255,'+alpha+')';
+            ctx.fill();
+          });
+          requestAnimationFrame(drawM);
+        }
+        resizeM();
+        window.addEventListener('resize', resizeM);
+        requestAnimationFrame(drawM);
+      }
+
+      const sCanvas = document.getElementById('shooting-canvas');
+      if (sCanvas) {
+        const ctx2 = sCanvas.getContext('2d');
+        let W2, H2, shots = [];
+        function resizeS() { W2 = sCanvas.width = window.innerWidth; H2 = sCanvas.height = window.innerHeight; }
+        function newShot() {
+          return { x: Math.random()*W2*0.7, y: Math.random()*H2*0.4,
+            len: 80+Math.random()*120, speed: 6+Math.random()*8,
+            angle: Math.PI/4+Math.random()*0.3,
+            alpha: 0.8+Math.random()*0.2, life: 1 };
+        }
+        function drawS() {
+          ctx2.clearRect(0,0,W2,H2);
+          if (Math.random()<0.012) shots.push(newShot());
+          shots = shots.filter(s=>s.life>0);
+          shots.forEach(s => {
+            s.x += Math.cos(s.angle)*s.speed;
+            s.y += Math.sin(s.angle)*s.speed;
+            s.life -= 0.022;
+            const grd = ctx2.createLinearGradient(s.x,s.y, s.x-Math.cos(s.angle)*s.len, s.y-Math.sin(s.angle)*s.len);
+            grd.addColorStop(0, 'rgba(255,255,255,'+(s.alpha*s.life)+')');
+            grd.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx2.beginPath();
+            ctx2.moveTo(s.x,s.y);
+            ctx2.lineTo(s.x-Math.cos(s.angle)*s.len, s.y-Math.sin(s.angle)*s.len);
+            ctx2.strokeStyle = grd; ctx2.lineWidth = 1.5; ctx2.stroke();
+          });
+          requestAnimationFrame(drawS);
+        }
+        resizeS();
+        window.addEventListener('resize', resizeS);
+        requestAnimationFrame(drawS);
+      }
+    })();
+
+    // ── CLONE SHOP ──
+    function openCloneModal() {
+      document.getElementById('clone-log').innerHTML = '';
+      document.getElementById('clone-progress-fill').style.width = '0%';
+      document.getElementById('clone-close-btn').style.display = 'none';
+      document.getElementById('clone-modal').classList.add('open');
+    }
+    function closeCloneModal() { document.getElementById('clone-modal').classList.remove('open'); }
+
+    function addCloneLog(msg, type) {
+      var log = document.getElementById('clone-log');
+      var item = document.createElement('div');
+      item.className = 'clone-log-item' + (type ? ' ' + type : '');
+      item.textContent = msg;
+      log.appendChild(item);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function cloneShop(shopName, btn, shopId) {
+      if (!shopName) { showToast('No shop name', '#ef4444'); return; }
+      btn.disabled = true;
+      openCloneModal();
+
+      var authToken = localStorage.getItem('scout_token');
+
+      try {
+        var res = await fetch('/api/shops/clone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+          body: JSON.stringify({ shopName: shopName })
+        });
+
+        var ct = res.headers.get('content-type') || '';
+        if (!ct.includes('text/event-stream')) {
+          var d = await res.json();
+          addCloneLog('Error: ' + (d.error || 'Unknown'), 'error');
+          document.getElementById('clone-close-btn').style.display = 'block';
+          btn.disabled = false;
+          return;
+        }
+
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder();
+        var buf = '';
+        var totalImages = 0;
+
+        while (true) {
+          var read = await reader.read();
+          if (read.done) break;
+          buf += decoder.decode(read.value, { stream: true });
+          var lines = buf.split('\n'); buf = lines.pop();
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            if (!line.startsWith('data: ')) continue;
+            try {
+              var ev = JSON.parse(line.slice(6));
+
+              if (ev.step === 'error') {
+                addCloneLog(ev.message, 'error');
+
+              } else if (ev.step === 'complete') {
+                document.getElementById('clone-progress-fill').style.width = '100%';
+                addCloneLog(ev.message, 'published');
+
+                if (shopId && ev.images && ev.images.length > 0) {
+                  var pi = document.getElementById('panel-images-' + shopId);
+                  if (pi) {
+                    pi.innerHTML = '';
+                    var grid = document.createElement('div');
+                    grid.className = 'clone-images-grid';
+                    ev.images.forEach(function(url) {
+                      var img = document.createElement('img');
+                      img.src = url; img.loading = 'lazy';
+                      grid.appendChild(img);
+                    });
+                    pi.appendChild(grid);
+                  }
+                }
+
+                if (shopId) {
+                  var rz = document.getElementById('clone-results-' + shopId);
+                  if (rz) rz.classList.add('open');
+                }
+
+              } else if (ev.step === 'imagen') {
+                var imgMatch = ev.message.match(/Image (\d+)\/(\d+)/);
+                if (imgMatch) {
+                  totalImages = parseInt(imgMatch[2]);
+                  var done = parseInt(imgMatch[1]);
+                  document.getElementById('clone-progress-fill').style.width = Math.round(done / totalImages * 90) + '%';
+                }
+                addCloneLog(ev.message);
+
+              } else {
+                addCloneLog(ev.message || ev.step);
+              }
+            } catch(e) {}
+          }
+        }
+      } catch(e) { addCloneLog('Connection error: ' + e.message, 'error'); }
+
+      document.getElementById('clone-close-btn').style.display = 'block';
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>
