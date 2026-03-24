@@ -437,5 +437,84 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
   }
 });
 
+// ── GET FIRST LISTING OF CONNECTED ETSY SHOP ──
+router.get('/etsy-first-listing', requireAuth, async (req, res) => {
+  try {
+    const state = await AutoSearchState.findOne({ userId: req.user.id });
+    if (!state || !state.etsyToken) return res.json({ ok: false, error: 'Not connected' });
+
+    const axios       = require('axios');
+    const ZENROWS_KEY = process.env.ZENROWS_API_KEY;
+
+    // Helper to fetch via ZenRows (with session cookies) or plain axios
+    async function sbFetch(url) {
+      if (ZENROWS_KEY) {
+        const r = await axios.get('https://api.zenrows.com/v1/', {
+          params: {
+            apikey:         ZENROWS_KEY,
+            url,
+            js_render:      'false',
+            premium_proxy:  'true',
+            proxy_country:  'us',
+            custom_headers: 'true',
+          },
+          headers: { 'Cookie': state.etsyToken },
+          timeout: 30000,
+        });
+        return typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      } else {
+        const r = await axios.get(url, {
+          headers: { 'Cookie': state.etsyToken, 'User-Agent': 'Mozilla/5.0' },
+          timeout: 20000,
+        });
+        return typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      }
+    }
+
+    // 1. Get the shop name from the Etsy account page
+    const accountHtml = await sbFetch('https://www.etsy.com/your/shops/me/dashboard');
+    const shopMatch   = accountHtml.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/i);
+    if (!shopMatch) return res.json({ ok: false, error: 'Could not find shop name from account' });
+    const shopName = shopMatch[1];
+
+    // 2. Fetch the shop page and grab the first listing
+    const shopHtml = await sbFetch('https://www.etsy.com/shop/' + shopName);
+
+    // Extract first listing id + slug
+    const listingRe  = /listing\/([0-9]+)\/([A-Za-z0-9_-]+)/;
+    const lm         = shopHtml.match(listingRe);
+    if (!lm) return res.json({ ok: false, error: 'No listing found in shop' });
+
+    const listingId   = lm[1];
+    const listingSlug = lm[2];
+    const listingUrl  = `https://www.etsy.com/listing/${listingId}/${listingSlug}`;
+
+    // 3. Fetch the listing page for details
+    const listingHtml = await sbFetch(listingUrl);
+
+    const titleMatch = listingHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title      = titleMatch ? titleMatch[1].replace(' | Etsy', '').trim() : listingSlug.replace(/-/g, ' ');
+
+    // Price
+    const priceMatch = listingHtml.match(/data-buy-box-region[^>]*>[\s\S]*?(\d[\d\s,.']*(?:€|\$|£|USD|EUR))/i)
+                    || listingHtml.match(/"price":\s*"([^"]+)"/i)
+                    || listingHtml.match(/class="[^"]*currency-value[^"]*"[^>]*>([^<]+)</i);
+    const price = priceMatch ? priceMatch[1].trim() : null;
+
+    // First image
+    const imgRe  = /https:\/\/i\.etsystatic\.com\/[^"' ]+\.jpg/g;
+    const imgSet = new Set();
+    let imgM;
+    while ((imgM = imgRe.exec(listingHtml)) !== null) imgSet.add(imgM[0]);
+    const images = [...imgSet].slice(0, 6);
+
+    res.json({ ok: true, shopName, listingId, listingUrl, title, price, images });
+  } catch(e) {
+    console.error('etsy-first-listing error:', e.message);
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 module.exports = router;
+
 
