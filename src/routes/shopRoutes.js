@@ -347,10 +347,10 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
     const context = await browser.newContext({ locale: 'en-US' });
     const page = await context.newPage();
 
-    await page.goto('https://www.etsy.com/signin', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto('https://www.etsy.com/signin', { waitUntil: 'networkidle', timeout: 60000 });
 
     // Remplir email
-    await page.waitForSelector('input[name="email"],#join_neu_email_field', { timeout: 15000 });
+    await page.waitForSelector('input[name="email"],#join_neu_email_field', { timeout: 30000 });
     await page.fill('input[name="email"],#join_neu_email_field', email);
     await page.waitForTimeout(400);
     await page.fill('input[name="password"],#join_neu_password_field', password);
