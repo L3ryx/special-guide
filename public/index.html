@@ -30,7 +30,11 @@
     /* ── AUTH MODAL ── */
     #auth-overlay { position:fixed; inset:0; z-index:8000; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; }
     #auth-box { width:100%; max-width:420px; margin:20px; background:rgba(15,15,15,0.95); border:1px solid rgba(255,255,255,0.12); border-radius:24px; padding:36px 32px; display:flex; flex-direction:column; gap:20px; }
-    #auth-logo { text-align:center; font-family:'Croissant One',cursive; font-size:1.6rem; color:#fff; letter-spacing:0.05em; }
+    #auth-logo { text-align:center; }
+    #logo-letters { display:flex; align-items:center; justify-content:center; gap:4px; }
+    .logo-letter { height:40px; width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); }
+    .logo-letter.pop { transform:scale(1.55); }
+    .logo-space { display:inline-block; width:14px; }
     #auth-subtitle { text-align:center; font-size:0.82rem; color:var(--muted); }
     .auth-tabs { display:flex; gap:8px; background:rgba(255,255,255,0.06); border-radius:12px; padding:4px; }
     .auth-tab { flex:1; padding:10px; border:none; background:transparent; color:var(--muted); font-family:'Croissant One',cursive; font-size:0.88rem; font-weight:600; border-radius:9px; cursor:pointer; transition:all 0.2s; }
@@ -245,7 +249,18 @@
   <!-- AUTH MODAL -->
   <div id="auth-overlay" style="display:none;">
     <div id="auth-box">
-      <div id="auth-logo">Clony AI</div>
+      <div id="auth-logo">
+        <div id="logo-letters">
+          <img class="logo-letter" src="/c.png" alt="C">
+          <img class="logo-letter" src="/l.png" alt="L">
+          <img class="logo-letter" src="/o.png" alt="O">
+          <img class="logo-letter" src="/n.png" alt="N">
+          <img class="logo-letter" src="/y.png" alt="Y">
+          <span class="logo-space"></span>
+          <img class="logo-letter" src="/a.png" alt="A">
+          <img class="logo-letter" src="/i.png" alt="I">
+        </div>
+      </div>
       <div id="auth-subtitle">Sign in to access the tool</div>
       <div class="auth-tabs">
         <button class="auth-tab" onclick="authSwitchTab('login')">Login</button>
@@ -346,6 +361,35 @@
 
   <!-- INTRO SCRIPT -->
   <script>
+    // ── LOGO ANIMATION ──
+    (function() {
+      function animateLetters() {
+        const letters = document.querySelectorAll('.logo-letter');
+        if (!letters.length) return;
+        let i = 0;
+        function next() {
+          // Retire pop de tous
+          letters.forEach(function(l) { l.classList.remove('pop'); });
+          if (i < letters.length) {
+            letters[i].classList.add('pop');
+            i++;
+            setTimeout(next, 350);
+          } else {
+            // Pause avant de recommencer
+            i = 0;
+            setTimeout(next, 600);
+          }
+        }
+        next();
+      }
+      // Lancer dès que le DOM est prêt
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', animateLetters);
+      } else {
+        animateLetters();
+      }
+    })();
+
     // ── AUTH ──
     let SCOUT_TOKEN = localStorage.getItem('scout_token') || null;
     let _currentUser = null;
