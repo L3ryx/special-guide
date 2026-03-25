@@ -965,7 +965,8 @@
       } else {
         // Mode manuel
         const inputVal = document.getElementById('keyword-input').value.trim();
-        if (_keywords.length === 0 && inputVal) {
+        _keywords = [];
+        if (inputVal) {
           _keywords.push(inputVal);
           renderKeywords();
           document.getElementById('keyword-input').value = '';
