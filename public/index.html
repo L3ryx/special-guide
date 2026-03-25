@@ -353,8 +353,12 @@
     let _authTab = 'login';
 
     function checkAuth() {
-      // First check if server is alive — redirect to loading page if cold starting
-      fetch('/api/health', { cache: 'no-store' })
+      // Timeout court : si pas de réponse en 4s -> loading page
+      const timeout = new Promise(function(_, reject) {
+        setTimeout(function() { reject(new Error('timeout')); }, 4000);
+      });
+
+      Promise.race([fetch('/api/health', { cache: 'no-store' }), timeout])
         .then(function(r) {
           if (!r.ok) throw new Error('not ready');
           // Server is up — now check auth
@@ -370,7 +374,7 @@
           if (d) onLoggedIn(d.email);
         })
         .catch(function() {
-          // Server not responding — go to loading page
+          // Serveur pas prêt (timeout, 502, erreur réseau) -> page loading
           window.location.href = '/loading';
         });
     }
