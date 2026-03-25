@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-async function scrapingbeeFetch(targetUrl, sbParams = {}) {
+async function scraperApiFetch(targetUrl, sbParams = {}) {
   const saKey = process.env.SCRAPEAPI_KEY;
   if (saKey) {
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -20,4 +20,4 @@ async function scrapingbeeFetch(targetUrl, sbParams = {}) {
   throw new Error('Scraper failed — check SCRAPEAPI_KEY');
 }
 
-module.exports = { scrapingbeeFetch };
+module.exports = { scraperApiFetch };
