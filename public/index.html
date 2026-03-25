@@ -3,54 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Clony AI</title>
-
-<link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet" />
-
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --green: #22c55e;
-    --glass: rgba(0,0,0,0.55);
-    --glass-border: rgba(255,255,255,0.12);
-    --text: #ffffff;
-    --muted: rgba(255,255,255,0.55);
-  }
-
-  html, body {
-    min-height: 100%;
-    font-family: 'Lobster', cursive;
-    color: var(--text);
-    overflow: hidden;
-    background: #000;
-  }
-
-  body { position: relative; }
-
-  html.unlocked, html.unlocked body {
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  /* LOGO STYLE */
-  .logo {
-    font-size: 64px;
-    text-align: center;
-
-    /* Dégradé orange style Etsy */
-    background: linear-gradient(180deg, #ffb347 0%, #ff7a00 60%, #ff5e00 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-
-    /* Ombre + effet 3D */
-    text-shadow:
-      0 2px 0 #cc5200,
-      0 4px 8px rgba(0,0,0,0.6);
-
-    letter-spacing: 1px;
-  }
-</style>
+  <title>Clony AI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Croissant+One&family=Lobster&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --green: #22c55e; --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12); --text: #ffffff; --muted: rgba(255,255,255,0.55); }
+    html, body { min-height: 100%; font-family: 'Croissant One', cursive; color: var(--text); overflow: hidden; }
+    body { position: relative; }
+    html.unlocked, html.unlocked body { overflow-y: auto; overflow-x: hidden; }
 
     #bg-layer { position: fixed; inset: 0; z-index: -3; background: #0a0a0a url('/background.png') center center / cover no-repeat; animation: bgDrift 18s ease-in-out infinite alternate; transform-origin: center; will-change: transform; }
     @keyframes bgDrift { 0%{transform:scale(1.08)translate(0,0)} 25%{transform:scale(1.1)translate(-12px,-8px)} 50%{transform:scale(1.08)translate(8px,-14px)} 75%{transform:scale(1.1)translate(-6px,10px)} 100%{transform:scale(1.08)translate(10px,6px)} }
@@ -127,7 +87,7 @@
     #title-outer { width:100%; display:flex; justify-content:center; }
     #title-wrap { position:relative; display:inline-block; padding:90px 40px 8px; }
     #niche-title { position:relative; z-index:101; text-align:center; user-select:none; }
-    #niche-title span { display:inline-block; font-family:'Croissant One',cursive; font-size:clamp(2.4rem,7vw,5rem); font-weight:400; letter-spacing:0.04em; color:#f97316; animation:wave3d 2.2s ease-in-out infinite; }
+    #niche-title span { display:inline-block; font-family:'Lobster',cursive; font-size:clamp(2.4rem,7vw,5rem); font-weight:400; letter-spacing:0.04em; color:#f97316; animation:wave3d 2.2s ease-in-out infinite; }
     #niche-title span:nth-child(1){animation-delay:0.00s}#niche-title span:nth-child(2){animation-delay:0.09s}#niche-title span:nth-child(3){animation-delay:0.18s}#niche-title span:nth-child(4){animation-delay:0.27s}#niche-title span:nth-child(5){animation-delay:0.36s}#niche-title span:nth-child(6){animation-delay:0.45s}#niche-title span:nth-child(7){animation-delay:0.54s}#niche-title span:nth-child(8){animation-delay:0.63s}
     .title-space { display:inline-block; width:0.35em; }
     @keyframes wave3d { 0%,100%{transform:translateY(0)rotateX(0deg)scale(1)} 25%{transform:translateY(-18px)rotateX(20deg)scale(1.08)} 50%{transform:translateY(0)rotateX(0deg)scale(1)} }
