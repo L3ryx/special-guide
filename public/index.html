@@ -313,9 +313,9 @@
   <div id="main-view" style="opacity: 1;">
     <div class="search-card">
       <div id="search-inputs" style="width:100%;display:flex;flex-direction:column;gap:8px;">
-          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Croissant One',cursive;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s;text-align:center;">
+          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Croissant One',cursive;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s,opacity 0.3s;text-align:center;">
           <div id="auto-search-row">
-            <span id="auto-search-label">🤖 Automated search</span>
+            <span id="auto-search-label">🤖 Automated</span>
             <button type="button" id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></button>
           </div>
           <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
@@ -712,20 +712,18 @@
     function toggleAutoSearch() {
       _autoSearch = !_autoSearch;
       const toggle = document.getElementById('auto-search-toggle');
-      const label  = document.getElementById('auto-search-label');
       const input  = document.getElementById('keyword-input');
       if (_autoSearch) {
         toggle.classList.add('active');
-        label.innerHTML = '🤖 Automated search';
-        input.style.display = 'none';
+        input.style.opacity = '0';
+        input.style.visibility = 'hidden';
+        input.disabled = true;
       } else {
         toggle.classList.remove('active');
-        label.innerHTML = '🤖 Automated search';
+        input.style.opacity = '1';
+        input.style.visibility = 'visible';
         input.disabled = false;
         input.placeholder = 'Enter keyword';
-        input.style.opacity = '1';
-        input.style.cursor = '';
-        input.style.display = '';
       }
     }
 
@@ -779,7 +777,7 @@
       if (_autoSearch) {
         const remaining = _keywordQueue.length;
         const suffix = remaining > 0 ? ' (' + remaining + ' left)' : '';
-        label.innerHTML = '🤖 Automated search' + suffix;
+        label.innerHTML = '🤖 Automated' + suffix;
       }
     }
 
@@ -922,7 +920,7 @@
       const label  = document.getElementById('auto-search-label');
       const input  = document.getElementById('keyword-input');
       if (toggle) toggle.classList.remove('active');
-      if (label)  label.innerHTML = '🤖 Automated search';
+      if (label)  label.innerHTML = '🤖 Automated';
       if (input)  input.style.display = 'block';
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
