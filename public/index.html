@@ -91,8 +91,10 @@
     #title-outer { width:100%; display:flex; justify-content:center; }
     #title-wrap { position:relative; display:inline-block; padding:90px 40px 8px; }
     #niche-title { position:relative; z-index:101; text-align:center; user-select:none; }
-    #niche-title span { display:inline-block; font-family:'Lobster',cursive; font-size:clamp(2.4rem,7vw,5rem); font-weight:400; letter-spacing:0.04em; color:#f97316; animation:wave3d 2.2s ease-in-out infinite; }
-    #niche-title span:nth-child(1){animation-delay:0.00s}#niche-title span:nth-child(2){animation-delay:0.09s}#niche-title span:nth-child(3){animation-delay:0.18s}#niche-title span:nth-child(4){animation-delay:0.27s}#niche-title span:nth-child(5){animation-delay:0.36s}#niche-title span:nth-child(6){animation-delay:0.45s}#niche-title span:nth-child(7){animation-delay:0.54s}#niche-title span:nth-child(8){animation-delay:0.63s}
+    #main-logo-letters { display:flex; align-items:center; justify-content:center; gap:6px; }
+    .main-logo-letter { height:clamp(48px,8vw,80px); width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); }
+    .main-logo-letter.pop { transform:scale(1.5); }
+    .main-logo-space { display:inline-block; width:clamp(10px,2vw,20px); }
     .title-space { display:inline-block; width:0.35em; }
     @keyframes wave3d { 0%,100%{transform:translateY(0)rotateX(0deg)scale(1)} 25%{transform:translateY(-18px)rotateX(20deg)scale(1.08)} 50%{transform:translateY(0)rotateX(0deg)scale(1)} }
 
@@ -324,7 +326,18 @@
   </div>
 
   <!-- TITLE -->
-  <div id="title-outer"><div id="title-wrap"><div id="niche-title"><span>C</span><span>l</span><span>o</span><span>n</span><span>y</span><span class="title-space"></span><span>A</span><span>I</span></div></div></div>
+  <div id="title-outer"><div id="title-wrap"><div id="niche-title">
+    <div id="main-logo-letters">
+      <img class="main-logo-letter" src="/c.png" alt="C">
+      <img class="main-logo-letter" src="/l.png" alt="L">
+      <img class="main-logo-letter" src="/o.png" alt="O">
+      <img class="main-logo-letter" src="/n.png" alt="N">
+      <img class="main-logo-letter" src="/y.png" alt="Y">
+      <span class="main-logo-space"></span>
+      <img class="main-logo-letter" src="/a.png" alt="A">
+      <img class="main-logo-letter" src="/i.png" alt="I">
+    </div>
+  </div></div></div>
 
   <div id="main-view" style="opacity: 1;">
     <div class="search-card">
@@ -363,30 +376,31 @@
   <script>
     // ── LOGO ANIMATION ──
     (function() {
-      function animateLetters() {
-        const letters = document.querySelectorAll('.logo-letter');
+      function animateGroup(selector) {
+        const letters = document.querySelectorAll(selector);
         if (!letters.length) return;
         let i = 0;
         function next() {
-          // Retire pop de tous
           letters.forEach(function(l) { l.classList.remove('pop'); });
           if (i < letters.length) {
             letters[i].classList.add('pop');
             i++;
             setTimeout(next, 350);
           } else {
-            // Pause avant de recommencer
             i = 0;
             setTimeout(next, 600);
           }
         }
         next();
       }
-      // Lancer dès que le DOM est prêt
+      function startAnimations() {
+        animateGroup('.logo-letter');       // modal auth
+        animateGroup('.main-logo-letter');  // titre principal
+      }
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', animateLetters);
+        document.addEventListener('DOMContentLoaded', startAnimations);
       } else {
-        animateLetters();
+        startAnimations();
       }
     })();
 
