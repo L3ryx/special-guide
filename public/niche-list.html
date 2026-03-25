@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Niche List</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Croissant+One&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green: #22c55e; --orange: #f1641e;
+      --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12);
+      --text: #ffffff; --muted: rgba(255,255,255,0.55);
+    }
+    #bg-layer {
+      position: fixed; inset: 0; z-index: 0;
+      background: #0a0a0a url('/background.png') center center / cover no-repeat;
+      animation: bgDrift 18s ease-in-out infinite alternate;
+      transform-origin: center;
+    }
+    @keyframes bgDrift {
+      0%   { transform: scale(1.08) translate(0px,0px); }
+      25%  { transform: scale(1.1)  translate(-12px,-8px); }
+      50%  { transform: scale(1.08) translate(8px,-14px); }
+      75%  { transform: scale(1.1)  translate(-6px,10px); }
+      100% { transform: scale(1.08) translate(10px,6px); }
+    }
+    #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.55); }
+    #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+    #shooting-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
+
+    nav {
+      position: sticky; top: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .nav-left { display: flex; align-items: center; gap: 12px; }
+    .btn-back {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.7);
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.8rem;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn-back:hover { background: rgba(255,255,255,0.13); color: #fff; }
+    .nav-title { font-family: 'Croissant One', cursive; font-size: 1rem; color: rgba(255,255,255,0.7); }
+
+    .container { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; position: relative; z-index: 10; }
+    h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
+
+    .shops-list { display: flex; flex-direction: column; gap: 12px; }
+    @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+    .shop-row {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: 16px; padding: 14px 16px;
+      backdrop-filter: blur(16px); animation: slideUp 0.4s ease;
+    }
+    .shop-avatar {
+      width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
+      border: 2px solid rgba(241,100,30,0.4); flex-shrink: 0;
+    }
+    .shop-avatar-ph {
+      width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(241,100,30,0.1); border: 2px solid rgba(241,100,30,0.3);
+      display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+    }
+    .shop-row-info { flex: 1; min-width: 0; }
+    .shop-row-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+    .btn-visit {
+      flex-shrink: 0; padding: 9px 18px; border-radius: 10px;
+      border: 1px solid rgba(241,100,30,0.5);
+      background: rgba(241,100,30,0.18); color: #fb923c;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.8rem;
+      text-decoration: none; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-visit:hover { background: rgba(241,100,30,0.35); color: #fff; }
+
+
+
+
+    .btn-delete {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 1px solid rgba(255,80,80,0.25); background: rgba(255,80,80,0.07);
+      color: #f87171; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; font-size: 0.8rem; transition: all 0.2s;
+      flex-shrink: 0; margin-left: auto;
+    }
+    .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.5); }
+
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .empty-state .emoji { font-size: 2.5rem; }
+
+    .toast-msg {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
+      z-index: 9999; pointer-events: none; color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="bg-layer"></div>
+  <canvas id="milkyway-canvas"></canvas>
+  <canvas id="shooting-canvas"></canvas>
+
+  <nav>
+    <div class="nav-left">
+      <button type="button" class="btn-back" onclick="goBack()">← Back</button>
+      <span class="nav-title">Dashboard</span>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1>My shops</h1>
+    <div class="shops-list" id="shops-list"></div>
+  </div>
+
+  <script>
+    let TOKEN = localStorage.getItem('scout_token') || null;
+
+    function apiFetch(url, opts = {}) {
+      opts.headers = opts.headers || {};
+      TOKEN = localStorage.getItem('scout_token') || TOKEN;
+      opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+      return fetch(url, opts);
+    }
+
+    function showToast(msg, color) {
+      const t = document.createElement('div');
+      t.className = 'toast-msg';
+      t.textContent = msg;
+      t.style.background = color || '#222';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    async function loadShops() {
+      const list = document.getElementById('shops-list');
+      try {
+        const r     = await apiFetch('/api/shops');
+        const shops = await r.json();
+        if (!shops.length) {
+          list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved listings yet.<br>Save listings from your search results.</div>';
+          return;
+        }
+        list.innerHTML = '';
+        shops.forEach(shop => {
+          list.appendChild(buildShopRow(shop));
+        });
+      } catch(e) {
+        list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
+      }
+    }
+
+    function buildShopRow(shop) {
+      const wrap = document.createElement('div');
+      wrap.id = 'shop-wrapper-' + shop._id;
+
+      // Extraire shopName depuis toutes les sources disponibles
+      let shopName = shop.shopName || null;
+
+      // Essayer d'extraire depuis shopUrl
+      if (!shopName && shop.shopUrl) {
+        const m = shop.shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
+        if (m) shopName = m[1];
+      }
+      // Essayer d'extraire depuis productUrl
+      if (!shopName && shop.productUrl) {
+        const m = shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
+        if (m) shopName = m[1];
+      }
+
+      // Construire shopUrl proprement
+      const shopUrl = shopName
+        ? 'https://www.etsy.com/shop/' + shopName
+        : (shop.shopUrl || '#');
+
+      const avatarUrl = shop.shopAvatar || shop.productImage || null;
+
+      const row = document.createElement('div');
+      row.className = 'shop-row';
+      row.id = 'shop-row-' + shop._id;
+
+      // Avatar rond
+      const ph = document.createElement('div');
+      ph.className = 'shop-avatar-ph'; ph.textContent = '🛍';
+      if (avatarUrl) {
+        const img = document.createElement('img');
+        img.className = 'shop-avatar';
+        img.src = '/proxy-image?url=' + encodeURIComponent(avatarUrl);
+        img.loading = 'lazy'; img.alt = '';
+        img.onerror = function() { this.style.display='none'; ph.style.display='flex'; };
+        ph.style.display = 'none';
+        row.appendChild(img);
+      }
+      row.appendChild(ph);
+
+      // Nom boutique
+      const info = document.createElement('div');
+      info.className = 'shop-row-info';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'shop-row-name'; nameEl.textContent = shopName || '—';
+      info.appendChild(nameEl);
+      row.appendChild(info);
+
+      // Bouton Visit shop
+      const visitBtn = document.createElement('a');
+      visitBtn.className = 'btn-visit';
+      visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      visitBtn.textContent = 'Visit shop ↗';
+      row.appendChild(visitBtn);
+
+      // Bouton supprimer
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-delete'; delBtn.textContent = '✕';
+      delBtn.addEventListener('click', function() { deleteShop(shop._id); });
+      row.appendChild(delBtn);
+
+      wrap.appendChild(row);
+      return wrap;
+    }
+    function deleteShop(id) {
+      if (!confirm('Delete this listing?')) return;
+      apiFetch('/api/shops/' + id, { method: 'DELETE' }).then(() => {
+        document.getElementById('shop-wrapper-' + id)?.remove();
+        showToast('Listing deleted', '#ef4444');
+        loadShops();
+      });
+    }
+
+    function goBack() {
+      sessionStorage.setItem('skipIntro', '1');
+      window.location.href = '/finder';
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      TOKEN = localStorage.getItem('scout_token');
+      if (!TOKEN) { window.location.href = '/finder'; return; }
+      loadShops();
+    });
+  </script>
+
+  <script>
+    (function() {
+      const mCanvas = document.getElementById('milkyway-canvas');
+      if (mCanvas) {
+        const ctx = mCanvas.getContext('2d');
+        let W, H, stars = [];
+        function resizeM() {
+          W = mCanvas.width = window.innerWidth;
+          H = mCanvas.height = window.innerHeight;
+          stars = Array.from({length: 220}, () => ({
+            x: Math.random()*W, y: Math.random()*H,
+            r: Math.random()*1.4+0.2,
+            a: Math.random()*0.7+0.15,
+            speed: Math.random()*0.003+0.001,
+            phase: Math.random()*Math.PI*2
+          }));
+        }
+        function drawM(t) {
+          ctx.clearRect(0,0,W,H);
+          stars.forEach(s => {
+            const alpha = s.a*(0.6+0.4*Math.sin(t*s.speed+s.phase));
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255,255,255,'+alpha+')';
+            ctx.fill();
+          });
+          requestAnimationFrame(drawM);
+        }
+        resizeM();
+        window.addEventListener('resize', resizeM);
+        requestAnimationFrame(drawM);
+      }
+
+      const sCanvas = document.getElementById('shooting-canvas');
+      if (sCanvas) {
+        const ctx2 = sCanvas.getContext('2d');
+        let W2, H2, shots = [];
+        function resizeS() { W2 = sCanvas.width = window.innerWidth; H2 = sCanvas.height = window.innerHeight; }
+        function newShot() {
+          return { x: Math.random()*W2*0.7, y: Math.random()*H2*0.4,
+            len: 80+Math.random()*120, speed: 6+Math.random()*8,
+            angle: Math.PI/4+Math.random()*0.3,
+            alpha: 0.8+Math.random()*0.2, life: 1 };
+        }
+        function drawS() {
+          ctx2.clearRect(0,0,W2,H2);
+          if (Math.random()<0.012) shots.push(newShot());
+          shots = shots.filter(s=>s.life>0);
+          shots.forEach(s => {
+            s.x += Math.cos(s.angle)*s.speed;
+            s.y += Math.sin(s.angle)*s.speed;
+            s.life -= 0.022;
+            const grd = ctx2.createLinearGradient(s.x,s.y, s.x-Math.cos(s.angle)*s.len, s.y-Math.sin(s.angle)*s.len);
+            grd.addColorStop(0, 'rgba(255,255,255,'+(s.alpha*s.life)+')');
+            grd.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx2.beginPath();
+            ctx2.moveTo(s.x,s.y);
+            ctx2.lineTo(s.x-Math.cos(s.angle)*s.len, s.y-Math.sin(s.angle)*s.len);
+            ctx2.strokeStyle = grd; ctx2.lineWidth = 1.5; ctx2.stroke();
+          });
+          requestAnimationFrame(drawS);
+        }
+        resizeS();
+        window.addEventListener('resize', resizeS);
+        requestAnimationFrame(drawS);
+      }
+    })();
+  </script>
+</body>
+</html>
+
