@@ -1,39 +1,35 @@
 const axios = require('axios');
 
 async function scrapeEtsy(keyword, maxCount = 10) {
-  const apiKey = process.env.SCRAPINGBEE_KEY;
-  if (!apiKey) throw new Error('SCRAPINGBEE_KEY missing');
+  const apiKey = process.env.SCRAPEAPI_KEY;
+  if (!apiKey) throw new Error('SCRAPEAPI_KEY missing');
 
   console.log(`scrapeEtsy: "${keyword}" (max ${maxCount})`);
 
   const allListings = [];
   const seen = new Set();
   let page = 1;
-  const perPage = 48; // Etsy shows ~48 per page
+  const perPage = 48;
 
   while (allListings.length < maxCount) {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&ref=search_bar&page=${page}`;
 
     let response;
     try {
-      response = await axios.get('https://app.scrapingbee.com/api/v1/', {
+      response = await axios.get('http://api.scraperapi.com', {
         params: {
-          api_key:       apiKey,
-          url:           etsyUrl,
-          render_js:     'true',
-          premium_proxy: 'true',
-          country_code:  'us',
-          wait:          '3000',
-          block_ads:     'true',
-          timeout:       '45000',
+          api_key:      apiKey,
+          url:          etsyUrl,
+          render:       'true',
+          country_code: 'us',
         },
-        timeout: 120000,
+        timeout: 90000,
       });
     } catch (err) {
       const status = err.response?.status;
-      if (status === 401) throw new Error('SCRAPINGBEE_KEY invalid (401)');
-      if (status === 429) throw new Error('ScrapingBee credits exhausted (429)');
-      throw new Error(`ScrapingBee error ${status || ''}: ${err.message}`);
+      if (status === 401) throw new Error('SCRAPEAPI_KEY invalid (401)');
+      if (status === 429) throw new Error('ScraperAPI credits exhausted (429)');
+      throw new Error(`ScraperAPI error ${status || ''}: ${err.message}`);
     }
 
     const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
@@ -57,8 +53,7 @@ async function scrapeEtsy(keyword, maxCount = 10) {
 
     if (allListings.length >= maxCount) break;
 
-    // Check if there's a next page
-    const hasNextPage = html.includes('pagination-next') || html.includes('"next"') || 
+    const hasNextPage = html.includes('pagination-next') || html.includes('"next"') ||
                         html.includes(`page=${page + 1}`) || valid.length >= perPage - 5;
     if (!hasNextPage) {
       console.log(`No next page detected after page ${page}`);
@@ -66,10 +61,8 @@ async function scrapeEtsy(keyword, maxCount = 10) {
     }
 
     page++;
-    // Safety limit: max 5 pages
     if (page > 5) break;
 
-    // Small delay between pages
     await new Promise(r => setTimeout(r, 1000));
   }
 
@@ -151,7 +144,6 @@ function parseEtsyListings(html) {
     }
     if (closest) {
       seen.add(link.url);
-      // Try to extract shopName from nearby HTML context (within 2000 chars around the link)
       const contextStart = Math.max(0, link.pos - 1000);
       const contextEnd = Math.min(html.length, link.pos + 1000);
       const context = html.slice(contextStart, contextEnd);
@@ -186,23 +178,4 @@ function cleanEtsyImage(url) {
   return null;
 }
 
-async function debugEtsyHtml(keyword) {
-  const apiKey = process.env.SCRAPINGBEE_KEY;
-  if (!apiKey) return { ok: false, error: 'SCRAPINGBEE_KEY not defined' };
-  try {
-    const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}`;
-    const response = await axios.get('https://app.scrapingbee.com/api/v1/', {
-      params: { api_key: apiKey, url: etsyUrl, render_js: 'true', premium_proxy: 'true', country_code: 'us', wait: '2000', timeout: '45000' },
-      timeout: 120000,
-    });
-    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-    const listings = parseEtsyListings(html);
-    const valid = listings.filter(l => l.link && l.image);
-    return { ok: true, htmlLength: html.length, validListings: valid.length, sample: valid[0] || null };
-  } catch (err) {
-    return { ok: false, status: err.response?.status, error: err.message };
-  }
-}
-
 module.exports = { scrapeEtsy };
-
