@@ -3,23 +3,60 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Finder Niche</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Croissant+One&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { --green: #22c55e; --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12); --text: #ffffff; --muted: rgba(255,255,255,0.55); }
-    html, body { min-height: 100%; font-family: 'Croissant One', cursive; color: var(--text); overflow: hidden; }
-    body { position: relative; }
-    html.unlocked, html.unlocked body { overflow-y: auto; overflow-x: hidden; }
+<title>Clony AI</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet" />
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #22c55e;
+    --glass: rgba(0,0,0,0.55);
+    --glass-border: rgba(255,255,255,0.12);
+    --text: #ffffff;
+    --muted: rgba(255,255,255,0.55);
+  }
+
+  html, body {
+    min-height: 100%;
+    font-family: 'Lobster', cursive;
+    color: var(--text);
+    overflow: hidden;
+    background: #000;
+  }
+
+  body { position: relative; }
+
+  html.unlocked, html.unlocked body {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  /* LOGO STYLE */
+  .logo {
+    font-size: 64px;
+    text-align: center;
+
+    /* Dégradé orange style Etsy */
+    background: linear-gradient(180deg, #ffb347 0%, #ff7a00 60%, #ff5e00 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+
+    /* Ombre + effet 3D */
+    text-shadow:
+      0 2px 0 #cc5200,
+      0 4px 8px rgba(0,0,0,0.6);
+
+    letter-spacing: 1px;
+  }
+</style>
 
     #bg-layer { position: fixed; inset: 0; z-index: -3; background: #0a0a0a url('/background.png') center center / cover no-repeat; animation: bgDrift 18s ease-in-out infinite alternate; transform-origin: center; will-change: transform; }
     @keyframes bgDrift { 0%{transform:scale(1.08)translate(0,0)} 25%{transform:scale(1.1)translate(-12px,-8px)} 50%{transform:scale(1.08)translate(8px,-14px)} 75%{transform:scale(1.1)translate(-6px,10px)} 100%{transform:scale(1.08)translate(10px,6px)} }
     #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.5); }
     #milkyway-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-2; pointer-events:none; }
 
-    /* ── FLOATING IMAGES ── */
-    #floating-imgs { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
-    .float-img { position:absolute; object-fit:cover; border-radius:8px; }
 
     /* ── INTRO ── */
     #intro { position:fixed; inset:0; z-index:9999; background:#000; display:flex; align-items:center; justify-content:center; }
@@ -90,8 +127,8 @@
     #title-outer { width:100%; display:flex; justify-content:center; }
     #title-wrap { position:relative; display:inline-block; padding:90px 40px 8px; }
     #niche-title { position:relative; z-index:101; text-align:center; user-select:none; }
-    #niche-title span { display:inline-block; font-family:'Croissant One',cursive; font-size:clamp(2.4rem,7vw,5rem); font-weight:400; letter-spacing:0.04em; color:#fff; text-shadow:0 1px 0 #ccc,0 2px 0 #c9c9c9,0 3px 0 #bbb,0 4px 0 #b9b9b9,0 5px 0 #aaa,0 6px 1px rgba(0,0,0,.1),0 1px 3px rgba(0,0,0,.3),0 3px 5px rgba(0,0,0,.2),0 5px 10px rgba(0,0,0,.25),0 20px 20px rgba(0,0,0,.15); animation:wave3d 2.2s ease-in-out infinite; }
-    #niche-title span:nth-child(1){animation-delay:0.00s}#niche-title span:nth-child(2){animation-delay:0.07s}#niche-title span:nth-child(3){animation-delay:0.14s}#niche-title span:nth-child(4){animation-delay:0.21s}#niche-title span:nth-child(5){animation-delay:0.28s}#niche-title span:nth-child(6){animation-delay:0.35s}#niche-title span:nth-child(7){animation-delay:0.42s}#niche-title span:nth-child(8){animation-delay:0.49s}#niche-title span:nth-child(9){animation-delay:0.56s}#niche-title span:nth-child(10){animation-delay:0.63s}#niche-title span:nth-child(11){animation-delay:0.70s}
+    #niche-title span { display:inline-block; font-family:'Croissant One',cursive; font-size:clamp(2.4rem,7vw,5rem); font-weight:400; letter-spacing:0.04em; color:#f97316; animation:wave3d 2.2s ease-in-out infinite; }
+    #niche-title span:nth-child(1){animation-delay:0.00s}#niche-title span:nth-child(2){animation-delay:0.09s}#niche-title span:nth-child(3){animation-delay:0.18s}#niche-title span:nth-child(4){animation-delay:0.27s}#niche-title span:nth-child(5){animation-delay:0.36s}#niche-title span:nth-child(6){animation-delay:0.45s}#niche-title span:nth-child(7){animation-delay:0.54s}#niche-title span:nth-child(8){animation-delay:0.63s}
     .title-space { display:inline-block; width:0.35em; }
     @keyframes wave3d { 0%,100%{transform:translateY(0)rotateX(0deg)scale(1)} 25%{transform:translateY(-18px)rotateX(20deg)scale(1.08)} 50%{transform:translateY(0)rotateX(0deg)scale(1)} }
 
@@ -243,13 +280,12 @@
 
   <div id="intro"><div id="intro-text"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span>&nbsp;</span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div></div>
   <div id="bg-layer"></div>
-  <div id="floating-imgs"></div>
   <canvas id="milkyway-canvas"></canvas>
 
   <!-- AUTH MODAL -->
   <div id="auth-overlay" style="display:none;">
     <div id="auth-box">
-      <div id="auth-logo">Finder Niche</div>
+      <div id="auth-logo">Clony AI</div>
       <div id="auth-subtitle">Sign in to access the tool</div>
       <div class="auth-tabs">
         <button class="auth-tab active" onclick="authSwitchTab('register')">Register</button>
@@ -312,7 +348,7 @@
   </div>
 
   <!-- TITLE -->
-  <div id="title-outer"><div id="title-wrap"><div id="niche-title"><span>F</span><span>i</span><span>n</span><span>d</span><span>e</span><span>r</span><span class="title-space"></span><span>N</span><span>i</span><span>c</span><span>h</span><span>e</span></div></div></div>
+  <div id="title-outer"><div id="title-wrap"><div id="niche-title"><span>C</span><span>l</span><span>o</span><span>n</span><span>y</span><span class="title-space"></span><span>A</span><span>I</span></div></div></div>
 
   <div id="main-view" style="opacity: 1;">
     <div class="search-card">
@@ -426,7 +462,6 @@
 
     // ── ERROR POPUP ──
     const API_HINTS = {
-      'SCRAPINGBEE':     'Check your SCRAPINGBEE_KEY in Render → Environment Variables. Credits may be exhausted.',
       'SERPER':          'Check your SERPER_API_KEY in Render → Environment Variables. Free plan limit may be reached (1000 req/month).',
       'IMGBB':           'Check your IMGBB_API_KEY in Render → Environment Variables.',
       'SCRAPEAPI':       'Check your SCRAPEAPI_KEY in Render → Environment Variables.',
@@ -442,7 +477,6 @@
 
     function detectApiFromMessage(msg) {
       const m = msg.toUpperCase();
-      if (m.includes('SCRAPINGBEE') || m.includes('SCRAPING BEE')) return 'ScrapingBee';
       if (m.includes('SERPER')) return 'Serper';
       if (m.includes('IMGBB')) return 'ImgBB';
       if (m.includes('SCRAPEAPI')) return 'ScrapeAPI';
@@ -1139,7 +1173,7 @@
             _keywords = [];
             startSearch();
           }
-        }, 3000);
+        }, 500);
       }
     }
 
@@ -1259,105 +1293,6 @@
     // ── MILKY WAY ──
     (function(){const canvas=document.getElementById('milkyway-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H,cx,cy;const bandAngle=Math.PI/5,bandW=600,rand=function(a,b){return Math.random()*(b-a)+a;};let nebulae=[];function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;cx=W/2;cy=H/2;buildNebulae();}window.addEventListener('resize',resize);resize();function buildNebulae(){nebulae=[];const colors=[[180,100,200],[100,120,255],[255,120,80],[80,200,255],[200,80,255]];for(var i=0;i<5;i++){const col=colors[i],along=rand(-bandW*0.4,bandW*0.4),spread=rand(-60,60);nebulae.push({x:cx+Math.cos(bandAngle)*along-Math.sin(bandAngle)*spread,y:cy+Math.sin(bandAngle)*along+Math.cos(bandAngle)*spread,rx:rand(80,220),ry:rand(40,120),angle:bandAngle+rand(-0.3,0.3),r:col[0],g:col[1],b:col[2],alpha:rand(0.04,0.1),pulse:rand(0.001,0.003),pulseDir:1});}}var driftAngle=0;function draw(){ctx.clearRect(0,0,W,H);driftAngle+=0.00008;ctx.save();ctx.translate(W/2,H/2);ctx.rotate(driftAngle);ctx.translate(-W/2,-H/2);nebulae.forEach(function(n){n.alpha+=n.pulse*n.pulseDir;if(n.alpha>0.12||n.alpha<0.03)n.pulseDir*=-1;ctx.save();ctx.translate(n.x,n.y);ctx.rotate(n.angle);const g=ctx.createRadialGradient(0,0,0,0,0,n.rx);g.addColorStop(0,'rgba('+n.r+','+n.g+','+n.b+','+n.alpha+')');g.addColorStop(0.5,'rgba('+n.r+','+n.g+','+n.b+','+(n.alpha*0.4)+')');g.addColorStop(1,'rgba('+n.r+','+n.g+','+n.b+',0)');ctx.scale(1,n.ry/n.rx);ctx.beginPath();ctx.arc(0,0,n.rx,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();ctx.restore();});ctx.restore();requestAnimationFrame(draw);}draw();})();
 
-    // ── FLOATING LUNA IMAGES ──
-    (function() {
-      var COUNT = 18;
-      var SIZE  = 78; // px — très petite taille fixe
-      var SPEED = 0.6; // pixels par frame
-
-      var lunaImg = new Image();
-      lunaImg.src = '/luna.png';
-
-      var canvas = document.createElement('canvas');
-      canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;';
-      document.body.appendChild(canvas);
-      var ctx = canvas.getContext('2d');
-
-      var W, H;
-      function resize() {
-        W = canvas.width  = window.innerWidth;
-        H = canvas.height = window.innerHeight;
-      }
-      window.addEventListener('resize', resize);
-      resize();
-
-      // Initialiser les particules avec positions et vitesses aléatoires
-      var particles = [];
-      for (var i = 0; i < COUNT; i++) {
-        var angle = Math.random() * Math.PI * 2;
-        var spd   = SPEED * (0.5 + Math.random() * 0.8);
-        particles.push({
-          x:  Math.random() * (W - SIZE),
-          y:  Math.random() * (H - SIZE),
-          vx: Math.cos(angle) * spd,
-          vy: Math.sin(angle) * spd,
-        });
-      }
-
-      function separateAll() {
-        // Éviter les chevauchements initiaux : écarter les paires trop proches
-        for (var a = 0; a < particles.length; a++) {
-          for (var b = a + 1; b < particles.length; b++) {
-            var pa = particles[a], pb = particles[b];
-            var dx = pb.x - pa.x, dy = pb.y - pa.y;
-            var dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist < SIZE && dist > 0) {
-              var push = (SIZE - dist) / 2 + 1;
-              var nx = dx / dist, ny = dy / dist;
-              pa.x -= nx * push; pa.y -= ny * push;
-              pb.x += nx * push; pb.y += ny * push;
-            }
-          }
-        }
-      }
-      separateAll();
-
-      function draw() {
-        ctx.clearRect(0, 0, W, H);
-        if (!lunaImg.complete) { requestAnimationFrame(draw); return; }
-
-        for (var i = 0; i < particles.length; i++) {
-          var p = particles[i];
-
-          // Déplacement
-          p.x += p.vx;
-          p.y += p.vy;
-
-          // Rebond sur les bords
-          if (p.x < 0)        { p.x = 0;        p.vx = Math.abs(p.vx); }
-          if (p.x > W - SIZE) { p.x = W - SIZE; p.vx = -Math.abs(p.vx); }
-          if (p.y < 0)        { p.y = 0;        p.vy = Math.abs(p.vy); }
-          if (p.y > H - SIZE) { p.y = H - SIZE; p.vy = -Math.abs(p.vy); }
-
-          // Collision avec les autres particules — rebond simple
-          for (var j = i + 1; j < particles.length; j++) {
-            var q = particles[j];
-            var dx = q.x - p.x, dy = q.y - p.y;
-            var dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist < SIZE && dist > 0) {
-              // Séparer
-              var overlap = (SIZE - dist) / 2;
-              var nx = dx / dist, ny = dy / dist;
-              p.x -= nx * overlap; p.y -= ny * overlap;
-              q.x += nx * overlap; q.y += ny * overlap;
-              // Échanger les composantes de vitesse dans la direction de collision
-              var dvx = p.vx - q.vx, dvy = p.vy - q.vy;
-              var dot = dvx * nx + dvy * ny;
-              p.vx -= dot * nx; p.vy -= dot * ny;
-              q.vx += dot * nx; q.vy += dot * ny;
-            }
-          }
-
-          ctx.globalAlpha = 0.55;
-          ctx.drawImage(lunaImg, p.x, p.y, SIZE, SIZE);
-        }
-        ctx.globalAlpha = 1;
-        requestAnimationFrame(draw);
-      }
-
-      lunaImg.onload = draw;
-      if (lunaImg.complete) draw();
-    })();
   </script>
 </body>
 </html>
