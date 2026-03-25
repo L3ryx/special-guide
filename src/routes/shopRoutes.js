@@ -360,6 +360,19 @@ router.get('/etsy-session-status', requireAuth, async (req, res) => {
 });
 
 // ── ETSY LOGIN via ZenRows ──
+// ── ETSY SESSION DISCONNECT ──
+router.post('/etsy-session-disconnect', requireAuth, async (req, res) => {
+  try {
+    await AutoSearchState.findOneAndUpdate(
+      { userId: req.user.id },
+      { $set: { etsyToken: null, etsyEmail: null, updatedAt: new Date() } }
+    );
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -438,4 +451,5 @@ router.post('/etsy-zenrows-login', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
 
