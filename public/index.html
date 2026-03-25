@@ -925,7 +925,11 @@
       const input  = document.getElementById('keyword-input');
       if (toggle) toggle.classList.remove('active');
       if (label)  label.innerHTML = '🤖 Automated';
-      if (input)  input.style.display = 'block';
+      if (input) {
+        input.style.opacity = '1';
+        input.style.visibility = 'visible';
+        input.disabled = false;
+      }
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
       restoreUI();
