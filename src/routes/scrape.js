@@ -151,8 +151,8 @@ router.post('/search-dropship', async (req, res) => {
   const { keyword } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
-  const apiKey = process.env.SCRAPINGBEE_KEY || process.env.SCRAPEAPI_KEY;
-  if (!apiKey)                     return res.status(500).json({ error: 'SCRAPINGBEE_KEY missing' });
+  const apiKey = process.env.SCRAPEAPI_KEY;
+  if (!apiKey)                     return res.status(500).json({ error: 'SCRAPEAPI_KEY missing' });
   if (!process.env.SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
   if (!process.env.IMGBB_API_KEY)  return res.status(500).json({ error: 'IMGBB_API_KEY missing' });
 
@@ -174,7 +174,7 @@ router.post('/search-dropship', async (req, res) => {
       listings = await scrapeEtsyForDropship(
         apiKey, keyword,
         (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + ' listings...' }),
-        scrapingbeeFetch
+        scrapeApiFetch
       );
     } catch(e) {
       send({ step: 'error', message: '❌ Scraping failed: ' + e.message }); return res.end();
@@ -198,33 +198,28 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    async function scrapingbeeFetch(targetUrl, sbParams = {}) {
-      const sbKey = process.env.SCRAPINGBEE_KEY;
-      if (sbKey) {
+    async function scrapeApiFetch(targetUrl, sbParams = {}) {
+      const saKey = process.env.SCRAPEAPI_KEY;
+      if (!saKey) throw new Error('SCRAPEAPI_KEY missing');
+      for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-            params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
-            timeout: 120000,
+          const r = await axios.get('http://api.scraperapi.com', {
+            params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
+            timeout: 90000,
           });
           const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
           if (html.length > 500) return html;
-        } catch (e) { console.warn('ScrapingBee failed:', e.message.slice(0, 60)); }
+        } catch (e) {
+          console.warn('ScraperAPI attempt', attempt, 'failed:', e.message.slice(0, 60));
+          if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
+        }
       }
-      const saKey = process.env.SCRAPEAPI_KEY;
-      if (saKey) {
-        const r = await axios.get('http://api.scraperapi.com', {
-          params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
-          timeout: 90000,
-        });
-        const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-        if (html.length > 500) return html;
-      }
-      throw new Error('All scrapers failed');
+      throw new Error('ScraperAPI failed');
     }
 
     async function scrapeShopImages(shopName) {
       try {
-        const html = await scrapingbeeFetch('https://www.etsy.com/shop/' + shopName, { stealth_proxy: 'true', wait: '1000' });
+        const html = await scrapeApiFetch('https://www.etsy.com/shop/' + shopName, {});
 
         // ── Extraire l'avatar réel de la boutique ──
         let shopAvatar = null;
@@ -384,7 +379,6 @@ router.get('/health', (req, res) => {
     SCRAPEAPI_KEY:     !!process.env.SCRAPEAPI_KEY,
     SERPER_API_KEY:    !!process.env.SERPER_API_KEY,
     IMGBB_API_KEY:     !!process.env.IMGBB_API_KEY,
-    SCRAPINGBEE_KEY:   !!process.env.SCRAPINGBEE_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
@@ -396,6 +390,7 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
 
 
