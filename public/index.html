@@ -799,6 +799,12 @@
       });
     });
 
+    // Marquer le stop si l'utilisateur quitte la page pendant une recherche
+    window.addEventListener('beforeunload', function() {
+      _stopRequested = true;
+      _searching = false;
+    });
+
     // ── PROGRESS ──
     const STEPS = [
       { key: 'scraping',  label: 'Scraping' },
@@ -1092,6 +1098,13 @@
             }
           }
         } catch(err) {
+          // Ignorer les erreurs réseau dues à un stop ou à une navigation
+          if (_stopRequested) break;
+          const msg = (err.message || '').toLowerCase();
+          if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed')) {
+            // Probablement causé par un stop ou navigation — ne pas afficher l'erreur
+            break;
+          }
           document.getElementById('progress-msg').textContent = '❌ ' + err.message;
           showErrorPopup(err.message);
           if (tag) tag.className = 'keyword-tag error';
