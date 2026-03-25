@@ -717,10 +717,7 @@
       if (_autoSearch) {
         toggle.classList.add('active');
         label.innerHTML = '🤖 Automated search';
-        input.disabled = true;
-        input.placeholder = '🤖 Auto mode — keywords generated automatically';
-        input.style.opacity = '0.4';
-        input.style.cursor = 'not-allowed';
+        input.style.display = 'none';
       } else {
         toggle.classList.remove('active');
         label.innerHTML = '🤖 Automated search';
@@ -728,6 +725,7 @@
         input.placeholder = 'Enter keyword';
         input.style.opacity = '1';
         input.style.cursor = '';
+        input.style.display = '';
       }
     }
 
