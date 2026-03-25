@@ -167,15 +167,12 @@ async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
 // ── SEARCH DROPSHIP ──
 // Fonctionne exactement comme la recherche de compétition :
 // scrape Etsy → page boutique → 2 images → Google Lens → dropshipping confirmé si 2 matches
-// Index de la clé ScrapingBee courante — niveau module
-let _currentKeyIndex = 0;
-
 router.post('/search-dropship', async (req, res) => {
   const { keyword } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
-  const apiKey = process.env.SCRAPINGBEE_KEY || process.env.SCRAPEAPI_KEY;
-  if (!apiKey)                     return res.status(500).json({ error: 'SCRAPINGBEE_KEY missing' });
+  const apiKey = process.env.SCRAPEAPI_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'SCRAPEAPI_KEY missing' });
   if (!process.env.SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
   if (!process.env.IMGBB_API_KEY)  return res.status(500).json({ error: 'IMGBB_API_KEY missing' });
 
@@ -197,7 +194,7 @@ router.post('/search-dropship', async (req, res) => {
       listings = await scrapeEtsyForDropship(
         apiKey, keyword,
         (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + ' listings...' }),
-        scrapingbeeFetch
+        scraperApiFetch
       );
     } catch(e) {
       send({ step: 'error', message: '❌ Scraping failed: ' + e.message }); return res.end();
@@ -221,72 +218,29 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    // ── ScrapingBee key rotation — essaie les 10 clés en cas de crédit insuffisant ──
-    function getScrapingBeeKeys() {
-      const keys = [];
-      if (process.env.SCRAPINGBEE_KEY) keys.push(process.env.SCRAPINGBEE_KEY);
-      for (let i = 2; i <= 10; i++) {
-        const k = process.env['SCRAPINGBEE_KEY_' + i];
-        if (k) keys.push(k);
-      }
-      return keys;
-    }
-
-    function isInsufficientCredits(err) {
-      const msg = (err.message || '').toLowerCase();
-      const status = err.response?.status;
-      const body = err.response?.data ? JSON.stringify(err.response.data).toLowerCase() : '';
-      return status === 401 || status === 429 || status === 402
-        || msg.includes('credit') || msg.includes('quota') || msg.includes('limit')
-        || body.includes('credit') || body.includes('insufficient') || body.includes('quota');
-    }
-
-    async function scrapingbeeFetch(targetUrl, sbParams = {}) {
-      const sbKeys = getScrapingBeeKeys();
-      if (sbKeys.length === 0) throw new Error('No ScrapingBee keys configured');
-
-      // Essayer toutes les clés à partir de _currentKeyIndex
-      const startIndex = _currentKeyIndex % sbKeys.length;
-      for (let attempt = 0; attempt < sbKeys.length; attempt++) {
-        const idx = (startIndex + attempt) % sbKeys.length;
-        const sbKey = sbKeys[idx];
+    async function scraperApiFetch(targetUrl, sbParams = {}) {
+      const saKey = process.env.SCRAPEAPI_KEY;
+      if (!saKey) throw new Error('SCRAPEAPI_KEY not configured');
+      for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          const r = await axios.get('https://app.scrapingbee.com/api/v1/', {
-            params: { api_key: sbKey, url: targetUrl, country_code: 'us', timeout: '45000', ...sbParams },
-            timeout: 120000,
+          const r = await axios.get('http://api.scraperapi.com', {
+            params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
+            timeout: 90000,
           });
           const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-          if (html.length > 500) {
-            _currentKeyIndex = idx; // rester sur cette clé pour les prochaines requêtes
-            return html;
-          }
-          throw new Error('Response too short');
+          if (html.length > 500) return html;
         } catch (e) {
-          if (isInsufficientCredits(e)) {
-            // Cette clé est épuisée → essayer la suivante
-            _currentKeyIndex = (idx + 1) % sbKeys.length;
-            continue;
-          }
-          throw e; // erreur non liée aux crédits → on propage
+          console.warn('ScraperAPI attempt', attempt, 'failed:', e.message.slice(0, 80));
+          if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
+          else throw new Error('ScraperAPI failed: ' + e.message);
         }
       }
-
-      // Toutes les clés ScrapingBee épuisées → fallback ScraperAPI
-      const saKey = process.env.SCRAPEAPI_KEY;
-      if (saKey) {
-        const r = await axios.get('http://api.scraperapi.com', {
-          params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
-          timeout: 90000,
-        });
-        const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-        if (html.length > 500) return html;
-      }
-      throw new Error('All scrapers failed — ScrapingBee credits exhausted on all keys');
+      throw new Error('ScraperAPI failed — check SCRAPEAPI_KEY');
     }
 
     async function scrapeShopImages(shopName) {
       try {
-        const html = await scrapingbeeFetch('https://www.etsy.com/shop/' + shopName, { stealth_proxy: 'true', wait: '1000' });
+        const html = await scraperApiFetch('https://www.etsy.com/shop/' + shopName, { stealth_proxy: 'true', wait: '1000' });
 
         // ── Extraire l'avatar réel de la boutique ──
         let shopAvatar = null;
@@ -443,10 +397,9 @@ router.post('/search-dropship', async (req, res) => {
 
 router.get('/health', (req, res) => {
   const keys = {
-    SCRAPEAPI_KEY:     !!process.env.SCRAPEAPI_KEY,
-    SERPER_API_KEY:    !!process.env.SERPER_API_KEY,
-    IMGBB_API_KEY:     !!process.env.IMGBB_API_KEY,
-    SCRAPINGBEE_KEY:   !!process.env.SCRAPINGBEE_KEY,
+    SCRAPEAPI_KEY:  !!process.env.SCRAPEAPI_KEY,
+    SERPER_API_KEY: !!process.env.SERPER_API_KEY,
+    IMGBB_API_KEY:  !!process.env.IMGBB_API_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
@@ -458,7 +411,3 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
-
-
-
-
