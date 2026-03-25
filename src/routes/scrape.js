@@ -2,6 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
+const { scraperApiFetch } = require('../services/scrapingFetch');
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -218,8 +219,7 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    // Utilisation du service centralisé (retry + premium + backoff)
-    const { scraperApiFetch } = require('../services/scrapingFetch');
+    // scraperApiFetch importé en haut du fichier
 
     async function scrapeShopImages(shopName) {
       try {
