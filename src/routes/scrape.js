@@ -218,25 +218,8 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    async function scraperApiFetch(targetUrl, sbParams = {}) {
-      const saKey = process.env.SCRAPEAPI_KEY;
-      if (!saKey) throw new Error('SCRAPEAPI_KEY not configured');
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          const r = await axios.get('http://api.scraperapi.com', {
-            params: { api_key: saKey, url: targetUrl, render: 'true', country_code: 'us' },
-            timeout: 90000,
-          });
-          const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-          if (html.length > 500) return html;
-        } catch (e) {
-          console.warn('ScraperAPI attempt', attempt, 'failed:', e.message.slice(0, 80));
-          if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
-          else throw new Error('ScraperAPI failed: ' + e.message);
-        }
-      }
-      throw new Error('ScraperAPI failed — check SCRAPEAPI_KEY');
-    }
+    // Utilisation du service centralisé (retry + premium + backoff)
+    const { scraperApiFetch } = require('../services/scrapingFetch');
 
     async function scrapeShopImages(shopName) {
       try {
@@ -383,7 +366,8 @@ router.post('/search-dropship', async (req, res) => {
       }
     }
 
-    await Promise.all([worker(), worker(), worker(), worker()]);
+    // 2 workers max pour respecter la limite de concurrence ScraperAPI
+    await Promise.all([worker(), worker()]);
     send({ step: 'complete', dropshippers, total: listings.length });
     res.end();
 
