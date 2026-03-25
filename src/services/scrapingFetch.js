@@ -8,7 +8,7 @@ async function scraperApiFetch(targetUrl, sbParams = {}) {
   const saKey = process.env.SCRAPEAPI_KEY;
   if (!saKey) throw new Error('SCRAPEAPI_KEY not configured');
 
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 4;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
@@ -17,7 +17,6 @@ async function scraperApiFetch(targetUrl, sbParams = {}) {
           api_key:      saKey,
           url:          targetUrl,
           render:       'true',      // rendu JS (headless browser)
-          premium:      'true',      // proxies résidentiels — évite les 499 Etsy
           country_code: 'us',        // IPs US pour Etsy
           keep_headers: 'true',      // conserve les headers d'origine
         },
@@ -40,15 +39,15 @@ async function scraperApiFetch(targetUrl, sbParams = {}) {
       console.warn(`ScraperAPI attempt ${attempt}/${MAX_ATTEMPTS} failed:`, e.message.slice(0, 100));
 
       if (attempt < MAX_ATTEMPTS) {
-        // Backoff exponentiel : 4s, 12s
-        const delay = Math.pow(3, attempt) * 1333;
-        console.log(`Retrying in ${Math.round(delay / 1000)}s...`);
+        // Backoff : 5s, 10s, 20s
+        const delay = 5000 * attempt;
+        console.log(`Retrying in ${delay / 1000}s...`);
         await new Promise(r => setTimeout(r, delay));
       }
     }
   }
 
-  throw new Error(`ScraperAPI failed after ${MAX_ATTEMPTS} attempts — check SCRAPEAPI_KEY or upgrade plan`);
+  throw new Error(`ScraperAPI failed after ${MAX_ATTEMPTS} attempts — check SCRAPEAPI_KEY`);
 }
 
 module.exports = { scraperApiFetch };
