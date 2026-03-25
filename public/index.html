@@ -16,7 +16,6 @@
     @keyframes bgDrift { 0%{transform:scale(1.08)translate(0,0)} 25%{transform:scale(1.1)translate(-12px,-8px)} 50%{transform:scale(1.08)translate(8px,-14px)} 75%{transform:scale(1.1)translate(-6px,10px)} 100%{transform:scale(1.08)translate(10px,6px)} }
     #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.5); }
     #milkyway-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-2; pointer-events:none; }
-    #shooting-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
 
     /* ── FLOATING IMAGES ── */
     #floating-imgs { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
@@ -246,7 +245,6 @@
   <div id="bg-layer"></div>
   <div id="floating-imgs"></div>
   <canvas id="milkyway-canvas"></canvas>
-  <canvas id="shooting-canvas"></canvas>
 
   <!-- AUTH MODAL -->
   <div id="auth-overlay" style="display:none;">
@@ -1261,64 +1259,105 @@
     // ── MILKY WAY ──
     (function(){const canvas=document.getElementById('milkyway-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H,cx,cy;const bandAngle=Math.PI/5,bandW=600,rand=function(a,b){return Math.random()*(b-a)+a;};let nebulae=[];function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;cx=W/2;cy=H/2;buildNebulae();}window.addEventListener('resize',resize);resize();function buildNebulae(){nebulae=[];const colors=[[180,100,200],[100,120,255],[255,120,80],[80,200,255],[200,80,255]];for(var i=0;i<5;i++){const col=colors[i],along=rand(-bandW*0.4,bandW*0.4),spread=rand(-60,60);nebulae.push({x:cx+Math.cos(bandAngle)*along-Math.sin(bandAngle)*spread,y:cy+Math.sin(bandAngle)*along+Math.cos(bandAngle)*spread,rx:rand(80,220),ry:rand(40,120),angle:bandAngle+rand(-0.3,0.3),r:col[0],g:col[1],b:col[2],alpha:rand(0.04,0.1),pulse:rand(0.001,0.003),pulseDir:1});}}var driftAngle=0;function draw(){ctx.clearRect(0,0,W,H);driftAngle+=0.00008;ctx.save();ctx.translate(W/2,H/2);ctx.rotate(driftAngle);ctx.translate(-W/2,-H/2);nebulae.forEach(function(n){n.alpha+=n.pulse*n.pulseDir;if(n.alpha>0.12||n.alpha<0.03)n.pulseDir*=-1;ctx.save();ctx.translate(n.x,n.y);ctx.rotate(n.angle);const g=ctx.createRadialGradient(0,0,0,0,0,n.rx);g.addColorStop(0,'rgba('+n.r+','+n.g+','+n.b+','+n.alpha+')');g.addColorStop(0.5,'rgba('+n.r+','+n.g+','+n.b+','+(n.alpha*0.4)+')');g.addColorStop(1,'rgba('+n.r+','+n.g+','+n.b+',0)');ctx.scale(1,n.ry/n.rx);ctx.beginPath();ctx.arc(0,0,n.rx,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();ctx.restore();});ctx.restore();requestAnimationFrame(draw);}draw();})();
 
-    // ── FLOATING IMAGES ──
+    // ── FLOATING LUNA IMAGES ──
     (function() {
-      var container = document.getElementById('floating-imgs');
-      if (!container) return;
+      var COUNT = 18;
+      var SIZE  = 28; // px — très petite taille fixe
+      var SPEED = 0.6; // pixels par frame
 
-      var configs = [
-        { size: 340, col: 0, row: 0 },
-        { size: 280,  col: 1, row: 0 },
-        { size: 210,  col: 2, row: 0 },
-        { size: 175,  col: 0, row: 1 },
-        { size: 130, col: 1, row: 1 },
-        { size: 90,  col: 2, row: 1 },
-      ];
+      var lunaImg = new Image();
+      lunaImg.src = '/luna.png';
 
-      var cols = 3, rows = 2;
-      var cellW = 100 / cols, cellH = 100 / rows;
-      var totalCycle = 6;
+      var canvas = document.createElement('canvas');
+      canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;';
+      document.body.appendChild(canvas);
+      var ctx = canvas.getContext('2d');
 
-      configs.forEach(function(cfg, i) {
-        var margin = 12;
-        var x = cfg.col * cellW + margin + Math.random() * (cellW - margin * 2);
-        var y = cfg.row * cellH + margin + Math.random() * (cellH - margin * 2);
+      var W, H;
+      function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+      }
+      window.addEventListener('resize', resize);
+      resize();
 
-        var img = document.createElement('img');
-        img.src = '/luna.png';
-        img.className = 'float-img';
-        img.style.width  = cfg.size + 'px';
-        img.style.height = cfg.size + 'px';
-        img.style.left   = x + '%';
-        img.style.top    = y + '%';
-        img.style.opacity = '0';
+      // Initialiser les particules avec positions et vitesses aléatoires
+      var particles = [];
+      for (var i = 0; i < COUNT; i++) {
+        var angle = Math.random() * Math.PI * 2;
+        var spd   = SPEED * (0.5 + Math.random() * 0.8);
+        particles.push({
+          x:  Math.random() * (W - SIZE),
+          y:  Math.random() * (H - SIZE),
+          vx: Math.cos(angle) * spd,
+          vy: Math.sin(angle) * spd,
+        });
+      }
 
-        var tx1 = (Math.random() - 0.5) * 200;
-        var ty1 = (Math.random() - 0.5) * 200;
-        var tx2 = (Math.random() - 0.5) * 200;
-        var ty2 = (Math.random() - 0.5) * 200;
-        var rot = (Math.random() - 0.5) * 30;
-        var name = 'fl' + i;
-        var styleEl = document.createElement('style');
-        styleEl.textContent = '@keyframes ' + name + '{'
-          + '0%   { opacity:0;   transform:translate(0,0) scale(0.3) rotate(-4deg); }'
-          + '15%  { opacity:0.7; transform:translate(' + tx1 + 'px,' + ty1 + 'px) scale(1) rotate(' + rot + 'deg); }'
-          + '65%  { opacity:0.5; transform:translate(' + tx2 + 'px,' + ty2 + 'px) scale(1.1) rotate(' + (-rot) + 'deg); }'
-          + '85%  { opacity:0;   transform:translate(' + (tx1*0.5) + 'px,' + (ty2*0.5) + 'px) scale(1.5) rotate(' + (rot*2) + 'deg); }'
-          + '100% { opacity:0;   transform:translate(0,0) scale(0.3) rotate(-4deg); }'
-          + '}';
-        document.head.appendChild(styleEl);
+      function separateAll() {
+        // Éviter les chevauchements initiaux : écarter les paires trop proches
+        for (var a = 0; a < particles.length; a++) {
+          for (var b = a + 1; b < particles.length; b++) {
+            var pa = particles[a], pb = particles[b];
+            var dx = pb.x - pa.x, dy = pb.y - pa.y;
+            var dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < SIZE && dist > 0) {
+              var push = (SIZE - dist) / 2 + 1;
+              var nx = dx / dist, ny = dy / dist;
+              pa.x -= nx * push; pa.y -= ny * push;
+              pb.x += nx * push; pb.y += ny * push;
+            }
+          }
+        }
+      }
+      separateAll();
 
-        var delay = -(i * (totalCycle / configs.length));
-        img.style.animation = name + ' ' + totalCycle + 's ' + delay + 's ease-in-out infinite';
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+        if (!lunaImg.complete) { requestAnimationFrame(draw); return; }
 
-        container.appendChild(img);
-      });
+        for (var i = 0; i < particles.length; i++) {
+          var p = particles[i];
+
+          // Déplacement
+          p.x += p.vx;
+          p.y += p.vy;
+
+          // Rebond sur les bords
+          if (p.x < 0)        { p.x = 0;        p.vx = Math.abs(p.vx); }
+          if (p.x > W - SIZE) { p.x = W - SIZE; p.vx = -Math.abs(p.vx); }
+          if (p.y < 0)        { p.y = 0;        p.vy = Math.abs(p.vy); }
+          if (p.y > H - SIZE) { p.y = H - SIZE; p.vy = -Math.abs(p.vy); }
+
+          // Collision avec les autres particules — rebond simple
+          for (var j = i + 1; j < particles.length; j++) {
+            var q = particles[j];
+            var dx = q.x - p.x, dy = q.y - p.y;
+            var dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < SIZE && dist > 0) {
+              // Séparer
+              var overlap = (SIZE - dist) / 2;
+              var nx = dx / dist, ny = dy / dist;
+              p.x -= nx * overlap; p.y -= ny * overlap;
+              q.x += nx * overlap; q.y += ny * overlap;
+              // Échanger les composantes de vitesse dans la direction de collision
+              var dvx = p.vx - q.vx, dvy = p.vy - q.vy;
+              var dot = dvx * nx + dvy * ny;
+              p.vx -= dot * nx; p.vy -= dot * ny;
+              q.vx += dot * nx; q.vy += dot * ny;
+            }
+          }
+
+          ctx.globalAlpha = 0.55;
+          ctx.drawImage(lunaImg, p.x, p.y, SIZE, SIZE);
+        }
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(draw);
+      }
+
+      lunaImg.onload = draw;
+      if (lunaImg.complete) draw();
     })();
-
-
-    // ── SHOOTING STARS ──
-    (function(){const canvas=document.getElementById('shooting-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H;function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}window.addEventListener('resize',resize);resize();const rand=function(a,b){return Math.random()*(b-a)+a;};function mkStar(){const angle=rand(25,50)*Math.PI/180,spd=rand(6,16);return{x:rand(-100,W*0.8),y:rand(-60,H*0.4),vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,alpha:rand(0.6,1),w:rand(1,2.5),tail:rand(12,28),decay:rand(0.991,0.997)};}var stars=[mkStar(),mkStar(),mkStar(),mkStar()];function draw(){ctx.clearRect(0,0,W,H);if(Math.random()<0.02&&stars.length<10)stars.push(mkStar());stars=stars.filter(function(s){const grad=ctx.createLinearGradient(s.x,s.y,s.x-s.vx*s.tail,s.y-s.vy*s.tail);grad.addColorStop(0,'rgba(255,255,255,'+s.alpha+')');grad.addColorStop(0.4,'rgba(200,220,255,'+(s.alpha*0.5)+')');grad.addColorStop(1,'rgba(180,200,255,0)');ctx.beginPath();ctx.strokeStyle=grad;ctx.lineWidth=s.w;ctx.lineCap='round';ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx*s.tail,s.y-s.vy*s.tail);ctx.stroke();ctx.beginPath();ctx.arc(s.x,s.y,s.w*1.2,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+(s.alpha*0.8)+')';ctx.fill();s.x+=s.vx;s.y+=s.vy;s.alpha*=s.decay;return s.x<W+200&&s.y<H+200&&s.alpha>0.03;});requestAnimationFrame(draw);}draw();})();
   </script>
 </body>
 </html>
