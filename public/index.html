@@ -179,8 +179,8 @@
     .spinner-ring { width:56px; height:56px; border:4px solid rgba(255,255,255,0.1); border-top:4px solid #f97316; border-radius:50%; animation:spinRing 0.9s linear infinite; }
     @keyframes spinRing { to { transform:rotate(360deg); } }
     .spinner-label { font-size:0.9rem; color:var(--muted); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
-    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:rgba(239,68,68,0.15); border:1.5px solid rgba(239,68,68,0.5); color:#f87171; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; letter-spacing:0.05em; }
-    #stop-btn:hover { background:rgba(239,68,68,0.35); color:#fff; border-color:#f87171; transform:scale(1.03); }
+    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; letter-spacing:0.05em; }
+    #stop-btn:hover { background:#b91c1c; transform:scale(1.03); }
     #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
     .progress-steps { display:flex; justify-content:space-between; gap:4px; }
@@ -200,7 +200,7 @@
 
     /* ── RESULTS ── */
     #results-section { position:relative; z-index:10; padding:0 20px 80px; display:none; }
-    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:32px; }
+    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:56px; }
     .keyword-section-title { font-size:0.75rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#f97316; padding:8px 0 4px; border-bottom:1px solid rgba(249,115,22,0.2); }
     .results-count-bar { text-align:center; font-size:0.8rem; color:var(--muted); margin-bottom:4px; }
     /* ── BANDEROLE CARD ── */
@@ -405,9 +405,7 @@
       </div>
       <div id="loading-spinner">
         <div class="spinner-ring"></div>
-        <div class="spinner-label">Loading...</div>
-        <button id="stop-btn" onclick="stopSearch()">⏹ Stop</button>
-        <div id="current-keyword-label"></div>
+        <button id="stop-btn" onclick="stopSearch()">Stop</button>
       </div>
 
     <div id="progress-wrap">
@@ -1104,7 +1102,6 @@
 
       document.getElementById('search-inputs').style.display = 'none';
       document.getElementById('loading-spinner').style.display = 'flex';
-      document.getElementById('current-keyword-label').textContent = '';
       document.getElementById('progress-wrap').style.display = 'none';
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('results-container').innerHTML = '';
@@ -1129,7 +1126,6 @@
 
         initProgress(keyword + ' (' + (ki + 1) + '/' + _keywords.length + ')');
         document.getElementById('progress-wrap').style.display = 'flex';
-        document.getElementById('current-keyword-label').textContent = '🔍 ' + keyword;
         setProgress(5);
 
         // Section titre dans les résultats
@@ -1253,11 +1249,6 @@
 
       var countBar = document.getElementById('results-count');
       countBar.innerHTML = '';
-      if (totalMatches > 0) {
-        var countSpan = document.createElement('span');
-        countSpan.textContent = totalMatches + ' match(es) found';
-        countBar.appendChild(countSpan);
-      }
 
 
       if (totalMatches > 0) {
@@ -1398,4 +1389,5 @@
   </script>
 </body>
 </html>
+
 
