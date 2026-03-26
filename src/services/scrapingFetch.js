@@ -1,21 +1,56 @@
 const axios = require('axios');
 
-// Traduit les anciens paramètres ScraperAPI vers les équivalents ZenRows
+// Paramètres compatibles avec mode=auto (Adaptive Stealth Mode).
+// Tout paramètre absent de cette liste est silencieusement ignoré
+// pour éviter les erreurs 400 REQS004.
+const AUTO_MODE_ALLOWED = new Set([
+  'wait',
+  'wait_for',
+  'css_extractor',
+  'autoparse',
+  'response_type',
+  'screenshot',
+  'screenshot_fullpage',
+  'screenshot_selector',
+  'screenshot_format',
+  'screenshot_quality',
+  'json_response',
+  'original_status',
+  'allowed_status_codes',
+  'outputs',
+]);
+
+// Filtre et traduit les extraParams vers les paramètres ZenRows compatibles
+// avec mode=auto. Les anciens paramètres ScraperAPI sont ignorés proprement.
 function mapToZenRowsParams(extraParams) {
   const mapped = {};
   for (const [key, value] of Object.entries(extraParams)) {
     switch (key) {
+      // Anciens paramètres ScraperAPI / manuels → ignorés (mode=auto gère tout)
+      case 'stealth_proxy':
+      case 'render':
+      case 'js_render':
+      case 'premium_proxy':
+      case 'proxy_country':
+      case 'session_id':
+      case 'custom_headers':
+      case 'block_resources':
+        break;
+
       case 'wait':
         mapped.wait = parseInt(value, 10);
         break;
+
       case 'wait_for':
         mapped.wait_for = String(value);
         break;
-      case 'render':
-        mapped.js_render = String(value);
-        break;
+
       default:
-        mapped[key] = value;
+        if (AUTO_MODE_ALLOWED.has(key)) {
+          mapped[key] = value;
+        } else {
+          console.warn(`ZenRows: paramètre ignoré (incompatible mode=auto): ${key}`);
+        }
     }
   }
   return mapped;
