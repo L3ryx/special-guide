@@ -149,38 +149,35 @@
     /* ── PROGRESS ── */
     #progress-wrap { width:100%; max-width:660px; display:none; flex-direction:column; gap:12px; }
     #loading-spinner { display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:40px 0; }
-    /* From Uiverse.io by nima-mollazadeh */
-    .loader { --dur: 2s; display: block; margin: auto; width: 80px; height: auto; overflow: visible; }
-    .loader__glare-top,.loader__glare-bottom,.loader__model,.loader__motion-thick,.loader__motion-medium,.loader__motion-thin,.loader__sand-drop,.loader__sand-fill,.loader__sand-grain-left,.loader__sand-grain-right,.loader__sand-line-left,.loader__sand-line-right,.loader__sand-mound-top,.loader__sand-mound-bottom { animation-duration: var(--dur); animation-timing-function: cubic-bezier(0.83,0,0.17,1); animation-iteration-count: infinite; }
-    .loader__glare-top { animation-name: glare-top; }
-    .loader__glare-bottom { animation-name: glare-bottom; }
-    .loader__model { animation-name: loader-flip; transform-origin: 12.25px 16.75px; }
-    .loader__motion-thick,.loader__motion-medium,.loader__motion-thin { transform-origin: 26px 26px; }
-    .loader__motion-thick { animation-name: motion-thick; }
-    .loader__motion-medium { animation-name: motion-medium; }
-    .loader__motion-thin { animation-name: motion-thin; }
-    .loader__sand-drop { animation-name: sand-drop; }
-    .loader__sand-fill { animation-name: sand-fill; }
-    .loader__sand-grain-left { animation-name: sand-grain-left; }
-    .loader__sand-grain-right { animation-name: sand-grain-right; }
-    .loader__sand-line-left { animation-name: sand-line-left; }
-    .loader__sand-line-right { animation-name: sand-line-right; }
-    .loader__sand-mound-top { animation-name: sand-mound-top; }
-    .loader__sand-mound-bottom { animation-name: sand-mound-bottom; transform-origin: 12.25px 31.5px; }
-    @keyframes loader-flip { from { transform: translate(13.75px,9.25px) rotate(-180deg); } 24%,to { transform: translate(13.75px,9.25px) rotate(0); } }
-    @keyframes glare-top { from { stroke: rgba(255,255,255,0); } 24%,to { stroke: white; } }
-    @keyframes glare-bottom { from { stroke: white; } 24%,to { stroke: rgba(255,255,255,0); } }
-    @keyframes motion-thick { from { animation-timing-function: cubic-bezier(0.33,0,0.67,0); stroke: rgba(255,255,255,0); stroke-dashoffset: 153.94; transform: rotate(0.67turn); } 20% { animation-timing-function: cubic-bezier(0.33,1,0.67,1); stroke: rgb(32,32,32); stroke-dashoffset: 141.11; transform: rotate(1turn); } 40%,to { stroke: rgba(255,255,255,0); stroke-dashoffset: 153.94; transform: rotate(1.33turn); } }
-    @keyframes motion-medium { from,8% { animation-timing-function: cubic-bezier(0.33,0,0.67,0); stroke: rgba(255,255,255,0); stroke-dashoffset: 153.94; transform: rotate(0.5turn); } 20% { animation-timing-function: cubic-bezier(0.33,1,0.67,1); stroke: white; stroke-dashoffset: 147.53; transform: rotate(0.83turn); } 32%,to { stroke: rgba(255,255,255,0); stroke-dashoffset: 153.94; transform: rotate(1.17turn); } }
-    @keyframes motion-thin { from,4% { animation-timing-function: cubic-bezier(0.33,0,0.67,0); stroke: rgba(255,255,255,0); stroke-dashoffset: 153.94; transform: rotate(0.33turn); } 24% { animation-timing-function: cubic-bezier(0.33,1,0.67,1); stroke: rgb(53,53,53); stroke-dashoffset: 134.7; transform: rotate(0.67turn); } 44%,to { stroke: rgba(255,255,255,0); stroke-dashoffset: 153.94; transform: rotate(1turn); } }
-    @keyframes sand-drop { from,10% { animation-timing-function: cubic-bezier(0.12,0,0.39,0); stroke-dashoffset: 1; } 70%,to { stroke-dashoffset: -107; } }
-    @keyframes sand-fill { from,10% { animation-timing-function: cubic-bezier(0.12,0,0.39,0); stroke-dashoffset: 55; } 70%,to { stroke-dashoffset: -54; } }
-    @keyframes sand-grain-left { from,10% { animation-timing-function: cubic-bezier(0.12,0,0.39,0); stroke-dashoffset: 29; } 70%,to { stroke-dashoffset: -22; } }
-    @keyframes sand-grain-right { from,10% { animation-timing-function: cubic-bezier(0.12,0,0.39,0); stroke-dashoffset: 27; } 70%,to { stroke-dashoffset: -24; } }
-    @keyframes sand-line-left { from,10% { animation-timing-function: cubic-bezier(0.12,0,0.39,0); stroke-dashoffset: 53; } 70%,to { stroke-dashoffset: -55; } }
-    @keyframes sand-line-right { from,10% { animation-timing-function: cubic-bezier(0.12,0,0.39,0); stroke-dashoffset: 14; } 70%,to { stroke-dashoffset: -24.5; } }
-    @keyframes sand-mound-top { from,10% { animation-timing-function: linear; transform: translate(0,0); } 15% { animation-timing-function: cubic-bezier(0.12,0,0.39,0); transform: translate(0,1.5px); } 51%,to { transform: translate(0,13px); } }
-    @keyframes sand-mound-bottom { from,31% { animation-timing-function: cubic-bezier(0.61,1,0.88,1); transform: scale(1,0); } 56%,to { transform: scale(1,1); } }
+    .loader {
+      display: inline-block;
+      text-align: center;
+      line-height: 86px;
+      position: relative;
+      padding: 0 48px;
+      font-size: 48px;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #fff;
+    }
+    .loader:before, .loader:after {
+      content: "";
+      display: block;
+      width: 15px;
+      height: 15px;
+      background: currentColor;
+      position: absolute;
+      animation: load .7s infinite alternate ease-in-out;
+      top: 0;
+    }
+    .loader:after {
+      top: auto;
+      bottom: 0;
+    }
+    @keyframes load {
+      0% { left: 0; height: 43px; width: 15px; transform: translateX(0); }
+      50% { height: 10px; width: 40px; }
+      100% { left: 100%; height: 43px; width: 15px; transform: translateX(-100%); }
+    }
     .spinner-label { font-size:0.72rem; color:rgba(255,255,255,0.35); font-weight:600; letter-spacing:0.18em; text-transform:uppercase; font-family:'Inter',sans-serif; }
     #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:#facc15; color:#000; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; letter-spacing:0.08em; box-shadow:0 4px 20px rgba(250,204,21,0.4); }
     #stop-btn:hover { background:#eab308; transform:scale(1.03); box-shadow:0 6px 28px rgba(250,204,21,0.55); }
@@ -381,45 +378,7 @@
           <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
       </div>
       <div id="loading-spinner">
-        <svg class="loader" viewBox="0 0 24.5 33.5" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
-          <g class="loader__model">
-            <path class="loader__glare-top" d="M4.25,2.75 Q12.25,2.75 20.25,2.75" fill="none" stroke="white" stroke-linecap="round" stroke-width="1.5"/>
-            <path class="loader__glare-bottom" d="M4.25,30.75 Q12.25,30.75 20.25,30.75" fill="none" stroke="white" stroke-linecap="round" stroke-width="1.5"/>
-            <path d="M2.25,1.75 L22.25,1.75 L22.25,3.5 Q12.25,14.25 12.25,16.75 Q12.25,19.25 22.25,30 L22.25,31.75 L2.25,31.75 L2.25,30 Q12.25,19.25 12.25,16.75 Q12.25,14.25 2.25,3.5 Z" fill="hsl(30,90%,55%)" stroke="hsl(30,90%,40%)" stroke-width="0.5"/>
-            <clipPath id="loader-top-clip">
-              <path d="M2.25,1.75 L22.25,1.75 L22.25,3.5 Q12.25,14.25 12.25,16.75 L2.25,16.75 Z"/>
-            </clipPath>
-            <clipPath id="loader-bottom-clip">
-              <path d="M12.25,16.75 Q12.25,19.25 22.25,30 L22.25,31.75 L2.25,31.75 L2.25,30 Q12.25,19.25 12.25,16.75 Z"/>
-            </clipPath>
-            <g clip-path="url(#loader-top-clip)">
-              <line class="loader__sand-drop" x1="12.25" y1="16.75" x2="12.25" y2="-10" stroke="hsl(45,90%,70%)" stroke-dasharray="108 108" stroke-linecap="round" stroke-width="1.5"/>
-            </g>
-            <g clip-path="url(#loader-bottom-clip)">
-              <line class="loader__sand-fill" x1="2.25" y1="31.75" x2="22.25" y2="31.75" stroke="hsl(45,90%,70%)" stroke-dasharray="55 55" stroke-linecap="round" stroke-width="8"/>
-            </g>
-            <g clip-path="url(#loader-top-clip)">
-              <line class="loader__sand-grain-left" x1="8" y1="10" x2="8" y2="-20" stroke="hsl(45,90%,75%)" stroke-dasharray="29 29" stroke-linecap="round" stroke-width="1"/>
-              <line class="loader__sand-grain-right" x1="16" y1="10" x2="16" y2="-18" stroke="hsl(45,90%,75%)" stroke-dasharray="27 27" stroke-linecap="round" stroke-width="1"/>
-              <line class="loader__sand-line-left" x1="5" y1="7" x2="5" y2="-48" stroke="hsl(45,90%,72%)" stroke-dasharray="53 53" stroke-linecap="round" stroke-width="0.75"/>
-              <line class="loader__sand-line-right" x1="19" y1="7" x2="19" y2="-18" stroke="hsl(45,90%,72%)" stroke-dasharray="14 14" stroke-linecap="round" stroke-width="0.75"/>
-            </g>
-            <g class="loader__sand-mound-top" clip-path="url(#loader-top-clip)">
-              <ellipse cx="12.25" cy="16.75" rx="6" ry="2" fill="hsl(45,90%,70%)"/>
-            </g>
-            <g clip-path="url(#loader-bottom-clip)">
-              <g class="loader__sand-mound-bottom">
-                <ellipse cx="12.25" cy="31.5" rx="7" ry="2.5" fill="hsl(45,90%,65%)"/>
-              </g>
-            </g>
-          </g>
-          <g transform="translate(-13.75,-9.25)">
-            <circle class="loader__motion-thick" cx="26" cy="26" r="22" fill="none" stroke="white" stroke-dasharray="12.83 153.94" stroke-linecap="round" stroke-width="3"/>
-            <circle class="loader__motion-medium" cx="26" cy="26" r="22" fill="none" stroke="white" stroke-dasharray="6.41 153.94" stroke-linecap="round" stroke-width="2"/>
-            <circle class="loader__motion-thin" cx="26" cy="26" r="22" fill="none" stroke="white" stroke-dasharray="19.24 153.94" stroke-linecap="round" stroke-width="1"/>
-          </g>
-        </svg>
-        <div class="spinner-label">Loading...</div>
+        <span class="loader">Loading</span>
         <button id="stop-btn" onclick="stopSearch()">STOP</button>
         <div id="current-keyword-label"></div>
       </div>
