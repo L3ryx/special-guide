@@ -307,8 +307,6 @@
     .sw-btn:hover { transform: scale(1.05); }
     .sw-btn:active {
       border: double 4px #fe53bb;
-      background-image: linear-gradient(#212121, #212121),
-        linear-gradient(137.48deg, #ffdb3b 10%, #fe53bb 45%, #8f51ea 67%, #0044ff 87%);
       background-origin: border-box;
       background-clip: content-box, border-box;
       animation: none;
@@ -1218,7 +1216,7 @@
       const btn = document.getElementById('start-btn');
       btn.disabled = false;
       btn.classList.remove('loading', 'retry');
-      btn.style.backgroundImage = ''; btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Search</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
+      btn.textContent = 'Search';
     }
 
     function stopSearch() {
@@ -1227,7 +1225,7 @@
       const toggle = document.getElementById('auto-search-toggle');
       const label  = document.getElementById('auto-search-label');
       const input  = document.getElementById('keyword-input');
-      if (toggle) { toggle.classList.remove('active'); toggle.checked = false; }
+      if (toggle) toggle.classList.remove('active');
       if (label)  label.innerHTML = '🤖 Automated';
       if (input) {
         input.style.opacity = '1';
@@ -1268,7 +1266,8 @@
       } else {
         // Mode manuel
         const inputVal = document.getElementById('keyword-input').value.trim();
-        if (inputVal && !_keywords.includes(inputVal)) {
+        _keywords = [];
+        if (inputVal) {
           _keywords.push(inputVal);
           renderKeywords();
           document.getElementById('keyword-input').value = '';
@@ -1281,7 +1280,7 @@
       window._shopDataMap = {};
 
       const btn = document.getElementById('start-btn');
-      btn.disabled = true; btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>LOADING</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>'; btn.classList.remove('retry'); btn.classList.add('loading');
+      btn.disabled = true; btn.textContent = 'LOADING'; btn.classList.remove('retry'); btn.classList.add('loading');
       document.getElementById('keyword-input').disabled = true;
 
       document.getElementById('search-inputs').style.display = 'none';
@@ -1326,7 +1325,7 @@
           document.getElementById('progress-msg').textContent = '⏳ Connecting...';
           const response = await fetch('/api/search-dropship', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (SCOUT_TOKEN || '') },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keyword })
           });
 
