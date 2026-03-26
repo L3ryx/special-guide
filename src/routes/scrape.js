@@ -300,7 +300,7 @@ router.post('/search-dropship', async (req, res) => {
           };
           // Pages boutique : on active le rendu JS pour avoir les images de listing
           if (isEtsyShop) { params.render = 'true'; }
-          const r = await axios.get('http://api.scraperapi.com', { params, timeout: 120000 });
+          const r = await axios.get('https://api.scraperapi.com', { params, timeout: 70000 });
           const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
           if (html.length > 500) {
             console.log('ScraperAPI OK —', html.length, 'chars (attempt', attempt + ')');
@@ -493,4 +493,5 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
