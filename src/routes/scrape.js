@@ -204,12 +204,12 @@ function parseListingsFromHtml(html) {
 }
 
 async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
-  const MAX_PAGES = 5, shopsSeen = new Set(), listings = [];
+  const MAX_PAGES = 3, shopsSeen = new Set(), listings = [];
   let page = 1, emptyPages = 0;
   while (page <= MAX_PAGES) {
     const url = 'https://www.etsy.com/search?q=' + encodeURIComponent(keyword) + '&page=' + page;
     let html;
-    try { html = await fetchFn(url, { stealth_proxy: 'true', wait: '1500' }); }
+    try { html = await fetchFn(url); }
     catch (e) { console.warn('Scrape page', page, 'failed:', e.message); break; }
     const raw = parseListingsFromHtml(html);
     let added = 0;
@@ -225,7 +225,7 @@ async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
     if (!hasNext) break;
     if (added === 0) { emptyPages++; if (emptyPages >= 2) break; } else emptyPages = 0;
     page++;
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 500));
   }
   console.log('scrapeEtsyForDropship done:', listings.length, 'shops');
   return listings;
@@ -288,32 +288,31 @@ router.post('/search-dropship', async (req, res) => {
     async function scraperApiFetch(targetUrl, sbParams = {}) {
       const saKey = process.env.SCRAPEAPI_KEY;
       if (!saKey) throw new Error('SCRAPEAPI_KEY not configured');
-      const isEtsySearch = targetUrl.includes('etsy.com/search');
-      const isEtsyShop   = targetUrl.includes('etsy.com/shop');
+      const isEtsyShop = targetUrl.includes('etsy.com/shop');
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const params = {
             api_key:      saKey,
             url:          targetUrl,
-            render:       'false',          // désactiver le rendu JS : plus rapide, moins cher, évite les 500
+            render:       'false',       // pas de rendu JS : évite les 500 d'Etsy
+            premium:      'true',        // proxies résidentiels : contourne le blocage Etsy
             country_code: 'us',
-            keep_headers: 'true',
           };
-          // Pour les pages shop on a besoin du rendu JS pour avoir les listings
-          if (isEtsyShop) { params.render = 'true'; params.wait = '1000'; }
-          const r = await axios.get('http://api.scraperapi.com', { params, timeout: 90000 });
+          // Pages boutique : on active le rendu JS pour avoir les images de listing
+          if (isEtsyShop) { params.render = 'true'; }
+          const r = await axios.get('http://api.scraperapi.com', { params, timeout: 120000 });
           const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
           if (html.length > 500) {
             console.log('ScraperAPI OK —', html.length, 'chars (attempt', attempt + ')');
             return html;
           }
-          console.warn('ScraperAPI returned short response (', html.length, 'chars), retrying...');
+          console.warn('ScraperAPI short response:', html.length, 'chars');
         } catch (e) {
           const status = e.response?.status;
           if (status === 401) throw new Error('SCRAPEAPI_KEY invalid (401)');
           if (status === 429) throw new Error('ScraperAPI credits exhausted (429)');
           console.warn('ScraperAPI attempt', attempt, 'failed:', e.message.slice(0, 80));
-          if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 3000));
+          if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 4000));
           else throw new Error('ScraperAPI failed after 3 attempts: ' + e.message);
         }
       }
@@ -480,6 +479,7 @@ router.post('/search-dropship', async (req, res) => {
 router.get('/health', (req, res) => {
   const keys = {
     SCRAPEAPI_KEY:  !!process.env.SCRAPEAPI_KEY,
+    ETSY_API_KEY:   !!process.env.ETSY_API_KEY,
     SERPER_API_KEY: !!process.env.SERPER_API_KEY,
     IMGBB_API_KEY:  !!process.env.IMGBB_API_KEY,
   };
