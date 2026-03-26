@@ -143,8 +143,23 @@ async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
   while (page <= MAX_PAGES) {
     const url = 'https://www.etsy.com/search?q=' + encodeURIComponent(keyword) + '&page=' + page;
     let html;
-    try { html = await fetchFn(url, { stealth_proxy: 'true', wait: '1500' }); }
-    catch (e) { console.warn('Scrape page', page, 'failed:', e.message); break; }
+    let retries = 2;
+    while (retries >= 0) {
+      try {
+        html = await fetchFn(url);
+        break; // success
+      } catch (e) {
+        if (retries === 0) {
+          console.warn('Scrape page', page, 'failed:', e.message);
+          html = null;
+          break;
+        }
+        console.warn(`Scrape page ${page} attempt failed, retrying... (${retries} left):`, e.message);
+        await new Promise(r => setTimeout(r, 3000));
+        retries--;
+      }
+    }
+    if (!html) break;
     const raw = parseListingsFromHtml(html);
     let added = 0;
     for (const l of raw) {
@@ -416,6 +431,7 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
 
 
