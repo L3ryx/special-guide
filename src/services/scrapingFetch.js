@@ -1,20 +1,21 @@
 const axios = require('axios');
 
-// Détecte si la page retournée est un bloc anti-bot ou une page vide
-function isBlockedOrEmpty(html) {
-  if (!html || html.length < 500) return true;
+// Détecte si la page retournée est un vrai blocage anti-bot
+// NE PAS rejeter sur l'absence de mots-clés métier : Etsy embarque ses données
+// en JSON dans des balises <script> sans texte visible "listing" / "product"
+function isHardBlocked(html) {
+  if (!html || html.length < 2000) return true;
   const lower = html.toLowerCase();
-  return (
+  // Vrais indicateurs de blocage
+  const blocked =
     lower.includes('cf-browser-verification') ||
-    lower.includes('enable javascript')        ||
-    lower.includes('access denied')            ||
-    lower.includes('just a moment')            ||
+    lower.includes('just a moment...')         ||
     lower.includes('checking your browser')    ||
+    lower.includes('enable javascript and cookies') ||
+    lower.includes('_cf_chl_opt')              ||
     lower.includes('captcha')                  ||
-    lower.includes('robot')                    ||
-    (lower.includes('<title>') && lower.includes('403')) ||
-    (!lower.includes('listing') && !lower.includes('product'))
-  );
+    (lower.includes('access denied') && lower.length < 20000);
+  return blocked;
 }
 
 async function scraperApiFetch(targetUrl, extraParams = {}) {
@@ -42,11 +43,18 @@ async function scraperApiFetch(targetUrl, extraParams = {}) {
     });
 
     // La réponse Decodo : { results: [{ content, status_code, ... }] }
-    const content = r.data?.results?.[0]?.content;
-    const html = typeof content === 'string' ? content : JSON.stringify(r.data);
+    const result     = r.data?.results?.[0];
+    const statusCode = result?.status_code;
+    const html       = typeof result?.content === 'string' ? result.content : JSON.stringify(r.data);
 
-    if (isBlockedOrEmpty(html)) {
-      throw new Error(`Decodo → page bloquée ou vide (${html.length} chars)`);
+    console.log(`Decodo response — status_code: ${statusCode}, size: ${html.length} chars`);
+
+    if (statusCode && statusCode >= 400) {
+      throw new Error(`Decodo → status HTTP ${statusCode} reçu pour ${targetUrl}`);
+    }
+
+    if (isHardBlocked(html)) {
+      throw new Error(`Decodo → page bloquée (anti-bot détecté, ${html.length} chars)`);
     }
 
     console.log(`Decodo OK — ${html.length} chars`);
