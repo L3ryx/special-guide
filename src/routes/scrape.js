@@ -291,12 +291,14 @@ router.post('/search-dropship', async (req, res) => {
       const isEtsyShop = targetUrl.includes('etsy.com/shop');
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
+          const sessionNum = Math.floor(Math.random() * 9999);
           const params = {
-            api_key:      saKey,
-            url:          targetUrl,
-            render:       'false',       // pas de rendu JS : évite les 500 d'Etsy
-            premium:      'true',        // proxies résidentiels : contourne le blocage Etsy
-            country_code: 'us',
+            api_key:        saKey,
+            url:            targetUrl,
+            render:         'false',
+            country_code:   'us',
+            session_number: sessionNum,
+            keep_headers:   'true',
           };
           // Pages boutique : on active le rendu JS pour avoir les images de listing
           if (isEtsyShop) { params.render = 'true'; }
