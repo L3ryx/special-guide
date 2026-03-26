@@ -1,7 +1,7 @@
 const { scraperApiFetch } = require('./scrapingFetch');
 
 async function scrapeEtsy(keyword, maxCount = 10) {
-  if (!process.env.SCRAPEAPI_KEY) throw new Error('SCRAPEAPI_KEY missing');
+  if (!process.env.ZENROWS_API_KEY) throw new Error('ZENROWS_API_KEY missing');
 
   console.log(`scrapeEtsy: "${keyword}" (max ${maxCount})`);
 
@@ -161,4 +161,5 @@ function cleanEtsyImage(url) {
 }
 
 module.exports = { scrapeEtsy };
+
 
