@@ -16,13 +16,12 @@ async function scrapeEtsy(keyword, maxCount = 10) {
 
     let response;
     try {
-      response = await axios.get('https://api.scraperapi.com', {
+      response = await axios.get('http://api.scraperapi.com', {
         params: {
           api_key:      apiKey,
           url:          etsyUrl,
-          render:       'false',
-          country_code:   'us',
-          session_number: Math.floor(Math.random() * 9999),
+          render:       'true',
+          country_code: 'us',
         },
         timeout: 90000,
       });
