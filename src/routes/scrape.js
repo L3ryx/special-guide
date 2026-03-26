@@ -172,8 +172,8 @@ router.post('/search-dropship', async (req, res) => {
   const { keyword } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
-  const apiKey = process.env.SCRAPINGDOG_API_KEY;
-  if (!apiKey)                     return res.status(500).json({ error: 'SCRAPINGDOG_API_KEY missing' });
+  const apiKey = process.env.DECODO_API_TOKEN;
+  if (!apiKey)                     return res.status(500).json({ error: 'DECODO_API_TOKEN missing' });
   if (!process.env.SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
   if (!process.env.IMGBB_API_KEY)  return res.status(500).json({ error: 'IMGBB_API_KEY missing' });
 
@@ -401,7 +401,7 @@ router.post('/search-dropship', async (req, res) => {
 
 router.get('/health', (req, res) => {
   const keys = {
-    SCRAPINGDOG_API_KEY: !!process.env.SCRAPINGDOG_API_KEY,
+    DECODO_API_TOKEN:  !!process.env.DECODO_API_TOKEN,
     SERPER_API_KEY:    !!process.env.SERPER_API_KEY,
     IMGBB_API_KEY:     !!process.env.IMGBB_API_KEY,
   };
