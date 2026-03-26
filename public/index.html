@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -228,7 +228,8 @@
 
     /* ── RESULTS ── */
     #results-section { position:relative; z-index:10; padding:0 20px 80px; display:none; }
-    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:56px; }
+    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:28px; }
+    #results-container { display:flex; flex-direction:column; gap:20px; }
     .keyword-section-title { font-size:0.75rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#f97316; padding:8px 0 4px; border-bottom:1px solid rgba(249,115,22,0.2); }
     .results-count-bar { text-align:center; font-size:0.8rem; color:var(--muted); margin-bottom:4px; }
     /* ── BANDEROLE CARD ── */
@@ -410,7 +411,6 @@
       </div>
       <div id="loading-spinner">
         <span class="loader">Loading</span>
-        <button id="stop-btn" onclick="stopSearch()">Stop</button>
       </div>
 
     <div id="progress-wrap">
@@ -418,6 +418,9 @@
       <div class="progress-steps" id="progress-steps"></div>
       <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
       <div class="progress-msg" id="progress-msg"></div>
+      <div style="display:flex;justify-content:center;margin-top:8px;">
+        <button id="stop-btn" onclick="stopSearch()">Stop</button>
+      </div>
     </div>
 
     <section id="results-section">
@@ -1380,3 +1383,4 @@
   </script>
 </body>
 </html>
+
