@@ -106,39 +106,41 @@
     /* Input row: input + add btn + tags inline + trash */
     .input-row { width:100%; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     /* From Uiverse.io by zaeniahmad-id */
-    .input-row input {
-      flex:1; min-width:160px;
-      height: 60px;
+    #keyword-input {
+      flex:1; min-width:160px; width:100%;
+      height: 52px;
       padding: 12px 16px;
-      font-size: 1rem;
-      font-family: "Courier New", monospace;
-      color: #000;
-      background-color: #fff;
-      border: 4px solid #000;
-      border-radius: 0;
-      outline: none;
-      transition: all 0.3s ease;
-      box-shadow: 8px 8px 0 #000;
-      text-align: left;
+      font-size: 1rem !important;
+      font-family: "Courier New", monospace !important;
+      color: #000 !important;
+      background-color: #fff !important;
+      border: 4px solid #000 !important;
+      border-radius: 0 !important;
+      outline: none !important;
+      transition: all 0.3s ease !important;
+      box-shadow: 8px 8px 0 #000 !important;
+      text-align: left !important;
+      backdrop-filter: none !important;
     }
-    .input-row input::placeholder { color: #888; }
-    .input-row input:hover { transform: translate(-4px, -4px); box-shadow: 12px 12px 0 #000; }
-    .input-row input:focus {
-      background-color: #010101;
-      color: #fff;
-      border-color: #d6d9dd;
-      animation: shake 0.6s ease-in-out;
+    #keyword-input::placeholder { color: #888 !important; }
+    #keyword-input:hover { transform: translate(-4px,-4px) !important; box-shadow: 12px 12px 0 #000 !important; }
+    #keyword-input:focus {
+      background-color: #010101 !important;
+      color: #fff !important;
+      border-color: #d6d9dd !important;
+      box-shadow: 8px 8px 0 #555 !important;
+      animation: kwShake 0.6s ease-in-out;
     }
-    .input-row input:focus::placeholder { color: #fff; }
-    .input-row input:not(:placeholder-shown) {
-      font-weight: bold;
-      letter-spacing: 1px;
-      animation: glitch 0.7s linear infinite;
+    #keyword-input:focus::placeholder { color: #aaa !important; }
+    #keyword-input:not(:placeholder-shown) {
+      font-weight: bold !important;
+      letter-spacing: 1px !important;
+      animation: kwGlitch 0.7s linear infinite;
     }
-    @keyframes shake {
+    @keyframes kwShake {
       0%,100%{transform:translateX(0)} 10%,30%,50%,70%,90%{transform:translateX(-5px)} 20%,40%,60%,80%{transform:translateX(5px)}
     }
-    @keyframes glitch {
+    @keyframes kwGlitch {
       0%,10%,35%,52%,72%,80%,100%{transform:none;opacity:1}
       7%{transform:skew(-0.5deg,-0.9deg);opacity:0.75}
       30%{transform:skew(0.8deg,-0.1deg);opacity:0.75}
@@ -410,7 +412,7 @@
   <div id="main-view" style="opacity: 1;">
     <div class="search-card">
       <div id="search-inputs" style="width:100%;display:flex;flex-direction:column;gap:8px;">
-          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Croissant One',cursive;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s,opacity 0.3s;text-align:center;">
+          <input type="text" id="keyword-input" placeholder="Enter keyword" class="input-row-field">
           <div id="auto-search-row">
             <span id="auto-search-label">🤖 Automated</span>
             <button type="button" id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></button>
@@ -418,7 +420,7 @@
           <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
       </div>
       <div id="loading-spinner">
-        <svg class="loader" viewBox="0 0 24.5 33.5" xmlns="http://www.w3.org/2000/svg">
+        <svg class="loader" viewBox="-26 -10 76 56" xmlns="http://www.w3.org/2000/svg">
           <g class="loader__model">
             <path class="loader__glare-top" d="M4.25,2.75 Q12.25,2.75 20.25,2.75" fill="none" stroke="white" stroke-linecap="round" stroke-width="1.5"/>
             <path class="loader__glare-bottom" d="M4.25,30.75 Q12.25,30.75 20.25,30.75" fill="none" stroke="white" stroke-linecap="round" stroke-width="1.5"/>
