@@ -176,9 +176,35 @@
     /* ── PROGRESS ── */
     #progress-wrap { width:100%; max-width:660px; display:none; flex-direction:column; gap:12px; }
     #loading-spinner { display:none; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:40px 0; }
-    .spinner-ring { width:56px; height:56px; border:4px solid rgba(255,255,255,0.1); border-top:4px solid #f97316; border-radius:50%; animation:spinRing 0.9s linear infinite; }
-    @keyframes spinRing { to { transform:rotate(360deg); } }
-    .spinner-label { font-size:0.9rem; color:var(--muted); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
+    .loader {
+      display: inline-block;
+      text-align: center;
+      line-height: 86px;
+      position: relative;
+      padding: 0 48px;
+      font-size: 48px;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #fff;
+    }
+    .loader:before, .loader:after {
+      content: "";
+      display: block;
+      width: 15px;
+      height: 15px;
+      background: currentColor;
+      position: absolute;
+      animation: load .7s infinite alternate ease-in-out;
+      top: 0;
+    }
+    .loader:after {
+      top: auto;
+      bottom: 0;
+    }
+    @keyframes load {
+      0% { left: 0; height: 43px; width: 15px; transform: translateX(0); }
+      50% { height: 10px; width: 40px; }
+      100% { left: 100%; height: 43px; width: 15px; transform: translateX(-100%); }
+    }
     #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; letter-spacing:0.05em; }
     #stop-btn:hover { background:#b91c1c; transform:scale(1.03); }
     #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
@@ -404,7 +430,7 @@
 </button>
       </div>
       <div id="loading-spinner">
-        <div class="spinner-ring"></div>
+        <span class="loader">Loading</span>
         <button id="stop-btn" onclick="stopSearch()">Stop</button>
       </div>
 
