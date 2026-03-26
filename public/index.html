@@ -30,9 +30,8 @@
     #auth-overlay { position:fixed; inset:0; z-index:8000; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; }
     #auth-box { width:100%; max-width:420px; margin:20px; background:rgba(15,15,15,0.95); border:1px solid rgba(255,255,255,0.12); border-radius:24px; padding:36px 32px; display:flex; flex-direction:column; gap:20px; }
     #auth-logo { text-align:center; }
-    #logo-letters { display:flex; align-items:center; justify-content:center; }
-    .logo-letter { height:40px; width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); margin-left:-10px; }
-    #logo-letters .logo-letter:first-child { margin-left:0; }
+    #logo-letters { display:flex; align-items:center; justify-content:center; gap:-4px; }
+    .logo-letter { height:40px; width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); }
     .logo-letter.pop { transform:scale(1.55); }
     .logo-space { display:inline-block; width:14px; }
     #auth-subtitle { text-align:center; font-size:0.82rem; color:var(--muted); }
@@ -91,9 +90,8 @@
     #title-outer { width:100%; display:flex; justify-content:center; }
     #title-wrap { position:relative; display:inline-block; padding:90px 40px 8px; }
     #niche-title { position:relative; z-index:101; text-align:center; user-select:none; }
-    #main-logo-letters { display:flex; align-items:center; justify-content:center; }
-    .main-logo-letter { height:clamp(48px,8vw,80px); width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); margin-left:-16px; }
-    #main-logo-letters .main-logo-letter:first-child { margin-left:0; }
+    #main-logo-letters { display:flex; align-items:center; justify-content:center; gap:-4px; }
+    .main-logo-letter { height:clamp(48px,8vw,80px); width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); }
     .main-logo-letter.pop { transform:scale(1.5); }
     .main-logo-space { display:inline-block; width:clamp(10px,2vw,20px); }
     .title-space { display:inline-block; width:0.35em; }
@@ -105,9 +103,9 @@
 
     /* Input row: input + add btn + tags inline + trash */
     .input-row { width:100%; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .input-row input, #keyword-input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
-    .input-row input::placeholder, #keyword-input::placeholder { color:var(--muted); }
-    #keyword-input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
+    .input-row input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
+    .input-row input::placeholder { color:var(--muted); }
+    .input-row input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
     #add-keyword-btn { width:48px; height:48px; flex-shrink:0; background:var(--green); border:none; border-radius:14px; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(34,197,94,0.4); position:relative; }
     #add-keyword-btn:hover { background:#16a34a; transform:translateY(-1px); }
     #add-keyword-btn:active { transform:translateY(0); }
@@ -148,40 +146,13 @@
 
     /* ── PROGRESS ── */
     #progress-wrap { width:100%; max-width:660px; display:none; flex-direction:column; gap:12px; }
-    #loading-spinner { display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:40px 0; }
-    .loader {
-      display: inline-block;
-      text-align: center;
-      line-height: 86px;
-      position: relative;
-      padding: 0 48px;
-      font-size: 48px;
-      font-family: Arial, Helvetica, sans-serif;
-      color: #fff;
-    }
-    .loader:before, .loader:after {
-      content: "";
-      display: block;
-      width: 15px;
-      height: 15px;
-      background: currentColor;
-      position: absolute;
-      animation: load .7s infinite alternate ease-in-out;
-      top: 0;
-    }
-    .loader:after {
-      top: auto;
-      bottom: 0;
-    }
-    @keyframes load {
-      0% { left: 0; height: 43px; width: 15px; transform: translateX(0); }
-      50% { height: 10px; width: 40px; }
-      100% { left: 100%; height: 43px; width: 15px; transform: translateX(-100%); }
-    }
-    .spinner-label { font-size:0.72rem; color:rgba(255,255,255,0.35); font-weight:600; letter-spacing:0.18em; text-transform:uppercase; font-family:'Inter',sans-serif; }
-    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:#facc15; color:#000; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; letter-spacing:0.08em; box-shadow:0 4px 20px rgba(250,204,21,0.4); }
-    #stop-btn:hover { background:#eab308; transform:scale(1.03); box-shadow:0 6px 28px rgba(250,204,21,0.55); }
-    #current-keyword-label { display:none; }
+    #loading-spinner { display:none; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:40px 0; }
+    .spinner-ring { width:56px; height:56px; border:4px solid rgba(255,255,255,0.1); border-top:4px solid #f97316; border-radius:50%; animation:spinRing 0.9s linear infinite; }
+    @keyframes spinRing { to { transform:rotate(360deg); } }
+    .spinner-label { font-size:0.9rem; color:var(--muted); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
+    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:rgba(239,68,68,0.15); border:1.5px solid rgba(239,68,68,0.5); color:#f87171; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; letter-spacing:0.05em; }
+    #stop-btn:hover { background:rgba(239,68,68,0.35); color:#fff; border-color:#f87171; transform:scale(1.03); }
+    #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
     .progress-steps { display:flex; justify-content:space-between; gap:4px; }
     .step-dot { flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; opacity:0.3; transition:opacity 0.3s; }
@@ -370,7 +341,7 @@
   <div id="main-view" style="opacity: 1;">
     <div class="search-card">
       <div id="search-inputs" style="width:100%;display:flex;flex-direction:column;gap:8px;">
-          <input type="text" id="keyword-input" placeholder="Enter keyword">
+          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Croissant One',cursive;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s,opacity 0.3s;text-align:center;">
           <div id="auto-search-row">
             <span id="auto-search-label">🤖 Automated</span>
             <button type="button" id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></button>
@@ -378,8 +349,9 @@
           <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
       </div>
       <div id="loading-spinner">
-        <span class="loader">Loading</span>
-        <button id="stop-btn" onclick="stopSearch()">STOP</button>
+        <div class="spinner-ring"></div>
+        <div class="spinner-label">Loading...</div>
+        <button id="stop-btn" onclick="stopSearch()">⏹ Stop</button>
         <div id="current-keyword-label"></div>
       </div>
 
@@ -1109,7 +1081,7 @@
         if (_keywords.length > 1) {
           const sec = document.createElement('div');
           sec.className = 'keyword-section-title';
-          sec.textContent = keyword;
+          sec.textContent = '🔍 ' + keyword;
           document.getElementById('results-container').appendChild(sec);
         }
 
