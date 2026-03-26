@@ -1266,8 +1266,7 @@
       } else {
         // Mode manuel
         const inputVal = document.getElementById('keyword-input').value.trim();
-        _keywords = [];
-        if (inputVal) {
+        if (inputVal && !_keywords.includes(inputVal)) {
           _keywords.push(inputVal);
           renderKeywords();
           document.getElementById('keyword-input').value = '';
@@ -1575,6 +1574,7 @@
   </script>
 </body>
 </html>
+
 
 
 
