@@ -8,7 +8,7 @@ const { requireAuth } = require('./auth');
 const ETSY_CLIENT_ID = process.env.ETSY_CLIENT_ID;
 const ETSY_CLIENT_SECRET = process.env.ETSY_CLIENT_SECRET;
 const ETSY_REDIRECT_URI =
-  process.env.ETSY_REDIRECT_URI || 'https://www.finder-niche.com/api/etsy/callback';
+  process.env.ETSY_REDIRECT_URI || 'https://www.finder-niche.com/etsy/callback';
 
 // Etsy OAuth endpoints
 const AUTH_URL = 'https://www.etsy.com/oauth/connect';
