@@ -6,18 +6,16 @@ async function scraperApiFetch(targetUrl, extraParams = {}) {
 
   console.log(`ScraperAPI fetching: ${targetUrl}`);
 
-  // Etsy search pages require render + premium proxies to bypass anti-bot
+  // Pages de recherche Etsy : render=true obligatoire pour bypasser Cloudflare
   const isEtsySearch = targetUrl.includes('etsy.com/search');
-  const baseParams = isEtsySearch
-    ? { render: 'true', premium: 'true', country_code: 'us', retry: '3' }
-    : {};
 
   try {
     const r = await axios.get('https://api.scraperapi.com', {
       params: {
-        api_key: saKey,
-        url:     targetUrl,
-        ...baseParams,
+        api_key:      saKey,
+        url:          targetUrl,
+        render:       isEtsySearch ? 'true' : undefined,
+        country_code: isEtsySearch ? 'us'   : undefined,
         ...extraParams,
       },
       timeout: isEtsySearch ? 90000 : 60000,
