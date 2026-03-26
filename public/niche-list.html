@@ -11,8 +11,6 @@
       --green: #22c55e; --orange: #f1641e;
       --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12);
       --text: #ffffff; --muted: rgba(255,255,255,0.55);
-      --blue: #3b82f6;
-      --blue2: #2563eb;
     }
     #bg-layer {
       position: fixed; inset: 0; z-index: 0;
@@ -39,8 +37,6 @@
       border-bottom: 1px solid var(--glass-border);
     }
     .nav-left { display: flex; align-items: center; gap: 12px; }
-    .nav-title { font-family: 'Croissant One', cursive; font-size: 1rem; color: rgba(255,255,255,0.7); }
-
     .btn-back {
       display: flex; align-items: center; gap: 6px;
       padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.15);
@@ -49,29 +45,7 @@
       text-decoration: none; transition: all 0.2s;
     }
     .btn-back:hover { background: rgba(255,255,255,0.13); color: #fff; }
-
-    .nav-right {
-      display: flex; align-items: center; gap: 12px;
-    }
-
-    .btn-etsy-login {
-      padding: 9px 16px;
-      border-radius: 12px;
-      border: 1px solid rgba(241, 100, 30, 0.55);
-      background: rgba(241, 100, 30, 0.18);
-      color: #fb923c;
-      font-family: 'Inter', sans-serif;
-      font-weight: 800;
-      font-size: 0.85rem;
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
-    }
-    .btn-etsy-login:hover {
-      background: rgba(241, 100, 30, 0.35);
-      color: #fff;
-      transform: translateY(-1px);
-    }
+    .nav-title { font-family: 'Croissant One', cursive; font-size: 1rem; color: rgba(255,255,255,0.7); }
 
     .container { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; position: relative; z-index: 10; }
     h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
@@ -85,7 +59,6 @@
       border-radius: 16px; padding: 14px 16px;
       backdrop-filter: blur(16px); animation: slideUp 0.4s ease;
     }
-
     .shop-avatar {
       width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
       border: 2px solid rgba(241,100,30,0.4); flex-shrink: 0;
@@ -95,38 +68,8 @@
       background: rgba(241,100,30,0.1); border: 2px solid rgba(241,100,30,0.3);
       display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
     }
-
-    .shop-row-info { flex: 1; min-width: 0; display:flex; flex-direction:column; gap: 6px; }
-    .shop-row-name { font-weight: 800; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
-
-    /* Bouton clone centré (dans l’espace entre info et corbeille) */
-    .shop-row-actions {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 120px;
-    }
-
-    .btn-clone {
-      flex: 0 0 auto;
-      padding: 10px 18px;
-      border-radius: 12px;
-      border: 1px solid rgba(37, 99, 235, 0.55);
-      background: rgba(59, 130, 246, 0.18);
-      color: #93c5fd;
-      font-family: 'Inter', sans-serif;
-      font-weight: 900;
-      font-size: 0.85rem;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .btn-clone:hover {
-      background: rgba(37, 99, 235, 0.35);
-      color: #fff;
-      transform: translateY(-1px);
-    }
-
+    .shop-row-info { flex: 1; min-width: 0; }
+    .shop-row-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
     .btn-visit {
       flex-shrink: 0; padding: 9px 18px; border-radius: 10px;
       border: 1px solid rgba(241,100,30,0.5);
@@ -136,12 +79,15 @@
     }
     .btn-visit:hover { background: rgba(241,100,30,0.35); color: #fff; }
 
+
+
+
     .btn-delete {
-      width: 30px; height: 30px; border-radius: 50%;
+      width: 26px; height: 26px; border-radius: 50%;
       border: 1px solid rgba(255,80,80,0.25); background: rgba(255,80,80,0.07);
       color: #f87171; cursor: pointer; display: flex; align-items: center;
       justify-content: center; font-size: 0.8rem; transition: all 0.2s;
-      flex-shrink: 0;
+      flex-shrink: 0; margin-left: auto;
     }
     .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.5); }
 
@@ -156,14 +102,6 @@
       padding: 12px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
       z-index: 9999; pointer-events: none; color: #fff;
     }
-
-    /* Petites “grilles” pour aligner visit/clone/corbeille sans casser le centrage */
-    .shop-row-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-shrink: 0;
-    }
   </style>
 </head>
 <body>
@@ -174,10 +112,6 @@
     <div class="nav-left">
       <button type="button" class="btn-back" onclick="goBack()">← Back</button>
       <span class="nav-title">Dashboard</span>
-    </div>
-
-    <div class="nav-right">
-      <button type="button" id="etsy-login-btn" class="btn-etsy-login">etsy login</button>
     </div>
   </nav>
 
@@ -205,67 +139,20 @@
       setTimeout(() => t.remove(), 2500);
     }
 
-    function openPopup(url, width = 520, height = 720) {
-      const left = Math.max(0, window.screenX + (window.outerWidth - width) / 2);
-      const top = Math.max(0, window.screenY + (window.outerHeight - height) / 2);
-      return window.open(
-        url,
-        'etsy_oauth_popup',
-        `popup=yes,width=${width},height=${height},left=${left},top=${top}`
-      );
-    }
-
-    async function etsyLogin() {
-      try {
-        const r = await apiFetch('/api/etsy/login-url');
-        const data = await r.json();
-        if (!data.url) throw new Error(data.error || 'Missing login url');
-
-        showToast('Opening Etsy login…', '#111827');
-
-        const popup = openPopup(data.url);
-        if (!popup) {
-          showToast('Popup blocked. Please allow popups.', '#ef4444');
-          return;
-        }
-
-        // Recharge quand la popup notifie
-        function onMessage(ev) {
-          if (ev?.data?.type === 'etsy_connected') {
-            window.removeEventListener('message', onMessage);
-            showToast('✅ Etsy connected', '#22c55e');
-            loadShops();
-          }
-        }
-        window.addEventListener('message', onMessage);
-
-        // Fallback: au bout de X secondes, tente reload
-        setTimeout(() => {
-          // pas garanti mais utile
-          loadShops();
-        }, 2500);
-
-      } catch (e) {
-        showToast('Etsy login failed: ' + (e.message || e), '#ef4444');
-      }
-    }
-
-    document.getElementById('etsy-login-btn').addEventListener('click', etsyLogin);
-
     async function loadShops() {
       const list = document.getElementById('shops-list');
       try {
-        const r = await apiFetch('/api/shops');
+        const r     = await apiFetch('/api/shops');
         const shops = await r.json();
-
         if (!shops.length) {
           list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved listings yet.<br>Save listings from your search results.</div>';
           return;
         }
-
         list.innerHTML = '';
-        shops.forEach(shop => list.appendChild(buildShopRow(shop)));
-      } catch (e) {
+        shops.forEach(shop => {
+          list.appendChild(buildShopRow(shop));
+        });
+      } catch(e) {
         list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
       }
     }
@@ -277,16 +164,21 @@
       // Extraire shopName depuis toutes les sources disponibles
       let shopName = shop.shopName || null;
 
+      // Essayer d'extraire depuis shopUrl
       if (!shopName && shop.shopUrl) {
         const m = shop.shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
         if (m) shopName = m[1];
       }
+      // Essayer d'extraire depuis productUrl
       if (!shopName && shop.productUrl) {
         const m = shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
         if (m) shopName = m[1];
       }
 
-      const shopUrl = shopName ? 'https://www.etsy.com/shop/' + shopName : (shop.shopUrl || '#');
+      // Construire shopUrl proprement
+      const shopUrl = shopName
+        ? 'https://www.etsy.com/shop/' + shopName
+        : (shop.shopUrl || '#');
 
       const avatarUrl = shop.shopAvatar || shop.productImage || null;
 
@@ -294,104 +186,51 @@
       row.className = 'shop-row';
       row.id = 'shop-row-' + shop._id;
 
-      // Avatar
+      // Avatar rond
       const ph = document.createElement('div');
-      ph.className = 'shop-avatar-ph';
-      ph.textContent = '🛍';
-
+      ph.className = 'shop-avatar-ph'; ph.textContent = '🛍';
       if (avatarUrl) {
         const img = document.createElement('img');
         img.className = 'shop-avatar';
         img.src = '/proxy-image?url=' + encodeURIComponent(avatarUrl);
-        img.loading = 'lazy';
-        img.alt = '';
-        img.onerror = function() {
-          this.style.display = 'none';
-          ph.style.display = 'flex';
-        };
+        img.loading = 'lazy'; img.alt = '';
+        img.onerror = function() { this.style.display='none'; ph.style.display='flex'; };
         ph.style.display = 'none';
         row.appendChild(img);
-      } else {
-        row.appendChild(ph);
       }
+      row.appendChild(ph);
 
-      // Colonne info (nom au-dessus)
+      // Nom boutique
       const info = document.createElement('div');
       info.className = 'shop-row-info';
-
       const nameEl = document.createElement('div');
-      nameEl.className = 'shop-row-name';
-      nameEl.textContent = shopName || '—';
+      nameEl.className = 'shop-row-name'; nameEl.textContent = shopName || '—';
       info.appendChild(nameEl);
+      row.appendChild(info);
 
-      // Actions à droite : clone centré + visit (si tu le veux) + corbeille à l’extrême droite
-      const actions = document.createElement('div');
-      actions.className = 'shop-row-right';
-
-      // clone “au centre” (dans l’espace actions/row)
-      const cloneWrap = document.createElement('div');
-      cloneWrap.className = 'shop-row-actions';
-
-      const cloneBtn = document.createElement('button');
-      cloneBtn.className = 'btn-clone';
-      cloneBtn.textContent = 'clone';
-
-      cloneBtn.addEventListener('click', async () => {
-        // Ici je fais “clone” = ajouter le shopName dans usedShops (ton endpoint existe)
-        // Si tu veux une autre action, dis-moi et je change.
-        if (!shopName) {
-          showToast('No shopName found', '#ef4444');
-          return;
-        }
-        try {
-          await apiFetch('/api/shops/auto-state/shop', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shopName })
-          });
-          showToast('Cloned to usedShops', '#3b82f6');
-        } catch (e) {
-          showToast('Clone failed: ' + (e.message || e), '#ef4444');
-        }
-      });
-
-      cloneWrap.appendChild(cloneBtn);
-      actions.appendChild(cloneWrap);
-
-      // Optionnel: bouton visit (tu n’as pas demandé de le supprimer, je le garde)
+      // Bouton Visit shop
       const visitBtn = document.createElement('a');
       visitBtn.className = 'btn-visit';
-      visitBtn.href = shopUrl;
-      visitBtn.target = '_blank';
-      visitBtn.rel = 'noopener';
+      visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
       visitBtn.textContent = 'Visit shop ↗';
-      actions.appendChild(visitBtn);
+      row.appendChild(visitBtn);
 
-      // Bouton supprimer (tout à droite)
+      // Bouton supprimer
       const delBtn = document.createElement('button');
-      delBtn.className = 'btn-delete';
-      delBtn.type = 'button';
-      delBtn.title = 'Delete';
-      delBtn.textContent = '🗑';
+      delBtn.className = 'btn-delete'; delBtn.textContent = '✕';
       delBtn.addEventListener('click', function() { deleteShop(shop._id); });
-      actions.appendChild(delBtn);
-
-      row.appendChild(info);
-      row.appendChild(actions);
+      row.appendChild(delBtn);
 
       wrap.appendChild(row);
       return wrap;
     }
-
     function deleteShop(id) {
-      if (!confirm('Delete this shop from your list?')) return;
-      apiFetch('/api/shops/' + id, { method: 'DELETE' })
-        .then(() => {
-          document.getElementById('shop-wrapper-' + id)?.remove();
-          showToast('Shop deleted', '#ef4444');
-          loadShops();
-        })
-        .catch(e => showToast('Delete failed: ' + (e.message || e), '#ef4444'));
+      if (!confirm('Delete this listing?')) return;
+      apiFetch('/api/shops/' + id, { method: 'DELETE' }).then(() => {
+        document.getElementById('shop-wrapper-' + id)?.remove();
+        showToast('Listing deleted', '#ef4444');
+        loadShops();
+      });
     }
 
     function goBack() {
@@ -440,6 +279,7 @@
       }
     })();
   </script>
+
 </body>
 </html>
 
