@@ -790,46 +790,10 @@
     var _usedKeywords = [];
     var _usedShops    = [];
 
-    // Charger l'état depuis MongoDB au démarrage
-    async function loadAutoState() {
-      const token = localStorage.getItem('scout_token');
-      if (!token) return;
-      try {
-        const r = await fetch('/api/shops/auto-state', { headers: { 'Authorization': 'Bearer ' + token } });
-        if (!r.ok) return;
-        const d = await r.json();
-        _keywordQueue = d.keywordQueue || [];
-        _usedKeywords = d.usedKeywords || [];
-        _usedShops    = d.usedShops    || [];
-        updateQueueDisplay();
-      } catch(e) { console.warn('loadAutoState failed:', e.message); }
-    }
-
-    // Sauvegarder la queue + usedKeywords en MongoDB
-    async function saveQueueState(usedKeyword) {
-      const token = localStorage.getItem('scout_token');
-      if (!token) return;
-      try {
-        await fetch('/api/shops/auto-state/queue', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ keywordQueue: _keywordQueue, usedKeyword: usedKeyword || null })
-        });
-      } catch(e) {}
-    }
-
-    // Sauvegarder une boutique vue en MongoDB
-    async function saveShopToDb(shopName) {
-      const token = localStorage.getItem('scout_token');
-      if (!token) return;
-      try {
-        await fetch('/api/shops/auto-state/shop', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ shopName })
-        });
-      } catch(e) {}
-    }
+    // Pas de persistance MongoDB pour les keywords/boutiques vus
+    function loadAutoState() {}
+    async function saveQueueState() {}
+    async function saveShopToDb() {}
 
     function toggleAutoSearch() {
       _autoSearch = !_autoSearch;
@@ -862,8 +826,6 @@
       if (!res.ok || !data.keywords) throw new Error(data.error || 'Failed to generate keywords');
       const fresh = data.keywords.filter(function(k) { return !_usedKeywords.includes(k); });
       _keywordQueue = fresh;
-      // Sauvegarder en MongoDB
-      await saveQueueState(null);
       showToast('✅ ' + fresh.length + ' keywords ready!', '#22c55e');
       return fresh;
     }
@@ -875,7 +837,6 @@
       }
       if (_keywordQueue.length === 0) throw new Error('No keywords available');
       const kw = _keywordQueue.shift();
-      await saveQueueState(null); // mettre à jour la queue en DB
       return kw;
     }
 
@@ -883,14 +844,12 @@
       shopNames.forEach(function(name) {
         if (name && !_usedShops.includes(name)) {
           _usedShops.push(name);
-          saveShopToDb(name); // persistance MongoDB
         }
       });
     }
 
     async function saveUsedKeyword(kw) {
       if (!_usedKeywords.includes(kw)) _usedKeywords.push(kw);
-      await saveQueueState(kw); // enregistrer keyword utilisé en DB
     }
 
     function updateQueueDisplay() {
