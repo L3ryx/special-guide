@@ -219,79 +219,102 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
+    async function extractAvatar(shopName) {
+      // ── Méthode 1 : API JSON non documentée Etsy (la plus fiable) ──
+      try {
+        const apiHtml = await scraperApiFetch('https://www.etsy.com/shop/' + shopName + '/about');
+        const nextDataMatch = apiHtml.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+        if (nextDataMatch) {
+          const nd = JSON.parse(nextDataMatch[1]);
+          const str = JSON.stringify(nd);
+          // Patterns dans __NEXT_DATA__ — ordre de priorité
+          const patterns = [
+            /"icon_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"shop_icon_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"iconUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"shopIconUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"profile_image"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"avatarUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"userAvatarUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"owner_image_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+          ];
+          for (const pat of patterns) {
+            const m = str.match(pat);
+            if (m?.[1]) {
+              const url = m[1].replace(/\\/g, '');
+              console.log('[avatar] found via __NEXT_DATA__ about page:', url.slice(0, 70));
+              return url.split('?')[0];
+            }
+          }
+        }
+      } catch(e) { console.warn('[avatar] about page failed:', e.message); }
+
+      // ── Méthode 2 : Page boutique principale ──
+      try {
+        const html = await scraperApiFetch('https://www.etsy.com/shop/' + shopName);
+
+        // 2a. __NEXT_DATA__
+        const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+        if (nextDataMatch) {
+          const nd = JSON.parse(nextDataMatch[1]);
+          const str = JSON.stringify(nd);
+          const patterns = [
+            /"icon_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"shop_icon_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"iconUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"shopIconUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"profile_image"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"avatarUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"userAvatarUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+            /"owner_image_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
+          ];
+          for (const pat of patterns) {
+            const m = str.match(pat);
+            if (m?.[1]) {
+              const url = m[1].replace(/\\/g, '');
+              console.log('[avatar] found via __NEXT_DATA__ shop page:', url.slice(0, 70));
+              return url.split('?')[0];
+            }
+          }
+        }
+
+        // 2b. Patterns directs HTML — balises img avec classes/alt liés à l'avatar
+        const imgPatterns = [
+          /src="(https:\/\/[^"]+etsystatic[^"]+)"[^>]*(?:alt="[^"]*(?:shop|owner|profil|avatar)[^"]*"|class="[^"]*(?:avatar|icon|profile|shop-icon)[^"]*")/i,
+          /(?:alt="[^"]*(?:shop|owner|profil|avatar)[^"]*"|class="[^"]*(?:avatar|icon|profile|shop-icon)[^"]*")[^>]*src="(https:\/\/[^"]+etsystatic[^"]+)"/i,
+          /class="[^"]*shop-?(?:icon|avatar|logo)[^"]*"[^>]*src="(https:\/\/[^"]+etsystatic[^"]+)"/i,
+        ];
+        for (const pat of imgPatterns) {
+          const m = html.match(pat);
+          if (m?.[1]) {
+            console.log('[avatar] found via img tag:', m[1].slice(0, 70));
+            return m[1].split('?')[0];
+          }
+        }
+
+        // 2c. Petites images format avatar (il_75x75, il_100x100, iusa_75x75)
+        for (const m of html.matchAll(/https:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp)/gi)) {
+          const url = m[0];
+          if (/(?:il_75x75|il_100x100|iusa_75x75|iusa_100x100|_75x75|_100x100|avatar)/.test(url)) {
+            console.log('[avatar] found via size pattern:', url.slice(0, 70));
+            return url.split('?')[0];
+          }
+        }
+
+        console.warn('[avatar] not found for shop:', shopName);
+        return null;
+      } catch(e) {
+        console.warn('[avatar] shop page failed:', e.message);
+        return null;
+      }
+    }
+
     async function scrapeShopImages(shopName) {
       try {
         const html = await scraperApiFetch('https://www.etsy.com/shop/' + shopName);
 
-        // ── Extraire l'avatar réel de la boutique ──
-        let shopAvatar = null;
-
-        // 1. __NEXT_DATA__ JSON — source la plus fiable sur Etsy moderne
-        const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
-        if (nextDataMatch) {
-          try {
-            const nd = JSON.parse(nextDataMatch[1]);
-            const str = JSON.stringify(nd);
-            // Chercher icon_url ou shop_icon_url dans le JSON complet
-            const iconPatterns = [
-              /"icon_url"\s*:\s*"([^"]+)"/,
-              /"shop_icon_url"\s*:\s*"([^"]+)"/,
-              /"iconUrl"\s*:\s*"([^"]+)"/,
-              /"shopIconUrl"\s*:\s*"([^"]+)"/,
-              /"profile_image"\s*:\s*"([^"]+)"/,
-              /"avatarUrl"\s*:\s*"([^"]+)"/,
-            ];
-            for (const pat of iconPatterns) {
-              const m = str.match(pat);
-              if (m?.[1]?.startsWith('http') && (m[1].includes('etsystatic') || m[1].includes('etsy.com'))) {
-                shopAvatar = m[1].replace(/\\/g, '').split('?')[0];
-                break;
-              }
-            }
-          } catch {}
-        }
-
-        // 2. Patterns directs dans le HTML brut
-        if (!shopAvatar) {
-          const rawPatterns = [
-            /"icon_url"\s*:\s*"([^"\\]+(?:\\.[^"\\]*)*)"/,
-            /"shop_icon_url"\s*:\s*"([^"\\]+(?:\\.[^"\\]*)*)"/,
-            /"iconUrl"\s*:\s*"([^"\\]+(?:\\.[^"\\]*)*)"/,
-            /"profile_image_url"\s*:\s*"([^"\\]+(?:\\.[^"\\]*)*)"/,
-          ];
-          for (const pat of rawPatterns) {
-            const m = html.match(pat);
-            if (m?.[1]) {
-              const url = m[1].replace(/\\/g, '');
-              if (url.startsWith('http')) { shopAvatar = url.split('?')[0]; break; }
-            }
-          }
-        }
-
-        // 3. Balises <img> avec attributs liés au profil/avatar de la boutique
-        if (!shopAvatar) {
-          const imgPatterns = [
-            /src="(https:\/\/[^"]+etsystatic[^"]+)"[^>]*(?:alt="[^"]*(?:shop|owner|profil)[^"]*"|class="[^"]*(?:avatar|icon|profile|shop)[^"]*")/i,
-            /(?:alt="[^"]*(?:shop|owner|profil)[^"]*"|class="[^"]*(?:avatar|icon|profile|shop)[^"]*")[^>]*src="(https:\/\/[^"]+etsystatic[^"]+)"/i,
-            /class="[^"]*shop-?(?:icon|avatar|logo|image)[^"]*"[^>]*src="(https:\/\/[^"]+)"/i,
-            /src="(https:\/\/[^"]+etsystatic[^"]+)"[^>]*class="[^"]*shop-?(?:icon|avatar)[^"]*"/i,
-          ];
-          for (const pat of imgPatterns) {
-            const m = html.match(pat);
-            if (m?.[1]?.startsWith('http')) { shopAvatar = m[1].split('?')[0]; break; }
-          }
-        }
-
-        // 4. Fallback : petites images etsystatic (format avatar : il_75x75, il_100x100)
-        if (!shopAvatar) {
-          for (const m of html.matchAll(/https:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp)/gi)) {
-            const url = m[0];
-            if (url.includes('il_75x75') || url.includes('il_100x100') || url.includes('_75x75') || url.includes('avatar')) {
-              shopAvatar = url.split('?')[0]; break;
-            }
-          }
-        }
-
+        // ── Extraire l'avatar via la fonction dédiée ──
+        const shopAvatar = await extractAvatar(shopName);
         console.log('[scrapeShopImages] ' + shopName + ' avatar:', shopAvatar ? shopAvatar.slice(0,60) : 'null');
 
         // ── Extraire les 2 premières images de listing (pour Google Lens) ──
@@ -352,7 +375,7 @@ router.post('/search-dropship', async (req, res) => {
             dropshippers.push({
               shopName:   listing.shopName,
               shopUrl:    'https://www.etsy.com/shop/' + listing.shopName,
-              shopAvatar: shopAvatar || shopImages[0].image,
+              shopAvatar: shopAvatar || null,
               shopImage:  shopImages[0].image,
               listingUrl: shopImages[0].link || listing.link,
             });
