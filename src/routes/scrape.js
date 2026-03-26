@@ -141,7 +141,7 @@ async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
   const MAX_PAGES = 5, shopsSeen = new Set(), listings = [];
   let page = 1, emptyPages = 0;
   while (page <= MAX_PAGES) {
-    const url = 'https://www.etsy.com/search?q=' + encodeURIComponent(keyword) + '&page=' + page;
+    const url = 'https://www.etsy.com/search' + encodeURIComponent(keyword) + '&page=' + page;
     let html;
     try { html = await fetchFn(url, { stealth_proxy: 'true', wait: '1500' }); }
     catch (e) { console.warn('Scrape page', page, 'failed:', e.message); break; }
