@@ -143,7 +143,7 @@ async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
   while (page <= MAX_PAGES) {
     const url = 'https://www.etsy.com/search?q=' + encodeURIComponent(keyword) + '&page=' + page;
     let html;
-    try { html = await fetchFn(url, { stealth_proxy: 'true', wait: '1500' }); }
+    try { html = await fetchFn(url); }
     catch (e) { console.warn('Scrape page', page, 'failed:', e.message); break; }
     const raw = parseListingsFromHtml(html);
     let added = 0;
@@ -416,6 +416,7 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
 
 
