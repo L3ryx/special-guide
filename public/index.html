@@ -105,9 +105,9 @@
 
     /* Input row: input + add btn + tags inline + trash */
     .input-row { width:100%; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .input-row input, #keyword-input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
-    .input-row input::placeholder, #keyword-input::placeholder { color:var(--muted); }
-    #keyword-input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
+    .input-row input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
+    .input-row input::placeholder { color:var(--muted); }
+    .input-row input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
     #add-keyword-btn { width:48px; height:48px; flex-shrink:0; background:var(--green); border:none; border-radius:14px; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(34,197,94,0.4); position:relative; }
     #add-keyword-btn:hover { background:#16a34a; transform:translateY(-1px); }
     #add-keyword-btn:active { transform:translateY(0); }
@@ -149,35 +149,24 @@
     /* ── PROGRESS ── */
     #progress-wrap { width:100%; max-width:660px; display:none; flex-direction:column; gap:12px; }
     #loading-spinner { display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:40px 0; }
-    .loader {
-      display: inline-block;
-      text-align: center;
-      line-height: 86px;
-      position: relative;
-      padding: 0 48px;
-      font-size: 48px;
-      font-family: Arial, Helvetica, sans-serif;
-      color: #fff;
+    .spinner-ring {
+      width:52px; height:52px; position:relative; flex-shrink:0;
     }
-    .loader:before, .loader:after {
-      content: "";
-      display: block;
-      width: 15px;
-      height: 15px;
-      background: currentColor;
-      position: absolute;
-      animation: load .7s infinite alternate ease-in-out;
-      top: 0;
+    .spinner-ring::before, .spinner-ring::after {
+      content:''; position:absolute; border-radius:50%;
     }
-    .loader:after {
-      top: auto;
-      bottom: 0;
+    .spinner-ring::before {
+      inset:0;
+      border:2px solid rgba(255,255,255,0.06);
     }
-    @keyframes load {
-      0% { left: 0; height: 43px; width: 15px; transform: translateX(0); }
-      50% { height: 10px; width: 40px; }
-      100% { left: 100%; height: 43px; width: 15px; transform: translateX(-100%); }
+    .spinner-ring::after {
+      inset:0;
+      border:2px solid transparent;
+      border-top-color:#fff;
+      border-right-color:rgba(255,255,255,0.3);
+      animation:spinRing 0.75s cubic-bezier(0.5,0,0.5,1) infinite;
     }
+    @keyframes spinRing { to { transform:rotate(360deg); } }
     .spinner-label { font-size:0.72rem; color:rgba(255,255,255,0.35); font-weight:600; letter-spacing:0.18em; text-transform:uppercase; font-family:'Inter',sans-serif; }
     #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:#facc15; color:#000; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; letter-spacing:0.08em; box-shadow:0 4px 20px rgba(250,204,21,0.4); }
     #stop-btn:hover { background:#eab308; transform:scale(1.03); box-shadow:0 6px 28px rgba(250,204,21,0.55); }
@@ -370,7 +359,7 @@
   <div id="main-view" style="opacity: 1;">
     <div class="search-card">
       <div id="search-inputs" style="width:100%;display:flex;flex-direction:column;gap:8px;">
-          <input type="text" id="keyword-input" placeholder="Enter keyword">
+          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Croissant One',cursive;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s,opacity 0.3s;text-align:center;">
           <div id="auto-search-row">
             <span id="auto-search-label">🤖 Automated</span>
             <button type="button" id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></button>
@@ -378,7 +367,8 @@
           <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
       </div>
       <div id="loading-spinner">
-        <span class="loader">Loading</span>
+        <div class="spinner-ring"></div>
+        <div class="spinner-label">Loading...</div>
         <button id="stop-btn" onclick="stopSearch()">STOP</button>
         <div id="current-keyword-label"></div>
       </div>
@@ -1371,5 +1361,4 @@
   </script>
 </body>
 </html>
-
 
