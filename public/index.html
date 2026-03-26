@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Croissant+One&family=Lobster&display=swap" rel="stylesheet" />
+  <title>Finder Niche</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root { --green: #22c55e; --glass: rgba(0,0,0,0.55); --glass-border: rgba(255,255,255,0.12); --text: #ffffff; --muted: rgba(255,255,255,0.55); }
@@ -30,7 +31,7 @@
     #auth-overlay { position:fixed; inset:0; z-index:8000; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; }
     #auth-box { width:100%; max-width:420px; margin:20px; background:rgba(15,15,15,0.95); border:1px solid rgba(255,255,255,0.12); border-radius:24px; padding:36px 32px; display:flex; flex-direction:column; gap:20px; }
     #auth-logo { text-align:center; }
-    #logo-letters { display:flex; align-items:center; justify-content:center; gap:-4px; }
+    #logo-letters { display:flex; align-items:center; justify-content:center; gap:-7px; }
     .logo-letter { height:40px; width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); }
     .logo-letter.pop { transform:scale(1.55); }
     .logo-space { display:inline-block; width:14px; }
@@ -90,10 +91,11 @@
     #title-outer { width:100%; display:flex; justify-content:center; }
     #title-wrap { position:relative; display:inline-block; padding:90px 40px 8px; }
     #niche-title { position:relative; z-index:101; text-align:center; user-select:none; }
-    #main-logo-letters { display:flex; align-items:center; justify-content:center; gap:-4px; }
-    .main-logo-letter { height:clamp(48px,8vw,80px); width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); }
+    #main-logo-letters { display:flex; align-items:center; justify-content:center; }
+    .main-logo-letter { height:clamp(48px,8vw,80px); width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); margin-right:-18px; }
+    .main-logo-letter:last-child { margin-right:0; }
     .main-logo-letter.pop { transform:scale(1.5); }
-    .main-logo-space { display:inline-block; width:clamp(10px,2vw,20px); }
+    .main-logo-space { display:inline-block; width:clamp(6px,1.2vw,12px); margin-right:0; }
     .title-space { display:inline-block; width:0.35em; }
     @keyframes wave3d { 0%,100%{transform:translateY(0)rotateX(0deg)scale(1)} 25%{transform:translateY(-18px)rotateX(20deg)scale(1.08)} 50%{transform:translateY(0)rotateX(0deg)scale(1)} }
 
@@ -103,9 +105,9 @@
 
     /* Input row: input + add btn + tags inline + trash */
     .input-row { width:100%; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .input-row input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
-    .input-row input::placeholder { color:var(--muted); }
-    .input-row input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
+    .input-row input, #keyword-input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
+    .input-row input::placeholder, #keyword-input::placeholder { color:var(--muted); }
+    .input-row input:focus, #keyword-input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
     #add-keyword-btn { width:48px; height:48px; flex-shrink:0; background:var(--green); border:none; border-radius:14px; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(34,197,94,0.4); position:relative; }
     #add-keyword-btn:hover { background:#16a34a; transform:translateY(-1px); }
     #add-keyword-btn:active { transform:translateY(0); }
@@ -123,35 +125,90 @@
     #clear-keywords-btn { width:48px; height:48px; flex-shrink:0; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:14px; color:#f87171; font-size:1.1rem; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; visibility:hidden; }
     #clear-keywords-btn:hover { background:rgba(239,68,68,0.25); border-color:rgba(239,68,68,0.6); }
     /* Auto search toggle */
-    #auto-search-row { width:100%; display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:rgba(255,255,255,0.04); border:1px solid var(--glass-border); border-radius:16px; backdrop-filter:blur(16px); }
-    #auto-search-label { color:#fff; font-size:0.95rem; font-weight:600; display:flex; align-items:center; gap:8px; }
-    #auto-search-toggle { width:44px; height:26px; border-radius:13px; border:none; background:rgba(255,255,255,0.15); cursor:pointer; position:relative; transition:background 0.2s; flex-shrink:0; }
-    #auto-search-toggle.active { background:rgba(34,197,94,0.5); }
-    #auto-search-toggle::after { content:''; position:absolute; width:20px; height:20px; border-radius:50%; background:#fff; top:3px; left:3px; transition:transform 0.2s; box-shadow:0 1px 4px rgba(0,0,0,0.3); }
-    #auto-search-toggle.active::after { transform:translateX(18px); }
+    #auto-search-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:space-between; padding:0; background:none; border:none; border-radius:0; backdrop-filter:none; height:27px; margin-top:18px; }
+    #auto-search-label { color:#fff; font-size:17px; font-weight:600; display:flex; align-items:center; gap:6px; font-family:'Courier New',Courier,monospace; }
+    .switch { --false: #E81B1B; --true: #009068; }
+    #auto-search-toggle { appearance: none !important; height: 1.2rem !important; width: 2.2rem !important; background-color: #fff !important; position: relative !important; border-radius: .2em !important; cursor: pointer !important; border: none !important; flex-shrink: 0 !important; padding: 0 !important; }
+    #auto-search-toggle::before { content: '' !important; display: block !important; height: 1.1em !important; width: 1.1em !important; transform: translate(-50%, -50%) !important; position: absolute !important; top: 50% !important; left: calc(1.1em/2 + .2em) !important; background-color: #E81B1B !important; border-radius: .2em !important; transition: .3s ease !important; }
+    #auto-search-toggle.active::before { background-color: #009068 !important; left: calc(100% - (1.1em/2 + .2em)) !important; }
+    #auto-search-toggle::after { display: none !important; }
     #auto-status { font-size:1rem; transition:all 0.2s; }
 
+    #start-btn { background:transparent !important; box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:18px; }
+    #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
 
-
-    #start-btn { width:100%; padding:0 20px; height:52px; background:var(--green); border:none; border-radius:16px; color:#fff; font-family:'Croissant One',cursive; font-weight:700; font-size:1.25rem; letter-spacing:0.12em; cursor:pointer; transition:all 0.25s ease; position:relative; overflow:hidden; box-shadow:0 4px 32px rgba(34,197,94,0.45); display:flex; align-items:center; justify-content:center; }
-    #start-btn::before { content:''; position:absolute; inset:0; background:linear-gradient(120deg,transparent 30%,rgba(255,255,255,0.15) 50%,transparent 70%); transform:translateX(-100%); transition:transform 0.6s ease; }
-    #start-btn:hover::before { transform:translateX(100%); }
-    #start-btn:hover { background:#16a34a; transform:translateY(-1px); }
-    #start-btn:active { transform:translateY(0); }
-    #start-btn:disabled { cursor:not-allowed; transform:none; }
-    #start-btn.loading { animation:btnBlink 0.7s ease-in-out infinite; }
-    @keyframes btnBlink { 0%,100%{background:#dc2626;box-shadow:0 4px 32px rgba(220,38,38,0.6)} 50%{background:#ff6b6b;box-shadow:0 0 48px rgba(220,38,38,0.9)} }
-    #start-btn.retry { animation:btnRetry 0.8s ease-in-out infinite; letter-spacing:0.18em; }
-    @keyframes btnRetry { 0%,100%{background:#ca8a04;box-shadow:0 4px 32px rgba(202,138,4,0.6)} 50%{background:#fbbf24;box-shadow:0 0 48px rgba(251,191,36,0.9);color:#422006} }
+    /* ── STEALTHWORM BUTTON ── */
+    .sw-btn {
+      display: flex; justify-content: center; align-items: center;
+      width: 100%; overflow: hidden; height: 3.5rem;
+      background-size: 300% 300%; cursor: pointer;
+      backdrop-filter: blur(1rem); border-radius: 5rem;
+      transition: 0.5s; animation: gradient_301 5s ease infinite;
+      border: double 4px transparent;
+      background-image: linear-gradient(#212121, #212121),
+        linear-gradient(137.48deg, #ffdb3b 10%, #fe53bb 45%, #8f51ea 67%, #0044ff 87%);
+      background-origin: border-box; background-clip: content-box, border-box;
+      font-family: 'Croissant One', cursive; font-size: 1.3rem;
+      font-weight: bold; letter-spacing: 3px; color: #ffffff;
+      text-shadow: 0 0 4px white; position: relative;
+    }
+    .sw-btn:hover { transform: scale(1.05); }
+    .sw-btn:active {
+      border: double 4px #fe53bb;
+      background-image: linear-gradient(#212121, #212121),
+        linear-gradient(137.48deg, #ffdb3b 10%, #fe53bb 45%, #8f51ea 67%, #0044ff 87%);
+      background-origin: border-box; background-clip: content-box, border-box;
+      animation: none;
+    }
+    .sw-btn #container-stars { position: absolute; z-index: -1; width: 100%; height: 100%; overflow: hidden; transition: 0.5s; backdrop-filter: blur(1rem); border-radius: 5rem; }
+    .sw-btn:hover #container-stars { z-index: 1; background-color: #212121; }
+    .sw-btn #glow { position: absolute; display: flex; width: 12rem; }
+    .sw-btn .circle { width: 100%; height: 30px; filter: blur(2rem); animation: pulse_3011 4s infinite; z-index: -1; }
+    .sw-btn .circle:nth-of-type(1) { background: rgba(254,83,186,0.636); }
+    .sw-btn .circle:nth-of-type(2) { background: rgba(142,81,234,0.704); }
+    .sw-btn:active .circle { background: #fe53bb; }
+    .sw-btn #stars { position: relative; background: transparent; width: 200rem; height: 200rem; }
+    .sw-btn #stars::after { content: ""; position: absolute; top: -10rem; left: -100rem; width: 100%; height: 100%; animation: animStarRotate 90s linear infinite; background-image: radial-gradient(#ffffff 1px, transparent 1%); background-size: 50px 50px; }
+    .sw-btn #stars::before { content: ""; position: absolute; top: 0; left: -50%; width: 170%; height: 500%; animation: animStar 60s linear infinite; background-image: radial-gradient(#ffffff 1px, transparent 1%); background-size: 50px 50px; opacity: 0.5; }
+    @keyframes animStar { from{transform:translateY(0)} to{transform:translateY(-135rem)} }
+    @keyframes animStarRotate { from{transform:rotate(360deg)} to{transform:rotate(0)} }
+    @keyframes gradient_301 { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+    @keyframes pulse_3011 { 0%{transform:scale(0.75);box-shadow:0 0 0 0 rgba(0,0,0,0.7)} 70%{transform:scale(1);box-shadow:0 0 0 10px rgba(0,0,0,0)} 100%{transform:scale(0.75);box-shadow:0 0 0 0 rgba(0,0,0,0)} }
 
     /* ── PROGRESS ── */
     #progress-wrap { width:100%; max-width:660px; display:none; flex-direction:column; gap:12px; }
     #loading-spinner { display:none; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:40px 0; }
-    .spinner-ring { width:56px; height:56px; border:4px solid rgba(255,255,255,0.1); border-top:4px solid #f97316; border-radius:50%; animation:spinRing 0.9s linear infinite; }
-    @keyframes spinRing { to { transform:rotate(360deg); } }
-    .spinner-label { font-size:0.9rem; color:var(--muted); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
-    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:rgba(239,68,68,0.15); border:1.5px solid rgba(239,68,68,0.5); color:#f87171; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; letter-spacing:0.05em; }
-    #stop-btn:hover { background:rgba(239,68,68,0.35); color:#fff; border-color:#f87171; transform:scale(1.03); }
+    .loader {
+      display: inline-block;
+      text-align: center;
+      line-height: 86px;
+      position: relative;
+      padding: 0 48px;
+      font-size: 48px;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #fff;
+    }
+    .loader:before, .loader:after {
+      content: "";
+      display: block;
+      width: 15px;
+      height: 15px;
+      background: currentColor;
+      position: absolute;
+      animation: load .7s infinite alternate ease-in-out;
+      top: 0;
+    }
+    .loader:after {
+      top: auto;
+      bottom: 0;
+    }
+    @keyframes load {
+      0% { left: 0; height: 43px; width: 15px; transform: translateX(0); }
+      50% { height: 10px; width: 40px; }
+      100% { left: 100%; height: 43px; width: 15px; transform: translateX(-100%); }
+    }
+    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; letter-spacing:0.08em; box-shadow:0 4px 20px rgba(220,38,38,0.4); }
+    #stop-btn:hover { background:#b91c1c; transform:scale(1.03); box-shadow:0 6px 28px rgba(220,38,38,0.55); }
     #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
     .progress-steps { display:flex; justify-content:space-between; gap:4px; }
@@ -171,7 +228,7 @@
 
     /* ── RESULTS ── */
     #results-section { position:relative; z-index:10; padding:0 20px 80px; display:none; }
-    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:32px; }
+    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:56px; }
     .keyword-section-title { font-size:0.75rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#f97316; padding:8px 0 4px; border-bottom:1px solid rgba(249,115,22,0.2); }
     .results-count-bar { text-align:center; font-size:0.8rem; color:var(--muted); margin-bottom:4px; }
     /* ── BANDEROLE CARD ── */
@@ -226,7 +283,6 @@
   </style>
 </head>
 <body>
-  <!-- INTRO -->
   <!-- ERROR POPUP -->
   <div id="error-popup" onclick="closeErrorPopup(event)">
     <div class="ep-box">
@@ -252,14 +308,14 @@
     <div id="auth-box">
       <div id="auth-logo">
         <div id="logo-letters">
-          <img class="logo-letter" src="/c.png">
-          <img class="logo-letter" src="/l.png">
-          <img class="logo-letter" src="/o.png">
-          <img class="logo-letter" src="/n.png">
-          <img class="logo-letter" src="/y.png">
+          <img class="logo-letter" src="/c.png" alt="c">
+          <img class="logo-letter" src="/l.png" alt="l">
+          <img class="logo-letter" src="/o.png" alt="o">
+          <img class="logo-letter" src="/n.png" alt="n">
+          <img class="logo-letter" src="/y.png" alt="y">
           <span class="logo-space"></span>
-          <img class="logo-letter" src="/a.png">
-          <img class="logo-letter" src="/i.png">
+          <img class="logo-letter" src="/a.png" alt="a">
+          <img class="logo-letter" src="/i.png" alt="i">
         </div>
       </div>
       <div id="auth-subtitle">Sign in to access the tool</div>
@@ -334,25 +390,27 @@
       <img class="main-logo-letter" src="/y.png" alt="Y">
       <span class="main-logo-space"></span>
       <img class="main-logo-letter" src="/a.png" alt="A">
-      <img class="main-logo-letter" src="/i.png" alt="I">
+      <img class="main-logo-letter" src="/i.png" alt="I" style="margin-right:0;">
     </div>
   </div></div></div>
 
   <div id="main-view" style="opacity: 1;">
     <div class="search-card">
       <div id="search-inputs" style="width:100%;display:flex;flex-direction:column;gap:8px;">
-          <input type="text" id="keyword-input" placeholder="Enter keyword" style="width:100%;padding:16px 20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);font-family:'Croissant One',cursive;font-size:1.05rem;outline:none;backdrop-filter:blur(16px);transition:border-color 0.2s,box-shadow 0.2s,opacity 0.3s;text-align:center;">
+          <input type="text" id="keyword-input" placeholder="Enter keyword">
           <div id="auto-search-row">
             <span id="auto-search-label">🤖 Automated</span>
-            <button type="button" id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></button>
+            <label class="switch"><input type="checkbox" id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></label>
           </div>
-          <button id="start-btn" onclick="startSearch()" style="width:100%;">Search</button>
+          <button id="start-btn" class="sw-btn" onclick="startSearch()">
+  <div id="container-stars"><div id="stars"></div></div>
+  <span>Search</span>
+  <div id="glow"><div class="circle"></div><div class="circle"></div></div>
+</button>
       </div>
       <div id="loading-spinner">
-        <div class="spinner-ring"></div>
-        <div class="spinner-label">Loading...</div>
-        <button id="stop-btn" onclick="stopSearch()">⏹ Stop</button>
-        <div id="current-keyword-label"></div>
+        <span class="loader">Loading</span>
+        <button id="stop-btn" onclick="stopSearch()">Stop</button>
       </div>
 
     <div id="progress-wrap">
@@ -371,7 +429,7 @@
     </section>
   </div>
 
-  <!-- INTRO SCRIPT -->
+  <!-- SCRIPT -->
   <script>
     // ── LOGO ANIMATION ──
     (function() {
@@ -411,7 +469,6 @@
     let _authTab = 'login';
 
     function checkAuth() {
-      // Timeout court : si pas de réponse en 4s -> loading page
       const timeout = new Promise(function(_, reject) {
         setTimeout(function() { reject(new Error('timeout')); }, 4000);
       });
@@ -419,12 +476,11 @@
       Promise.race([fetch('/api/health', { cache: 'no-store' }), timeout])
         .then(function(r) {
           if (!r.ok) throw new Error('not ready');
-          // Server is up — now check auth
           if (!SCOUT_TOKEN) { showAuthModal(); return; }
           return fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } });
         })
         .then(function(r) {
-          if (!r) return; // no token case
+          if (!r) return;
           if (!r.ok) { SCOUT_TOKEN = null; localStorage.removeItem('scout_token'); showAuthModal(); return; }
           return r.json();
         })
@@ -432,7 +488,6 @@
           if (d) onLoggedIn(d.email);
         })
         .catch(function() {
-          // Serveur pas prêt (timeout, 502, erreur réseau) -> page loading
           window.location.href = '/loading';
         });
     }
@@ -479,7 +534,7 @@
       document.getElementById('user-badge').style.display = 'flex';
       document.getElementById('niche-list-btn').style.display = 'flex';
       initSavedShops();
-      loadAutoState(); // charger l'état auto-search depuis MongoDB
+      loadAutoState();
     }
 
     // ── ERROR POPUP ──
@@ -595,7 +650,6 @@
         checkAuth();
       }
 
-      // Always make sure bg and main-view are visible regardless
       ids.forEach(function(id){ var el=document.getElementById(id); if(el) el.style.opacity='0'; });
 
       if (sessionStorage.getItem('skipIntro')) {
@@ -604,7 +658,6 @@
         return;
       }
 
-      // Animate intro text then show app
       setTimeout(function(){
         document.querySelectorAll('#intro-text span').forEach(function(el){
           var a=Math.random()*Math.PI*2, d=150+Math.random()*350;
@@ -616,7 +669,6 @@
         setTimeout(showApp, 650);
       }, 2200);
 
-      // Hard fallback — force show after 4s no matter what
       setTimeout(showApp, 4000);
     })();
 
@@ -704,7 +756,6 @@
     }
 
     function renderKeywords() {
-      // Hidden tags for status tracking during search
       const list = document.getElementById('keywords-list');
       if (list) {
         list.innerHTML = '';
@@ -712,16 +763,15 @@
           const tag = document.createElement('div');
           tag.className = 'keyword-tag';
           tag.id = 'tag-' + encodeKw(kw);
+          tag.innerHTML = '<span class="tag-text">' + kw + '</span>';
           list.appendChild(tag);
         });
       }
-      // Counter badge on + button
       const badge = document.getElementById('kw-count-badge');
       if (badge) {
         badge.textContent = _keywords.length;
         badge.style.display = _keywords.length > 0 ? 'inline-flex' : 'none';
       }
-      // Trash button
       const trash = document.getElementById('clear-keywords-btn');
       if (trash) trash.style.visibility = _keywords.length > 0 ? 'visible' : 'hidden';
     }
@@ -732,7 +782,6 @@
     var _usedKeywords = [];
     var _usedShops    = [];
 
-    // Charger l'état depuis MongoDB au démarrage
     async function loadAutoState() {
       const token = localStorage.getItem('scout_token');
       if (!token) return;
@@ -747,7 +796,6 @@
       } catch(e) { console.warn('loadAutoState failed:', e.message); }
     }
 
-    // Sauvegarder la queue + usedKeywords en MongoDB
     async function saveQueueState(usedKeyword) {
       const token = localStorage.getItem('scout_token');
       if (!token) return;
@@ -760,7 +808,6 @@
       } catch(e) {}
     }
 
-    // Sauvegarder une boutique vue en MongoDB
     async function saveShopToDb(shopName) {
       const token = localStorage.getItem('scout_token');
       if (!token) return;
@@ -791,7 +838,6 @@
       }
     }
 
-    // Générer 50 keywords d'un coup et les stocker
     async function generateKeywordBatch() {
       showToast('⏳ Generating 50 keywords with Gemini…', '#f97316');
       const token = localStorage.getItem('scout_token') || '';
@@ -804,20 +850,18 @@
       if (!res.ok || !data.keywords) throw new Error(data.error || 'Failed to generate keywords');
       const fresh = data.keywords.filter(function(k) { return !_usedKeywords.includes(k); });
       _keywordQueue = fresh;
-      // Sauvegarder en MongoDB
       await saveQueueState(null);
       showToast('✅ ' + fresh.length + ' keywords ready!', '#22c55e');
       return fresh;
     }
 
-    // Prendre le prochain keyword de la queue
     async function getNextKeyword() {
       if (_keywordQueue.length === 0) {
         await generateKeywordBatch();
       }
       if (_keywordQueue.length === 0) throw new Error('No keywords available');
       const kw = _keywordQueue.shift();
-      await saveQueueState(null); // mettre à jour la queue en DB
+      await saveQueueState(null);
       return kw;
     }
 
@@ -825,14 +869,14 @@
       shopNames.forEach(function(name) {
         if (name && !_usedShops.includes(name)) {
           _usedShops.push(name);
-          saveShopToDb(name); // persistance MongoDB
+          saveShopToDb(name);
         }
       });
     }
 
     async function saveUsedKeyword(kw) {
       if (!_usedKeywords.includes(kw)) _usedKeywords.push(kw);
-      await saveQueueState(kw); // enregistrer keyword utilisé en DB
+      await saveQueueState(kw);
     }
 
     function updateQueueDisplay() {
@@ -858,7 +902,6 @@
       });
     });
 
-    // Marquer le stop si l'utilisateur quitte la page pendant une recherche
     window.addEventListener('beforeunload', function() {
       _stopRequested = true;
       _searching = false;
@@ -884,7 +927,6 @@
       document.getElementById('progress-msg').textContent = '';
     }
 
-    // ── Barre de progression synchronisée ──
     var _progressCurrent = 0;
     var _progressTarget  = 0;
     var _progressRaf     = null;
@@ -1011,6 +1053,7 @@
       btn.disabled = false;
     }
 
+    // --- START SEARCH (corrected) ---
     async function startSearch() {
       if (_searching) return;
 
@@ -1044,12 +1087,13 @@
       window._shopDataMap = {};
 
       const btn = document.getElementById('start-btn');
-      btn.disabled = true; btn.textContent = 'LOADING'; btn.classList.remove('retry'); btn.classList.add('loading');
-      document.getElementById('keyword-input').disabled = true;
+      if (btn) { btn.disabled = true; btn.textContent = 'LOADING'; btn.classList.remove('retry'); btn.classList.add('loading'); }
+      const kwInput = document.getElementById('keyword-input');
+      if (kwInput) kwInput.disabled = true;
 
-      document.getElementById('search-inputs').style.display = 'none';
+      const searchInputs = document.getElementById('search-inputs');
+      if (searchInputs) searchInputs.style.display = 'none';
       document.getElementById('loading-spinner').style.display = 'flex';
-      document.getElementById('current-keyword-label').textContent = '';
       document.getElementById('progress-wrap').style.display = 'none';
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('results-container').innerHTML = '';
@@ -1074,7 +1118,9 @@
 
         initProgress(keyword + ' (' + (ki + 1) + '/' + _keywords.length + ')');
         document.getElementById('progress-wrap').style.display = 'flex';
-        document.getElementById('current-keyword-label').textContent = '🔍 ' + keyword;
+        // Update current keyword label (fix)
+        const currentLabel = document.getElementById('current-keyword-label');
+        if (currentLabel) currentLabel.textContent = '🔍 ' + keyword;
         setProgress(5);
 
         // Section titre dans les résultats
@@ -1095,7 +1141,7 @@
 
           const ct = response.headers.get('content-type') || '';
           if (!ct.includes('text/event-stream')) {
-            const data = await response.json();
+            const data = await response.json().catch(()=>({}));
             const errMsg = data.error || 'Server error';
             document.getElementById('progress-msg').textContent = '❌ ' + errMsg;
             showErrorPopup(errMsg);
@@ -1127,9 +1173,8 @@
                   totalMatches += found;
                 } else if (ev.step === 'match') {
                   if (ev.shop) {
-                    // Filtrer les shops déjà vus en mode auto
                     if (_autoSearch && ev.shop.shopName && _usedShops.includes(ev.shop.shopName)) {
-                      // Skip ce shop déjà connu
+                      // skip
                     } else {
                       renderShopResult(ev.shop);
                       totalMatches++;
@@ -1137,12 +1182,11 @@
                       document.documentElement.classList.add('unlocked');
                       document.documentElement.style.overflowY = 'auto';
                       document.body.style.overflowY = 'auto';
-                      // Enregistrer le shop
                       if (ev.shop.shopName) saveUsedShops([ev.shop.shopName]);
                     }
                   }
                   advanceStep('match', ev.message);
-                } else if (ev.step === 'analyzing' && ev.total && ev.done) {
+                } else if (ev.step === 'analyzing' && ev.total && ev.done !== undefined) {
                   syncProgressFromAnalyzing(ev.total, ev.done);
                   advanceStep('analyzing', ev.message);
                 } else if (ev.step === 'error') {
@@ -1153,15 +1197,16 @@
                   setRetryMode(btn);
                 } else {
                   advanceStep(ev.step, ev.message);
-                }              } catch(e) {}
+                }
+              } catch(e) {
+                // ignore parse errors
+              }
             }
           }
         } catch(err) {
-          // Ignorer les erreurs réseau dues à un stop ou à une navigation
           if (_stopRequested) break;
           const msg = (err.message || '').toLowerCase();
           if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed')) {
-            // Probablement causé par un stop ou navigation — ne pas afficher l'erreur
             break;
           }
           document.getElementById('progress-msg').textContent = '❌ ' + err.message;
@@ -1171,17 +1216,16 @@
           setRetryMode(btn);
         }
 
-        // Montre les résultats au fur et à mesure
         if (totalMatches > 0) {
           document.getElementById('results-section').style.display = 'block';
           document.documentElement.classList.add('unlocked');
           document.documentElement.style.overflowY = 'auto';
           document.body.style.overflowY = 'auto';
         }
-        if (_stopRequested) break; // arrêter la boucle keywords
+        if (_stopRequested) break;
       }
 
-      // Fin — restaurer l'UI sauf si stop ou mode auto
+      // End
       if (!_stopRequested && !_autoSearch) {
         restoreUI();
         clearKeywords();
@@ -1198,18 +1242,15 @@
 
       var countBar = document.getElementById('results-count');
       countBar.innerHTML = '';
-      if (totalMatches > 0) {
-        var countSpan = document.createElement('span');
-        countSpan.textContent = totalMatches + ' match(es) found';
-        countBar.appendChild(countSpan);
-      }
-
 
       if (totalMatches > 0) {
+        const badge = document.createElement('div');
+        badge.textContent = totalMatches + ' résultat(s)';
+        badge.style.color = 'var(--muted)';
+        countBar.appendChild(badge);
         setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
       }
 
-      // Mode auto : enregistrer le keyword et relancer (même si 0 résultats)
       if (_autoSearch && !_stopRequested) {
         const usedKw = _keywords[0];
         if (usedKw) await saveUsedKeyword(usedKw);
@@ -1237,7 +1278,7 @@
         shopUrl:      shopUrl,
         shopAvatar:   shop.shopAvatar || shop.shopImage || null,
         productImage: shop.shopImage || null,
-        productUrl:   shopUrl,   // toujours l'URL boutique pour que shopName soit extractible
+        productUrl:   shopUrl,
       };
 
       const card = document.createElement('div');
@@ -1245,7 +1286,6 @@
       const inner = document.createElement('div');
       inner.className = 'match-card-inner';
 
-      // Bouton ❤️ en premier (à gauche)
       const heartBtn = document.createElement('button');
       heartBtn.className = 'btn-save-shop' + (_savedShopUrls.has(shopUrl) ? ' saved' : '');
       heartBtn.id = 'heart-' + encodeShopKey(shopUrl);
@@ -1253,7 +1293,6 @@
       heartBtn.onclick = function() { saveShop(idx, this); };
       inner.appendChild(heartBtn);
 
-      // Avatar boutique rond, chargé via proxy
       const avatarUrl = shop.shopAvatar || shop.shopImage || null;
       const ph = document.createElement('div');
       ph.className = 'shop-result-avatar-ph'; ph.textContent = '🛍';
@@ -1267,7 +1306,6 @@
       }
       inner.appendChild(ph);
 
-      // Infos boutique
       const info = document.createElement('div');
       info.className = 'shop-result-info';
       const nameEl = document.createElement('div'); nameEl.className = 'shop-result-name'; nameEl.textContent = shop.shopName || '—';
@@ -1275,7 +1313,6 @@
       info.appendChild(nameEl); info.appendChild(tagEl);
       inner.appendChild(info);
 
-      // Bouton Visit shop
       const visitBtn = document.createElement('a');
       visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
       visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop ↗';
@@ -1343,4 +1380,3 @@
   </script>
 </body>
 </html>
-
