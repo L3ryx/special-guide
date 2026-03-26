@@ -47,7 +47,6 @@ app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
 
 // ── Pages
-app.get('/loading',        (req, res) => res.sendFile(path.join(__dirname, '../public/loading.html')));
 app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 app.get('/finder',         (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 app.get('/niche-list',     (req, res) => res.sendFile(path.join(__dirname, '../public/niche-list.html')));
