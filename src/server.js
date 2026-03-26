@@ -1,15 +1,14 @@
 require('dotenv').config();
 const express = require('express');
-const axios = require('axios');
-const cors = require('cors');
-const path = require('path');
+const axios   = require('axios');
+const cors    = require('cors');
+const path    = require('path');
 
 const scrapeRoutes = require('./routes/scrape');
 const { router: authRouter } = require('./routes/auth');
-const shopRoutes = require('./routes/shopRoutes');
-const etsyRoutes = require('./routes/etsyRoutes');
+const shopRoutes   = require('./routes/shopRoutes');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
@@ -27,8 +26,8 @@ app.get('/proxy-image', async (req, res) => {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Referer': 'https://www.aliexpress.com/',
-        'Accept': 'image/webp,image/jpeg,image/*',
-      },
+        'Accept': 'image/webp,image/jpeg,image/*'
+      }
     });
     const ct = response.headers['content-type'] || 'image/jpeg';
     res.setHeader('Content-Type', ct);
@@ -46,12 +45,11 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api', scrapeRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
-app.use('/api/etsy', etsyRoutes);
 
 // ── Pages
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
-app.get('/finder', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
-app.get('/niche-list', (req, res) => res.sendFile(path.join(__dirname, '../public/niche-list.html')));
+app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+app.get('/finder',         (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+app.get('/niche-list',     (req, res) => res.sendFile(path.join(__dirname, '../public/niche-list.html')));
 app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, '../public/reset-password.html')));
 
 app.listen(PORT, () => {
