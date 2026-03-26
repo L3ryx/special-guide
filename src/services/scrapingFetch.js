@@ -1,15 +1,15 @@
 const axios = require('axios');
 
 async function scraperApiFetch(targetUrl, extraParams = {}) {
-  const saKey = process.env.SCRAPEAPI_KEY;
-  if (!saKey) throw new Error('SCRAPEAPI_KEY not configured');
+  const saKey = process.env.ZENROWS_API_KEY;
+  if (!saKey) throw new Error('ZENROWS_API_KEY not configured');
 
-  console.log(`ScraperAPI fetching: ${targetUrl}`);
+  console.log(`ZenRows fetching: ${targetUrl}`);
 
   try {
-    const r = await axios.get('https://api.scraperapi.com', {
+    const r = await axios.get('https://api.zenrows.com/v1/', {
       params: {
-        api_key: saKey,
+        apikey:  saKey,
         url:     targetUrl,
         ...extraParams,
       },
@@ -17,14 +17,14 @@ async function scraperApiFetch(targetUrl, extraParams = {}) {
     });
 
     const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-    console.log(`ScraperAPI OK — ${html.length} chars`);
+    console.log(`ZenRows OK — ${html.length} chars`);
     return html;
 
   } catch (e) {
     const status = e.response?.status;
-    if (status === 401) throw new Error('SCRAPEAPI_KEY invalide (401)');
-    if (status === 403) throw new Error('Crédits ScraperAPI épuisés (403)');
-    throw new Error(`ScraperAPI failed [${status || e.code}]: ${e.message}`);
+    if (status === 401) throw new Error('ZENROWS_API_KEY invalide (401)');
+    if (status === 403) throw new Error('Crédits ZenRows épuisés (403)');
+    throw new Error(`ZenRows failed [${status || e.code}]: ${e.message}`);
   }
 }
 
