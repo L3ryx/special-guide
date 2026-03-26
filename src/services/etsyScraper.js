@@ -10,28 +10,25 @@ async function scrapeEtsy(keyword, maxCount = 10) {
   const seen = new Set();
   let page = 1;
   const perPage = 48;
-  const sessionNumber = Math.floor(Math.random() * 9999);
 
   while (allListings.length < maxCount) {
     const etsyUrl = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&ref=search_bar&page=${page}`;
 
     let response;
     try {
-      response = await axios.get('https://api.scraperapi.com', {
+      response = await axios.get('http://api.scraperapi.com', {
         params: {
-          api_key:        apiKey,
-          url:            etsyUrl,
-          render:         'false',
-          country_code:   'us',
-          session_number: sessionNumber,
-          keep_headers:   'true',
+          api_key:      apiKey,
+          url:          etsyUrl,
+          render:       'true',
+          country_code: 'us',
         },
-        timeout: 70000,
+        timeout: 90000,
       });
     } catch (err) {
       const status = err.response?.status;
       if (status === 401) throw new Error('SCRAPEAPI_KEY invalid (401)');
-      if (status === 403) throw new Error('ScraperAPI credits exhausted (403)');
+      if (status === 429) throw new Error('ScraperAPI credits exhausted (429)');
       throw new Error(`ScraperAPI error ${status || ''}: ${err.message}`);
     }
 
@@ -56,8 +53,7 @@ async function scrapeEtsy(keyword, maxCount = 10) {
 
     if (allListings.length >= maxCount) break;
 
-    // Check if there's a next page
-    const hasNextPage = html.includes('pagination-next') || html.includes('"next"') || 
+    const hasNextPage = html.includes('pagination-next') || html.includes('"next"') ||
                         html.includes(`page=${page + 1}`) || valid.length >= perPage - 5;
     if (!hasNextPage) {
       console.log(`No next page detected after page ${page}`);
@@ -65,10 +61,8 @@ async function scrapeEtsy(keyword, maxCount = 10) {
     }
 
     page++;
-    // Safety limit: max 5 pages
     if (page > 5) break;
 
-    // Small delay between pages
     await new Promise(r => setTimeout(r, 1000));
   }
 
@@ -150,7 +144,6 @@ function parseEtsyListings(html) {
     }
     if (closest) {
       seen.add(link.url);
-      // Try to extract shopName from nearby HTML context (within 2000 chars around the link)
       const contextStart = Math.max(0, link.pos - 1000);
       const contextEnd = Math.min(html.length, link.pos + 1000);
       const context = html.slice(contextStart, contextEnd);
@@ -186,5 +179,4 @@ function cleanEtsyImage(url) {
 }
 
 module.exports = { scrapeEtsy };
-
 
