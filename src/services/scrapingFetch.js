@@ -18,58 +18,50 @@ function isBlockedOrEmpty(html) {
 }
 
 async function scraperApiFetch(targetUrl, extraParams = {}) {
-  const apiKey = process.env.SCRAPINGDOG_API_KEY;
-  if (!apiKey) throw new Error('SCRAPINGDOG_API_KEY not configured');
+  const apiToken = process.env.DECODO_API_TOKEN;
+  if (!apiToken) throw new Error('DECODO_API_TOKEN not configured');
 
-  // ScrapingDog params
-  // dynamic=true active le rendu JS (headless Chrome)
-  // premium=true active les proxies premium pour les sites difficiles
-  const params = {
-    api_key: apiKey,
-    url:     targetUrl,
-    dynamic: true,
-    premium: false,
+  // Decodo API : POST https://scraper-api.decodo.com/v2/scrape
+  // Auth : Authorization: Basic <token>
+  // headless: 'html' active le rendu JS (headless Chrome)
+  const body = {
+    url:      targetUrl,
+    target:   'universal',
+    headless: 'html',
     ...extraParams,
   };
 
-  console.log(`ScrapingDog fetching: ${targetUrl}`);
+  console.log(`Decodo fetching: ${targetUrl}`);
   try {
-    const r = await axios.get('https://api.scrapingdog.com/scrape', {
-      params,
-      timeout: 90000,
+    const r = await axios.post('https://scraper-api.decodo.com/v2/scrape', body, {
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Basic ${apiToken}`,
+      },
+      timeout: 150000,
     });
 
-    const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+    // La réponse Decodo : { results: [{ content, status_code, ... }] }
+    const content = r.data?.results?.[0]?.content;
+    const html = typeof content === 'string' ? content : JSON.stringify(r.data);
 
     if (isBlockedOrEmpty(html)) {
-      // Retry avec premium=true si bloqué
-      console.warn(`ScrapingDog → page bloquée ou vide (${html.length} chars), retry premium...`);
-      const r2 = await axios.get('https://api.scrapingdog.com/scrape', {
-        params: { ...params, premium: true },
-        timeout: 90000,
-      });
-      const html2 = typeof r2.data === 'string' ? r2.data : JSON.stringify(r2.data);
-      if (isBlockedOrEmpty(html2)) {
-        throw new Error(`ScrapingDog → page bloquée ou vide même en premium (${html2.length} chars)`);
-      }
-      console.log(`ScrapingDog premium OK — ${html2.length} chars`);
-      return html2;
+      throw new Error(`Decodo → page bloquée ou vide (${html.length} chars)`);
     }
 
-    console.log(`ScrapingDog OK — ${html.length} chars`);
+    console.log(`Decodo OK — ${html.length} chars`);
     return html;
 
   } catch (e) {
-    if (e.message.includes('ScrapingDog →')) throw e; // re-throw nos erreurs métier
+    if (e.message.includes('Decodo →')) throw e; // re-throw nos erreurs métier
     const status  = e.response?.status;
     const errBody = e.response?.data ? JSON.stringify(e.response.data) : '';
-    if (status === 401) throw new Error('SCRAPINGDOG_API_KEY invalide (401)');
-    if (status === 403) throw new Error('Crédits ScrapingDog épuisés (403)');
-    if (status === 400) throw new Error(`ScrapingDog requête invalide (400): ${errBody}`);
-    throw new Error(`ScrapingDog failed [${status || e.code}]: ${e.message}`);
+    if (status === 401) throw new Error('DECODO_API_TOKEN invalide (401)');
+    if (status === 403) throw new Error('Crédits Decodo épuisés (403)');
+    if (status === 400) throw new Error(`Decodo requête invalide (400): ${errBody}`);
+    throw new Error(`Decodo failed [${status || e.code}]: ${e.message}`);
   }
 }
 
 module.exports = { scraperApiFetch };
-
 
