@@ -1,183 +1,75 @@
 const axios = require('axios');
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Zyte API — fetch avec stratégie de fallback en cascade
-//
-// Zyte API utilise l'authentification HTTP Basic (clé en username, password vide)
-// et un endpoint POST unique : https://api.zyte.com/v1/extract
-//
-// Stratégie par type de page :
-//
-//   Pages de recherche Etsy (/search?) — très protégées :
-//     1. browserHtml  (rendu JS, proxy standard)
-//     2. browserHtml  + actions wait (rendu JS avec attente étendue)
-//     3. browserHtml  + geolocation US (proxy résidentiel US)
-//
-//   Pages boutique Etsy (/shop/) — plus légères :
-//     1. httpResponseBody  (pas de JS — rapide et peu coûteux)
-//     2. browserHtml       (rendu JS si le rendu simple échoue)
-//     3. browserHtml       + geolocation US
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ZYTE_ENDPOINT = 'https://api.zyte.com/v1/extract';
-const TIMEOUT_MS    = 90_000;
-
-// ── Détection anti-bot ───────────────────────────────────────────────────────
-function isBlocked(html, label) {
-  if (!html || html.length < 2000) {
-    console.warn(`[Zyte] ${label} → réponse trop courte (${html?.length ?? 0} chars)`);
-    return true;
-  }
+// Détecte si la page retournée est un bloc anti-bot ou une page vide
+function isBlockedOrEmpty(html) {
+  if (!html || html.length < 500) return true;
   const lower = html.toLowerCase();
-  const blocked = (
-    lower.includes('cf-browser-verification')       ||
-    lower.includes('just a moment...')              ||
-    lower.includes('checking your browser')         ||
-    lower.includes('enable javascript and cookies') ||
-    lower.includes('access denied')                 ||
-    lower.includes('<title>403</title>')            ||
-    lower.includes('captcha')
-  );
-  if (blocked) {
-    console.warn(`[Zyte] ${label} → mur anti-bot détecté (${html.length} chars)`);
-  }
-  return blocked;
-}
-
-// ── Requête Zyte API unique ──────────────────────────────────────────────────
-async function zyteRequest(targetUrl, payload, label) {
-  const apiKey = process.env.ZYTE_API_KEY;
-  if (!apiKey) throw new Error('ZYTE_API_KEY non configurée');
-
-  console.log(`Zyte [${label}] fetching: ${targetUrl}`);
-
-  let response;
-  try {
-    response = await axios.post(
-      ZYTE_ENDPOINT,
-      { url: targetUrl, ...payload },
-      {
-        auth:    { username: apiKey, password: '' },
-        timeout: TIMEOUT_MS,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-  } catch (e) {
-    const status = e.response?.status;
-    const body   = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-    if (status === 401) throw new Error('ZYTE_API_KEY invalide (401)');
-    if (status === 403) throw new Error('Crédits Zyte épuisés ou accès refusé (403)');
-    if (status === 400) throw new Error(`Zyte requête invalide (400): ${body}`);
-    if (status === 429) throw new Error('Zyte rate limit (429)');
-    if (status === 422) throw new Error(`Zyte unprocessable (422): ${body}`);
-    throw new Error(`Zyte failed [${status ?? e.code}]: ${e.message}`);
-  }
-
-  // Zyte renvoie le HTML dans `browserHtml` ou `httpResponseBody` (base64)
-  let html = null;
-
-  if (payload.browserHtml && response.data.browserHtml) {
-    html = response.data.browserHtml;
-  } else if (payload.httpResponseBody && response.data.httpResponseBody) {
-    // httpResponseBody est encodé en base64
-    html = Buffer.from(response.data.httpResponseBody, 'base64').toString('utf-8');
-  }
-
-  if (!html) {
-    throw new Error(`Zyte [${label}] → champ HTML absent dans la réponse`);
-  }
-
-  if (isBlocked(html, label)) {
-    throw new Error(`Zyte [${label}] → page bloquée ou vide (${html.length} chars)`);
-  }
-
-  console.log(`Zyte [${label}] OK — ${html.length} chars`);
-  return html;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function isFatal(e) {
-  const msg = e.message || '';
   return (
-    msg.includes('401') ||
-    msg.includes('ZYTE_API_KEY invalide') ||
-    msg.includes('Crédits Zyte épuisés')
+    lower.includes('cf-browser-verification') ||
+    lower.includes('enable javascript')        ||
+    lower.includes('access denied')            ||
+    lower.includes('just a moment')            ||
+    lower.includes('checking your browser')    ||
+    lower.includes('captcha')                  ||
+    lower.includes('robot')                    ||
+    (lower.includes('<title>') && lower.includes('403')) ||
+    (!lower.includes('listing') && !lower.includes('product'))
   );
 }
 
-function extractStatus(e) {
-  const m = (e.message || '').match(/\b([45]\d{2})\b/);
-  return m ? m[1] : 'err';
-}
+async function scraperApiFetch(targetUrl, extraParams = {}) {
+  const apiKey = process.env.SCRAPINGDOG_API_KEY;
+  if (!apiKey) throw new Error('SCRAPINGDOG_API_KEY not configured');
 
-// ── Point d'entrée principal ─────────────────────────────────────────────────
-async function scraperApiFetch(targetUrl /*, extraParams ignorés */) {
-  const isSearchPage = targetUrl.includes('/search?') || targetUrl.includes('/search/');
-  const isShopPage   = targetUrl.includes('/shop/');
+  // ScrapingDog params
+  // dynamic=true active le rendu JS (headless Chrome)
+  // premium=true active les proxies premium pour les sites difficiles
+  const params = {
+    api_key: apiKey,
+    url:     targetUrl,
+    dynamic: true,
+    premium: false,
+    ...extraParams,
+  };
 
-  // ── Pages boutique (légères) ──
-  if (isShopPage && !isSearchPage) {
-    // Tentative 1 : httpResponseBody (pas de JS — rapide)
-    try {
-      return await zyteRequest(targetUrl, {
-        httpResponseBody: true,
-        httpResponseHeaders: true,
-      }, 'httpBody');
-    } catch (e) {
-      if (isFatal(e)) throw e;
-      console.warn(`Zyte [httpBody] erreur (${extractStatus(e)}), passage en browserHtml…`);
+  console.log(`ScrapingDog fetching: ${targetUrl}`);
+  try {
+    const r = await axios.get('https://api.scrapingdog.com/scrape', {
+      params,
+      timeout: 90000,
+    });
+
+    const html = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+
+    if (isBlockedOrEmpty(html)) {
+      // Retry avec premium=true si bloqué
+      console.warn(`ScrapingDog → page bloquée ou vide (${html.length} chars), retry premium...`);
+      const r2 = await axios.get('https://api.scrapingdog.com/scrape', {
+        params: { ...params, premium: true },
+        timeout: 90000,
+      });
+      const html2 = typeof r2.data === 'string' ? r2.data : JSON.stringify(r2.data);
+      if (isBlockedOrEmpty(html2)) {
+        throw new Error(`ScrapingDog → page bloquée ou vide même en premium (${html2.length} chars)`);
+      }
+      console.log(`ScrapingDog premium OK — ${html2.length} chars`);
+      return html2;
     }
 
-    // Tentative 2 : browserHtml (rendu JS complet)
-    try {
-      return await zyteRequest(targetUrl, {
-        browserHtml: true,
-      }, 'browserHtml');
-    } catch (e) {
-      if (isFatal(e)) throw e;
-      console.warn(`Zyte [browserHtml] erreur (${extractStatus(e)}), passage en browserHtml+géoloc…`);
-    }
+    console.log(`ScrapingDog OK — ${html.length} chars`);
+    return html;
 
-    // Tentative 3 : browserHtml + proxy US
-    return await zyteRequest(targetUrl, {
-      browserHtml:  true,
-      geolocation:  'US',
-    }, 'browserHtml+US');
-  }
-
-  // ── Pages de recherche (très protégées) ──
-  // Tentative 1 : browserHtml standard
-  try {
-    return await zyteRequest(targetUrl, {
-      browserHtml: true,
-    }, 'browserHtml');
   } catch (e) {
-    if (isFatal(e)) throw e;
-    console.warn(`Zyte [browserHtml] échec, essai avec actions wait…`);
+    if (e.message.includes('ScrapingDog →')) throw e; // re-throw nos erreurs métier
+    const status  = e.response?.status;
+    const errBody = e.response?.data ? JSON.stringify(e.response.data) : '';
+    if (status === 401) throw new Error('SCRAPINGDOG_API_KEY invalide (401)');
+    if (status === 403) throw new Error('Crédits ScrapingDog épuisés (403)');
+    if (status === 400) throw new Error(`ScrapingDog requête invalide (400): ${errBody}`);
+    throw new Error(`ScrapingDog failed [${status || e.code}]: ${e.message}`);
   }
-
-  // Tentative 2 : browserHtml + actions (attendre que les listings chargent)
-  try {
-    return await zyteRequest(targetUrl, {
-      browserHtml: true,
-      actions: [
-        { action: 'waitForSelector', selector: { type: 'css', value: '[data-listing-id]' }, timeout: 10 },
-      ],
-    }, 'browserHtml+wait');
-  } catch (e) {
-    if (isFatal(e)) throw e;
-    console.warn(`Zyte [browserHtml+wait] échec, passage en browserHtml+géoloc US…`);
-  }
-
-  // Tentative 3 : browserHtml + proxy résidentiel US
-  return await zyteRequest(targetUrl, {
-    browserHtml: true,
-    geolocation: 'US',
-    actions: [
-      { action: 'waitForSelector', selector: { type: 'css', value: '[data-listing-id]' }, timeout: 10 },
-    ],
-  }, 'browserHtml+US');
 }
 
 module.exports = { scraperApiFetch };
+
 
