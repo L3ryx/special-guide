@@ -1,7 +1,8 @@
-const express  = require('express');
-const router   = express.Router();
-const axios    = require('axios');
-const mongoose = require('mongoose');
+const express             = require('express');
+const router              = express.Router();
+const axios               = require('axios');
+const mongoose            = require('mongoose');
+const { scraperApiFetch } = require('../services/scrapingFetch');
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -218,8 +219,6 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    const { scraperApiFetch } = require('../services/scrapingFetch');
-
     async function scrapeShopImages(shopName) {
       try {
         const html = await scraperApiFetch('https://www.etsy.com/shop/' + shopName);
@@ -394,6 +393,7 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
 
 
