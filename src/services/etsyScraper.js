@@ -1,7 +1,7 @@
 const { scraperApiFetch } = require('./scrapingFetch');
 
 async function scrapeEtsy(keyword, maxCount = 10) {
-  if (!process.env.SCRAPINGDOG_API_KEY) throw new Error('SCRAPINGDOG_API_KEY missing');
+  if (!process.env.DECODO_API_TOKEN) throw new Error('DECODO_API_TOKEN missing');
 
   console.log(`scrapeEtsy: "${keyword}" (max ${maxCount})`);
 
@@ -161,6 +161,5 @@ function cleanEtsyImage(url) {
 }
 
 module.exports = { scrapeEtsy };
-
 
 
