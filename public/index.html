@@ -103,9 +103,9 @@
 
     /* Input row: input + add btn + tags inline + trash */
     .input-row { width:100%; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .input-row input, #keyword-input { flex:1; min-width:160px; padding:16px 20px; background:#ffffff; border:1px solid rgba(255,255,255,0.3); border-radius:16px; color:#111; font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
-    .input-row input::placeholder, #keyword-input::placeholder { color:#888; }
-    #keyword-input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.25); }
+    .input-row input, #keyword-input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
+    .input-row input::placeholder, #keyword-input::placeholder { color:var(--muted); }
+    #keyword-input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
     #add-keyword-btn { width:48px; height:48px; flex-shrink:0; background:var(--green); border:none; border-radius:14px; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(34,197,94,0.4); position:relative; }
     #add-keyword-btn:hover { background:#16a34a; transform:translateY(-1px); }
     #add-keyword-btn:active { transform:translateY(0); }
@@ -174,8 +174,8 @@
       50% { height: 10px; width: 40px; }
       100% { left: 100%; height: 43px; width: 15px; transform: translateX(-100%); }
     }
-    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; letter-spacing:0.08em; box-shadow:0 4px 20px rgba(220,38,38,0.4); }
-    #stop-btn:hover { background:#b91c1c; transform:scale(1.03); box-shadow:0 6px 28px rgba(220,38,38,0.55); }
+    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:#facc15; color:#000; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; letter-spacing:0.08em; box-shadow:0 4px 20px rgba(250,204,21,0.4); }
+    #stop-btn:hover { background:#eab308; transform:scale(1.03); box-shadow:0 6px 28px rgba(250,204,21,0.55); }
     #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
     .progress-steps { display:flex; justify-content:space-between; gap:4px; }
@@ -754,10 +754,46 @@
     var _usedKeywords = [];
     var _usedShops    = [];
 
-    // Pas de persistance MongoDB pour les keywords/boutiques vus
-    function loadAutoState() {}
-    async function saveQueueState() {}
-    async function saveShopToDb() {}
+    // Charger l'état depuis MongoDB au démarrage
+    async function loadAutoState() {
+      const token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        const r = await fetch('/api/shops/auto-state', { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!r.ok) return;
+        const d = await r.json();
+        _keywordQueue = d.keywordQueue || [];
+        _usedKeywords = d.usedKeywords || [];
+        _usedShops    = d.usedShops    || [];
+        updateQueueDisplay();
+      } catch(e) { console.warn('loadAutoState failed:', e.message); }
+    }
+
+    // Sauvegarder la queue + usedKeywords en MongoDB
+    async function saveQueueState(usedKeyword) {
+      const token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        await fetch('/api/shops/auto-state/queue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ keywordQueue: _keywordQueue, usedKeyword: usedKeyword || null })
+        });
+      } catch(e) {}
+    }
+
+    // Sauvegarder une boutique vue en MongoDB
+    async function saveShopToDb(shopName) {
+      const token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        await fetch('/api/shops/auto-state/shop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ shopName })
+        });
+      } catch(e) {}
+    }
 
     function toggleAutoSearch() {
       _autoSearch = !_autoSearch;
@@ -790,6 +826,8 @@
       if (!res.ok || !data.keywords) throw new Error(data.error || 'Failed to generate keywords');
       const fresh = data.keywords.filter(function(k) { return !_usedKeywords.includes(k); });
       _keywordQueue = fresh;
+      // Sauvegarder en MongoDB
+      await saveQueueState(null);
       showToast('✅ ' + fresh.length + ' keywords ready!', '#22c55e');
       return fresh;
     }
@@ -801,6 +839,7 @@
       }
       if (_keywordQueue.length === 0) throw new Error('No keywords available');
       const kw = _keywordQueue.shift();
+      await saveQueueState(null); // mettre à jour la queue en DB
       return kw;
     }
 
@@ -808,12 +847,14 @@
       shopNames.forEach(function(name) {
         if (name && !_usedShops.includes(name)) {
           _usedShops.push(name);
+          saveShopToDb(name); // persistance MongoDB
         }
       });
     }
 
     async function saveUsedKeyword(kw) {
       if (!_usedKeywords.includes(kw)) _usedKeywords.push(kw);
+      await saveQueueState(kw); // enregistrer keyword utilisé en DB
     }
 
     function updateQueueDisplay() {
