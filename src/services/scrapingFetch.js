@@ -39,8 +39,9 @@ async function scraperApiFetch(targetUrl, extraParams = {}) {
   try {
     const r = await axios.get('https://api.zenrows.com/v1/', {
       params: {
-        apikey: saKey,
-        url:    targetUrl,
+       'apikey’: saKey,
+       'url’:    targetUrl,
+       'mode': 'auto'
         ...zenParams,
       },
       // js_render (rendu headless) nécessite plus de temps
