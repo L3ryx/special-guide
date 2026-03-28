@@ -302,48 +302,14 @@
     }
 
     // ── ETSY LOGIN ──
-    const ETSY_CLIENT_ID = 'YOUR_ETSY_CLIENT_ID'; // À remplacer par votre client ID Etsy
-    const ETSY_REDIRECT_URI = 'https://www.finder-niche.com/etsy-callback';
-    const ETSY_SCOPE = 'shops_r listings_r';
-
-    function generateCodeVerifier() {
-      const array = new Uint8Array(32);
-      window.crypto.getRandomValues(array);
-      return btoa(String.fromCharCode(...array)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-    }
-
-    async function generateCodeChallenge(verifier) {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(verifier);
-      const hash = await window.crypto.subtle.digest('SHA-256', data);
-      return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-    }
-
-    async function handleEtsyLogin() {
-      const etsyToken = localStorage.getItem('etsy_token');
-      if (etsyToken) {
-        localStorage.removeItem('etsy_token');
-        localStorage.removeItem('etsy_shop');
-        document.getElementById('etsy-login-btn').textContent = '🛍 Etsy Login';
-        document.getElementById('etsy-login-btn').classList.remove('connected');
-        showToast('Etsy disconnected', '#f97316');
+    function handleEtsyLogin() {
+      const btn = document.getElementById('etsy-login-btn');
+      if (btn.classList.contains('connected')) {
+        // Déjà connecté — ne rien faire (logout via bouton dédié)
         return;
       }
-      const verifier = generateCodeVerifier();
-      const challenge = await generateCodeChallenge(verifier);
-      const state = Math.random().toString(36).substring(2);
-      localStorage.setItem('etsy_verifier', verifier);
-      localStorage.setItem('etsy_state', state);
-      const params = new URLSearchParams({
-        response_type: 'code',
-        redirect_uri: ETSY_REDIRECT_URI,
-        scope: ETSY_SCOPE,
-        client_id: ETSY_CLIENT_ID,
-        state: state,
-        code_challenge: challenge,
-        code_challenge_method: 'S256',
-      });
-      window.location.href = 'https://www.etsy.com/oauth/connect?' + params.toString();
+      // Rediriger vers le backend qui gère le OAuth
+      window.location.href = '/api/auth/etsy';
     }
 
     function etsyLogoutFromNicheList() {
