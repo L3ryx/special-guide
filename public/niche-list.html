@@ -15,154 +15,176 @@
     #bg-layer {
       position: fixed; inset: 0; z-index: 0;
       background: #0a0a0a url('/background.png') center center / cover no-repeat;
-      animation: bgDrift 18s ease-in-out infinite alternate;
-      transform-origin: center;
+      animation: bgDrift 18s ease-in-out infinite alternate; transform-origin: center;
     }
     @keyframes bgDrift {
-      0%   { transform: scale(1.08) translate(0px,0px); }
-      25%  { transform: scale(1.1)  translate(-12px,-8px); }
-      50%  { transform: scale(1.08) translate(8px,-14px); }
-      75%  { transform: scale(1.1)  translate(-6px,10px); }
-      100% { transform: scale(1.08) translate(10px,6px); }
+      0%{transform:scale(1.08)translate(0,0)} 25%{transform:scale(1.1)translate(-12px,-8px)}
+      50%{transform:scale(1.08)translate(8px,-14px)} 75%{transform:scale(1.1)translate(-6px,10px)}
+      100%{transform:scale(1.08)translate(10px,6px)}
     }
     #bg-layer::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,0.55); }
-    #milkyway-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
-    html, body { min-height: 100%; font-family: 'Inter', sans-serif; color: var(--text); background: #0a0a0a; }
+    #milkyway-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:1; pointer-events:none; }
+    html,body { min-height:100%; font-family:'Inter',sans-serif; color:var(--text); background:#0a0a0a; }
 
     nav {
-      position: sticky; top: 0; z-index: 200;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 24px;
-      background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--glass-border);
+      position:sticky; top:0; z-index:200;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 24px; background:rgba(0,0,0,0.7); backdrop-filter:blur(20px);
+      border-bottom:1px solid var(--glass-border);
     }
-    .nav-left { display: flex; align-items: center; gap: 12px; }
+    .nav-left { display:flex; align-items:center; gap:12px; }
     .btn-back {
-      display: flex; align-items: center; gap: 6px;
-      padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.7);
-      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.8rem;
-      text-decoration: none; transition: all 0.2s;
+      display:flex; align-items:center; gap:6px; padding:7px 14px; border-radius:9px;
+      border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.07);
+      color:rgba(255,255,255,0.7); font-family:'Inter',sans-serif; font-weight:600;
+      font-size:0.8rem; text-decoration:none; transition:all 0.2s; cursor:pointer;
     }
-    .btn-back:hover { background: rgba(255,255,255,0.13); color: #fff; }
-    .nav-title { font-family: 'Croissant One', cursive; font-size: 1rem; color: rgba(255,255,255,0.7); }
+    .btn-back:hover { background:rgba(255,255,255,0.13); color:#fff; }
+    .nav-title { font-family:'Croissant One',cursive; font-size:1rem; color:rgba(255,255,255,0.7); }
 
-    .container { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; position: relative; z-index: 10; }
-    h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
+    .container { max-width:680px; margin:0 auto; padding:28px 20px 60px; position:relative; z-index:10; }
+    h1 { font-size:1.4rem; font-weight:800; margin-bottom:18px; }
 
-    .shops-list { display: flex; flex-direction: column; gap: 14px; }
+    .shops-list { display:flex; flex-direction:column; gap:14px; }
     @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
-
-    /* Animated border keyframe */
     @keyframes borderRotate {
-      0%   { background-position: 0% 50%; }
-      50%  { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+      0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%}
     }
 
     .shop-row {
-      position: relative;
-      display: flex; align-items: center; gap: 14px;
-      padding: 14px 50px 14px 14px; /* right padding for delete btn */
-      border-radius: 18px;
-      animation: slideUp 0.4s ease;
-      background: var(--glass);
-      backdrop-filter: blur(16px);
-      /* animated gradient border */
-      border: 2px solid transparent;
-      background-clip: padding-box;
-      box-shadow:
-        0 0 0 2px transparent,
-        inset 0 0 0 1px rgba(255,255,255,0.06);
+      position:relative; display:flex; align-items:center; gap:14px;
+      padding:14px 50px 14px 14px; border-radius:18px; animation:slideUp 0.4s ease;
+      background:var(--glass); backdrop-filter:blur(16px);
+      border:2px solid transparent; background-clip:padding-box;
     }
-    /* Pseudo-element for animated border glow */
     .shop-row::before {
-      content: '';
-      position: absolute;
-      inset: -2px;
-      border-radius: 20px;
-      background: linear-gradient(270deg, #f1641e, #fb923c, #f1641e, #c084fc, #f1641e);
-      background-size: 300% 300%;
-      animation: borderRotate 4s ease infinite;
-      z-index: -1;
-      opacity: 0.55;
+      content:''; position:absolute; inset:-2px; border-radius:20px;
+      background:linear-gradient(270deg,#f1641e,#fb923c,#f1641e,#c084fc,#f1641e);
+      background-size:300% 300%; animation:borderRotate 4s ease infinite; z-index:-1; opacity:0.55;
     }
 
-    /* Avatar à gauche */
-    .shop-avatar {
-      width: 56px; height: 56px; border-radius: 50%; object-fit: cover;
-      border: 2px solid rgba(241,100,30,0.5); flex-shrink: 0;
-    }
+    .shop-avatar { width:56px; height:56px; border-radius:50%; object-fit:cover; border:2px solid rgba(241,100,30,0.5); flex-shrink:0; }
     .shop-avatar-ph {
-      width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
-      background: rgba(241,100,30,0.1); border: 2px solid rgba(241,100,30,0.3);
-      display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
+      width:56px; height:56px; border-radius:50%; flex-shrink:0;
+      background:rgba(241,100,30,0.1); border:2px solid rgba(241,100,30,0.3);
+      display:flex; align-items:center; justify-content:center; font-size:1.4rem;
     }
-
-    /* Colonne centrale: nom + boutons */
-    .shop-row-center {
-      flex: 1; min-width: 0;
-      display: flex; flex-direction: column; gap: 9px;
+    .shop-row-center { flex:1; min-width:0; display:flex; flex-direction:column; gap:9px; }
+    .shop-row-name { font-weight:700; font-size:0.97rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+    .shop-row-actions { display:flex; align-items:center; gap:8px; }
+    .btn-visit,.btn-clone {
+      flex:1; padding:9px 0; border-radius:10px; font-family:'Inter',sans-serif; font-weight:700;
+      font-size:0.8rem; text-align:center; white-space:nowrap; cursor:pointer; transition:all 0.2s;
+      display:flex; align-items:center; justify-content:center;
     }
-    .shop-row-name {
-      font-weight: 700; font-size: 0.97rem; color: #fff;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      max-width: 100%;
-    }
-    .shop-row-actions {
-      display: flex; align-items: center; gap: 8px;
-    }
-    .btn-visit, .btn-clone {
-      flex: 1; padding: 9px 0; border-radius: 10px;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.8rem;
-      text-align: center; white-space: nowrap; cursor: pointer; transition: all 0.2s;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .btn-visit {
-      border: 1px solid rgba(241,100,30,0.5);
-      background: rgba(241,100,30,0.18); color: #fb923c;
-      text-decoration: none;
-    }
-    .btn-visit:hover { background: rgba(241,100,30,0.35); color: #fff; }
-    .btn-clone {
-      border: 1px solid rgba(59,130,246,0.5);
-      background: rgba(59,130,246,0.2); color: #60a5fa;
-    }
-    .btn-clone:hover { background: rgba(59,130,246,0.38); color: #fff; }
-
-    /* Croix rouge en haut à droite */
+    .btn-visit { border:1px solid rgba(241,100,30,0.5); background:rgba(241,100,30,0.18); color:#fb923c; text-decoration:none; }
+    .btn-visit:hover { background:rgba(241,100,30,0.35); color:#fff; }
+    .btn-clone { border:1px solid rgba(59,130,246,0.5); background:rgba(59,130,246,0.2); color:#60a5fa; }
+    .btn-clone:hover { background:rgba(59,130,246,0.38); color:#fff; }
     .btn-delete {
-      position: absolute; top: 10px; right: 12px;
-      width: 26px; height: 26px; border-radius: 50%;
-      border: 1px solid rgba(255,80,80,0.4); background: rgba(255,80,80,0.12);
-      color: #f87171; cursor: pointer; display: flex; align-items: center;
-      justify-content: center; font-size: 0.85rem; font-weight: 700;
-      transition: all 0.2s; flex-shrink: 0; line-height: 1;
+      position:absolute; top:10px; right:12px; width:26px; height:26px; border-radius:50%;
+      border:1px solid rgba(255,80,80,0.4); background:rgba(255,80,80,0.12); color:#f87171;
+      cursor:pointer; display:flex; align-items:center; justify-content:center;
+      font-size:0.85rem; font-weight:700; transition:all 0.2s; flex-shrink:0; line-height:1;
     }
-    .btn-delete:hover { background: rgba(255,80,80,0.3); border-color: rgba(255,80,80,0.7); color: #fff; }
+    .btn-delete:hover { background:rgba(255,80,80,0.3); border-color:rgba(255,80,80,0.7); color:#fff; }
 
-    .empty-state {
-      text-align: center; padding: 60px 20px; color: var(--muted);
-      display: flex; flex-direction: column; align-items: center; gap: 12px;
-    }
-    .empty-state .emoji { font-size: 2.5rem; }
+    .empty-state { text-align:center; padding:60px 20px; color:var(--muted); display:flex; flex-direction:column; align-items:center; gap:12px; }
+    .empty-state .emoji { font-size:2.5rem; }
 
     .btn-etsy-login {
-      padding: 8px 16px; border-radius: 10px; border: none;
-      background: #f1641e; color: #fff;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.82rem;
-      cursor: pointer; transition: all 0.2s; white-space: nowrap;
-      display: flex; align-items: center; gap: 6px;
+      padding:8px 16px; border-radius:10px; border:none; background:#f1641e; color:#fff;
+      font-family:'Inter',sans-serif; font-weight:700; font-size:0.82rem; cursor:pointer;
+      transition:all 0.2s; white-space:nowrap; display:flex; align-items:center; gap:6px;
     }
-    .btn-etsy-login:hover { background: #d4551a; transform: scale(1.03); }
-    .btn-etsy-login.connected { background: #ef4444; border: 1px solid #dc2626; color: #fff; }
-    .btn-etsy-login.connected:hover { background: #dc2626; transform: scale(1.03); }
+    .btn-etsy-login:hover { background:#d4551a; transform:scale(1.03); }
+    .btn-etsy-login.connected { background:#ef4444; border:1px solid #dc2626; color:#fff; }
+    .btn-etsy-login.connected:hover { background:#dc2626; transform:scale(1.03); }
 
     .toast-msg {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      padding: 12px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
-      z-index: 9999; pointer-events: none; color: #fff;
+      position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+      padding:12px 20px; border-radius:10px; font-size:0.88rem; font-weight:600;
+      z-index:9999; pointer-events:none; color:#fff;
     }
+
+    /* ══ CLONE MODAL ══ */
+    #clone-overlay {
+      position:fixed; inset:0; z-index:5000;
+      background:rgba(0,0,0,0.82); backdrop-filter:blur(12px);
+      display:none; align-items:center; justify-content:center; padding:20px;
+    }
+    #clone-overlay.open { display:flex; }
+    #clone-modal {
+      width:100%; max-width:560px; background:rgba(12,12,18,0.98);
+      border:1px solid rgba(255,255,255,0.1); border-radius:24px; padding:28px 24px;
+      display:flex; flex-direction:column; gap:18px;
+      max-height:90vh; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.8);
+    }
+    .clone-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .clone-modal-title { font-family:'Croissant One',cursive; font-size:1.1rem; color:#fff; display:flex; align-items:center; gap:8px; }
+    .clone-modal-shop { font-size:0.8rem; color:var(--muted); font-family:'Inter',sans-serif; font-weight:600; margin-top:2px; }
+    .clone-modal-close {
+      width:32px; height:32px; border-radius:50%; border:1px solid rgba(255,255,255,0.15);
+      background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.6); cursor:pointer;
+      display:flex; align-items:center; justify-content:center; font-size:1rem; transition:all 0.2s;
+    }
+    .clone-modal-close:hover { background:rgba(255,80,80,0.2); color:#f87171; }
+
+    .clone-stats { display:flex; gap:10px; }
+    .clone-stat { flex:1; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 12px; text-align:center; }
+    .clone-stat-val { font-size:1.4rem; font-weight:800; color:#60a5fa; }
+    .clone-stat-label { font-size:0.68rem; color:var(--muted); margin-top:2px; }
+
+    .clone-progress-wrap { background:rgba(255,255,255,0.07); border-radius:6px; height:6px; overflow:hidden; }
+    .clone-progress-fill {
+      height:100%; border-radius:6px; width:0%;
+      background:linear-gradient(90deg,#3b82f6,#8b5cf6,#f1641e);
+      background-size:200% 100%; animation:progressShimmer 2s linear infinite; transition:width 0.4s ease;
+    }
+    @keyframes progressShimmer { 0%{background-position:0%} 100%{background-position:200%} }
+
+    #clone-log {
+      flex:1; overflow-y:auto; min-height:220px; max-height:380px;
+      background:rgba(0,0,0,0.4); border-radius:14px; border:1px solid rgba(255,255,255,0.07);
+      padding:14px; display:flex; flex-direction:column; gap:5px; scroll-behavior:smooth;
+    }
+    #clone-log::-webkit-scrollbar { width:4px; }
+    #clone-log::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:2px; }
+
+    .log-line { font-size:0.79rem; line-height:1.5; font-family:'Inter',sans-serif; padding:4px 10px; border-radius:7px; animation:logAppear 0.2s ease; }
+    @keyframes logAppear { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:none} }
+    .log-line.info    { color:rgba(255,255,255,0.65); }
+    .log-line.success { color:#4ade80; background:rgba(74,222,128,0.06); }
+    .log-line.warning { color:#fbbf24; background:rgba(251,191,36,0.06); }
+    .log-line.error   { color:#f87171; background:rgba(248,113,113,0.08); }
+    .log-line.skip    { color:#94a3b8; font-style:italic; }
+    .log-line.step    { color:#60a5fa; font-weight:700; border-left:2px solid #3b82f6; padding-left:10px; margin-top:4px; }
+    .log-line.done    { color:#a78bfa; font-weight:800; background:rgba(167,139,250,0.08); }
+
+    .clone-result-card {
+      background:rgba(74,222,128,0.05); border:1px solid rgba(74,222,128,0.2);
+      border-radius:12px; padding:10px 13px; display:flex; flex-direction:column; gap:5px;
+      animation:logAppear 0.3s ease; margin-top:4px;
+    }
+    .cr-title { font-size:0.79rem; font-weight:700; color:#4ade80; }
+    .cr-meta  { font-size:0.72rem; color:var(--muted); }
+    .cr-tags  { display:flex; flex-wrap:wrap; gap:4px; margin-top:3px; }
+    .cr-tag   { font-size:0.64rem; padding:2px 7px; border-radius:5px; background:rgba(167,139,250,0.14); border:1px solid rgba(167,139,250,0.25); color:#c4b5fd; }
+
+    .clone-actions { display:flex; gap:10px; }
+    .clone-btn-stop {
+      flex:1; padding:12px; border-radius:12px; border:none;
+      background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.35); color:#f87171;
+      font-family:'Inter',sans-serif; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s;
+    }
+    .clone-btn-stop:hover { background:rgba(239,68,68,0.3); color:#fff; }
+    .clone-btn-stop:disabled { opacity:0.4; cursor:not-allowed; }
+    .clone-btn-close {
+      flex:1; padding:12px; border-radius:12px; border:none;
+      background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7);
+      font-family:'Inter',sans-serif; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s;
+    }
+    .clone-btn-close:hover { background:rgba(255,255,255,0.14); color:#fff; }
   </style>
 </head>
 <body>
@@ -184,8 +206,41 @@
     <div class="shops-list" id="shops-list"></div>
   </div>
 
+  <!-- ════════════ CLONE MODAL ════════════ -->
+  <div id="clone-overlay">
+    <div id="clone-modal">
+      <div class="clone-modal-header">
+        <div>
+          <div class="clone-modal-title">🤖 Auto Clone Pipeline</div>
+          <div class="clone-modal-shop" id="clone-modal-shopname">—</div>
+        </div>
+        <button class="clone-modal-close" onclick="closeCloneModal()">✕</button>
+      </div>
+
+      <div class="clone-stats">
+        <div class="clone-stat"><div class="clone-stat-val" id="stat-analyzed">0</div><div class="clone-stat-label">Analyzed</div></div>
+        <div class="clone-stat"><div class="clone-stat-val" id="stat-created">0</div><div class="clone-stat-label">Created</div></div>
+        <div class="clone-stat"><div class="clone-stat-val" id="stat-skipped">0</div><div class="clone-stat-label">Skipped</div></div>
+        <div class="clone-stat"><div class="clone-stat-val" id="stat-total">—</div><div class="clone-stat-label">Total</div></div>
+      </div>
+
+      <div class="clone-progress-wrap">
+        <div class="clone-progress-fill" id="clone-progress-fill"></div>
+      </div>
+
+      <div id="clone-log"></div>
+
+      <div class="clone-actions">
+        <button class="clone-btn-stop" id="clone-stop-btn" onclick="stopClone()">⏹ Stop</button>
+        <button class="clone-btn-close" onclick="closeCloneModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let TOKEN = localStorage.getItem('scout_token') || null;
+    let _cloneController = null;
+    let _statAnalyzed = 0, _statCreated = 0, _statSkipped = 0, _statTotal = 0;
 
     function apiFetch(url, opts = {}) {
       opts.headers = opts.headers || {};
@@ -196,26 +251,22 @@
 
     function showToast(msg, color) {
       const t = document.createElement('div');
-      t.className = 'toast-msg';
-      t.textContent = msg;
-      t.style.background = color || '#222';
-      document.body.appendChild(t);
-      setTimeout(() => t.remove(), 2500);
+      t.className = 'toast-msg'; t.textContent = msg; t.style.background = color || '#222';
+      document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
     }
 
+    // ── Shop list ──
     async function loadShops() {
       const list = document.getElementById('shops-list');
       try {
-        const r     = await apiFetch('/api/shops');
+        const r = await apiFetch('/api/shops');
         const shops = await r.json();
         if (!shops.length) {
           list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved listings yet.<br>Save listings from your search results.</div>';
           return;
         }
         list.innerHTML = '';
-        shops.forEach(shop => {
-          list.appendChild(buildShopRow(shop));
-        });
+        shops.forEach(shop => list.appendChild(buildShopRow(shop)));
       } catch(e) {
         list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
       }
@@ -224,135 +275,222 @@
     function buildShopRow(shop) {
       const wrap = document.createElement('div');
       wrap.id = 'shop-wrapper-' + shop._id;
-
       let shopName = shop.shopName || null;
-      if (!shopName && shop.shopUrl) {
-        const m = shop.shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
-        if (m) shopName = m[1];
-      }
-      if (!shopName && shop.productUrl) {
-        const m = shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
-        if (m) shopName = m[1];
-      }
-
-      const shopUrl = shopName
-        ? 'https://www.etsy.com/shop/' + shopName
-        : (shop.shopUrl || '#');
-
+      if (!shopName && shop.shopUrl) { const m = shop.shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i); if (m) shopName = m[1]; }
+      if (!shopName && shop.productUrl) { const m = shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/i); if (m) shopName = m[1]; }
+      const shopUrl = shopName ? 'https://www.etsy.com/shop/' + shopName : (shop.shopUrl || '#');
       const avatarUrl = shop.shopAvatar || shop.productImage || null;
 
       const row = document.createElement('div');
-      row.className = 'shop-row';
-      row.id = 'shop-row-' + shop._id;
+      row.className = 'shop-row'; row.id = 'shop-row-' + shop._id;
 
-      // ── Avatar à gauche ──
       const ph = document.createElement('div');
       ph.className = 'shop-avatar-ph'; ph.textContent = '🛍';
       if (avatarUrl) {
         const img = document.createElement('img');
-        img.className = 'shop-avatar';
-        img.src = '/proxy-image?url=' + encodeURIComponent(avatarUrl);
-        img.loading = 'lazy'; img.alt = '';
+        img.className = 'shop-avatar'; img.src = '/proxy-image?url=' + encodeURIComponent(avatarUrl); img.loading = 'lazy'; img.alt = '';
         img.onerror = function() { this.style.display='none'; ph.style.display='flex'; };
-        ph.style.display = 'none';
-        row.appendChild(img);
+        ph.style.display = 'none'; row.appendChild(img);
       }
       row.appendChild(ph);
 
-      // ── Colonne centrale: nom + boutons ──
       const center = document.createElement('div');
       center.className = 'shop-row-center';
-
       const nameEl = document.createElement('div');
-      nameEl.className = 'shop-row-name';
-      nameEl.textContent = shopName || '—';
-      nameEl.title = shopName || '—';
+      nameEl.className = 'shop-row-name'; nameEl.textContent = shopName || '—'; nameEl.title = shopName || '—';
       center.appendChild(nameEl);
 
       const actions = document.createElement('div');
       actions.className = 'shop-row-actions';
 
       const visitBtn = document.createElement('a');
-      visitBtn.className = 'btn-visit';
-      visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
-      visitBtn.textContent = 'Visit shop ↗';
+      visitBtn.className = 'btn-visit'; visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener'; visitBtn.textContent = 'Visit shop ↗';
       actions.appendChild(visitBtn);
 
       const cloneBtn = document.createElement('button');
       cloneBtn.className = 'btn-clone'; cloneBtn.textContent = 'Clone';
-      cloneBtn.addEventListener('click', function() { cloneShop(shop, shopName, shopUrl); });
+      cloneBtn.addEventListener('click', function() { openCloneModal(shopName); });
       actions.appendChild(cloneBtn);
 
       center.appendChild(actions);
       row.appendChild(center);
 
-      // ── Croix rouge en haut à droite ──
       const delBtn = document.createElement('button');
-      delBtn.className = 'btn-delete'; delBtn.innerHTML = '✕';
-      delBtn.title = 'Remove';
+      delBtn.className = 'btn-delete'; delBtn.innerHTML = '✕'; delBtn.title = 'Remove';
       delBtn.addEventListener('click', function() { deleteShop(shop._id); });
       row.appendChild(delBtn);
 
       wrap.appendChild(row);
       return wrap;
     }
-    function cloneShop(shop, shopName, shopUrl) {
-      const cloneData = {
-        shopName: shopName || shop.shopName || '—',
-        shopUrl: shopUrl,
-        shopAvatar: shop.shopAvatar || shop.productImage || null,
-      };
-      // Copy shop info to clipboard as JSON
-      navigator.clipboard.writeText(JSON.stringify(cloneData, null, 2))
-        .then(() => showToast('Shop data copied to clipboard!', '#3b82f6'))
-        .catch(() => showToast('Clone: ' + (shopName || '—'), '#3b82f6'));
+
+    // ── Clone Modal ──
+    function openCloneModal(shopName) {
+      if (localStorage.getItem('etsy_connected') !== '1') {
+        showToast('⚠️ Please connect your Etsy account first', '#f97316');
+        return;
+      }
+      _statAnalyzed = 0; _statCreated = 0; _statSkipped = 0; _statTotal = 0;
+      updateStats();
+      document.getElementById('clone-modal-shopname').textContent = shopName || '—';
+      document.getElementById('clone-log').innerHTML = '';
+      document.getElementById('clone-progress-fill').style.width = '0%';
+      document.getElementById('clone-stop-btn').disabled = false;
+      document.getElementById('clone-overlay').classList.add('open');
+      startClonePipeline(shopName);
     }
 
-    // ── ETSY LOGIN ──
-    // ── ETSY LOGIN ──
+    function closeCloneModal() {
+      stopClone();
+      document.getElementById('clone-overlay').classList.remove('open');
+    }
+
+    function stopClone() {
+      if (_cloneController) { _cloneController.abort(); _cloneController = null; }
+      document.getElementById('clone-stop-btn').disabled = true;
+      appendLog('⏹ Pipeline stopped by user.', 'warning');
+    }
+
+    function updateStats() {
+      document.getElementById('stat-analyzed').textContent = _statAnalyzed;
+      document.getElementById('stat-created').textContent  = _statCreated;
+      document.getElementById('stat-skipped').textContent  = _statSkipped;
+      document.getElementById('stat-total').textContent    = _statTotal || '—';
+    }
+
+    function appendLog(msg, type) {
+      const log = document.getElementById('clone-log');
+      const line = document.createElement('div');
+      line.className = 'log-line ' + (type || 'info');
+      line.textContent = msg;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function appendResultCard(seo, listingId, aliUrl, imagesCount) {
+      const log = document.getElementById('clone-log');
+      const card = document.createElement('div');
+      card.className = 'clone-result-card';
+      card.innerHTML =
+        '<div class="cr-title">✅ Listing #' + listingId + ' created on Etsy</div>' +
+        '<div class="cr-meta">📌 ' + (seo.title ? seo.title.slice(0,80)+'...' : '—') + '</div>' +
+        '<div class="cr-meta">🔗 AliExpress match &nbsp;|&nbsp; 🖼 ' + imagesCount + ' images generated</div>' +
+        '<div class="cr-meta">🗂 Category: ' + (seo.category || '—') + '</div>' +
+        '<div class="cr-tags">' + (seo.tags||[]).slice(0,8).map(t => '<span class="cr-tag">'+t+'</span>').join('') + '</div>';
+      log.appendChild(card);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function startClonePipeline(shopName) {
+      _cloneController = new AbortController();
+      appendLog('🚀 Starting clone pipeline for: ' + shopName, 'step');
+      try {
+        const response = await fetch('/api/clone/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+          body: JSON.stringify({ shopName, etsyToken: TOKEN }),
+          signal: _cloneController.signal,
+        });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          appendLog('❌ Server error: ' + (err.error || response.status), 'error');
+          return;
+        }
+        const reader  = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n'); buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let data; try { data = JSON.parse(line.slice(6)); } catch { continue; }
+            handleSSEEvent(data);
+          }
+        }
+      } catch(err) {
+        if (err.name === 'AbortError') return;
+        appendLog('❌ Connection error: ' + err.message, 'error');
+      } finally {
+        document.getElementById('clone-stop-btn').disabled = true;
+      }
+    }
+
+    function handleSSEEvent(data) {
+      const { step, status, message, seo, listingId, aliUrl, imagesGenerated, total, listingIndex } = data;
+      if (total && total > _statTotal) { _statTotal = total; updateStats(); }
+
+      switch(step) {
+        case 'scrape_shop':   appendLog(message, status === 'done' ? 'success' : 'info'); break;
+        case 'etsy_auth':     appendLog(message, status === 'done' ? 'success' : 'info'); break;
+        case 'listing_start':
+          appendLog('─────────────────────', 'info');
+          appendLog(message, 'step');
+          if (listingIndex) _statAnalyzed = listingIndex;
+          updateStats();
+          if (_statTotal > 0) document.getElementById('clone-progress-fill').style.width = ((_statAnalyzed/_statTotal)*100)+'%';
+          break;
+        case 'listing_detail':  appendLog(message, status === 'done' ? 'success' : 'info'); break;
+        case 'lens_search':     appendLog(message, status === 'done' ? 'success' : 'info'); break;
+        case 'ali_images':      appendLog(message, status === 'done' ? 'success' : 'warning'); break;
+        case 'leonardo':        appendLog(message, status === 'done' ? 'success' : 'info'); break;
+        case 'leonardo_progress': appendLog(message, 'info'); break;
+        case 'gemini':          appendLog(message, status === 'done' ? 'success' : 'info'); break;
+        case 'taxonomy':        appendLog(message, status === 'done' ? 'success' : 'info'); break;
+        case 'create_listing':  appendLog(message, 'info'); break;
+        case 'listing_done':
+          _statCreated++; updateStats();
+          if (seo && listingId) appendResultCard(seo, listingId, aliUrl, imagesGenerated || 0);
+          document.getElementById('clone-progress-fill').style.width = ((_statAnalyzed/(_statTotal||1))*100)+'%';
+          break;
+        case 'listing_skip':    _statSkipped++; updateStats(); appendLog(message, 'skip'); break;
+        case 'listing_error':   _statSkipped++; updateStats(); appendLog(message, 'warning'); break;
+        case 'complete':
+          appendLog('─────────────────────', 'info');
+          appendLog(message, 'done');
+          document.getElementById('clone-progress-fill').style.width = '100%';
+          document.getElementById('clone-stop-btn').disabled = true;
+          showToast('🎉 ' + _statCreated + ' listing(s) created!', '#22c55e');
+          break;
+        case 'error':
+          appendLog(message, 'error');
+          document.getElementById('clone-stop-btn').disabled = true;
+          showToast(message, '#ef4444');
+          break;
+        default:
+          if (message) appendLog(message, 'info');
+      }
+    }
+
+    // ── Etsy Auth ──
     function handleEtsyLogin() {
       const btn = document.getElementById('etsy-login-btn');
       if (btn.classList.contains('connected')) {
-        // Déconnexion Etsy
         localStorage.removeItem('etsy_connected');
         localStorage.removeItem('scout_token');
         TOKEN = null;
-        btn.innerHTML = '🛍 Etsy Login';
-        btn.classList.remove('connected');
-        showToast("Déconnecté d'Etsy", '#ef4444');
-        return;
+        btn.innerHTML = '🛍 Etsy Login'; btn.classList.remove('connected');
+        showToast("Déconnecté d'Etsy", '#ef4444'); return;
       }
       window.location.href = '/api/auth/etsy';
     }
 
     function checkEtsyToken() {
-      // Lire le retour OAuth depuis l'URL
       const params = new URLSearchParams(window.location.search);
-      const token  = params.get('token');
-      const email  = params.get('email');
-      const err    = params.get('etsy_error');
-
+      const token = params.get('token'), email = params.get('email'), err = params.get('etsy_error');
       if (token && email) {
-        localStorage.setItem('scout_token', token);
-        localStorage.setItem('etsy_connected', '1');
-        TOKEN = token;
+        localStorage.setItem('scout_token', token); localStorage.setItem('etsy_connected', '1'); TOKEN = token;
         window.history.replaceState({}, '', window.location.pathname);
         const btn = document.getElementById('etsy-login-btn');
-        btn.innerHTML = 'Etsy Logout';
-        btn.classList.add('connected');
-        showToast('✅ Connecté : ' + decodeURIComponent(email), '#22c55e');
-        return;
+        btn.innerHTML = 'Etsy Logout'; btn.classList.add('connected');
+        showToast('✅ Connecté : ' + decodeURIComponent(email), '#22c55e'); return;
       }
-      if (err) {
-        window.history.replaceState({}, '', window.location.pathname);
-        showToast('❌ Erreur Etsy : ' + err, '#ef4444');
-        return;
-      }
-      // Session existante
+      if (err) { window.history.replaceState({}, '', window.location.pathname); showToast('❌ Erreur Etsy : ' + err, '#ef4444'); return; }
       if (localStorage.getItem('etsy_connected') === '1' && TOKEN) {
         const btn = document.getElementById('etsy-login-btn');
-        btn.innerHTML = 'Etsy Logout';
-        btn.classList.add('connected');
+        btn.innerHTML = 'Etsy Logout'; btn.classList.add('connected');
       }
     }
 
@@ -360,69 +498,47 @@
       if (!confirm('Delete this listing?')) return;
       apiFetch('/api/shops/' + id, { method: 'DELETE' }).then(() => {
         document.getElementById('shop-wrapper-' + id)?.remove();
-        showToast('Listing deleted', '#ef4444');
-        loadShops();
+        showToast('Listing deleted', '#ef4444'); loadShops();
       });
     }
 
-    function goBack() {
-      sessionStorage.setItem('skipIntro', '1');
-      window.location.href = '/finder';
-    }
+    function goBack() { sessionStorage.setItem('skipIntro', '1'); window.location.href = '/finder'; }
 
     document.addEventListener('DOMContentLoaded', function() {
       const params = new URLSearchParams(window.location.search);
       const urlToken = params.get('token');
-      if (urlToken) {
-        localStorage.setItem('scout_token', urlToken);
-        TOKEN = urlToken;
-      } else {
-        TOKEN = localStorage.getItem('scout_token');
-      }
+      if (urlToken) { localStorage.setItem('scout_token', urlToken); TOKEN = urlToken; }
+      else { TOKEN = localStorage.getItem('scout_token'); }
       if (!TOKEN) { window.location.href = '/finder'; return; }
-      checkEtsyToken();
-      loadShops();
+      checkEtsyToken(); loadShops();
     });
   </script>
 
   <script>
     (function() {
       const mCanvas = document.getElementById('milkyway-canvas');
-      if (mCanvas) {
-        const ctx = mCanvas.getContext('2d');
-        let W, H, stars = [];
-        function resizeM() {
-          W = mCanvas.width = window.innerWidth;
-          H = mCanvas.height = window.innerHeight;
-          stars = Array.from({length: 220}, () => ({
-            x: Math.random()*W, y: Math.random()*H,
-            r: Math.random()*1.4+0.2,
-            a: Math.random()*0.7+0.15,
-            speed: Math.random()*0.003+0.001,
-            phase: Math.random()*Math.PI*2
-          }));
-        }
-        function drawM(t) {
-          ctx.clearRect(0,0,W,H);
-          stars.forEach(s => {
-            const alpha = s.a*(0.6+0.4*Math.sin(t*s.speed+s.phase));
-            ctx.beginPath();
-            ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(255,255,255,'+alpha+')';
-            ctx.fill();
-          });
-          requestAnimationFrame(drawM);
-        }
-        resizeM();
-        window.addEventListener('resize', resizeM);
+      if (!mCanvas) return;
+      const ctx = mCanvas.getContext('2d');
+      let W, H, stars = [];
+      function resizeM() {
+        W = mCanvas.width = window.innerWidth; H = mCanvas.height = window.innerHeight;
+        stars = Array.from({length: 220}, () => ({
+          x: Math.random()*W, y: Math.random()*H, r: Math.random()*1.4+0.2,
+          a: Math.random()*0.7+0.15, speed: Math.random()*0.003+0.001, phase: Math.random()*Math.PI*2
+        }));
+      }
+      function drawM(t) {
+        ctx.clearRect(0,0,W,H);
+        stars.forEach(s => {
+          const alpha = s.a*(0.6+0.4*Math.sin(t*s.speed+s.phase));
+          ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+          ctx.fillStyle = 'rgba(255,255,255,'+alpha+')'; ctx.fill();
+        });
         requestAnimationFrame(drawM);
       }
+      resizeM(); window.addEventListener('resize', resizeM); requestAnimationFrame(drawM);
     })();
   </script>
-
 </body>
 </html>
-
-
-
 
