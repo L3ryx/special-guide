@@ -53,15 +53,7 @@
     #auth-forgot-back:hover { color:#fff; }
     #auth-forgot-msg { text-align:center; font-size:0.82rem; color:var(--green); min-height:1.2em; }
 
-    /* ── ETSY LOGOUT BTN ── */
-    #etsy-logout-btn {
-      position:fixed; top:10px; right:220px; z-index:500; display:none;
-      align-items:center; gap:6px; padding:7px 14px; border-radius:10px;
-      border:none; background:#dc2626; color:#fff;
-      font-family:'Croissant One',cursive; font-size:0.78rem; font-weight:700;
-      cursor:pointer; transition:all 0.2s; white-space:nowrap;
-    }
-    #etsy-logout-btn:hover { background:#b91c1c; transform:scale(1.04); }
+
 
     /* ── TITLE outer hide/show ── */
     #title-outer { transition: opacity 0.35s ease, transform 0.35s ease; }
@@ -362,9 +354,6 @@
   <!-- FIXED BUTTONS -->
   <a id="niche-list-btn" href="/niche-list">❤️<span class="nl-count" id="nl-count" style="position:absolute;top:-2px;right:-2px;">0</span></a>
 
-  <!-- ETSY LOGOUT BTN -->
-  <button id="etsy-logout-btn" onclick="etsyLogout()">🛍 Etsy Logout</button>
-
   <div id="user-badge">
     <button id="user-avatar-btn" onclick="toggleUserDropdown()">👤</button>
     <div class="user-dropdown" id="user-dropdown">
@@ -503,7 +492,6 @@
         window.history.replaceState({}, '', window.location.pathname);
         setTimeout(function() {
           onLoggedIn(decodeURIComponent(email));
-          document.getElementById('etsy-logout-btn').style.display = 'flex';
         }, 0);
       } else if (etsyErr) {
         window.history.replaceState({}, '', window.location.pathname);
@@ -585,29 +573,8 @@
       document.getElementById('user-email-display').textContent = email || '—';
       document.getElementById('user-badge').style.display = 'flex';
       document.getElementById('niche-list-btn').style.display = 'flex';
-      // Afficher le bouton Etsy Logout si connecté via Etsy (email etsy_ ou token etsy en session)
-      if (localStorage.getItem('etsy_connected') === '1') {
-        document.getElementById('etsy-logout-btn').style.display = 'flex';
-      }
       initSavedShops();
       loadAutoState();
-    }
-
-    function etsyLogout() {
-      // Supprimer toutes les infos de connexion Etsy et app
-      localStorage.removeItem('scout_token');
-      localStorage.removeItem('etsy_connected');
-      localStorage.removeItem('etsy_token');
-      localStorage.removeItem('etsy_verifier');
-      localStorage.removeItem('etsy_state');
-      localStorage.removeItem('etsy_shop');
-      SCOUT_TOKEN = null;
-      _currentUser = null;
-      document.getElementById('etsy-logout-btn').style.display = 'none';
-      document.getElementById('user-badge').style.display = 'none';
-      document.getElementById('niche-list-btn').style.display = 'none';
-      showAuthModal();
-      showToast('Etsy disconnected', '#f97316');
     }
 
     // ── ERROR POPUP ──
@@ -1470,5 +1437,6 @@
   </script>
 </body>
 </html>
+
 
 
