@@ -53,6 +53,25 @@
     #auth-forgot-back:hover { color:#fff; }
     #auth-forgot-msg { text-align:center; font-size:0.82rem; color:var(--green); min-height:1.2em; }
 
+    /* ── ETSY LOGOUT BTN ── */
+    #etsy-logout-btn {
+      position:fixed; top:10px; right:220px; z-index:500; display:none;
+      align-items:center; gap:6px; padding:7px 14px; border-radius:10px;
+      border:none; background:#dc2626; color:#fff;
+      font-family:'Croissant One',cursive; font-size:0.78rem; font-weight:700;
+      cursor:pointer; transition:all 0.2s; white-space:nowrap;
+    }
+    #etsy-logout-btn:hover { background:#b91c1c; transform:scale(1.04); }
+
+    /* ── TITLE outer hide/show ── */
+    #title-outer { transition: opacity 0.35s ease, transform 0.35s ease; }
+    #title-outer.hidden { opacity:0; pointer-events:none; transform:translateY(-10px); }
+    /* ── TOP BUTTONS hide during search ── */
+    #niche-list-btn { transition: opacity 0.3s ease; }
+    #niche-list-btn.hidden { opacity:0; pointer-events:none; }
+    #user-badge { transition: opacity 0.3s ease; }
+    #user-badge.hidden { opacity:0; pointer-events:none; }
+
     /* ── USER BADGE (top right) ── */
     #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; }
     #user-avatar-btn { background:none; border:none; cursor:pointer; font-size:1.7rem; line-height:1; padding:4px; display:flex; align-items:center; justify-content:center; transition:transform 0.15s; }
@@ -343,6 +362,9 @@
   <!-- FIXED BUTTONS -->
   <a id="niche-list-btn" href="/niche-list">❤️<span class="nl-count" id="nl-count" style="position:absolute;top:-2px;right:-2px;">0</span></a>
 
+  <!-- ETSY LOGOUT BTN -->
+  <button id="etsy-logout-btn" onclick="etsyLogout()">🛍 Etsy Logout</button>
+
   <div id="user-badge">
     <button id="user-avatar-btn" onclick="toggleUserDropdown()">👤</button>
     <div class="user-dropdown" id="user-dropdown">
@@ -468,6 +490,33 @@
     let SCOUT_TOKEN = localStorage.getItem('scout_token') || null;
     let _currentUser = null;
 
+    // ── Gestion du retour OAuth Etsy ──
+    (function handleOAuthReturn() {
+      const params = new URLSearchParams(window.location.search);
+      const token   = params.get('token');
+      const email   = params.get('email');
+      const etsyErr = params.get('etsy_error');
+      if (token && email) {
+        localStorage.setItem('scout_token', token);
+        localStorage.setItem('etsy_connected', '1');
+        SCOUT_TOKEN = token;
+        window.history.replaceState({}, '', window.location.pathname);
+        setTimeout(function() {
+          onLoggedIn(decodeURIComponent(email));
+          document.getElementById('etsy-logout-btn').style.display = 'flex';
+        }, 0);
+      } else if (etsyErr) {
+        window.history.replaceState({}, '', window.location.pathname);
+        setTimeout(function() {
+          const errEl = document.getElementById('auth-error');
+          if (errEl) {
+            const msgs = { 'no_email': 'Etsy n\'a pas fourni votre email.', 'access_denied': 'Connexion Etsy annulée.' };
+            errEl.textContent = msgs[etsyErr] || ('Erreur Etsy : ' + etsyErr);
+          }
+        }, 500);
+      }
+    })();
+
 
     let _authTab = 'login';
 
@@ -536,8 +585,29 @@
       document.getElementById('user-email-display').textContent = email || '—';
       document.getElementById('user-badge').style.display = 'flex';
       document.getElementById('niche-list-btn').style.display = 'flex';
+      // Afficher le bouton Etsy Logout si connecté via Etsy (email etsy_ ou token etsy en session)
+      if (localStorage.getItem('etsy_connected') === '1') {
+        document.getElementById('etsy-logout-btn').style.display = 'flex';
+      }
       initSavedShops();
       loadAutoState();
+    }
+
+    function etsyLogout() {
+      // Supprimer toutes les infos de connexion Etsy et app
+      localStorage.removeItem('scout_token');
+      localStorage.removeItem('etsy_connected');
+      localStorage.removeItem('etsy_token');
+      localStorage.removeItem('etsy_verifier');
+      localStorage.removeItem('etsy_state');
+      localStorage.removeItem('etsy_shop');
+      SCOUT_TOKEN = null;
+      _currentUser = null;
+      document.getElementById('etsy-logout-btn').style.display = 'none';
+      document.getElementById('user-badge').style.display = 'none';
+      document.getElementById('niche-list-btn').style.display = 'none';
+      showAuthModal();
+      showToast('Etsy disconnected', '#f97316');
     }
 
     // ── ERROR POPUP ──
@@ -1026,6 +1096,12 @@
       btn.disabled = false;
       btn.classList.remove('loading', 'retry');
       btn.textContent = 'Search';
+      // Réafficher les boutons et le logo
+      document.getElementById('title-outer').classList.remove('hidden');
+      document.getElementById('niche-list-btn').classList.remove('hidden');
+      document.getElementById('user-badge').classList.remove('hidden');
+      const etsyBtn = document.getElementById('etsy-logout-btn');
+      if (etsyBtn) etsyBtn.classList.remove('hidden');
     }
 
     function stopSearch() {
@@ -1088,6 +1164,13 @@
       _searching = true;
       _stopRequested = false;
       window._shopDataMap = {};
+
+      // Cacher les boutons fixes et le logo pendant la recherche
+      document.getElementById('title-outer').classList.add('hidden');
+      document.getElementById('niche-list-btn').classList.add('hidden');
+      document.getElementById('user-badge').classList.add('hidden');
+      const etsyBtn = document.getElementById('etsy-logout-btn');
+      if (etsyBtn) etsyBtn.classList.add('hidden');
 
       const btn = document.getElementById('start-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'LOADING'; btn.classList.remove('retry'); btn.classList.add('loading'); }
@@ -1258,13 +1341,17 @@
         const usedKw = _keywords[0];
         if (usedKw) await saveUsedKeyword(usedKw);
         updateQueueDisplay();
+        _searching = false; // ← reset pour permettre la prochaine recherche
         setTimeout(function() {
-          if (_autoSearch) {
+          if (_autoSearch && !_stopRequested) {
             document.getElementById('keyword-input').value = '';
             _keywords = [];
             startSearch();
           }
-        }, 500);
+        }, 1500);
+      } else if (!_autoSearch && !_stopRequested) {
+        restoreUI();
+        clearKeywords();
       }
     }
 
@@ -1383,4 +1470,5 @@
   </script>
 </body>
 </html>
+
 
