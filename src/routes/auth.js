@@ -120,21 +120,17 @@ router.get('/etsy/callback', async (req, res) => {
     });
 
     const etsyUser  = profileRes.data;
-    const etsyEmail = etsyUser.primary_email || etsyUser.email || null;
     const etsyId    = String(etsyUser.user_id);
+    // Etsy ne retourne pas toujours l'email — on utilise l'etsyId comme identifiant unique
+    const etsyEmail = etsyUser.primary_email || etsyUser.email || null;
+    // Email de substitution basé sur le user_id Etsy si pas d'email fourni
+    const userEmail = etsyEmail ? etsyEmail.toLowerCase().trim() : ('etsy_' + etsyId + '@finder-niche.com');
 
-    if (!etsyEmail) {
-      // Etsy ne renvoie l'email que si le scope email_r est accordé.
-      // Sans email on ne peut pas créer/retrouver un compte User.
-      return res.redirect(APP_URL + '/niche-list?etsy_error=no_email');
-    }
-
-    // Trouver ou créer l'utilisateur dans MongoDB
-    let user = await User.findOne({ email: etsyEmail.toLowerCase().trim() });
+    // Trouver ou créer l'utilisateur dans MongoDB (cherche d'abord par email Etsy, sinon par email substitut)
+    let user = await User.findOne({ email: userEmail });
     if (!user) {
-      // Créer le compte avec un mot de passe aléatoire (connexion uniquement via Etsy)
       const randomPwd = crypto.randomBytes(24).toString('hex');
-      user = await new User({ email: etsyEmail.toLowerCase().trim(), password: randomPwd }).save();
+      user = await new User({ email: userEmail, password: randomPwd }).save();
     }
 
     // Sauvegarder les tokens Etsy sur le document utilisateur (optionnel mais utile)
@@ -151,7 +147,7 @@ router.get('/etsy/callback', async (req, res) => {
     // Rediriger vers le frontend avec le token JWT dans l'URL
     // Le frontend doit récupérer ce token et le stocker (localStorage, etc.)
     // Redirige vers /niche-list (où se trouve le bouton Etsy) avec le token
-    res.redirect(APP_URL + '/niche-list?token=' + appToken + '&email=' + encodeURIComponent(user.email));
+    res.redirect(APP_URL + '/niche-list?token=' + appToken + '&email=' + encodeURIComponent(etsyEmail || ('Etsy #' + etsyId)));
 
   } catch (err) {
     console.error('Etsy OAuth error:', err.response?.data || err.message);
