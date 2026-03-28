@@ -5,12 +5,12 @@ const crypto  = require('crypto');
 const axios   = require('axios');
 const User    = require('../models/userModel');
 
-const JWT_SECRET  = process.env.JWT_SECRET || 'finder_niche_secret_change_me';
+const JWT_SECRET  = process.env.JWT_SECRET || 'Bretignydu91';
 const JWT_EXPIRES = '30d';
 
 const ETSY_CLIENT_ID     = process.env.ETSY_CLIENT_ID;
 const ETSY_CLIENT_SECRET = process.env.ETSY_CLIENT_SECRET;
-const APP_URL            = process.env.APP_URL || 'https://etsy-money-finder-2-3ub5.onrender.com';
+const APP_URL            = process.env.APP_URL || 'https://www.finder-niche.com/finder';
 const ETSY_REDIRECT_URI  = APP_URL + '/api/auth/etsy/callback';
 
 // Stockage temporaire des code_verifier (en mémoire — suffit pour un seul serveur)
