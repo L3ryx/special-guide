@@ -10,7 +10,7 @@ const JWT_EXPIRES = '30d';
 
 const ETSY_CLIENT_ID     = process.env.ETSY_CLIENT_ID;
 const ETSY_CLIENT_SECRET = process.env.ETSY_CLIENT_SECRET;
-const APP_URL            = process.env.APP_URL || 'https://www.finder-niche.com/finder';
+const APP_URL            = process.env.APP_URL || 'https://www.finder-niche.com';
 const ETSY_REDIRECT_URI  = APP_URL + '/api/auth/etsy/callback';
 
 // Stockage temporaire des code_verifier (en mémoire — suffit pour un seul serveur)
@@ -63,7 +63,7 @@ router.get('/etsy', (req, res) => {
     response_type:         'code',
     client_id:             ETSY_CLIENT_ID,
     redirect_uri:          ETSY_REDIRECT_URI,
-    scope:                 'listings_r shops_r',   // adapte les scopes selon tes besoins
+    scope:                 'email_r listings_r shops_r',
     state,
     code_challenge:        challenge,
     code_challenge_method: 'S256',
@@ -78,7 +78,7 @@ router.get('/etsy/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
   if (error) {
-    return res.redirect(APP_URL + '/?etsy_error=' + encodeURIComponent(error));
+    return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent(error));
   }
 
   if (!code || !state) {
@@ -126,7 +126,7 @@ router.get('/etsy/callback', async (req, res) => {
     if (!etsyEmail) {
       // Etsy ne renvoie l'email que si le scope email_r est accordé.
       // Sans email on ne peut pas créer/retrouver un compte User.
-      return res.redirect(APP_URL + '/?etsy_error=no_email');
+      return res.redirect(APP_URL + '/niche-list?etsy_error=no_email');
     }
 
     // Trouver ou créer l'utilisateur dans MongoDB
@@ -150,12 +150,13 @@ router.get('/etsy/callback', async (req, res) => {
 
     // Rediriger vers le frontend avec le token JWT dans l'URL
     // Le frontend doit récupérer ce token et le stocker (localStorage, etc.)
-    res.redirect(APP_URL + '/?token=' + appToken + '&email=' + encodeURIComponent(user.email));
+    // Redirige vers /niche-list (où se trouve le bouton Etsy) avec le token
+    res.redirect(APP_URL + '/niche-list?token=' + appToken + '&email=' + encodeURIComponent(user.email));
 
   } catch (err) {
     console.error('Etsy OAuth error:', err.response?.data || err.message);
     const msg = err.response?.data?.error_description || err.message;
-    res.redirect(APP_URL + '/?etsy_error=' + encodeURIComponent(msg));
+    res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent(msg));
   }
 });
 
@@ -320,3 +321,4 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
+
