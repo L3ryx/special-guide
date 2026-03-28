@@ -276,56 +276,51 @@
     }
 
     // ── ETSY LOGIN ──
-    const ETSY_CLIENT_ID = 'YOUR_ETSY_CLIENT_ID'; // À remplacer par votre client ID Etsy
-    const ETSY_REDIRECT_URI = 'https://www.finder-niche.com/etsy-callback';
-    const ETSY_SCOPE = 'shops_r listings_r';
+    // Le OAuth est géré entièrement par le backend (/api/auth/etsy).
+    // Après connexion, le backend redirige vers /?token=...&email=...
 
-    function generateCodeVerifier() {
-      const array = new Uint8Array(32);
-      window.crypto.getRandomValues(array);
-      return btoa(String.fromCharCode(...array)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-    }
-
-    async function generateCodeChallenge(verifier) {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(verifier);
-      const hash = await window.crypto.subtle.digest('SHA-256', data);
-      return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-    }
-
-    async function handleEtsyLogin() {
-      const etsyToken = localStorage.getItem('etsy_token');
-      if (etsyToken) {
-        localStorage.removeItem('etsy_token');
-        localStorage.removeItem('etsy_shop');
-        document.getElementById('etsy-login-btn').textContent = '🛍 Etsy Login';
-        document.getElementById('etsy-login-btn').classList.remove('connected');
+    function handleEtsyLogin() {
+      const btn = document.getElementById('etsy-login-btn');
+      if (btn.classList.contains('connected')) {
+        btn.innerHTML = '🛍 Etsy Login';
+        btn.classList.remove('connected');
         showToast('Etsy disconnected', '#f97316');
         return;
       }
-      const verifier = generateCodeVerifier();
-      const challenge = await generateCodeChallenge(verifier);
-      const state = Math.random().toString(36).substring(2);
-      localStorage.setItem('etsy_verifier', verifier);
-      localStorage.setItem('etsy_state', state);
-      const params = new URLSearchParams({
-        response_type: 'code',
-        redirect_uri: ETSY_REDIRECT_URI,
-        scope: ETSY_SCOPE,
-        client_id: ETSY_CLIENT_ID,
-        state: state,
-        code_challenge: challenge,
-        code_challenge_method: 'S256',
-      });
-      window.location.href = 'https://www.etsy.com/oauth/connect?' + params.toString();
+      window.location.href = '/api/auth/etsy';
     }
 
     function checkEtsyToken() {
-      const etsyToken = localStorage.getItem('etsy_token');
-      const etsyShop = localStorage.getItem('etsy_shop');
-      const btn = document.getElementById('etsy-login-btn');
-      if (etsyToken) {
-        btn.textContent = '✅ ' + (etsyShop || 'Etsy Connected');
+      const params = new URLSearchParams(window.location.search);
+      const token   = params.get('token');
+      const email   = params.get('email');
+      const etsyErr = params.get('etsy_error');
+
+      if (token && email) {
+        localStorage.setItem('scout_token', token);
+        TOKEN = token;
+        window.history.replaceState({}, '', window.location.pathname);
+        const btn = document.getElementById('etsy-login-btn');
+        btn.innerHTML = '✅ Etsy Connected';
+        btn.classList.add('connected');
+        showToast('Etsy connected! Welcome ' + decodeURIComponent(email), '#22c55e');
+        loadShops();
+        return;
+      }
+
+      if (etsyErr) {
+        window.history.replaceState({}, '', window.location.pathname);
+        const msgs = {
+          'no_email':     "Etsy n\'a pas fourni votre email. Vérifiez les permissions.",
+          'access_denied':"Connexion Etsy annulée.",
+        };
+        showToast(msgs[etsyErr] || ('Erreur Etsy : ' + etsyErr), '#ef4444');
+        return;
+      }
+
+      if (TOKEN) {
+        const btn = document.getElementById('etsy-login-btn');
+        btn.innerHTML = '✅ Etsy Connected';
         btn.classList.add('connected');
       }
     }
@@ -389,5 +384,6 @@
 
 </body>
 </html>
+
 
 
