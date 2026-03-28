@@ -1,6 +1,9 @@
 /**
  * cloneRoutes.js
  * Pipeline complet : Boutique Etsy → Google Lens → AliExpress → Leonardo → Gemini → Etsy Listing
+ *
+ * Etsy data → API officielle Etsy (etsyApi.js)
+ * AliExpress data → ScraperAPI (pas d'API officielle)
  */
 
 require('dotenv').config();
@@ -8,116 +11,44 @@ const express = require('express');
 const router  = express.Router();
 const axios   = require('axios');
 const { requireAuth } = require('./auth');
+// ScraperAPI conservé UNIQUEMENT pour AliExpress
 const { scraperApiFetch } = require('../services/scrapingFetch');
 const { uploadToImgBB }   = require('../services/imgbbUploader');
+const { getShopListings, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 
 // ══════════════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════════════
 
 /**
- * Scrape la page boutique Etsy et retourne la liste des annonces
- * avec (listingUrl, firstImage, title, price)
+ * Récupère les listings d'une boutique Etsy via l'API officielle.
+ * Remplace le scraping HTML de https://www.etsy.com/shop/{shopName}
  */
 async function scrapeShopListings(shopName) {
-  const html = await scraperApiFetch('https://www.etsy.com/shop/' + shopName);
-
-  const listings = [];
-
-  // ── Extraire depuis JSON-LD ──
-  for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
-    try {
-      const data = JSON.parse(raw);
-      for (const el of (data.itemListElement || [])) {
-        const p = el.item || el;
-        const url = (p.url || p['@id'] || '').split('?')[0];
-        if (!url.includes('/listing/')) continue;
-        const img = Array.isArray(p.image) ? p.image[0] : p.image;
-        if (!img) continue;
-        const price = p.offers?.price || p.price || null;
-        const title = p.name || p.description || null;
-        listings.push({ url, image: img, title, price });
-      }
-    } catch {}
-    if (listings.length >= 20) break;
+  try {
+    const results = await getShopListings(shopName, 20);
+    return results.map(l => ({
+      url:   l.link,
+      image: l.image,
+      title: l.title,
+      price: l.price,
+    }));
+  } catch (e) {
+    handleEtsyError(e);
   }
-
-  // ── Fallback : regex sur les images etsystatic ──
-  if (!listings.length) {
-    const imgMatches = [...html.matchAll(/https:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp)/gi)];
-    const urlMatches = [...html.matchAll(/\/listing\/(\d+)\/([A-Za-z0-9_-]+)/g)];
-    for (const um of urlMatches) {
-      const listingUrl = 'https://www.etsy.com/listing/' + um[1] + '/' + um[2];
-      const img = imgMatches.shift();
-      if (!img) break;
-      listings.push({ url: listingUrl, image: img[0].split('?')[0], title: null, price: null });
-      if (listings.length >= 20) break;
-    }
-  }
-
-  return listings;
 }
 
 /**
- * Scrape une page de listing Etsy individuelle pour récupérer
- * le titre, le prix, et les 5 premières images
+ * Récupère le détail d'un listing Etsy via l'API officielle.
  */
 async function scrapeListingDetail(listingUrl) {
-  const html = await scraperApiFetch(listingUrl);
-
-  let title = null, price = null;
-  const images = [];
-
-  // ── JSON-LD ──
-  for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
-    try {
-      const data = JSON.parse(raw);
-      const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
-      for (const item of items) {
-        if (!title && item.name) title = item.name;
-        if (!price && item.offers?.price) price = String(item.offers.price);
-        const imgs = Array.isArray(item.image) ? item.image : (item.image ? [item.image] : []);
-        for (const img of imgs) {
-          const url = (typeof img === 'string' ? img : img.url || '').split('?')[0];
-          if (url && !images.includes(url)) images.push(url);
-          if (images.length >= 5) break;
-        }
-      }
-    } catch {}
-    if (title && price && images.length >= 5) break;
+  const idMatch = listingUrl.match(/\/listing\/(\d+)\//);
+  if (!idMatch) throw new Error('Invalid listing URL: ' + listingUrl);
+  try {
+    return await getListingDetail(idMatch[1]);
+  } catch (e) {
+    handleEtsyError(e);
   }
-
-  // ── __NEXT_DATA__ fallback ──
-  if (!title || !price || images.length < 1) {
-    const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
-    if (nd) {
-      try {
-        const data = JSON.parse(nd[1]);
-        const str  = JSON.stringify(data);
-        if (!title) {
-          const m = str.match(/"title"\s*:\s*"([^"]{5,200})"/);
-          if (m) title = m[1];
-        }
-        if (!price) {
-          const m = str.match(/"price"\s*:\s*"?([0-9.]+)"?/);
-          if (m) price = m[1];
-        }
-        for (const m of str.matchAll(/https:\\\/\\\/i\.etsystatic\.com\\\/[^"\\]+\.(?:jpg|jpeg|png|webp)/gi)) {
-          const url = m[0].replace(/\\\//g, '/').split('?')[0];
-          if (!images.includes(url)) images.push(url);
-          if (images.length >= 5) break;
-        }
-      } catch {}
-    }
-  }
-
-  // ── Regex HTML fallback ──
-  if (!price) {
-    const m = html.match(/data-buy-box-listing-price[^>]*>\s*([0-9.,]+)/);
-    if (m) price = m[1].replace(',', '.');
-  }
-
-  return { title, price, images: images.slice(0, 5) };
 }
 
 /**
@@ -625,4 +556,5 @@ router.post('/start', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
 
