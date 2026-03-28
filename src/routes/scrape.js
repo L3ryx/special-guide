@@ -1,7 +1,9 @@
-const express             = require('express');
-const router              = express.Router();
-const axios               = require('axios');
-const mongoose            = require('mongoose');
+const express  = require('express');
+const router   = express.Router();
+const axios    = require('axios');
+const mongoose = require('mongoose');
+const { searchListings, getShopListings, getShopInfo, handleEtsyError } = require('../services/etsyApi');
+// ScraperAPI conservé UNIQUEMENT pour AliExpress
 const { scraperApiFetch } = require('../services/scrapingFetch');
 
 // ── MongoDB connection ──
@@ -10,8 +12,6 @@ if (mongoose.connection.readyState === 0) {
     .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB:', err.message));
 }
-
-
 
 // ── NICHE KEYWORD (dice button) ──
 router.post('/niche-keyword', async (req, res) => {
@@ -25,18 +25,7 @@ router.post('/niche-keyword', async (req, res) => {
       ? `\nDo NOT include any of these already-used keywords: ${usedKeywords.join(', ')}.`
       : '';
 
-    const prompt = `It is ${month} ${year}. Generate a list of exactly 50 unique English niche keywords for Etsy product searches.
-
-Rules:
-- Each keyword must be 2-4 words
-- ALL must be PHYSICAL products only (no digital, no printables, no SVG, no downloads, no templates)
-- All 50 must be DIFFERENT product types — no variations of the same product
-- Mix categories: home decor, jewelry, clothing, accessories, ceramics, candles, toys, stationery, wellness, outdoors, pets, baby, kitchen, garden, etc.
-- Each must be specific and searchable (not generic like "handmade gift")
-- Prioritize products trending in ${month} ${year}${excludeList}
-
-Respond with ONLY a JSON array of 50 strings, no explanation, no markdown, no numbering.
-Example format: ["keyword one","keyword two","keyword three"]`;
+    const prompt = `It is ${month} ${year}. Generate a list of exactly 50 unique English niche keywords for Etsy product searches.\n\nRules:\n- Each keyword must be 2-4 words\n- ALL must be PHYSICAL products only (no digital, no printables, no SVG, no downloads, no templates)\n- All 50 must be DIFFERENT product types — no variations of the same product\n- Mix categories: home decor, jewelry, clothing, accessories, ceramics, candles, toys, stationery, wellness, outdoors, pets, baby, kitchen, garden, etc.\n- Each must be specific and searchable (not generic like \"handmade gift\")\n- Prioritize products trending in ${month} ${year}${excludeList}\n\nRespond with ONLY a JSON array of 50 strings, no explanation, no markdown, no numbering.\nExample format: [\"keyword one\",\"keyword two\",\"keyword three\"]`;
 
     const r = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
@@ -48,7 +37,6 @@ Example format: ["keyword one","keyword two","keyword three"]`;
     const clean = rawText.replace(/```json|```/g, '').trim();
     let keywords = JSON.parse(clean);
     if (!Array.isArray(keywords)) throw new Error('Invalid response format');
-    // Nettoyer et dédupliquer
     keywords = [...new Set(keywords.map(k => k.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()))].filter(k => k.length > 2).slice(0, 50);
     res.json({ keywords });
   } catch(e) {
@@ -58,122 +46,58 @@ Example format: ["keyword one","keyword two","keyword three"]`;
 });
 
 
-// ── SEARCH ──
+/**
+ * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
+ * Retourne un tableau de { link, image, shopName, shopUrl }.
+ */
+async function fetchListingsForDropship(keyword, onBatch, maxResults = 200) {
+  const shopsSeen = new Set();
+  const listings  = [];
+  const perPage   = 100;
+  let   offset    = 0;
+  let   batch     = 0;
 
+  while (listings.length < maxResults) {
+    const needed  = maxResults - listings.length;
+    const limit   = Math.min(needed, perPage);
+    let   results;
 
-function parseListingsFromHtml(html) {
-  const results = [], seen = new Set(), shopMap = new Map();
-  for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
-      const data = JSON.parse(raw);
-      for (const el of (data.itemListElement || [])) {
-        const p = el.item || el;
-        const url = p.url || p['@id'] || '';
-        const idM = url.match(/\/listing\/(\d+)\//);
-        if (!idM) continue;
-        const sn = p.brand?.name || p.seller?.name;
-        if (sn && !shopMap.has(idM[1])) shopMap.set(idM[1], sn);
-      }
-      for (const item of (Array.isArray(data) ? data : (data['@graph'] || []))) {
-        const url = item.url || item['@id'] || '';
-        const idM = url.match(/\/listing\/(\d+)\//);
-        if (!idM) continue;
-        const sn = item.brand?.name || item.seller?.name;
-        if (sn && !shopMap.has(idM[1])) shopMap.set(idM[1], sn);
-      }
-    } catch {}
-  }
-  for (const m of html.matchAll(/"listing_id"\s*:\s*"?(\d+)"?[\s\S]{0,400}?"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/g))
-    if (!shopMap.has(m[1])) shopMap.set(m[1], m[2]);
-  for (const m of html.matchAll(/"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"[\s\S]{0,400}?"listing_id"\s*:\s*"?(\d+)"?/g))
-    if (!shopMap.has(m[2])) shopMap.set(m[2], m[1]);
-  for (const m of html.matchAll(/\/listing\/(\d+)\/[^"'\s]{0,100}[\s\S]{0,600}?\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|"|'| )/g))
-    if (!shopMap.has(m[1])) shopMap.set(m[1], m[2]);
-  for (const m of html.matchAll(/\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|"|'| )[\s\S]{0,600}?\/listing\/(\d+)\//g))
-    if (!shopMap.has(m[2])) shopMap.set(m[2], m[1]);
+      results = await searchListings(keyword, limit, offset);
+    } catch (e) {
+      handleEtsyError(e);
+    }
 
-  function resolveShop(id, ctx) {
-    if (id && shopMap.has(id)) return shopMap.get(id);
-    if (!ctx) return null;
-    const m = ctx.match(/\/shop\/([A-Za-z0-9][A-Za-z0-9._-]{1,49})(?:\/|\?|"|'| )/i)
-           || ctx.match(/"shop_name"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._-]{1,49})"/i);
-    return m ? m[1] : null;
-  }
+    if (!results || results.length === 0) break;
 
-  for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
-    try {
-      const data = JSON.parse(raw);
-      const items = [];
-      for (const el of (data.itemListElement || [])) items.push(el.item || el);
-      for (const item of (Array.isArray(data) ? data : (data['@graph'] || []))) items.push(item);
-      for (const p of items) {
-        const url = p.url || p['@id'] || '';
-        const img = Array.isArray(p.image) ? p.image[0] : p.image;
-        if (!url.includes('/listing/') || !img) continue;
-        const clean = url.split('?')[0];
-        if (seen.has(clean)) continue;
-        seen.add(clean);
-        const idM = clean.match(/\/listing\/(\d+)\//);
-        const sn = p.brand?.name || p.seller?.name || resolveShop(idM?.[1], null);
-        results.push({ link: clean, image: img, shopName: sn || null });
-      }
-    } catch {}
-  }
-  if (results.filter(r => r.shopName).length >= 2) return results;
-
-  const lms = [...html.matchAll(/\/listing\/(\d+)\/([A-Za-z0-9_-]+)/g)];
-  const imgs = [...html.matchAll(/(https:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp))/gi)].map(m => ({ url: m[1].split('?')[0], pos: m.index }));
-  for (const lm of lms) {
-    const fullUrl = 'https://www.etsy.com/listing/' + lm[1] + '/' + lm[2];
-    if (seen.has(fullUrl)) continue;
-    let closest = null, minDist = Infinity;
-    for (const img of imgs) { const d = Math.abs(img.pos - lm.index); if (d < minDist && d < 8000) { minDist = d; closest = img; } }
-    if (!closest) continue;
-    seen.add(fullUrl);
-    const ctx = html.slice(Math.max(0, lm.index - 2000), lm.index + 2000);
-    const sn = resolveShop(lm[1], ctx);
-    results.push({ link: fullUrl, image: closest.url, shopName: sn || null });
-  }
-  return results;
-}
-
-async function scrapeEtsyForDropship(apiKey, keyword, onPage, fetchFn) {
-  const MAX_PAGES = 5, shopsSeen = new Set(), listings = [];
-  let page = 1, emptyPages = 0;
-  while (page <= MAX_PAGES) {
-    const url = 'https://www.etsy.com/search?q=' + encodeURIComponent(keyword) + '&page=' + page;
-    let html;
-    try { html = await fetchFn(url, { stealth_proxy: 'true', wait: '1500' }); }
-    catch (e) { console.warn('Scrape page', page, 'failed:', e.message); break; }
-    const raw = parseListingsFromHtml(html);
     let added = 0;
-    for (const l of raw) {
+    for (const l of results) {
       if (!l.image || !l.shopName) continue;
       if (shopsSeen.has(l.shopName)) continue;
       shopsSeen.add(l.shopName);
       listings.push(l);
       added++;
     }
-    if (onPage) onPage(page, listings.length);
-    const hasNext = html.includes('pagination-next') || html.includes('page=' + (page + 1));
-    if (!hasNext) break;
-    if (added === 0) { emptyPages++; if (emptyPages >= 2) break; } else emptyPages = 0;
-    page++;
-    await new Promise(r => setTimeout(r, 200));
+
+    batch++;
+    if (onBatch) onBatch(batch, listings.length);
+
+    if (results.length < limit) break; // dernière page
+    offset += limit;
+    await new Promise(r => setTimeout(r, 100));
   }
-  console.log('scrapeEtsyForDropship done:', listings.length, 'shops');
+
+  console.log('fetchListingsForDropship done:', listings.length, 'unique shops');
   return listings;
 }
 
+
 // ── SEARCH DROPSHIP ──
-// Fonctionne exactement comme la recherche de compétition :
-// scrape Etsy → page boutique → 2 images → Google Lens → dropshipping confirmé si 2 matches
 router.post('/search-dropship', async (req, res) => {
   const { keyword } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
-  const apiKey = process.env.SCRAPEAPI_KEY;
-  if (!apiKey)                     return res.status(500).json({ error: 'SCRAPEAPI_KEY missing' });
+  if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
   if (!process.env.SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
   if (!process.env.IMGBB_API_KEY)  return res.status(500).json({ error: 'IMGBB_API_KEY missing' });
 
@@ -184,33 +108,30 @@ router.post('/search-dropship', async (req, res) => {
 
   try {
     const { uploadToImgBB } = require('../services/imgbbUploader');
-    const axios = require('axios');
 
-    // ── STEP 1 : Scraper les résultats Etsy (même méthode que la compétition)
-    send({ step: 'scraping', message: '🔍 Scraping Etsy for "' + keyword + '"...' });
+    // ── STEP 1 : Récupérer les listings via l'API Etsy ──
+    send({ step: 'scraping', message: '🔍 Searching Etsy API for "' + keyword + '"...' });
 
-    // Utiliser la même fonction que la compétition dans shopRoutes
     let listings = [];
     try {
-      listings = await scrapeEtsyForDropship(
-        apiKey, keyword,
-        (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + ' — ' + count + ' listings...' }),
-        scraperApiFetch
+      listings = await fetchListingsForDropship(
+        keyword,
+        (batch, count) => send({ step: 'scraping', message: '📄 Batch ' + batch + ' — ' + count + ' unique shops...' })
       );
     } catch(e) {
-      send({ step: 'error', message: '❌ Scraping failed: ' + e.message }); return res.end();
+      send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
     }
 
     listings = listings.filter(l => l.shopName);
     console.log('[search-dropship] listings with shopName:', listings.length);
 
     if (!listings.length) {
-      send({ step: 'error', message: '❌ No shop names found in Etsy results' });
+      send({ step: 'error', message: '❌ No shops found in Etsy results' });
       return res.end();
     }
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' unique shops. Analyzing...' });
 
-    // ── STEP 2 : Scraper la page boutique + 2 images + Google Lens
+    // ── STEP 2 : Récupérer les images des boutiques + Google Lens ──
     const imgbbCache = new Map();
     async function uploadCached(url) {
       if (imgbbCache.has(url)) return imgbbCache.get(url);
@@ -219,126 +140,32 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    async function extractAvatar(shopName) {
-      // ── Méthode 1 : API JSON non documentée Etsy (la plus fiable) ──
-      try {
-        const apiHtml = await scraperApiFetch('https://www.etsy.com/shop/' + shopName + '/about');
-        const nextDataMatch = apiHtml.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
-        if (nextDataMatch) {
-          const nd = JSON.parse(nextDataMatch[1]);
-          const str = JSON.stringify(nd);
-          // Patterns dans __NEXT_DATA__ — ordre de priorité
-          const patterns = [
-            /"icon_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"shop_icon_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"iconUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"shopIconUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"profile_image"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"avatarUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"userAvatarUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"owner_image_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-          ];
-          for (const pat of patterns) {
-            const m = str.match(pat);
-            if (m?.[1]) {
-              const url = m[1].replace(/\\/g, '');
-              console.log('[avatar] found via __NEXT_DATA__ about page:', url.slice(0, 70));
-              return url.split('?')[0];
-            }
-          }
-        }
-      } catch(e) { console.warn('[avatar] about page failed:', e.message); }
-
-      // ── Méthode 2 : Page boutique principale ──
-      try {
-        const html = await scraperApiFetch('https://www.etsy.com/shop/' + shopName);
-
-        // 2a. __NEXT_DATA__
-        const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
-        if (nextDataMatch) {
-          const nd = JSON.parse(nextDataMatch[1]);
-          const str = JSON.stringify(nd);
-          const patterns = [
-            /"icon_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"shop_icon_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"iconUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"shopIconUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"profile_image"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"avatarUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"userAvatarUrl"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-            /"owner_image_url"\s*:\s*"(https:[^"]+etsystatic[^"]+)"/,
-          ];
-          for (const pat of patterns) {
-            const m = str.match(pat);
-            if (m?.[1]) {
-              const url = m[1].replace(/\\/g, '');
-              console.log('[avatar] found via __NEXT_DATA__ shop page:', url.slice(0, 70));
-              return url.split('?')[0];
-            }
-          }
-        }
-
-        // 2b. Patterns directs HTML — balises img avec classes/alt liés à l'avatar
-        const imgPatterns = [
-          /src="(https:\/\/[^"]+etsystatic[^"]+)"[^>]*(?:alt="[^"]*(?:shop|owner|profil|avatar)[^"]*"|class="[^"]*(?:avatar|icon|profile|shop-icon)[^"]*")/i,
-          /(?:alt="[^"]*(?:shop|owner|profil|avatar)[^"]*"|class="[^"]*(?:avatar|icon|profile|shop-icon)[^"]*")[^>]*src="(https:\/\/[^"]+etsystatic[^"]+)"/i,
-          /class="[^"]*shop-?(?:icon|avatar|logo)[^"]*"[^>]*src="(https:\/\/[^"]+etsystatic[^"]+)"/i,
-        ];
-        for (const pat of imgPatterns) {
-          const m = html.match(pat);
-          if (m?.[1]) {
-            console.log('[avatar] found via img tag:', m[1].slice(0, 70));
-            return m[1].split('?')[0];
-          }
-        }
-
-        // 2c. Petites images format avatar (il_75x75, il_100x100, iusa_75x75)
-        for (const m of html.matchAll(/https:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp)/gi)) {
-          const url = m[0];
-          if (/(?:il_75x75|il_100x100|iusa_75x75|iusa_100x100|_75x75|_100x100|avatar)/.test(url)) {
-            console.log('[avatar] found via size pattern:', url.slice(0, 70));
-            return url.split('?')[0];
-          }
-        }
-
-        console.warn('[avatar] not found for shop:', shopName);
-        return null;
-      } catch(e) {
-        console.warn('[avatar] shop page failed:', e.message);
-        return null;
-      }
-    }
-
+    /**
+     * Récupère l'avatar et 2 images de listing d'une boutique via l'API Etsy.
+     */
     async function scrapeShopImages(shopName) {
       try {
-        const html = await scraperApiFetch('https://www.etsy.com/shop/' + shopName);
-
-        // ── Extraire l'avatar via la fonction dédiée ──
-        const shopAvatar = await extractAvatar(shopName);
-        console.log('[scrapeShopImages] ' + shopName + ' avatar:', shopAvatar ? shopAvatar.slice(0,60) : 'null');
-
-        // ── Extraire les 2 premières images de listing (pour Google Lens) ──
-        const images = [], links = [];
-        for (const [, raw] of html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
-          try {
-            const d = JSON.parse(raw);
-            for (const el of (d.itemListElement || [])) {
-              const p = el.item || el;
-              const img = Array.isArray(p.image) ? p.image[0] : p.image;
-              if (img && p.url?.includes('/listing/')) { images.push(img); links.push(p.url.split('?')[0]); if (images.length >= 2) break; }
-            }
-          } catch {}
-          if (images.length >= 2) break;
-        }
-        if (images.length < 2) {
-          for (const m of html.matchAll(/https:\/\/i\.etsystatic\.com\/[^"'\s,]+\.(?:jpg|jpeg|png|webp)/gi)) {
-            if (!images.includes(m[0])) { images.push(m[0].split('?')[0]); links.push(null); }
-            if (images.length >= 2) break;
-          }
+        // Infos boutique (avatar)
+        let shopAvatar = null;
+        try {
+          const info = await getShopInfo(shopName);
+          shopAvatar = info.shopAvatar || null;
+        } catch (e) {
+          console.warn('[avatar] getShopInfo failed for', shopName, ':', e.message);
         }
 
-        return { images: images.slice(0, 2).map((img, i) => ({ image: img, link: links[i] || null })), shopAvatar };
-      } catch { return { images: [], shopAvatar: null }; }
+        // Listings de la boutique (pour les 2 premières images)
+        const shopListings = await getShopListings(shopName, 5);
+        const images = shopListings
+          .map(l => ({ image: l.image, link: l.link }))
+          .filter(x => x.image)
+          .slice(0, 2);
+
+        return { images, shopAvatar };
+      } catch (e) {
+        console.warn('[scrapeShopImages] failed for', shopName, ':', e.message);
+        return { images: [], shopAvatar: null };
+      }
     }
 
     async function lensMatch(imageUrl) {
@@ -398,31 +225,22 @@ router.post('/search-dropship', async (req, res) => {
 });
 
 
-
 router.get('/health', (req, res) => {
   const keys = {
-    SCRAPEAPI_KEY:     !!process.env.SCRAPEAPI_KEY,
-    SERPER_API_KEY:    !!process.env.SERPER_API_KEY,
-    IMGBB_API_KEY:     !!process.env.IMGBB_API_KEY,
-    SCRAPEAPI_KEY:     !!process.env.SCRAPEAPI_KEY,
+    ETSY_CLIENT_ID: !!process.env.ETSY_CLIENT_ID,
+    SERPER_API_KEY: !!process.env.SERPER_API_KEY,
+    IMGBB_API_KEY:  !!process.env.IMGBB_API_KEY,
+    // SCRAPEAPI_KEY uniquement pour AliExpress dans CloneRoutes
+    SCRAPEAPI_KEY:  !!process.env.SCRAPEAPI_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
 
 // ── AUTH + SHOPS ──
-const { router: authRouter }  = require('./auth');
-const shopRouter               = require('./shopRoutes');
+const { router: authRouter } = require('./auth');
+const shopRouter              = require('./shopRoutes');
 router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
-
-
-
-
-
-
-
-
-
 
