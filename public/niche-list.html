@@ -358,13 +358,45 @@
     }
 
     function checkEtsyToken() {
-      const etsyToken = localStorage.getItem('etsy_token');
-      const etsyShop = localStorage.getItem('etsy_shop');
-      const btn = document.getElementById('etsy-login-btn');
-      if (etsyToken) {
-        btn.textContent = '✅ ' + (etsyShop || 'Etsy Connected');
+      // Lire les params OAuth retournés par le backend
+      const params = new URLSearchParams(window.location.search);
+      const token   = params.get('token');
+      const email   = params.get('email');
+      const etsyErr = params.get('etsy_error');
+
+      if (token && email) {
+        // Stocker le token et marquer comme connecté Etsy
+        localStorage.setItem('scout_token', token);
+        localStorage.setItem('etsy_connected', '1');
+        TOKEN = token;
+        // Nettoyer l'URL
+        window.history.replaceState({}, '', window.location.pathname);
+        // Mettre à jour le bouton
+        const btn = document.getElementById('etsy-login-btn');
+        btn.innerHTML = '✅ Etsy Connected';
         btn.classList.add('connected');
+        const logoutBtn = document.getElementById('etsy-logout-nav-btn');
+        if (logoutBtn) logoutBtn.style.display = 'block';
+        showToast('✅ Connecté : ' + decodeURIComponent(email), '#22c55e');
+        return true; // token trouvé dans URL
       }
+
+      if (etsyErr) {
+        window.history.replaceState({}, '', window.location.pathname);
+        const msgs = { 'no_email': 'Etsy n'a pas fourni votre email.', 'access_denied': 'Connexion annulée.' };
+        showToast('❌ ' + (msgs[etsyErr] || etsyErr), '#ef4444');
+        return false;
+      }
+
+      // Déjà connecté via Etsy (session existante)
+      if (localStorage.getItem('etsy_connected') === '1' && TOKEN) {
+        const btn = document.getElementById('etsy-login-btn');
+        btn.innerHTML = '✅ Etsy Connected';
+        btn.classList.add('connected');
+        const logoutBtn = document.getElementById('etsy-logout-nav-btn');
+        if (logoutBtn) logoutBtn.style.display = 'block';
+      }
+      return false;
     }
 
     function deleteShop(id, el) {
@@ -388,7 +420,15 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      TOKEN = localStorage.getItem('scout_token');
+      // Vérifier d'abord si un token arrive via URL (retour OAuth)
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken) {
+        localStorage.setItem('scout_token', urlToken);
+        TOKEN = urlToken;
+      } else {
+        TOKEN = localStorage.getItem('scout_token');
+      }
       if (!TOKEN) { window.location.href = '/finder'; return; }
       checkEtsyToken();
       loadShops();
