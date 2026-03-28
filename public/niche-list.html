@@ -50,59 +50,86 @@
     .container { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; position: relative; z-index: 10; }
     h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
 
-    .shops-list { display: flex; flex-direction: column; gap: 12px; }
+    .shops-list { display: flex; flex-direction: column; gap: 16px; }
     @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 
-    .shop-row {
-      display: flex; flex-direction: column; align-items: center; gap: 10px;
-      background: var(--glass); border: 1px solid var(--glass-border);
-      border-radius: 16px; padding: 16px 16px 14px;
-      backdrop-filter: blur(16px); animation: slideUp 0.4s ease;
+    /* ── ANIMATED GLOW BORDER ── */
+    @property --glow-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+    @keyframes glow-spin { to { --glow-angle: 360deg; } }
+    @keyframes slideUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+
+    .shop-row-wrapper {
+      position: relative; border-radius: 18px; padding: 2px;
+      background: conic-gradient(from var(--glow-angle, 0deg),
+        #f1641e 0%, #ff00cc 20%, #7b2fff 40%, #00cfff 60%, #00ff88 80%, #f1641e 100%);
+      animation: slideUp 0.4s ease, glow-spin 4s linear infinite;
+      box-shadow: 0 0 16px rgba(241,100,30,0.3), 0 0 40px rgba(120,80,255,0.15);
     }
-    .shop-row-top {
-      display: flex; align-items: center; width: 100%; gap: 14px;
+    .shop-row {
+      display: grid;
+      grid-template-columns: 64px 1fr auto;
+      grid-template-rows: auto auto;
+      gap: 0;
+      background: rgba(8,8,16,0.93);
+      border-radius: 16px;
+      padding: 14px 14px 14px 14px;
+      backdrop-filter: blur(20px);
+      align-items: center;
+      min-height: 88px;
+    }
+    /* Avatar — colonne gauche, 2 lignes */
+    .shop-avatar-cell {
+      grid-column: 1; grid-row: 1 / 3;
+      display: flex; align-items: center; justify-content: center;
     }
     .shop-avatar {
-      width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
-      border: 2px solid rgba(241,100,30,0.4); flex-shrink: 0;
+      width: 56px; height: 56px; border-radius: 50%; object-fit: cover;
+      border: 2px solid rgba(241,100,30,0.5); flex-shrink: 0;
     }
     .shop-avatar-ph {
-      width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
-      background: rgba(241,100,30,0.1); border: 2px solid rgba(241,100,30,0.3);
-      display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+      width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(241,100,30,0.1); border: 2px solid rgba(241,100,30,0.35);
+      display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
     }
+    /* Nom — colonne centre, ligne 1 */
     .shop-row-name {
-      font-weight: 700; font-size: 0.95rem; text-align: center;
-      color: #fff; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      grid-column: 2; grid-row: 1;
+      font-weight: 700; font-size: 0.95rem; color: #fff;
+      white-space: normal; word-break: break-word; line-height: 1.3;
+      padding: 0 10px 4px 14px;
     }
+    /* Bouton delete — colonne droite, ligne 1 */
+    .btn-delete {
+      grid-column: 3; grid-row: 1;
+      width: 28px; height: 28px; border-radius: 8px;
+      border: 1px solid rgba(255,80,80,0.3); background: rgba(255,80,80,0.08);
+      color: #f87171; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; font-size: 0.85rem; transition: all 0.2s;
+      flex-shrink: 0; align-self: start;
+    }
+    .btn-delete:hover { background: rgba(255,80,80,0.25); border-color: rgba(255,80,80,0.6); }
+    /* Actions — colonne centre+droite, ligne 2 */
     .shop-row-actions {
-      display: flex; align-items: center; gap: 8px; width: 100%; justify-content: center;
+      grid-column: 2 / 4; grid-row: 2;
+      display: flex; align-items: center; gap: 8px;
+      padding-left: 14px;
+    }
+    .btn-visit, .btn-clone {
+      flex: 1; padding: 9px 0; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.78rem;
+      text-decoration: none; transition: all 0.2s; white-space: nowrap;
+      text-align: center; cursor: pointer; display: block;
     }
     .btn-visit {
-      flex: 1; max-width: 160px; padding: 9px 14px; border-radius: 10px;
       border: 1px solid rgba(241,100,30,0.5);
       background: rgba(241,100,30,0.18); color: #fb923c;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.8rem;
-      text-decoration: none; transition: all 0.2s; white-space: nowrap; text-align: center;
     }
     .btn-visit:hover { background: rgba(241,100,30,0.35); color: #fff; }
-
     .btn-clone {
-      flex: 1; max-width: 160px; padding: 9px 14px; border-radius: 10px;
       border: 1px solid rgba(59,130,246,0.5);
       background: rgba(59,130,246,0.2); color: #60a5fa;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.8rem;
-      cursor: pointer; transition: all 0.2s; white-space: nowrap; text-align: center;
     }
     .btn-clone:hover { background: rgba(59,130,246,0.38); color: #fff; }
-
-    .btn-delete {
-      width: 38px; height: 38px; border-radius: 10px;
-      border: 1px solid rgba(255,80,80,0.25); background: rgba(255,80,80,0.07);
-      color: #f87171; cursor: pointer; display: flex; align-items: center;
-      justify-content: center; font-size: 1rem; transition: all 0.2s; flex-shrink: 0;
-    }
-    .btn-delete:hover { background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.5); }
 
     .empty-state {
       text-align: center; padding: 60px 20px; color: var(--muted);
@@ -136,9 +163,14 @@
       <button type="button" class="btn-back" onclick="goBack()">← Back</button>
       <span class="nav-title">Dashboard</span>
     </div>
-    <button class="btn-etsy-login" id="etsy-login-btn" onclick="handleEtsyLogin()">
-      🛍 Etsy Login
-    </button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button class="btn-etsy-login" id="etsy-login-btn" onclick="handleEtsyLogin()">
+        🛍 Etsy Login
+      </button>
+      <button id="etsy-logout-nav-btn" onclick="etsyLogoutFromNicheList()" style="display:none;padding:8px 14px;border-radius:10px;border:none;background:#dc2626;color:#fff;font-family:'Inter',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;white-space:nowrap;transition:all 0.2s;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">
+        🚪 Etsy Logout
+      </button>
+    </div>
   </nav>
 
   <div class="container">
@@ -184,39 +216,31 @@
     }
 
     function buildShopRow(shop) {
-      const wrap = document.createElement('div');
-      wrap.id = 'shop-wrapper-' + shop._id;
-
-      // Extraire shopName depuis toutes les sources disponibles
+      // Extraire shopName
       let shopName = shop.shopName || null;
-
-      // Essayer d'extraire depuis shopUrl
       if (!shopName && shop.shopUrl) {
         const m = shop.shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
         if (m) shopName = m[1];
       }
-      // Essayer d'extraire depuis productUrl
       if (!shopName && shop.productUrl) {
         const m = shop.productUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
         if (m) shopName = m[1];
       }
-
-      // Construire shopUrl proprement
-      const shopUrl = shopName
-        ? 'https://www.etsy.com/shop/' + shopName
-        : (shop.shopUrl || '#');
-
+      const shopUrl = shopName ? 'https://www.etsy.com/shop/' + shopName : (shop.shopUrl || '#');
       const avatarUrl = shop.shopAvatar || shop.productImage || null;
+
+      // Wrapper animé (border glow)
+      const wrapper = document.createElement('div');
+      wrapper.className = 'shop-row-wrapper';
+      wrapper.id = 'shop-wrapper-' + shop._id;
 
       const row = document.createElement('div');
       row.className = 'shop-row';
       row.id = 'shop-row-' + shop._id;
 
-      // Top: avatar + nom
-      const top = document.createElement('div');
-      top.className = 'shop-row-top';
-
-      // Avatar rond
+      // ── Colonne gauche : Avatar ──
+      const avatarCell = document.createElement('div');
+      avatarCell.className = 'shop-avatar-cell';
       const ph = document.createElement('div');
       ph.className = 'shop-avatar-ph'; ph.textContent = '🛍';
       if (avatarUrl) {
@@ -226,42 +250,44 @@
         img.loading = 'lazy'; img.alt = '';
         img.onerror = function() { this.style.display='none'; ph.style.display='flex'; };
         ph.style.display = 'none';
-        top.appendChild(img);
+        avatarCell.appendChild(img);
       }
-      top.appendChild(ph);
+      avatarCell.appendChild(ph);
+      row.appendChild(avatarCell);
 
-      // Nom boutique centré
+      // ── Colonne centre ligne 1 : Nom ──
       const nameEl = document.createElement('div');
-      nameEl.className = 'shop-row-name'; nameEl.textContent = shopName || '—';
-      top.appendChild(nameEl);
-      row.appendChild(top);
+      nameEl.className = 'shop-row-name';
+      nameEl.textContent = shopName || '—';
+      row.appendChild(nameEl);
 
-      // Actions: visit | clone | delete
+      // ── Colonne droite ligne 1 : Bouton supprimer (croix rouge) ──
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-delete';
+      delBtn.innerHTML = '✕';
+      delBtn.title = 'Supprimer';
+      delBtn.addEventListener('click', function() { deleteShop(shop._id, wrapper); });
+      row.appendChild(delBtn);
+
+      // ── Ligne 2 : Boutons Visit + Clone ──
       const actions = document.createElement('div');
       actions.className = 'shop-row-actions';
 
-      // Bouton Visit shop
       const visitBtn = document.createElement('a');
       visitBtn.className = 'btn-visit';
       visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
       visitBtn.textContent = 'Visit shop ↗';
       actions.appendChild(visitBtn);
 
-      // Bouton Clone
       const cloneBtn = document.createElement('button');
-      cloneBtn.className = 'btn-clone'; cloneBtn.textContent = 'Clone';
+      cloneBtn.className = 'btn-clone';
+      cloneBtn.textContent = 'Clone 📋';
       cloneBtn.addEventListener('click', function() { cloneShop(shop, shopName, shopUrl); });
       actions.appendChild(cloneBtn);
 
-      // Bouton supprimer (corbeille)
-      const delBtn = document.createElement('button');
-      delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑';
-      delBtn.addEventListener('click', function() { deleteShop(shop._id); });
-      actions.appendChild(delBtn);
-
       row.appendChild(actions);
-      wrap.appendChild(row);
-      return wrap;
+      wrapper.appendChild(row);
+      return wrapper;
     }
     function cloneShop(shop, shopName, shopUrl) {
       const cloneData = {
@@ -276,61 +302,83 @@
     }
 
     // ── ETSY LOGIN ──
-    // Le OAuth est géré entièrement par le backend (/api/auth/etsy).
-    // Après connexion, le backend redirige vers /?token=...&email=...
+    const ETSY_CLIENT_ID = 'YOUR_ETSY_CLIENT_ID'; // À remplacer par votre client ID Etsy
+    const ETSY_REDIRECT_URI = 'https://www.finder-niche.com/etsy-callback';
+    const ETSY_SCOPE = 'shops_r listings_r';
 
-    function handleEtsyLogin() {
-      const btn = document.getElementById('etsy-login-btn');
-      if (btn.classList.contains('connected')) {
-        btn.innerHTML = '🛍 Etsy Login';
-        btn.classList.remove('connected');
+    function generateCodeVerifier() {
+      const array = new Uint8Array(32);
+      window.crypto.getRandomValues(array);
+      return btoa(String.fromCharCode(...array)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    }
+
+    async function generateCodeChallenge(verifier) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(verifier);
+      const hash = await window.crypto.subtle.digest('SHA-256', data);
+      return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    }
+
+    async function handleEtsyLogin() {
+      const etsyToken = localStorage.getItem('etsy_token');
+      if (etsyToken) {
+        localStorage.removeItem('etsy_token');
+        localStorage.removeItem('etsy_shop');
+        document.getElementById('etsy-login-btn').textContent = '🛍 Etsy Login';
+        document.getElementById('etsy-login-btn').classList.remove('connected');
         showToast('Etsy disconnected', '#f97316');
         return;
       }
-      window.location.href = '/api/auth/etsy';
+      const verifier = generateCodeVerifier();
+      const challenge = await generateCodeChallenge(verifier);
+      const state = Math.random().toString(36).substring(2);
+      localStorage.setItem('etsy_verifier', verifier);
+      localStorage.setItem('etsy_state', state);
+      const params = new URLSearchParams({
+        response_type: 'code',
+        redirect_uri: ETSY_REDIRECT_URI,
+        scope: ETSY_SCOPE,
+        client_id: ETSY_CLIENT_ID,
+        state: state,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+      });
+      window.location.href = 'https://www.etsy.com/oauth/connect?' + params.toString();
+    }
+
+    function etsyLogoutFromNicheList() {
+      localStorage.removeItem('scout_token');
+      localStorage.removeItem('etsy_connected');
+      localStorage.removeItem('etsy_token');
+      localStorage.removeItem('etsy_verifier');
+      localStorage.removeItem('etsy_state');
+      localStorage.removeItem('etsy_shop');
+      showToast('Etsy disconnected', '#f97316');
+      setTimeout(() => { window.location.href = '/finder'; }, 800);
     }
 
     function checkEtsyToken() {
-      const params = new URLSearchParams(window.location.search);
-      const token   = params.get('token');
-      const email   = params.get('email');
-      const etsyErr = params.get('etsy_error');
-
-      if (token && email) {
-        localStorage.setItem('scout_token', token);
-        TOKEN = token;
-        window.history.replaceState({}, '', window.location.pathname);
-        const btn = document.getElementById('etsy-login-btn');
-        btn.innerHTML = '✅ Etsy Connected';
-        btn.classList.add('connected');
-        showToast('Etsy connected! Welcome ' + decodeURIComponent(email), '#22c55e');
-        loadShops();
-        return;
-      }
-
-      if (etsyErr) {
-        window.history.replaceState({}, '', window.location.pathname);
-        const msgs = {
-          'no_email':     "Etsy n\'a pas fourni votre email. Vérifiez les permissions.",
-          'access_denied':"Connexion Etsy annulée.",
-        };
-        showToast(msgs[etsyErr] || ('Erreur Etsy : ' + etsyErr), '#ef4444');
-        return;
-      }
-
-      if (TOKEN) {
-        const btn = document.getElementById('etsy-login-btn');
-        btn.innerHTML = '✅ Etsy Connected';
+      const etsyToken = localStorage.getItem('etsy_token');
+      const etsyShop = localStorage.getItem('etsy_shop');
+      const btn = document.getElementById('etsy-login-btn');
+      if (etsyToken) {
+        btn.textContent = '✅ ' + (etsyShop || 'Etsy Connected');
         btn.classList.add('connected');
       }
     }
 
-    function deleteShop(id) {
-      if (!confirm('Delete this listing?')) return;
+    function deleteShop(id, el) {
+      if (!confirm('Delete this shop?')) return;
       apiFetch('/api/shops/' + id, { method: 'DELETE' }).then(() => {
-        document.getElementById('shop-wrapper-' + id)?.remove();
-        showToast('Listing deleted', '#ef4444');
-        loadShops();
+        if (el) {
+          el.style.transition = 'opacity 0.3s, transform 0.3s';
+          el.style.opacity = '0';
+          el.style.transform = 'scale(0.95)';
+          setTimeout(() => el.remove(), 300);
+        } else {
+          document.getElementById('shop-wrapper-' + id)?.remove();
+        }
+        showToast('Shop deleted', '#ef4444');
       });
     }
 
