@@ -78,9 +78,17 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
     for (const r of results) {
       if (!r.shopId) continue;
       const sid = String(r.shopId);
-      if (shopsSeen.has(sid)) continue;      // boutique déjà vue ou usedShop
-      if (shopIdToRaw.has(sid)) continue;    // déjà collecté dans cette session
-      shopIdToRaw.set(sid, { listingId: r.listingId, link: r.link, title: r.title });
+      if (shopsSeen.has(sid)) continue;
+      if (!shopIdToRaw.has(sid)) {
+        // Premier listing de cette boutique
+        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
+      } else {
+        // Deuxième listing différent — on le stocke si pas encore trouvé
+        const existing = shopIdToRaw.get(sid);
+        if (!existing.listingId2 && r.listingId !== existing.listingId) {
+          existing.listingId2 = r.listingId;
+        }
+      }
     }
 
     page++;
@@ -103,8 +111,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(([shopId, raw]) =>
-        getShopNameAndImage(shopId, raw.listingId).then(({ shopName, shopUrl, image }) => ({
-          shopId, shopName, shopUrl, image,
+        getShopNameAndImage(shopId, raw.listingId, raw.listingId2).then(({ shopName, shopUrl, image, image2 }) => ({
+          shopId, shopName, shopUrl, image, image2,
           listingId: raw.listingId,
           link:      raw.link,
           title:     raw.title,
@@ -118,7 +126,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
         continue;
       }
       const l = r.value;
-      if (!l.shopName || !l.image) continue;
+      if (!l.shopName || !l.image || !l.image2) continue;
       if (shopsSeen.has(l.shopName)) continue;
       shopsSeen.add(l.shopName);
       listings.push({
@@ -126,6 +134,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
         link:      l.link,
         title:     l.title,
         image:     l.image,
+        image2:    l.image2,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
@@ -210,40 +219,6 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    // Récupère une 2e image d'une boutique via shopId + getListingDetail
-    async function getSecondImage(listing) {
-      try {
-        const shopId = listing.shopId;
-        if (!shopId) { console.warn('[getSecondImage] no shopId for', listing.shopName); return null; }
-
-        // Utiliser le shopId numérique — le shop_name donne 400
-        const r = await require('axios').get(
-          `https://api.etsy.com/v3/application/shops/${shopId}/listings/active?limit=10`,
-          { headers: { 'x-api-key': process.env.ETSY_CLIENT_ID }, timeout: 15000 }
-        );
-        const shopListings = r.data.results || [];
-
-        for (const l of shopListings) {
-          if (String(l.listing_id) === String(listing.listingId)) continue;
-          if (!l.listing_id) continue;
-          try {
-            const detail = await getListingDetail(l.listing_id);
-            if (detail.images?.[0]) {
-              console.log('[worker] second image found for', listing.shopName);
-              return { image: detail.images[0], link: `https://www.etsy.com/listing/${l.listing_id}` };
-            }
-          } catch(e) {
-            console.warn('[getSecondImage] getListingDetail failed:', e.message);
-          }
-        }
-        console.warn('[getSecondImage] no second image for', listing.shopName, '— listings count:', shopListings.length);
-        return null;
-      } catch(e) {
-        console.warn('[getSecondImage] failed for', listing.shopName, ':', e.message);
-        return null;
-      }
-    }
-
     async function lensMatch(imageUrl) {
       try {
         const pub = await uploadCached(imageUrl);
@@ -272,13 +247,12 @@ router.post('/search-dropship', async (req, res) => {
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
           const img1 = listing.image;
+          const img2 = listing.image2;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
-
-          const second = await getSecondImage(listing);
-          if (!second) { console.warn('[worker] no second image for', listing.shopName); continue; }
+          if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
           console.log('[worker] running lensMatch for', listing.shopName);
-          const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(second.image)]);
+          const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(img2)]);
           console.log('[worker]', listing.shopName, '| m1:', !!m1, '| m2:', !!m2);
           if (m1 && m2) {
             dropshippers.push({
