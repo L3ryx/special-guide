@@ -146,6 +146,7 @@ router.get('/etsy/callback', async (req, res) => {
       return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent('Compte introuvable — reconnecte-toi'));
     }
     user.etsyUserId = etsyId;
+    user.etsyAccessToken = access_token;
     await user.save();
 
     // On retourne le même token (le compte n'a pas changé) + confirmation
