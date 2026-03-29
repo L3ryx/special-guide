@@ -210,19 +210,28 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    // Récupère une 2e image d'une boutique (on a déjà la 1re dans listing.image)
+    // Récupère une 2e image d'une boutique via getShopListings + getListingDetail
     async function getSecondImage(listing) {
       try {
-        const shopListings = await getShopListings(listing.shopName, 5);
+        const shopListings = await getShopListings(listing.shopName, 10);
         for (const l of shopListings) {
-          if (l.listingId === listing.listingId) continue;
+          // Sauter le listing qu'on a déjà
+          if (String(l.listingId) === String(listing.listingId)) continue;
+          if (!l.listingId) continue;
           try {
             const detail = await getListingDetail(l.listingId);
-            if (detail.images?.[0]) return { image: detail.images[0], link: l.link };
-          } catch {}
+            if (detail.images?.[0]) {
+              console.log('[worker] second image found for', listing.shopName);
+              return { image: detail.images[0], link: l.link };
+            }
+          } catch(e) {
+            console.warn('[getSecondImage] getListingDetail failed:', e.message);
+          }
         }
+        console.warn('[getSecondImage] no second image for', listing.shopName, '— shopListings count:', shopListings.length);
         return null;
-      } catch {
+      } catch(e) {
+        console.warn('[getSecondImage] getShopListings failed for', listing.shopName, ':', e.message);
         return null;
       }
     }
@@ -255,12 +264,14 @@ router.post('/search-dropship', async (req, res) => {
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
           const img1 = listing.image;
-          if (!img1) continue;
+          if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
 
           const second = await getSecondImage(listing);
-          if (!second) continue;
+          if (!second) { console.warn('[worker] no second image for', listing.shopName); continue; }
 
+          console.log('[worker] running lensMatch for', listing.shopName);
           const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(second.image)]);
+          console.log('[worker]', listing.shopName, '| m1:', !!m1, '| m2:', !!m2);
           if (m1 && m2) {
             dropshippers.push({
               shopName:   listing.shopName,
