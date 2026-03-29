@@ -35,27 +35,20 @@ function cleanImage(url) {
   return url.split('?')[0];
 }
 
-// ── Utilitaire : construit une URL d'image Etsy depuis listing_id (fallback sans includes) ──
-// Format officiel Etsy CDN : https://i.etsystatic.com/iap/listing/{listing_id}/f_auto,fl_progressive,q_auto,c_limit,w_570,h_570/listing.jpg
-function buildEtsyImageUrl(listingId) {
-  if (!listingId) return null;
-  return `https://i.etsystatic.com/iap/listing/${listingId}/f_auto,fl_progressive,q_auto,c_limit,w_570,h_570/listing.jpg`;
-}
-
 // ── Normalise un listing brut de l'API en objet unifié ──
 function normalizeListing(item, shopName = null) {
-  // includes=images souvent ignoré par /listings/active — fallback sur URL CDN Etsy
   const image =
     item.images?.[0]?.url_fullxfull ||
     item.images?.[0]?.url_570xN ||
     item.images?.[0]?.url_170x135 ||
-    buildEtsyImageUrl(item.listing_id);
+    null;
 
   const price = item.price
     ? `${item.price.currency_code} ${(item.price.amount / item.price.divisor).toFixed(2)}`
     : null;
 
-  // includes=shop ignoré par /listings/active — shop_id toujours présent, shop_name résolu plus tard
+  // L'API Etsy retourne shop_name dans item.shop?.shop_name quand includes=shop fonctionne,
+  // sinon on utilise shop_id comme fallback unique (string) pour la déduplication
   const shopId   = item.shop_id || item.shop?.shop_id || null;
   const resolvedShop = shopName || item.shop?.shop_name || (shopId ? String(shopId) : null);
 
@@ -104,11 +97,10 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 
   const results = r.data.results || [];
   if (results.length > 0) {
-    const s = results[0];
-    const normalized = normalizeListing(s);
-    console.log('[etsyApi] page results:', results.length, '| shop_id:', s.shop_id, '| image built:', !!normalized.image, '| shopName:', normalized.shopName);
+    const sample = results[0];
+    console.log('[etsyApi] searchListings sample — shop_id:', sample.shop_id, '| shop?.shop_name:', sample.shop?.shop_name, '| has images:', !!sample.images?.length);
   } else {
-    console.log('[etsyApi] 0 results for:', keyword, '| response keys:', Object.keys(r.data).join(','));
+    console.log('[etsyApi] searchListings returned 0 results for keyword:', keyword);
   }
   return results.map(item => normalizeListing(item));
 }
@@ -123,17 +115,22 @@ async function searchListings(keyword, limit = 25, offset = 0) {
  */
 async function getShopListings(shopIdOrName, limit = 20) {
   // L'API accepte shop_id (number) ou shop_name (string) dans le path
-  const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}/listings/active`, {
+  const qs = new URLSearchParams({
+    limit: String(Math.min(limit, 100)),
+  });
+  qs.append('includes', 'images');
+  qs.append('includes', 'Shop');
+
+  const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}/listings/active?${qs.toString()}`, {
     headers: headers(),
-    params: {
-      limit:    Math.min(limit, 100),
-      includes: 'images',
-    },
     timeout: 30000,
   });
 
   const results = r.data.results || [];
-  return results.map(item => normalizeListing(item, typeof shopIdOrName === 'string' ? shopIdOrName : null));
+  // Récupérer le shop_name depuis le premier listing si dispo
+  const resolvedShopName = results[0]?.shop?.shop_name
+    || (typeof shopIdOrName === 'string' && isNaN(shopIdOrName) ? shopIdOrName : null);
+  return results.map(item => normalizeListing(item, resolvedShopName));
 }
 
 /**
@@ -144,11 +141,31 @@ async function getShopListings(shopIdOrName, limit = 20) {
  * @returns {Promise<Object>}  — { shopId, shopName, shopUrl, shopAvatar, title, numSales }
  */
 async function getShopInfo(shopIdOrName) {
-  const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}`, {
+  // Si c'est un ID numérique, utiliser ?shop_id= au lieu du path (évite le 400)
+  const isNumericId = !isNaN(shopIdOrName) && String(shopIdOrName).length > 4;
+  let r;
+  if (isNumericId) {
+    r = await axios.get(`${BASE}/shops`, {
+      headers: headers(),
+      params: { shop_id: shopIdOrName },
+      timeout: 30000,
+    });
+    // /shops?shop_id= retourne { results: [...] }
+    const shops = r.data.results || r.data.shops || [];
+    const s = shops[0] || r.data;
+    return {
+      shopId:     s.shop_id,
+      shopName:   s.shop_name,
+      shopUrl:    `https://www.etsy.com/shop/${s.shop_name}`,
+      shopAvatar: cleanImage(s.icon_url_fullxfull || s.icon_url || null),
+      title:      s.title || null,
+      numSales:   s.num_sales || 0,
+    };
+  }
+  r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}`, {
     headers: headers(),
     timeout: 30000,
   });
-
   const s = r.data;
   return {
     shopId:     s.shop_id,
