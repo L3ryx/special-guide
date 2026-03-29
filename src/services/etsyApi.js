@@ -141,31 +141,6 @@ async function getListingDetail(listingId, accessToken = null) {
     shopId:   item.shop_id || null,
   };
 }
-  const qs = new URLSearchParams({
-    keywords:   keyword,
-    limit:      String(Math.min(limit, 100)),
-    offset:     String(offset),
-    sort_on:    'score',
-    sort_order: 'desc',
-  });
-  qs.append('includes', 'images');
-  qs.append('includes', 'shop');
-
-  const r = await axios.get(`${BASE}/listings/active?${qs.toString()}`, {
-    headers: headers(),
-    timeout: 30000,
-  });
-
-  const results = r.data.results || [];
-  if (results.length > 0) {
-    const s = results[0];
-    const norm = normalizeListing(s);
-    console.log('[etsyApi] page results:', results.length, '| shop_id:', s.shop_id, '| image:', !!norm.image, '| shopName:', norm.shopName);
-  } else {
-    console.log('[etsyApi] 0 results for keyword:', keyword);
-  }
-  return results.map(item => normalizeListing(item));
-}
 
 function handleEtsyError(e) {
   const status = e.response?.status;
