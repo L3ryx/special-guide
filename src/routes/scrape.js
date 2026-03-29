@@ -178,30 +178,7 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 : Récupérer les listings via l'API Etsy (8 pages max) ──
-    send({ step: 'scraping', message: '🔍 Searching Etsy API for "' + keyword + '"...' });
-
-    let listings = [];
-    try {
-      listings = await fetchListingsForDropship(
-        keyword,
-        (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' new shops...' }),
-        usedShops
-      );
-    } catch(e) {
-      send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
-    }
-
-    listings = listings.filter(l => l.shopName);
-    console.log('[search-dropship] listings with shopName:', listings.length);
-
-    if (!listings.length) {
-      send({ step: 'error', message: '❌ No shops found in Etsy results' });
-      return res.end();
-    }
-    send({ step: 'analyzing', message: '✅ ' + listings.length + ' unique shops. Analyzing...' });
-
-    // ── STEP 2 : Récupérer les images des boutiques + Google Lens ──
+    // ── STEP 2 : Google Lens via Serper ──
     const imgbbCache = new Map();
     async function uploadCached(url) {
       if (imgbbCache.has(url)) return imgbbCache.get(url);
@@ -210,44 +187,20 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    /**
-     * Récupère l'avatar et 2 images de listing d'une boutique via l'API Etsy.
-     * shopIdOrName peut être un shop_name (string) ou un shop_id numérique (string de chiffres).
-     */
-    async function scrapeShopImages(shopIdOrName) {
+    // Récupère une 2e image d'une boutique (on a déjà la 1re dans listing.image)
+    async function getSecondImage(listing) {
       try {
-        // Infos boutique (avatar + resolution du vrai shop_name si on n'a que l'ID)
-        let shopAvatar = null;
-        let resolvedName = shopIdOrName;
-        try {
-          const info = await getShopInfo(shopIdOrName);
-          shopAvatar   = info.shopAvatar || null;
-          resolvedName = info.shopName   || shopIdOrName;
-        } catch (e) {
-          console.warn('[avatar] getShopInfo failed for', shopIdOrName, ':', e.message);
+        const shopListings = await getShopListings(listing.shopName, 5);
+        for (const l of shopListings) {
+          if (l.listingId === listing.listingId) continue;
+          try {
+            const detail = await getListingDetail(l.listingId);
+            if (detail.images?.[0]) return { image: detail.images[0], link: l.link };
+          } catch {}
         }
-
-        // Listings de la boutique — getShopListings retourne les listing_id
-        const shopListings = await getShopListings(resolvedName, 5);
-
-        // getShopListings peut ne pas retourner les images — on les recupere via getListingDetail
-        const images = [];
-        for (const l of shopListings.slice(0, 3)) {
-          if (l.image) {
-            images.push({ image: l.image, link: l.link });
-          } else if (l.listingId) {
-            try {
-              const detail = await getListingDetail(l.listingId);
-              if (detail.images?.[0]) images.push({ image: detail.images[0], link: l.link });
-            } catch {}
-          }
-          if (images.length >= 2) break;
-        }
-
-        return { images, shopAvatar, resolvedName };
-      } catch (e) {
-        console.warn('[scrapeShopImages] failed for', shopIdOrName, ':', e.message);
-        return { images: [], shopAvatar: null, resolvedName: shopIdOrName };
+        return null;
+      } catch {
+        return null;
       }
     }
 
@@ -276,23 +229,27 @@ router.post('/search-dropship', async (req, res) => {
         const listing = queue.shift();
         if (!listing) continue;
         analyzed++;
-        send({ step: 'analyzing', total: listings.length, done: analyzed, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers.length + ' dropshippers' });
+        send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
-          const { images: shopImages, shopAvatar, resolvedName } = await scrapeShopImages(listing.shopName);
-          if (shopImages.length < 2) continue;
-          const [m1, m2] = await Promise.all([lensMatch(shopImages[0].image), lensMatch(shopImages[1].image)]);
+          const img1 = listing.image;
+          if (!img1) continue;
+
+          const second = await getSecondImage(listing);
+          if (!second) continue;
+
+          const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(second.image)]);
           if (m1 && m2) {
             dropshippers.push({
-              shopName:   resolvedName,
-              shopUrl:    'https://www.etsy.com/shop/' + resolvedName,
-              shopAvatar: shopAvatar || null,
-              shopImage:  shopImages[0].image,
-              listingUrl: shopImages[0].link || listing.link,
+              shopName:   listing.shopName,
+              shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
+              shopAvatar: null,
+              shopImage:  img1,
+              listingUrl: listing.link,
             });
-            send({ step: 'match', message: '✅ ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)', shop: dropshippers[dropshippers.length - 1] });
+            send({ step: 'match', message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)', shop: dropshippers[dropshippers.length - 1] });
           }
         } catch (e) {
-          if (e.message === 'serper_401') { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
+          if (e.message === 'serper_401') { send({ step: 'error', message: '\u274C Serper key invalid' }); return; }
         }
       }
     }
