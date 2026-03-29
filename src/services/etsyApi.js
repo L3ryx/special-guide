@@ -58,7 +58,6 @@ function normalizeListing(item, shopName = null, shopUrl = null) {
 
 /**
  * Recherche — retourne uniquement listing_id, shop_id, title, link.
- * /listings/active ne renvoie PAS images ni shop_name inline.
  */
 async function searchListingIds(keyword, limit = 100, offset = 0) {
   const qs = new URLSearchParams({
@@ -91,7 +90,6 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 
 /**
  * Pour un shop_id : récupère shop_name + 2 images via getListingDetail.
- * listingId + listingId2 = deux listings connus de cette boutique.
  */
 async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
   // 1. Nom de boutique
@@ -144,15 +142,34 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
   return { shopName, shopUrl, image, image2 };
 }
 
+/**
+ * Récupère les listings d'une boutique.
+ * L'API Etsy v3 n'accepte que des shop_id numériques pour ce endpoint.
+ * Si un nom est fourni, on résout d'abord via /shops?shop_name=
+ */
 async function getShopListings(shopIdOrName, limit = 20) {
+  let shopId   = shopIdOrName;
+  let shopName = null;
+
+  if (isNaN(shopIdOrName)) {
+    // Résoudre le nom → shop_id numérique
+    const infoRes = await axios.get(
+      `${BASE}/shops?shop_name=${encodeURIComponent(shopIdOrName)}`,
+      { headers: headers(), timeout: 15000 }
+    );
+    const found = infoRes.data.results || [];
+    if (!found.length) throw new Error(`Shop "${shopIdOrName}" introuvable sur Etsy`);
+    shopId   = found[0].shop_id;
+    shopName = found[0].shop_name;
+  }
+
   const r = await axios.get(
-    `${BASE}/shops/${encodeURIComponent(shopIdOrName)}/listings/active?limit=${Math.min(limit, 100)}&includes=images`,
+    `${BASE}/shops/${shopId}/listings/active?limit=${Math.min(limit, 100)}&includes=images`,
     { headers: headers(), timeout: 30000 }
   );
 
   const results = r.data.results || [];
-  const resolvedShopName = typeof shopIdOrName === 'string' && isNaN(shopIdOrName) ? shopIdOrName : null;
-  return results.map(item => normalizeListing(item, resolvedShopName));
+  return results.map(item => normalizeListing(item, shopName));
 }
 
 async function getShopInfo(shopIdOrName) {
@@ -171,7 +188,7 @@ async function getShopInfo(shopIdOrName) {
 }
 
 async function getListingDetail(listingId) {
-  const r = await axios.get(`${BASE}/listings/${listingId}?includes=images%2Cshop`, {
+  const r = await axios.get(`${BASE}/listings/${listingId}?includes=images&includes=shop`, {
     headers: headers(), timeout: 30000,
   });
 
@@ -213,5 +230,4 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
-
 
