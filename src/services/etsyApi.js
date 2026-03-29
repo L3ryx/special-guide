@@ -1,16 +1,6 @@
 /**
  * etsyApi.js
  * Wrapper pour l'API officielle Etsy v3 (Open API)
- * Remplace ScraperAPI pour toutes les requêtes vers Etsy.
- *
- * Variables d'environnement requises :
- *   ETSY_API_KEY  — clé API Etsy (keystring), obtenue sur https://www.etsy.com/developers
- *
- * Endpoints utilisés :
- *   GET /v3/application/listings/active          → recherche de listings
- *   GET /v3/application/listings/{listing_id}    → détail d'un listing
- *   GET /v3/application/shops/{shop_id_or_name}  → infos boutique
- *   GET /v3/application/shops/{shop_id}/listings/active → listings d'une boutique
  */
 
 const axios = require('axios');
@@ -21,7 +11,6 @@ function getKey() {
   const id     = process.env.ETSY_CLIENT_ID;
   const secret = process.env.ETSY_CLIENT_SECRET;
   if (!id) throw new Error('ETSY_CLIENT_ID not configured');
-  // L'API Etsy v3 requiert keystring:sharedsecret séparés par ":"
   return secret ? `${id}:${secret}` : id;
 }
 
@@ -29,27 +18,32 @@ function headers() {
   return { 'x-api-key': getKey() };
 }
 
-// ── Utilitaire : normalise une image Etsy vers URL propre ──
 function cleanImage(url) {
   if (!url) return null;
   return url.split('?')[0];
 }
 
-// ── Normalise un listing brut de l'API en objet unifié ──
+// L'API Etsy /listings/active n'inclut jamais les images dans les résultats de recherche.
+// On construit l'URL image directement depuis le listing_id via le CDN Etsy (format stable).
+function buildEtsyImageUrl(listingId) {
+  if (!listingId) return null;
+  return `https://i.etsystatic.com/iap/listing/${listingId}/f_auto,fl_progressive,q_auto,c_limit,w_570,h_570/listing.jpg`;
+}
+
 function normalizeListing(item, shopName = null) {
+  // Priorité : images retournées par l'API, sinon URL CDN construite depuis listing_id
   const image =
     item.images?.[0]?.url_fullxfull ||
     item.images?.[0]?.url_570xN ||
     item.images?.[0]?.url_170x135 ||
-    null;
+    buildEtsyImageUrl(item.listing_id);
 
   const price = item.price
     ? `${item.price.currency_code} ${(item.price.amount / item.price.divisor).toFixed(2)}`
     : null;
 
-  // L'API Etsy retourne shop_name dans item.shop?.shop_name quand includes=shop fonctionne,
-  // sinon on utilise shop_id comme fallback unique (string) pour la déduplication
-  const shopId   = item.shop_id || item.shop?.shop_id || null;
+  const shopId = item.shop_id || item.shop?.shop_id || null;
+  // shop_name rarement retourné dans /listings/active — shop_id utilisé comme identifiant temporaire
   const resolvedShop = shopName || item.shop?.shop_name || (shopId ? String(shopId) : null);
 
   return {
@@ -67,19 +61,7 @@ function normalizeListing(item, shopName = null) {
   };
 }
 
-/**
- * Recherche de listings Etsy par mot-clé.
- * Remplace le scraping de https://www.etsy.com/search?q=…
- *
- * @param {string} keyword
- * @param {number} limit      — nombre de résultats (max 100 par appel)
- * @param {number} offset     — pagination
- * @returns {Promise<Array>}  — tableau de listings normalisés
- */
 async function searchListings(keyword, limit = 25, offset = 0) {
-  // L'API Etsy v3 requiert includes[] comme paramètres répétés dans l'URL
-  // axios serialise un tableau en includes[]=images&includes[]=shop ce qui n'est pas supporté
-  // On construit l'URL manuellement pour forcer includes=images&includes=shop
   const qs = new URLSearchParams({
     keywords:   keyword,
     limit:      String(Math.min(limit, 100)),
@@ -97,24 +79,16 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 
   const results = r.data.results || [];
   if (results.length > 0) {
-    const sample = results[0];
-    console.log('[etsyApi] searchListings sample — shop_id:', sample.shop_id, '| shop?.shop_name:', sample.shop?.shop_name, '| has images:', !!sample.images?.length);
+    const s = results[0];
+    const norm = normalizeListing(s);
+    console.log('[etsyApi] page results:', results.length, '| shop_id:', s.shop_id, '| image built:', !!norm.image, '| shopName:', norm.shopName);
   } else {
-    console.log('[etsyApi] searchListings returned 0 results for keyword:', keyword);
+    console.log('[etsyApi] 0 results for keyword:', keyword);
   }
   return results.map(item => normalizeListing(item));
 }
 
-/**
- * Récupère les listings actifs d'une boutique Etsy.
- * Remplace le scraping de https://www.etsy.com/shop/{shopName}
- *
- * @param {string|number} shopIdOrName
- * @param {number} limit
- * @returns {Promise<Array>}
- */
 async function getShopListings(shopIdOrName, limit = 20) {
-  // L'API accepte shop_id (number) ou shop_name (string) dans le path
   const qs = new URLSearchParams({
     limit: String(Math.min(limit, 100)),
   });
@@ -127,21 +101,12 @@ async function getShopListings(shopIdOrName, limit = 20) {
   });
 
   const results = r.data.results || [];
-  // Récupérer le shop_name depuis le premier listing si dispo
   const resolvedShopName = results[0]?.shop?.shop_name
     || (typeof shopIdOrName === 'string' && isNaN(shopIdOrName) ? shopIdOrName : null);
   return results.map(item => normalizeListing(item, resolvedShopName));
 }
 
-/**
- * Récupère les informations d'une boutique Etsy.
- * Remplace le scraping de https://www.etsy.com/shop/{shopName}
- *
- * @param {string|number} shopIdOrName
- * @returns {Promise<Object>}  — { shopId, shopName, shopUrl, shopAvatar, title, numSales }
- */
 async function getShopInfo(shopIdOrName) {
-  // Si c'est un ID numérique, utiliser ?shop_id= au lieu du path (évite le 400)
   const isNumericId = !isNaN(shopIdOrName) && String(shopIdOrName).length > 4;
   let r;
   if (isNumericId) {
@@ -150,7 +115,6 @@ async function getShopInfo(shopIdOrName) {
       params: { shop_id: shopIdOrName },
       timeout: 30000,
     });
-    // /shops?shop_id= retourne { results: [...] }
     const shops = r.data.results || r.data.shops || [];
     const s = shops[0] || r.data;
     return {
@@ -177,13 +141,6 @@ async function getShopInfo(shopIdOrName) {
   };
 }
 
-/**
- * Récupère le détail complet d'un listing (titre, prix, images).
- * Remplace le scraping de https://www.etsy.com/listing/{id}/...
- *
- * @param {number|string} listingId
- * @returns {Promise<Object>}  — { title, price, images: string[] }
- */
 async function getListingDetail(listingId) {
   const r = await axios.get(`${BASE}/listings/${listingId}`, {
     headers: headers(),
@@ -202,7 +159,7 @@ async function getListingDetail(listingId) {
     : null;
 
   return {
-    title:  item.title || null,
+    title:    item.title || null,
     price,
     images,
     shopName: item.shop?.shop_name || null,
@@ -210,9 +167,6 @@ async function getListingDetail(listingId) {
   };
 }
 
-/**
- * Gestion centralisée des erreurs API Etsy
- */
 function handleEtsyError(e) {
   const status = e.response?.status;
   if (status === 401) throw new Error('ETSY_CLIENT_ID invalide (401)');
@@ -230,6 +184,4 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
-
-
 
