@@ -54,7 +54,7 @@ router.get('/etsy', (req, res) => {
 
   // Récupérer l'userId depuis le JWT — accepte header Authorization OU query param ?token=
   const header = req.headers.authorization || '';
-  const token  = (header.startsWith('Bearer ') ? header.slice(7) : null) || req.query.token || null;
+  const token  = (header.startsWith('Bearer ') ? header.slice(7) : null) || req.query.token || req.query.jwt || null;
   if (!token) {
     return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent('Connecte-toi d\'abord à ton compte avant de lier Etsy'));
   }
