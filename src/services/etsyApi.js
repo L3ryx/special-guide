@@ -90,10 +90,11 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 }
 
 /**
- * Pour un shop_id : récupère shop_name + première image.
- * 2 appels : /shops/{id} + /shops/{id}/listings/active?includes=images&limit=1
+ * Pour un shop_id : récupère shop_name + image via getListingDetail.
+ * listingId = un listing connu de cette boutique (récupéré lors du scan).
  */
-async function getShopNameAndImage(shopId) {
+async function getShopNameAndImage(shopId, listingId) {
+  // 1. Nom de boutique
   const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
     headers: headers(), timeout: 15000,
   });
@@ -101,18 +102,21 @@ async function getShopNameAndImage(shopId) {
   const shopName = shop.shop_name;
   const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
 
-  const listRes = await axios.get(
-    `${BASE}/shops/${shopId}/listings/active?limit=1&includes=images`,
-    { headers: headers(), timeout: 15000 }
-  );
-  const firstListing = listRes.data.results?.[0];
-  console.log('[etsyApi] listRes keys:', Object.keys(firstListing || {}));
-  console.log('[etsyApi] images array:', JSON.stringify(firstListing?.images?.slice(0,1)));
-  const image = cleanImage(
-    firstListing?.images?.[0]?.url_fullxfull ||
-    firstListing?.images?.[0]?.url_570xN ||
-    null
-  );
+  // 2. Image via /listings/{id}?includes=images — seul endpoint qui retourne vraiment les images
+  let image = null;
+  if (listingId) {
+    const listRes = await axios.get(
+      `${BASE}/listings/${listingId}?includes=images`,
+      { headers: headers(), timeout: 15000 }
+    );
+    const item = listRes.data;
+    image = cleanImage(
+      item.images?.[0]?.url_fullxfull ||
+      item.images?.[0]?.url_570xN ||
+      item.images?.[0]?.url_170x135 ||
+      null
+    );
+  }
 
   console.log('[etsyApi] getShopNameAndImage:', shopName, '| image:', !!image);
   return { shopName, shopUrl, image };
