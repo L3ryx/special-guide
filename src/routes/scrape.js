@@ -2,7 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
-const { searchListings, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
+const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 // ScraperAPI conservé UNIQUEMENT pour AliExpress
 const { scraperApiFetch } = require('../services/scrapingFetch');
 
@@ -48,83 +48,94 @@ router.post('/niche-keyword', async (req, res) => {
 
 /**
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
- * - Max 8 pages (800 listings)
- * - Ignore les boutiques déjà analysées (usedShops)
- * Retourne un tableau de { link, image, shopName, shopUrl }.
+ *
+ * Stratégie :
+ *  1. Collecter tous les shop_id uniques via /listings/active (8 pages x 100)
+ *  2. Pour chaque shop_id nouveau : appeler getShopNameAndImage() en parallèle (batch de 5)
+ *     → /shops/{id} pour le nom + /shops/{id}/listings?includes=images pour l'image
+ *
+ * Retourne un tableau de { listingId, link, image, shopName, shopUrl }.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
-  const MAX_PAGES = 8;
-  const perPage   = 100;
-  const shopsSeen = new Set(usedShops);
-  const listings  = [];
-  let   offset    = 0;
-  let   page      = 0;
+  const MAX_PAGES  = 8;
+  const perPage    = 100;
+  const shopsSeen  = new Set(usedShops);
+  const shopIdToRaw = new Map(); // shopId → { listingId, link, title }
+  let offset = 0;
+  let page   = 0;
 
-  // Cache shopId → shopName pour éviter des appels répétés
-  const shopNameCache = new Map();
-
+  // ── PHASE 1 : collecter tous les shop_id uniques ──
   while (page < MAX_PAGES) {
     let results;
     try {
-      results = await searchListings(keyword, perPage, offset);
+      results = await searchListingIds(keyword, perPage, offset);
     } catch (e) {
       handleEtsyError(e);
     }
 
     if (!results || results.length === 0) break;
 
-    let added = 0;
-    for (const l of results) {
-      // Résoudre shopName si c'est un ID numérique
-      const shopNameIsId = !l.shopName || /^\d+$/.test(String(l.shopName));
-      if (shopNameIsId && l.shopId) {
-        const cached = shopNameCache.get(String(l.shopId));
-        if (cached) {
-          l.shopName = cached.shopName;
-          l.shopUrl  = cached.shopUrl;
-        } else {
-          try {
-            const info = await getShopInfo(l.shopId);
-            l.shopName = info.shopName;
-            l.shopUrl  = info.shopUrl;
-            shopNameCache.set(String(l.shopId), { shopName: info.shopName, shopUrl: info.shopUrl });
-          } catch (e) {
-            console.warn('[fetchListings] getShopInfo failed for shopId', l.shopId, ':', e.message);
-          }
-        }
-      }
-
-      // Récupérer l'image via le listing detail si manquante
-      if (!l.image && l.listingId) {
-        try {
-          const detail = await getListingDetail(l.listingId);
-          if (detail.images?.[0]) l.image = detail.images[0];
-          if (!l.shopName && detail.shopName) {
-            l.shopName = detail.shopName;
-            l.shopUrl  = `https://www.etsy.com/shop/${detail.shopName}`;
-          }
-        } catch (e) {
-          console.warn('[fetchListings] getListingDetail failed for', l.listingId, ':', e.message);
-        }
-      }
-
-      if (!l.image || !l.shopName || /^\d+$/.test(String(l.shopName))) continue;
-      if (shopsSeen.has(l.shopName)) continue;
-      shopsSeen.add(l.shopName);
-      listings.push(l);
-      added++;
+    for (const r of results) {
+      if (!r.shopId) continue;
+      const sid = String(r.shopId);
+      if (shopsSeen.has(sid)) continue;      // boutique déjà vue ou usedShop
+      if (shopIdToRaw.has(sid)) continue;    // déjà collecté dans cette session
+      shopIdToRaw.set(sid, { listingId: r.listingId, link: r.link, title: r.title });
     }
 
     page++;
-    if (onBatch) onBatch(page, listings.length);
-    console.log(`fetchListingsForDropship page ${page}/${MAX_PAGES}: ${added} new shops, total ${listings.length}`);
+    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique new shopIds`);
+    if (onBatch) onBatch(page, shopIdToRaw.size);
 
-    if (results.length < perPage) break; // dernière page
+    if (results.length < perPage) break;
     offset += perPage;
     await new Promise(r => setTimeout(r, 100));
   }
 
-  console.log('fetchListingsForDropship done:', listings.length, 'unique new shops');
+  console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
+
+  // ── PHASE 2 : résoudre shopName + image par batch de 5 ──
+  const BATCH = 5;
+  const listings = [];
+  const shopIdList = [...shopIdToRaw.entries()];
+
+  for (let i = 0; i < shopIdList.length; i += BATCH) {
+    const batch = shopIdList.slice(i, i + BATCH);
+    const resolved = await Promise.allSettled(
+      batch.map(([shopId, raw]) =>
+        getShopNameAndImage(shopId).then(({ shopName, shopUrl, image }) => ({
+          shopId, shopName, shopUrl, image,
+          listingId: raw.listingId,
+          link:      raw.link,
+          title:     raw.title,
+        }))
+      )
+    );
+
+    for (const r of resolved) {
+      if (r.status !== 'fulfilled') {
+        console.warn('[fetchListings] resolve failed:', r.reason?.message);
+        continue;
+      }
+      const l = r.value;
+      if (!l.shopName || !l.image) continue;
+      if (shopsSeen.has(l.shopName)) continue;
+      shopsSeen.add(l.shopName);
+      listings.push({
+        listingId: l.listingId,
+        link:      l.link,
+        title:     l.title,
+        image:     l.image,
+        shopName:  l.shopName,
+        shopUrl:   l.shopUrl,
+        shopId:    l.shopId,
+        source:    'etsy',
+      });
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
   return listings;
 }
 
