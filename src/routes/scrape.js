@@ -210,28 +210,36 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    // Récupère une 2e image d'une boutique via getShopListings + getListingDetail
+    // Récupère une 2e image d'une boutique via shopId + getListingDetail
     async function getSecondImage(listing) {
       try {
-        const shopListings = await getShopListings(listing.shopName, 10);
+        const shopId = listing.shopId;
+        if (!shopId) { console.warn('[getSecondImage] no shopId for', listing.shopName); return null; }
+
+        // Utiliser le shopId numérique — le shop_name donne 400
+        const r = await require('axios').get(
+          `https://api.etsy.com/v3/application/shops/${shopId}/listings/active?limit=10`,
+          { headers: { 'x-api-key': process.env.ETSY_CLIENT_ID }, timeout: 15000 }
+        );
+        const shopListings = r.data.results || [];
+
         for (const l of shopListings) {
-          // Sauter le listing qu'on a déjà
-          if (String(l.listingId) === String(listing.listingId)) continue;
-          if (!l.listingId) continue;
+          if (String(l.listing_id) === String(listing.listingId)) continue;
+          if (!l.listing_id) continue;
           try {
-            const detail = await getListingDetail(l.listingId);
+            const detail = await getListingDetail(l.listing_id);
             if (detail.images?.[0]) {
               console.log('[worker] second image found for', listing.shopName);
-              return { image: detail.images[0], link: l.link };
+              return { image: detail.images[0], link: `https://www.etsy.com/listing/${l.listing_id}` };
             }
           } catch(e) {
             console.warn('[getSecondImage] getListingDetail failed:', e.message);
           }
         }
-        console.warn('[getSecondImage] no second image for', listing.shopName, '— shopListings count:', shopListings.length);
+        console.warn('[getSecondImage] no second image for', listing.shopName, '— listings count:', shopListings.length);
         return null;
       } catch(e) {
-        console.warn('[getSecondImage] getShopListings failed for', listing.shopName, ':', e.message);
+        console.warn('[getSecondImage] failed for', listing.shopName, ':', e.message);
         return null;
       }
     }
