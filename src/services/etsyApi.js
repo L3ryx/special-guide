@@ -77,16 +77,21 @@ function normalizeListing(item, shopName = null) {
  * @returns {Promise<Array>}  — tableau de listings normalisés
  */
 async function searchListings(keyword, limit = 25, offset = 0) {
-  const r = await axios.get(`${BASE}/listings/active`, {
+  // L'API Etsy v3 requiert includes[] comme paramètres répétés dans l'URL
+  // axios serialise un tableau en includes[]=images&includes[]=shop ce qui n'est pas supporté
+  // On construit l'URL manuellement pour forcer includes=images&includes=shop
+  const qs = new URLSearchParams({
+    keywords:   keyword,
+    limit:      String(Math.min(limit, 100)),
+    offset:     String(offset),
+    sort_on:    'score',
+    sort_order: 'desc',
+  });
+  qs.append('includes', 'images');
+  qs.append('includes', 'shop');
+
+  const r = await axios.get(`${BASE}/listings/active?${qs.toString()}`, {
     headers: headers(),
-    params: {
-      keywords:    keyword,
-      limit:       Math.min(limit, 100),
-      offset,
-      includes:    ['images', 'shop'],
-      sort_on:     'score',
-      sort_order:  'desc',
-    },
     timeout: 30000,
   });
 
