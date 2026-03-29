@@ -5,7 +5,7 @@
 
 const axios = require('axios');
 
-const BASE = 'https://openapi.etsy.com/v3/application';
+const BASE = 'https://api.etsy.com/v3/application';
 
 function getKey() {
   const id     = process.env.ETSY_CLIENT_ID;
