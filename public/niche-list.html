@@ -497,6 +497,7 @@
       else { TOKEN = localStorage.getItem('scout_token'); }
       if (!TOKEN) { window.location.href = '/finder'; return; }
       handleEtsyCallback();
+      await checkEtsyLinked(); // vérifier que le compte Etsy est lié (redirige OAuth si non)
       loadShops();
     });
   </script>
@@ -528,6 +529,7 @@
   </script>
 </body>
 </html>
+
 
 
 
