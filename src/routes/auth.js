@@ -77,7 +77,7 @@ router.get('/etsy', (req, res) => {
     response_type:         'code',
     client_id:             ETSY_CLIENT_ID,
     redirect_uri:          ETSY_REDIRECT_URI,
-    scope:                 'email_r listings_r shops_r',
+    scope:                 'email_r profile_r listings_r listings_w listings_d shops_r',
     state,
     code_challenge:        challenge,
     code_challenge_method: 'S256',
@@ -320,6 +320,7 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
+
 
 
 
