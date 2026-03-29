@@ -72,16 +72,9 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
 
     let added = 0;
     for (const l of results) {
-      // shopName peut être un ID numérique — on accepte tant qu'on a un identifiant boutique
-      // L'image n'est pas filtrée ici : elle sera récupérée via scrapeShopImages plus tard
-      if (!l.shopName && !l.shopId) continue;
-      const key = l.shopName || String(l.shopId);
-      if (shopsSeen.has(key)) continue; // boutique déjà vue ou déjà analysée
-      shopsSeen.add(key);
-      // Normaliser shopName pour qu'il ne soit jamais un ID numérique brut
-      if (!l.shopName || !isNaN(l.shopName)) {
-        l.shopName = l.shopId ? String(l.shopId) : l.shopName;
-      }
+      if (!l.image || !l.shopName) continue;
+      if (shopsSeen.has(l.shopName)) continue; // boutique déjà vue ou déjà analysée
+      shopsSeen.add(l.shopName);
       listings.push(l);
       added++;
     }
@@ -116,23 +109,73 @@ router.post('/search-dropship', async (req, res) => {
 
   try {
     const { uploadToImgBB } = require('../services/imgbbUploader');
+    const User = require('../models/userModel');
 
-    // ── STEP 1 : Récupérer les boutiques déjà analysées pour les exclure ──
+    // ── STEP 1 : Charger le user, vérifier le token Etsy et récupérer usedShops ──
     const AutoSearchState = require('../models/autoSearchModel');
     let usedShops = [];
+    let etsyAccessToken = null;
+
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
+    const header = req.headers.authorization || '';
+    const appToken = header.startsWith('Bearer ') ? header.slice(7) : null;
+
+    if (!appToken) {
+      send({ step: 'error', message: '❌ Non authentifié' }); return res.end();
+    }
+
+    let decoded;
+    try { decoded = jwt.verify(appToken, JWT_SECRET); }
+    catch { send({ step: 'error', message: '❌ Session expirée — reconnecte-toi' }); return res.end(); }
+
+    const user = await User.findById(decoded.id).select('etsyAccessToken etsyRefreshToken etsyTokenExpires');
+    if (!user) { send({ step: 'error', message: '❌ Utilisateur introuvable' }); return res.end(); }
+
+    // Vérifier / rafraîchir le token Etsy
+    if (!user.etsyAccessToken) {
+      send({ step: 'etsy_required', message: '❌ Compte Etsy non lié — relie ton compte Etsy' }); return res.end();
+    }
+
+    const now = Date.now();
+    const expires = user.etsyTokenExpires ? new Date(user.etsyTokenExpires).getTime() : 0;
+    if (expires <= now + 5 * 60 * 1000) {
+      // Token expiré — tenter un refresh
+      if (!user.etsyRefreshToken) {
+        send({ step: 'etsy_required', message: '❌ Session Etsy expirée — relie ton compte Etsy' }); return res.end();
+      }
+      try {
+        const axios2 = require('axios');
+        const tokenRes = await axios2.post(
+          'https://api.etsy.com/v3/public/oauth/token',
+          new URLSearchParams({
+            grant_type:    'refresh_token',
+            client_id:     process.env.ETSY_CLIENT_ID,
+            refresh_token: user.etsyRefreshToken,
+          }).toString(),
+          { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000 }
+        );
+        const { access_token, refresh_token, expires_in } = tokenRes.data;
+        user.etsyAccessToken  = access_token;
+        user.etsyRefreshToken = refresh_token || user.etsyRefreshToken;
+        user.etsyTokenExpires = new Date(now + (expires_in - 60) * 1000);
+        await user.save();
+        etsyAccessToken = access_token;
+        console.log('[search-dropship] Etsy token refreshed for user', decoded.id);
+      } catch(e) {
+        console.warn('[search-dropship] refresh failed:', e.response?.data || e.message);
+        send({ step: 'etsy_required', message: '❌ Session Etsy expirée — relie ton compte Etsy' }); return res.end();
+      }
+    } else {
+      etsyAccessToken = user.etsyAccessToken;
+    }
+
+    // Charger usedShops
     try {
-      const { requireAuth } = require('./auth');
-      const jwt = require('jsonwebtoken');
-      const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
-      const header = req.headers.authorization || '';
-      const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
-      if (token) {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const state = await AutoSearchState.findOne({ userId: decoded.id });
-        if (state?.usedShops?.length) {
-          usedShops = state.usedShops;
-          console.log('[search-dropship] Excluding', usedShops.length, 'already-seen shops');
-        }
+      const state = await AutoSearchState.findOne({ userId: decoded.id });
+      if (state?.usedShops?.length) {
+        usedShops = state.usedShops;
+        console.log('[search-dropship] Excluding', usedShops.length, 'already-seen shops');
       }
     } catch(e) {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
@@ -152,9 +195,8 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
     }
 
-    // Accepter les listings avec un shopName OU un shopId (résolution faite dans scrapeShopImages)
     listings = listings.filter(l => l.shopName || l.shopId);
-    console.log('[search-dropship] listings with shopName or shopId:', listings.length);
+    console.log('[search-dropship] listings found:', listings.length);
 
     if (!listings.length) {
       send({ step: 'error', message: '❌ No shops found in Etsy results' });
@@ -162,7 +204,7 @@ router.post('/search-dropship', async (req, res) => {
     }
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' unique shops. Analyzing...' });
 
-    // ── STEP 2 : Récupérer les images des boutiques + Google Lens ──
+    // ── STEP 3 : Récupérer les images des boutiques + Google Lens ──
     const imgbbCache = new Map();
     async function uploadCached(url) {
       if (imgbbCache.has(url)) return imgbbCache.get(url);
@@ -171,10 +213,6 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    /**
-     * Récupère l'avatar et 2 images de listing d'une boutique via l'API Etsy.
-     * shopIdOrName peut être un shop_name (string) ou un shop_id numérique (string de chiffres).
-     */
     async function scrapeShopImages(shopIdOrName, listing = null) {
       try {
         let shopAvatar = null;
@@ -182,11 +220,10 @@ router.post('/search-dropship', async (req, res) => {
         const isNumericId = !isNaN(shopIdOrName);
 
         if (isNumericId) {
-          // L'API /shops/{numericId} retourne 400 — on résout le shop_name via getListingDetail
-          // sur un listing_id qu'on a déjà dans la liste
+          // Résoudre le shop_name via getListingDetail (listing_id déjà connu)
           if (listing?.listingId) {
             try {
-              const detail = await getListingDetail(listing.listingId);
+              const detail = await getListingDetail(listing.listingId, etsyAccessToken);
               if (detail.shopName) {
                 resolvedName = detail.shopName;
                 console.log('[scrapeShopImages] resolved', shopIdOrName, '->', resolvedName);
@@ -195,33 +232,31 @@ router.post('/search-dropship', async (req, res) => {
               console.warn('[scrapeShopImages] getListingDetail failed for', shopIdOrName, ':', e.message);
             }
           }
-          // Si toujours numérique, on ne peut pas continuer — skip
           if (!isNaN(resolvedName)) {
             console.warn('[scrapeShopImages] could not resolve shop_name for ID', shopIdOrName, '— skipping');
             return { images: [], shopAvatar: null, resolvedName: shopIdOrName };
           }
         }
 
-        // Maintenant on a un shop_name — on peut appeler getShopInfo et getShopListings
+        // Infos boutique (avatar) via OAuth
         try {
-          const info = await getShopInfo(resolvedName);
+          const info = await getShopInfo(resolvedName, etsyAccessToken);
           shopAvatar   = info.shopAvatar || null;
           resolvedName = info.shopName   || resolvedName;
         } catch (e) {
           console.warn('[avatar] getShopInfo failed for', resolvedName, ':', e.message);
         }
 
-        // Listings de la boutique avec le vrai shop_name
-        const shopListings = await getShopListings(resolvedName, 5);
+        // Listings de la boutique via OAuth
+        const shopListings = await getShopListings(resolvedName, 5, etsyAccessToken);
 
-        // getShopListings peut ne pas retourner les images — on les recupere via getListingDetail
         const images = [];
         for (const l of shopListings.slice(0, 3)) {
           if (l.image) {
             images.push({ image: l.image, link: l.link });
           } else if (l.listingId) {
             try {
-              const detail = await getListingDetail(l.listingId);
+              const detail = await getListingDetail(l.listingId, etsyAccessToken);
               if (detail.images?.[0]) images.push({ image: detail.images[0], link: l.link });
             } catch {}
           }
