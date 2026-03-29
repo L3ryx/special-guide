@@ -473,20 +473,26 @@
         btn.innerHTML = '🛍 Etsy Login'; btn.classList.remove('connected');
         showToast("Déconnecté d'Etsy", '#ef4444'); return;
       }
-      window.location.href = '/api/auth/etsy';
+      // Passer le token dans l'URL pour que le backend puisse lier le compte
+      const t = localStorage.getItem('scout_token');
+      window.location.href = '/api/auth/etsy' + (t ? '?jwt=' + encodeURIComponent(t) : '');
     }
 
     function checkEtsyToken() {
       const params = new URLSearchParams(window.location.search);
-      const token = params.get('token'), email = params.get('email'), err = params.get('etsy_error');
-      if (token && email) {
-        localStorage.setItem('scout_token', token); localStorage.setItem('etsy_connected', '1'); TOKEN = token;
+      const token = params.get('token'), err = params.get('etsy_error');
+      if (token) {
+        // Nouveau token reçu depuis le callback Etsy
+        localStorage.setItem('scout_token', token);
+        localStorage.setItem('etsy_connected', '1');
+        TOKEN = token;
         window.history.replaceState({}, '', window.location.pathname);
         const btn = document.getElementById('etsy-login-btn');
         btn.innerHTML = 'Etsy Logout'; btn.classList.add('connected');
-        showToast('✅ Connecté : ' + decodeURIComponent(email), '#22c55e'); return;
+        showToast('✅ Compte Etsy connecté', '#22c55e'); return;
       }
       if (err) { window.history.replaceState({}, '', window.location.pathname); showToast('❌ Erreur Etsy : ' + err, '#ef4444'); return; }
+      // Pas de token dans l'URL — vérifier le localStorage
       if (localStorage.getItem('etsy_connected') === '1' && TOKEN) {
         const btn = document.getElementById('etsy-login-btn');
         btn.innerHTML = 'Etsy Logout'; btn.classList.add('connected');
@@ -540,5 +546,6 @@
   </script>
 </body>
 </html>
+
 
 
