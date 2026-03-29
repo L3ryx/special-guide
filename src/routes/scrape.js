@@ -165,29 +165,32 @@ router.post('/search-dropship', async (req, res) => {
 
     /**
      * Récupère l'avatar et 2 images de listing d'une boutique via l'API Etsy.
+     * shopIdOrName peut être un shop_name (string) ou un shop_id numérique (string de chiffres).
      */
-    async function scrapeShopImages(shopName) {
+    async function scrapeShopImages(shopIdOrName) {
       try {
-        // Infos boutique (avatar)
+        // Infos boutique (avatar + résolution du vrai shop_name si on n'a que l'ID)
         let shopAvatar = null;
+        let resolvedName = shopIdOrName;
         try {
-          const info = await getShopInfo(shopName);
-          shopAvatar = info.shopAvatar || null;
+          const info = await getShopInfo(shopIdOrName);
+          shopAvatar   = info.shopAvatar || null;
+          resolvedName = info.shopName   || shopIdOrName;
         } catch (e) {
-          console.warn('[avatar] getShopInfo failed for', shopName, ':', e.message);
+          console.warn('[avatar] getShopInfo failed for', shopIdOrName, ':', e.message);
         }
 
         // Listings de la boutique (pour les 2 premières images)
-        const shopListings = await getShopListings(shopName, 5);
+        const shopListings = await getShopListings(resolvedName, 5);
         const images = shopListings
           .map(l => ({ image: l.image, link: l.link }))
           .filter(x => x.image)
           .slice(0, 2);
 
-        return { images, shopAvatar };
+        return { images, shopAvatar, resolvedName };
       } catch (e) {
-        console.warn('[scrapeShopImages] failed for', shopName, ':', e.message);
-        return { images: [], shopAvatar: null };
+        console.warn('[scrapeShopImages] failed for', shopIdOrName, ':', e.message);
+        return { images: [], shopAvatar: null, resolvedName: shopIdOrName };
       }
     }
 
@@ -218,13 +221,13 @@ router.post('/search-dropship', async (req, res) => {
         analyzed++;
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers.length + ' dropshippers' });
         try {
-          const { images: shopImages, shopAvatar } = await scrapeShopImages(listing.shopName);
+          const { images: shopImages, shopAvatar, resolvedName } = await scrapeShopImages(listing.shopName);
           if (shopImages.length < 2) continue;
           const [m1, m2] = await Promise.all([lensMatch(shopImages[0].image), lensMatch(shopImages[1].image)]);
           if (m1 && m2) {
             dropshippers.push({
-              shopName:   listing.shopName,
-              shopUrl:    'https://www.etsy.com/shop/' + listing.shopName,
+              shopName:   resolvedName,
+              shopUrl:    'https://www.etsy.com/shop/' + resolvedName,
               shopAvatar: shopAvatar || null,
               shopImage:  shopImages[0].image,
               listingUrl: shopImages[0].link || listing.link,
@@ -266,4 +269,5 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
