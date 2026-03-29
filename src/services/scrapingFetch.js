@@ -1,10 +1,15 @@
+/**
+ * scrapingFetch.js
+ * Utilisé UNIQUEMENT pour les pages AliExpress (pas d'API officielle).
+ * Toutes les requêtes Etsy passent désormais par etsyApi.js.
+ */
 const axios = require('axios');
 
 async function scraperApiFetch(targetUrl, extraParams = {}) {
   const saKey = process.env.SCRAPEAPI_KEY;
   if (!saKey) throw new Error('SCRAPEAPI_KEY not configured');
 
-  console.log(`ScraperAPI fetching: ${targetUrl}`);
+  console.log(`ScraperAPI fetching (AliExpress): ${targetUrl}`);
 
   try {
     const r = await axios.get('https://api.scraperapi.com', {
