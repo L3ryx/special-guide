@@ -188,13 +188,14 @@ async function getShopInfo(shopIdOrName) {
 }
 
 async function getListingDetail(listingId) {
-  const r = await axios.get(`${BASE}/listings/${listingId}?includes=images&includes=shop`, {
+  const r = await axios.get(`${BASE}/listings/${listingId}?includes=images`, {
     headers: headers(), timeout: 30000,
   });
 
   const item = r.data;
+  console.log('[getListingDetail]', listingId, '| images in response:', item.images?.length, '| keys:', Object.keys(item).join(','));
   const images = (item.images || [])
-    .map(img => cleanImage(img.url_fullxfull || img.url_570xN || null))
+    .map(img => cleanImage(img.url_fullxfull || img.url_570xN || img.url_170x135 || null))
     .filter(Boolean)
     .slice(0, 5);
 
