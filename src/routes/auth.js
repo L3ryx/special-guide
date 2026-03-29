@@ -68,9 +68,9 @@ router.get('/etsy', (req, res) => {
 
   const { verifier, challenge } = generatePKCE();
   const state = crypto.randomBytes(16).toString('hex');
+  const redirectTo = req.query.redirectTo || '/niche-list';
 
-  // Stocker le verifier ET l'userId lié au state (expire après 10 min)
-  pkceStore.set(state, { verifier, userId, createdAt: Date.now() });
+  pkceStore.set(state, { verifier, userId, redirectTo, createdAt: Date.now() });
   setTimeout(() => pkceStore.delete(state), 10 * 60 * 1000);
 
   const params = new URLSearchParams({
@@ -123,11 +123,12 @@ router.get('/etsy/callback', async (req, res) => {
     );
 
     const { access_token, refresh_token, expires_in } = tokenRes.data;
+    const etsyTokenExpires = new Date(Date.now() + (expires_in - 60) * 1000);
 
     // Récupérer le profil Etsy pour avoir l'email / user_id
     const profileRes = await axios.get('https://api.etsy.com/v3/application/users/me', {
       headers: {
-        'x-api-key':     ETSY_CLIENT_ID + ':' + ETSY_CLIENT_SECRET,
+        'x-api-key':     ETSY_CLIENT_ID,
         'Authorization': 'Bearer ' + access_token,
       },
       timeout: 10000,
@@ -140,17 +141,21 @@ router.get('/etsy/callback', async (req, res) => {
     // Email de substitution basé sur le user_id Etsy si pas d'email fourni
     const userEmail = etsyEmail ? etsyEmail.toLowerCase().trim() : ('etsy_' + etsyId + '@finder-niche.com');
 
-    // Lier la boutique Etsy au compte déjà connecté (pkce.userId = id du user connecté)
+    // Lier la boutique Etsy au compte déjà connecté
     const user = await User.findById(pkce.userId);
     if (!user) {
       return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent('Compte introuvable — reconnecte-toi'));
     }
-    user.etsyUserId = etsyId;
+    user.etsyUserId       = etsyId;
+    user.etsyAccessToken  = access_token;
+    user.etsyRefreshToken = refresh_token;
+    user.etsyTokenExpires = etsyTokenExpires;
     await user.save();
 
-    // On retourne le même token (le compte n'a pas changé) + confirmation
     const appToken = makeToken(user._id);
-    res.redirect(APP_URL + '/niche-list?token=' + appToken + '&etsy_linked=1&email=' + encodeURIComponent(user.email));
+    // Redirige vers la page d'origine (pkce.redirectTo) ou niche-list par défaut
+    const redirectTo = pkce.redirectTo || '/niche-list';
+    res.redirect(APP_URL + redirectTo + '?token=' + appToken + '&etsy_linked=1&email=' + encodeURIComponent(user.email));
 
   } catch (err) {
     console.error('Etsy OAuth error:', err.response?.data || err.message);
@@ -163,6 +168,50 @@ router.get('/etsy/callback', async (req, res) => {
 // Permet au frontend de savoir si ETSY_CLIENT_ID est configuré
 router.get('/etsy/status', (req, res) => {
   res.json({ configured: !!ETSY_CLIENT_ID });
+});
+
+// GET /api/auth/etsy/me
+// Vérifie si l'utilisateur a un token Etsy valide — rafraîchit si expiré
+router.get('/etsy/me', requireAuth, async (req, res) => {
+  const user = await User.findById(req.user.id).select('etsyUserId etsyAccessToken etsyRefreshToken etsyTokenExpires');
+  if (!user) return res.status(404).json({ linked: false });
+  if (!user.etsyAccessToken) return res.json({ linked: false });
+
+  // Vérifier si le token est encore valide (avec 5 min de marge)
+  const now = Date.now();
+  const expires = user.etsyTokenExpires ? new Date(user.etsyTokenExpires).getTime() : 0;
+  if (expires > now + 5 * 60 * 1000) {
+    return res.json({ linked: true, etsyUserId: user.etsyUserId });
+  }
+
+  // Token expiré — tenter un refresh
+  if (!user.etsyRefreshToken) {
+    user.etsyAccessToken = null; user.etsyRefreshToken = null; user.etsyTokenExpires = null;
+    await user.save();
+    return res.json({ linked: false, reason: 'token_expired' });
+  }
+  try {
+    const tokenRes = await axios.post(
+      'https://api.etsy.com/v3/public/oauth/token',
+      new URLSearchParams({
+        grant_type:    'refresh_token',
+        client_id:     ETSY_CLIENT_ID,
+        refresh_token: user.etsyRefreshToken,
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000 }
+    );
+    const { access_token, refresh_token, expires_in } = tokenRes.data;
+    user.etsyAccessToken  = access_token;
+    user.etsyRefreshToken = refresh_token || user.etsyRefreshToken;
+    user.etsyTokenExpires = new Date(now + (expires_in - 60) * 1000);
+    await user.save();
+    return res.json({ linked: true, etsyUserId: user.etsyUserId });
+  } catch (e) {
+    console.warn('[etsy/me] refresh failed:', e.response?.data || e.message);
+    user.etsyAccessToken = null; user.etsyRefreshToken = null; user.etsyTokenExpires = null;
+    await user.save();
+    return res.json({ linked: false, reason: 'refresh_failed' });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -320,6 +369,7 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
+
 
 
 
