@@ -72,9 +72,16 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
 
     let added = 0;
     for (const l of results) {
-      if (!l.image || !l.shopName) continue;
-      if (shopsSeen.has(l.shopName)) continue; // boutique déjà vue ou déjà analysée
-      shopsSeen.add(l.shopName);
+      // shopName peut être un ID numérique — on accepte tant qu'on a un identifiant boutique
+      // L'image n'est pas filtrée ici : elle sera récupérée via scrapeShopImages plus tard
+      if (!l.shopName && !l.shopId) continue;
+      const key = l.shopName || String(l.shopId);
+      if (shopsSeen.has(key)) continue; // boutique déjà vue ou déjà analysée
+      shopsSeen.add(key);
+      // Normaliser shopName pour qu'il ne soit jamais un ID numérique brut
+      if (!l.shopName || !isNaN(l.shopName)) {
+        l.shopName = l.shopId ? String(l.shopId) : l.shopName;
+      }
       listings.push(l);
       added++;
     }
@@ -145,8 +152,9 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
     }
 
-    listings = listings.filter(l => l.shopName);
-    console.log('[search-dropship] listings with shopName:', listings.length);
+    // Accepter les listings avec un shopName OU un shopId (résolution faite dans scrapeShopImages)
+    listings = listings.filter(l => l.shopName || l.shopId);
+    console.log('[search-dropship] listings with shopName or shopId:', listings.length);
 
     if (!listings.length) {
       send({ step: 'error', message: '❌ No shops found in Etsy results' });
@@ -180,7 +188,7 @@ router.post('/search-dropship', async (req, res) => {
           console.warn('[avatar] getShopInfo failed for', shopIdOrName, ':', e.message);
         }
 
-        // Listings de la boutique — getShopListings retourne les listing_id
+        // Listings de la boutique — on utilise resolvedName ou l'ID original
         const shopListings = await getShopListings(resolvedName, 5);
 
         // getShopListings peut ne pas retourner les images — on les recupere via getListingDetail
@@ -231,7 +239,7 @@ router.post('/search-dropship', async (req, res) => {
         analyzed++;
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers.length + ' dropshippers' });
         try {
-          const { images: shopImages, shopAvatar, resolvedName } = await scrapeShopImages(listing.shopName);
+          const { images: shopImages, shopAvatar, resolvedName } = await scrapeShopImages(listing.shopName || String(listing.shopId));
           if (shopImages.length < 2) continue;
           const [m1, m2] = await Promise.all([lensMatch(shopImages[0].image), lensMatch(shopImages[1].image)]);
           if (m1 && m2) {
@@ -279,5 +287,6 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
 
