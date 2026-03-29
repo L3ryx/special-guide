@@ -130,25 +130,34 @@ async function transformImageWithLeonardo(imageUrl, index) {
   ];
   const anglePrompt = angleVariants[index % angleVariants.length];
 
-  const genRes = await axios.post(
-    'https://cloud.leonardo.ai/api/rest/v1/generations',
-    {
-      prompt: `Product photography, same product, ${anglePrompt}. Change the background to a clean, contextually relevant setting matching the product theme. Keep the product identical, only change background and viewing angle. Professional ecommerce photography, high quality.`,
-      negative_prompt: 'blurry, distorted, watermark, text, low quality, deformed product',
-      modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3', // Leonardo Diffusion XL
-      width: 1024,
-      height: 1024,
-      num_images: 1,
-      guidance_scale: 7,
-      init_image_id: initImageId,
-      init_strength: 0.45,
-      presetStyle: 'PRODUCT_PHOTOGRAPHY',
-    },
-    { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 30000 }
-  );
+  const genBody = {
+    prompt: `Product photography, same product, ${anglePrompt}. Change the background to a clean, contextually relevant setting matching the product theme. Keep the product identical, only change background and viewing angle. Professional ecommerce photography, high quality.`,
+    negative_prompt: 'blurry, distorted, watermark, text, low quality, deformed product',
+    modelId: 'b24e16ff-06e3-43eb-8d33-4416c2d75876', // Leonardo Phoenix
+    width: 1024,
+    height: 1024,
+    num_images: 1,
+    guidance_scale: 7,
+    init_image_id: initImageId,
+    init_strength: 0.45,
+  };
+
+  console.log('[Leonardo] POST /generations body:', JSON.stringify(genBody).slice(0, 300));
+  let genRes;
+  try {
+    genRes = await axios.post(
+      'https://cloud.leonardo.ai/api/rest/v1/generations',
+      genBody,
+      { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 30000 }
+    );
+  } catch(e) {
+    console.error('[Leonardo] /generations error:', e.response?.status, JSON.stringify(e.response?.data));
+    throw new Error('Leonardo generations error ' + e.response?.status + ': ' + JSON.stringify(e.response?.data));
+  }
 
   const generationId = genRes.data.sdGenerationJob?.generationId;
-  if (!generationId) throw new Error('Leonardo: no generationId');
+  console.log('[Leonardo] generationId:', generationId, '| full response:', JSON.stringify(genRes.data).slice(0,300));
+  if (!generationId) throw new Error('Leonardo: no generationId — response: ' + JSON.stringify(genRes.data).slice(0,200));
 
   // 3. Attendre la fin de la génération (polling)
   for (let i = 0; i < 30; i++) {
