@@ -291,15 +291,32 @@ async function createEtsyListing(etsyToken, shopId, listingData) {
 /**
  * Résout le shop_id Etsy à partir du token OAuth
  */
-async function getEtsyShopId(etsyToken, shopName) {
-  // Résoudre le shop_id numérique depuis le nom de la boutique cible
-  const r = await axios.get(
-    'https://api.etsy.com/v3/application/shops?shop_name=' + encodeURIComponent(shopName),
-    { headers: { 'x-api-key': process.env.ETSY_CLIENT_ID }, timeout: 15000 }
+async function getEtsyShopId(etsyToken) {
+  // Récupérer les infos du user connecté via son OAuth token
+  const r = await axios.get('https://openapi.etsy.com/v3/application/users/me', {
+    headers: {
+      'x-api-key':     process.env.ETSY_CLIENT_ID,
+      'Authorization': 'Bearer ' + etsyToken,
+    },
+    timeout: 15000,
+  });
+  const userId = r.data.user_id;
+  if (!userId) throw new Error('Impossible de récupérer le user_id Etsy');
+
+  // Récupérer le shop lié à ce user
+  const shopRes = await axios.get(
+    'https://openapi.etsy.com/v3/application/users/' + userId + '/shops',
+    {
+      headers: {
+        'x-api-key':     process.env.ETSY_CLIENT_ID,
+        'Authorization': 'Bearer ' + etsyToken,
+      },
+      timeout: 15000,
+    }
   );
-  const found = (r.data.results || []);
-  if (!found.length) throw new Error('Shop "' + shopName + '" introuvable sur Etsy');
-  return found[0].shop_id;
+  const shopId = shopRes.data?.shop_id || shopRes.data?.results?.[0]?.shop_id;
+  if (!shopId) throw new Error('Aucune boutique Etsy trouvée pour ce compte');
+  return shopId;
 }
 
 /**
@@ -401,7 +418,7 @@ router.post('/start', requireAuth, async (req, res) => {
     send({ step: 'etsy_auth', status: 'running', message: '🔑 Verifying Etsy access...' });
     let etsyShopId;
     try {
-      etsyShopId = await getEtsyShopId(etsyToken, shopName);
+      etsyShopId = await getEtsyShopId(etsyToken);
       send({ step: 'etsy_auth', status: 'done', message: '✅ Etsy shop verified (id: ' + etsyShopId + ')' });
     } catch (e) {
       send({ step: 'error', message: '❌ Etsy auth failed: ' + e.message });
