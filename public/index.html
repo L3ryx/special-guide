@@ -483,14 +483,11 @@
     (function handleOAuthReturn() {
       const params = new URLSearchParams(window.location.search);
       const token   = params.get('token');
-      const email   = params.get('email');
       const etsyErr = params.get('etsy_error');
       if (token) {
         localStorage.setItem('scout_token', token);
-        localStorage.setItem('etsy_connected', '1');
         SCOUT_TOKEN = token;
         window.history.replaceState({}, '', window.location.pathname);
-        // Toujours afficher l'email du compte, pas celui d'Etsy
         fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } })
           .then(function(r) { return r.json(); })
           .then(function(d) { if (d && d.email) onLoggedIn(d.email); });
@@ -501,8 +498,9 @@
           if (errEl) {
             const msgs = { 'no_email': 'Etsy n\'a pas fourni votre email.', 'access_denied': 'Connexion Etsy annulée.' };
             errEl.textContent = msgs[etsyErr] || ('Erreur Etsy : ' + etsyErr);
+            showAuthModal();
           }
-        }, 500);
+        }, 300);
       }
     })();
 
@@ -563,6 +561,18 @@
         if (!r.ok) { errEl.textContent = data.error || 'Error'; return; }
         localStorage.setItem('scout_token', data.token);
         SCOUT_TOKEN = data.token;
+        // Vérifier si le compte Etsy est lié — sinon rediriger vers OAuth
+        try {
+          const etsyCheck = await fetch('/api/auth/etsy/me', {
+            headers: { 'Authorization': 'Bearer ' + data.token }
+          });
+          const etsyData = await etsyCheck.json();
+          if (!etsyData.linked) {
+            // Pas encore lié → OAuth Etsy, revenir sur index après
+            window.location.href = '/api/auth/etsy?jwt=' + encodeURIComponent(data.token) + '&redirectTo=' + encodeURIComponent('/');
+            return;
+          }
+        } catch(e) { /* Si la vérif échoue on continue quand même */ }
         onLoggedIn(data.email);
       } catch(e) { errEl.textContent = e.message; }
       finally { btn.disabled = false; btn.textContent = _authTab === 'login' ? 'Login' : 'Register'; }
@@ -1441,6 +1451,7 @@
   </script>
 </body>
 </html>
+
 
 
 
