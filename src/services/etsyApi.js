@@ -14,10 +14,8 @@ function getKey() {
   return secret ? `${id}:${secret}` : id;
 }
 
-function headers(accessToken = null) {
-  const h = { 'x-api-key': getKey() };
-  if (accessToken) h['Authorization'] = 'Bearer ' + accessToken;
-  return h;
+function headers() {
+  return { 'x-api-key': getKey() };
 }
 
 function cleanImage(url) {
@@ -56,7 +54,7 @@ function normalizeListing(item, shopName = null) {
   };
 }
 
-async function searchListings(keyword, limit = 25, offset = 0, accessToken = null) {
+async function searchListings(keyword, limit = 25, offset = 0) {
   const qs = new URLSearchParams({
     keywords:   keyword,
     limit:      String(Math.min(limit, 100)),
@@ -68,7 +66,7 @@ async function searchListings(keyword, limit = 25, offset = 0, accessToken = nul
   qs.append('includes', 'shop');
 
   const r = await axios.get(`${BASE}/listings/active?${qs.toString()}`, {
-    headers: headers(accessToken), // utilise le token OAuth si disponible
+    headers: headers(),
     timeout: 30000,
   });
 
@@ -83,12 +81,15 @@ async function searchListings(keyword, limit = 25, offset = 0, accessToken = nul
   return results.map(item => normalizeListing(item));
 }
 
-async function getShopListings(shopIdOrName, limit = 20, accessToken = null) {
-  const qs = new URLSearchParams({ limit: String(Math.min(limit, 100)) });
+async function getShopListings(shopIdOrName, limit = 20) {
+  // Cet endpoint accepte shop_id numerique OU shop_name dans le path — les deux fonctionnent
+  const qs = new URLSearchParams({
+    limit: String(Math.min(limit, 100)),
+  });
   qs.append('includes', 'images');
 
   const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}/listings/active?${qs.toString()}`, {
-    headers: headers(accessToken),
+    headers: headers(),
     timeout: 30000,
   });
 
@@ -97,9 +98,11 @@ async function getShopListings(shopIdOrName, limit = 20, accessToken = null) {
   return results.map(item => normalizeListing(item, resolvedShopName));
 }
 
-async function getShopInfo(shopIdOrName, accessToken = null) {
+async function getShopInfo(shopIdOrName) {
+  // L'endpoint /shops/{id_or_name} accepte aussi bien un ID numerique qu'un nom
+  // Le 400 precedent venait de /shops?shop_id= qui n'existe pas — on utilise le path directement
   const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}`, {
-    headers: headers(accessToken),
+    headers: headers(),
     timeout: 30000,
   });
   const s = r.data;
@@ -113,13 +116,13 @@ async function getShopInfo(shopIdOrName, accessToken = null) {
   };
 }
 
-async function getListingDetail(listingId, accessToken = null) {
+async function getListingDetail(listingId) {
   const qs = new URLSearchParams();
   qs.append('includes', 'images');
   qs.append('includes', 'shop');
 
   const r = await axios.get(`${BASE}/listings/${listingId}?${qs.toString()}`, {
-    headers: headers(accessToken),
+    headers: headers(),
     timeout: 30000,
   });
 
@@ -159,6 +162,5 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
-
 
 
