@@ -48,22 +48,22 @@ router.post('/niche-keyword', async (req, res) => {
 
 /**
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
+ * - Max 8 pages (800 listings)
+ * - Ignore les boutiques déjà analysées (usedShops)
  * Retourne un tableau de { link, image, shopName, shopUrl }.
  */
-async function fetchListingsForDropship(keyword, onBatch, maxResults = 200) {
-  const shopsSeen = new Set();
-  const listings  = [];
+async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
+  const MAX_PAGES = 8;
   const perPage   = 100;
+  const shopsSeen = new Set(usedShops); // pré-remplir avec les boutiques déjà vues
+  const listings  = [];
   let   offset    = 0;
-  let   batch     = 0;
+  let   page      = 0;
 
-  while (listings.length < maxResults) {
-    const needed  = maxResults - listings.length;
-    const limit   = Math.min(needed, perPage);
-    let   results;
-
+  while (page < MAX_PAGES) {
+    let results;
     try {
-      results = await searchListings(keyword, limit, offset);
+      results = await searchListings(keyword, perPage, offset);
     } catch (e) {
       handleEtsyError(e);
     }
@@ -73,21 +73,22 @@ async function fetchListingsForDropship(keyword, onBatch, maxResults = 200) {
     let added = 0;
     for (const l of results) {
       if (!l.image || !l.shopName) continue;
-      if (shopsSeen.has(l.shopName)) continue;
+      if (shopsSeen.has(l.shopName)) continue; // boutique déjà vue ou déjà analysée
       shopsSeen.add(l.shopName);
       listings.push(l);
       added++;
     }
 
-    batch++;
-    if (onBatch) onBatch(batch, listings.length);
+    page++;
+    if (onBatch) onBatch(page, listings.length);
+    console.log(`fetchListingsForDropship page ${page}/${MAX_PAGES}: ${added} new shops, total ${listings.length}`);
 
-    if (results.length < limit) break; // dernière page
-    offset += limit;
+    if (results.length < perPage) break; // dernière page
+    offset += perPage;
     await new Promise(r => setTimeout(r, 100));
   }
 
-  console.log('fetchListingsForDropship done:', listings.length, 'unique shops');
+  console.log('fetchListingsForDropship done:', listings.length, 'unique new shops');
   return listings;
 }
 
@@ -109,14 +110,36 @@ router.post('/search-dropship', async (req, res) => {
   try {
     const { uploadToImgBB } = require('../services/imgbbUploader');
 
-    // ── STEP 1 : Récupérer les listings via l'API Etsy ──
+    // ── STEP 1 : Récupérer les boutiques déjà analysées pour les exclure ──
+    const AutoSearchState = require('../models/autoSearchModel');
+    let usedShops = [];
+    try {
+      const { requireAuth } = require('./auth');
+      const jwt = require('jsonwebtoken');
+      const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
+      const header = req.headers.authorization || '';
+      const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
+      if (token) {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const state = await AutoSearchState.findOne({ userId: decoded.id });
+        if (state?.usedShops?.length) {
+          usedShops = state.usedShops;
+          console.log('[search-dropship] Excluding', usedShops.length, 'already-seen shops');
+        }
+      }
+    } catch(e) {
+      console.warn('[search-dropship] Could not load usedShops:', e.message);
+    }
+
+    // ── STEP 2 : Récupérer les listings via l'API Etsy (8 pages max) ──
     send({ step: 'scraping', message: '🔍 Searching Etsy API for "' + keyword + '"...' });
 
     let listings = [];
     try {
       listings = await fetchListingsForDropship(
         keyword,
-        (batch, count) => send({ step: 'scraping', message: '📄 Batch ' + batch + ' — ' + count + ' unique shops...' })
+        (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' new shops...' }),
+        usedShops
       );
     } catch(e) {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
