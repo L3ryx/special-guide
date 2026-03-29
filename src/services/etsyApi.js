@@ -78,7 +78,7 @@ async function searchListings(keyword, limit = 25, offset = 0) {
       keywords:    keyword,
       limit:       Math.min(limit, 100),
       offset,
-      includes:    'images,shop',
+      includes:    ['images', 'shop'],
       sort_on:     'score',
       sort_order:  'desc',
     },
@@ -189,4 +189,5 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
+
 
