@@ -106,6 +106,8 @@ async function getShopNameAndImage(shopId) {
     { headers: headers(), timeout: 15000 }
   );
   const firstListing = listRes.data.results?.[0];
+  console.log('[etsyApi] listRes keys:', Object.keys(firstListing || {}));
+  console.log('[etsyApi] images array:', JSON.stringify(firstListing?.images?.slice(0,1)));
   const image = cleanImage(
     firstListing?.images?.[0]?.url_fullxfull ||
     firstListing?.images?.[0]?.url_570xN ||
