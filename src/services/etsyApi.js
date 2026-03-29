@@ -1,6 +1,11 @@
 /**
  * etsyApi.js
- * Wrapper pour l'API officielle Etsy v3 (Open API)
+ * Wrapper pour l'API officielle Etsy v3
+ *
+ * Stratégie :
+ *  - /listings/active                              → listing_id + shop_id (pas d'images ni shop_name)
+ *  - /shops/{shopId}                               → shop_name
+ *  - /shops/{shopId}/listings/active?includes=images → images
  */
 
 const axios = require('axios');
@@ -23,21 +28,20 @@ function cleanImage(url) {
   return url.split('?')[0];
 }
 
-// Format URL image Etsy valide : recupere l'image via l'endpoint listing direct
-// On ne construit plus d'URL CDN — on appelle getListingDetail pour avoir les vraies images
-function normalizeListing(item, shopName = null) {
+function normalizeListing(item, shopName = null, shopUrl = null) {
   const image =
     item.images?.[0]?.url_fullxfull ||
     item.images?.[0]?.url_570xN ||
     item.images?.[0]?.url_170x135 ||
-    null; // pas de fallback CDN — sera recupere via getShopListings qui inclut les images
+    null;
 
   const price = item.price
     ? `${item.price.currency_code} ${(item.price.amount / item.price.divisor).toFixed(2)}`
     : null;
 
   const shopId = item.shop_id || item.shop?.shop_id || null;
-  const resolvedShop = shopName || item.shop?.shop_name || (shopId ? String(shopId) : null);
+  const resolvedShop = shopName || item.shop?.shop_name || null;
+  const resolvedUrl  = shopUrl || (resolvedShop ? `https://www.etsy.com/shop/${resolvedShop}` : null);
 
   return {
     title:    item.title || null,
@@ -45,16 +49,18 @@ function normalizeListing(item, shopName = null) {
     image:    cleanImage(image),
     source:   'etsy',
     shopName: resolvedShop,
-    shopUrl:  item.shop?.shop_name
-      ? `https://www.etsy.com/shop/${item.shop.shop_name}`
-      : (shopId ? `https://www.etsy.com/shop?shop_id=${shopId}` : null),
+    shopUrl:  resolvedUrl,
     price,
     listingId: item.listing_id,
     shopId,
   };
 }
 
-async function searchListings(keyword, limit = 25, offset = 0) {
+/**
+ * Recherche — retourne uniquement listing_id, shop_id, title, link.
+ * /listings/active ne renvoie PAS images ni shop_name inline.
+ */
+async function searchListingIds(keyword, limit = 100, offset = 0) {
   const qs = new URLSearchParams({
     keywords:   keyword,
     limit:      String(Math.min(limit, 100)),
@@ -62,8 +68,6 @@ async function searchListings(keyword, limit = 25, offset = 0) {
     sort_on:    'score',
     sort_order: 'desc',
   });
-  qs.append('includes', 'images');
-  qs.append('includes', 'shop');
 
   const r = await axios.get(`${BASE}/listings/active?${qs.toString()}`, {
     headers: headers(),
@@ -71,27 +75,55 @@ async function searchListings(keyword, limit = 25, offset = 0) {
   });
 
   const results = r.data.results || [];
-  if (results.length > 0) {
-    const s = results[0];
-    const norm = normalizeListing(s);
-    console.log('[etsyApi] page results:', results.length, '| shop_id:', s.shop_id, '| image:', !!norm.image, '| shopName:', norm.shopName);
-  } else {
-    console.log('[etsyApi] 0 results for keyword:', keyword);
-  }
-  return results.map(item => normalizeListing(item));
+  console.log('[etsyApi] searchListingIds:', results.length, 'results | keyword:', keyword, '| offset:', offset);
+  return results.map(item => ({
+    listingId: item.listing_id,
+    shopId:    item.shop_id || null,
+    title:     item.title || null,
+    link:      `https://www.etsy.com/listing/${item.listing_id}`,
+  }));
+}
+
+// Alias pour compatibilité avec l'ancien code
+async function searchListings(keyword, limit = 25, offset = 0) {
+  return searchListingIds(keyword, limit, offset);
+}
+
+/**
+ * Pour un shop_id : récupère shop_name + première image.
+ * 2 appels : /shops/{id} + /shops/{id}/listings/active?includes=images&limit=1
+ */
+async function getShopNameAndImage(shopId) {
+  const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
+    headers: headers(), timeout: 15000,
+  });
+  const shop     = shopRes.data;
+  const shopName = shop.shop_name;
+  const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+
+  const listRes = await axios.get(
+    `${BASE}/shops/${shopId}/listings/active?limit=1&includes=images`,
+    { headers: headers(), timeout: 15000 }
+  );
+  const firstListing = listRes.data.results?.[0];
+  const image = cleanImage(
+    firstListing?.images?.[0]?.url_fullxfull ||
+    firstListing?.images?.[0]?.url_570xN ||
+    null
+  );
+
+  console.log('[etsyApi] getShopNameAndImage:', shopName, '| image:', !!image);
+  return { shopName, shopUrl, image };
 }
 
 async function getShopListings(shopIdOrName, limit = 20) {
-  // Cet endpoint accepte shop_id numerique OU shop_name dans le path — les deux fonctionnent
-  const qs = new URLSearchParams({
-    limit: String(Math.min(limit, 100)),
-  });
+  const qs = new URLSearchParams({ limit: String(Math.min(limit, 100)) });
   qs.append('includes', 'images');
 
-  const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}/listings/active?${qs.toString()}`, {
-    headers: headers(),
-    timeout: 30000,
-  });
+  const r = await axios.get(
+    `${BASE}/shops/${encodeURIComponent(shopIdOrName)}/listings/active?${qs.toString()}`,
+    { headers: headers(), timeout: 30000 }
+  );
 
   const results = r.data.results || [];
   const resolvedShopName = typeof shopIdOrName === 'string' && isNaN(shopIdOrName) ? shopIdOrName : null;
@@ -99,11 +131,8 @@ async function getShopListings(shopIdOrName, limit = 20) {
 }
 
 async function getShopInfo(shopIdOrName) {
-  // L'endpoint /shops/{id_or_name} accepte aussi bien un ID numerique qu'un nom
-  // Le 400 precedent venait de /shops?shop_id= qui n'existe pas — on utilise le path directement
   const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}`, {
-    headers: headers(),
-    timeout: 30000,
+    headers: headers(), timeout: 30000,
   });
   const s = r.data;
   return {
@@ -122,8 +151,7 @@ async function getListingDetail(listingId) {
   qs.append('includes', 'shop');
 
   const r = await axios.get(`${BASE}/listings/${listingId}?${qs.toString()}`, {
-    headers: headers(),
-    timeout: 30000,
+    headers: headers(), timeout: 30000,
   });
 
   const item = r.data;
@@ -156,11 +184,12 @@ function handleEtsyError(e) {
 
 module.exports = {
   searchListings,
+  searchListingIds,
+  getShopNameAndImage,
   getShopListings,
   getShopInfo,
   getListingDetail,
   normalizeListing,
   handleEtsyError,
 };
-
 
