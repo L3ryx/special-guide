@@ -47,7 +47,10 @@ function normalizeListing(item, shopName = null) {
     ? `${item.price.currency_code} ${(item.price.amount / item.price.divisor).toFixed(2)}`
     : null;
 
-  const resolvedShop = shopName || item.shop?.shop_name || null;
+  // L'API Etsy retourne shop_name dans item.shop?.shop_name quand includes=shop fonctionne,
+  // sinon on utilise shop_id comme fallback unique (string) pour la déduplication
+  const shopId   = item.shop_id || item.shop?.shop_id || null;
+  const resolvedShop = shopName || item.shop?.shop_name || (shopId ? String(shopId) : null);
 
   return {
     title:    item.title || null,
@@ -55,10 +58,12 @@ function normalizeListing(item, shopName = null) {
     image:    cleanImage(image),
     source:   'etsy',
     shopName: resolvedShop,
-    shopUrl:  resolvedShop ? `https://www.etsy.com/shop/${resolvedShop}` : null,
+    shopUrl:  item.shop?.shop_name
+      ? `https://www.etsy.com/shop/${item.shop.shop_name}`
+      : (shopId ? `https://www.etsy.com/shop?shop_id=${shopId}` : null),
     price,
     listingId: item.listing_id,
-    shopId:    item.shop_id || item.shop?.shop_id || null,
+    shopId,
   };
 }
 
@@ -86,6 +91,12 @@ async function searchListings(keyword, limit = 25, offset = 0) {
   });
 
   const results = r.data.results || [];
+  if (results.length > 0) {
+    const sample = results[0];
+    console.log('[etsyApi] searchListings sample — shop_id:', sample.shop_id, '| shop?.shop_name:', sample.shop?.shop_name, '| has images:', !!sample.images?.length);
+  } else {
+    console.log('[etsyApi] searchListings returned 0 results for keyword:', keyword);
+  }
   return results.map(item => normalizeListing(item));
 }
 
