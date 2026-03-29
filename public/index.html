@@ -523,8 +523,20 @@
           if (!r.ok) { SCOUT_TOKEN = null; localStorage.removeItem('scout_token'); showAuthModal(); return; }
           return r.json();
         })
-        .then(function(d) {
-          if (d) onLoggedIn(d.email);
+        .then(async function(d) {
+          if (!d) return;
+          // Vérifier si Etsy est lié — rediriger vers OAuth si nécessaire
+          try {
+            const etsyCheck = await fetch('/api/auth/etsy/me', {
+              headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN }
+            });
+            const etsyData = await etsyCheck.json();
+            if (!etsyData.linked) {
+              window.location.href = '/api/auth/etsy?jwt=' + encodeURIComponent(SCOUT_TOKEN) + '&redirectTo=' + encodeURIComponent('/');
+              return;
+            }
+          } catch(e) { /* Si la vérif échoue on continue quand même */ }
+          onLoggedIn(d.email);
         })
         .catch(function() {
           window.location.href = '/loading';
