@@ -35,20 +35,27 @@ function cleanImage(url) {
   return url.split('?')[0];
 }
 
+// ── Utilitaire : construit une URL d'image Etsy depuis listing_id (fallback sans includes) ──
+// Format officiel Etsy CDN : https://i.etsystatic.com/iap/listing/{listing_id}/f_auto,fl_progressive,q_auto,c_limit,w_570,h_570/listing.jpg
+function buildEtsyImageUrl(listingId) {
+  if (!listingId) return null;
+  return `https://i.etsystatic.com/iap/listing/${listingId}/f_auto,fl_progressive,q_auto,c_limit,w_570,h_570/listing.jpg`;
+}
+
 // ── Normalise un listing brut de l'API en objet unifié ──
 function normalizeListing(item, shopName = null) {
+  // includes=images souvent ignoré par /listings/active — fallback sur URL CDN Etsy
   const image =
     item.images?.[0]?.url_fullxfull ||
     item.images?.[0]?.url_570xN ||
     item.images?.[0]?.url_170x135 ||
-    null;
+    buildEtsyImageUrl(item.listing_id);
 
   const price = item.price
     ? `${item.price.currency_code} ${(item.price.amount / item.price.divisor).toFixed(2)}`
     : null;
 
-  // L'API Etsy retourne shop_name dans item.shop?.shop_name quand includes=shop fonctionne,
-  // sinon on utilise shop_id comme fallback unique (string) pour la déduplication
+  // includes=shop ignoré par /listings/active — shop_id toujours présent, shop_name résolu plus tard
   const shopId   = item.shop_id || item.shop?.shop_id || null;
   const resolvedShop = shopName || item.shop?.shop_name || (shopId ? String(shopId) : null);
 
@@ -97,10 +104,11 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 
   const results = r.data.results || [];
   if (results.length > 0) {
-    const sample = results[0];
-    console.log('[etsyApi] searchListings sample — shop_id:', sample.shop_id, '| shop?.shop_name:', sample.shop?.shop_name, '| has images:', !!sample.images?.length);
+    const s = results[0];
+    const normalized = normalizeListing(s);
+    console.log('[etsyApi] page results:', results.length, '| shop_id:', s.shop_id, '| image built:', !!normalized.image, '| shopName:', normalized.shopName);
   } else {
-    console.log('[etsyApi] searchListings returned 0 results for keyword:', keyword);
+    console.log('[etsyApi] 0 results for:', keyword, '| response keys:', Object.keys(r.data).join(','));
   }
   return results.map(item => normalizeListing(item));
 }
@@ -205,5 +213,6 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
+
 
 
