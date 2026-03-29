@@ -147,7 +147,7 @@ router.get('/etsy/callback', async (req, res) => {
     // Rediriger vers le frontend avec le token JWT dans l'URL
     // Le frontend doit récupérer ce token et le stocker (localStorage, etc.)
     // Redirige vers /niche-list (où se trouve le bouton Etsy) avec le token
-    res.redirect(APP_URL + '/niche-list?token=' + appToken + '&email=' + encodeURIComponent(etsyEmail || ('Etsy #' + etsyId)));
+    res.redirect(APP_URL + '/niche-list?token=' + appToken);
 
   } catch (err) {
     console.error('Etsy OAuth error:', err.response?.data || err.message);
@@ -317,4 +317,5 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
+
 
