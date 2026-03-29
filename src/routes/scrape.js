@@ -2,7 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
-const { searchListings, getShopListings, getShopInfo, handleEtsyError } = require('../services/etsyApi');
+const { searchListings, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 // ScraperAPI conservé UNIQUEMENT pour AliExpress
 const { scraperApiFetch } = require('../services/scrapingFetch');
 
@@ -169,7 +169,7 @@ router.post('/search-dropship', async (req, res) => {
      */
     async function scrapeShopImages(shopIdOrName) {
       try {
-        // Infos boutique (avatar + résolution du vrai shop_name si on n'a que l'ID)
+        // Infos boutique (avatar + resolution du vrai shop_name si on n'a que l'ID)
         let shopAvatar = null;
         let resolvedName = shopIdOrName;
         try {
@@ -180,12 +180,22 @@ router.post('/search-dropship', async (req, res) => {
           console.warn('[avatar] getShopInfo failed for', shopIdOrName, ':', e.message);
         }
 
-        // Listings de la boutique (pour les 2 premières images)
+        // Listings de la boutique — getShopListings retourne les listing_id
         const shopListings = await getShopListings(resolvedName, 5);
-        const images = shopListings
-          .map(l => ({ image: l.image, link: l.link }))
-          .filter(x => x.image)
-          .slice(0, 2);
+
+        // getShopListings peut ne pas retourner les images — on les recupere via getListingDetail
+        const images = [];
+        for (const l of shopListings.slice(0, 3)) {
+          if (l.image) {
+            images.push({ image: l.image, link: l.link });
+          } else if (l.listingId) {
+            try {
+              const detail = await getListingDetail(l.listingId);
+              if (detail.images?.[0]) images.push({ image: detail.images[0], link: l.link });
+            } catch {}
+          }
+          if (images.length >= 2) break;
+        }
 
         return { images, shopAvatar, resolvedName };
       } catch (e) {
