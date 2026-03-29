@@ -175,20 +175,43 @@ router.post('/search-dropship', async (req, res) => {
      * Récupère l'avatar et 2 images de listing d'une boutique via l'API Etsy.
      * shopIdOrName peut être un shop_name (string) ou un shop_id numérique (string de chiffres).
      */
-    async function scrapeShopImages(shopIdOrName) {
+    async function scrapeShopImages(shopIdOrName, listing = null) {
       try {
-        // Infos boutique (avatar + resolution du vrai shop_name si on n'a que l'ID)
         let shopAvatar = null;
         let resolvedName = shopIdOrName;
-        try {
-          const info = await getShopInfo(shopIdOrName);
-          shopAvatar   = info.shopAvatar || null;
-          resolvedName = info.shopName   || shopIdOrName;
-        } catch (e) {
-          console.warn('[avatar] getShopInfo failed for', shopIdOrName, ':', e.message);
+        const isNumericId = !isNaN(shopIdOrName);
+
+        if (isNumericId) {
+          // L'API /shops/{numericId} retourne 400 — on résout le shop_name via getListingDetail
+          // sur un listing_id qu'on a déjà dans la liste
+          if (listing?.listingId) {
+            try {
+              const detail = await getListingDetail(listing.listingId);
+              if (detail.shopName) {
+                resolvedName = detail.shopName;
+                console.log('[scrapeShopImages] resolved', shopIdOrName, '->', resolvedName);
+              }
+            } catch (e) {
+              console.warn('[scrapeShopImages] getListingDetail failed for', shopIdOrName, ':', e.message);
+            }
+          }
+          // Si toujours numérique, on ne peut pas continuer — skip
+          if (!isNaN(resolvedName)) {
+            console.warn('[scrapeShopImages] could not resolve shop_name for ID', shopIdOrName, '— skipping');
+            return { images: [], shopAvatar: null, resolvedName: shopIdOrName };
+          }
         }
 
-        // Listings de la boutique — on utilise resolvedName ou l'ID original
+        // Maintenant on a un shop_name — on peut appeler getShopInfo et getShopListings
+        try {
+          const info = await getShopInfo(resolvedName);
+          shopAvatar   = info.shopAvatar || null;
+          resolvedName = info.shopName   || resolvedName;
+        } catch (e) {
+          console.warn('[avatar] getShopInfo failed for', resolvedName, ':', e.message);
+        }
+
+        // Listings de la boutique avec le vrai shop_name
         const shopListings = await getShopListings(resolvedName, 5);
 
         // getShopListings peut ne pas retourner les images — on les recupere via getListingDetail
@@ -239,7 +262,7 @@ router.post('/search-dropship', async (req, res) => {
         analyzed++;
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '🔎 ' + analyzed + '/' + listings.length + ' — ' + dropshippers.length + ' dropshippers' });
         try {
-          const { images: shopImages, shopAvatar, resolvedName } = await scrapeShopImages(listing.shopName || String(listing.shopId));
+          const { images: shopImages, shopAvatar, resolvedName } = await scrapeShopImages(listing.shopName || String(listing.shopId), listing);
           if (shopImages.length < 2) continue;
           const [m1, m2] = await Promise.all([lensMatch(shopImages[0].image), lensMatch(shopImages[1].image)]);
           if (m1 && m2) {
