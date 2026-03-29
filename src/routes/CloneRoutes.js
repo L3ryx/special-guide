@@ -251,7 +251,7 @@ async function createEtsyListing(etsyToken, shopId, listingData) {
     {
       headers: {
         'Authorization': 'Bearer ' + etsyToken,
-        'x-api-key':     process.env.ETSY_CLIENT_ID,
+        'x-api-key':     (process.env.ETSY_CLIENT_ID + ':' + (process.env.ETSY_CLIENT_SECRET || '')).replace(/:$/, ''),
         'Content-Type':  'application/json',
       },
     }
@@ -275,7 +275,7 @@ async function createEtsyListing(etsyToken, shopId, listingData) {
           headers: {
             ...form.getHeaders(),
             'Authorization': 'Bearer ' + etsyToken,
-            'x-api-key':     process.env.ETSY_CLIENT_ID,
+            'x-api-key':     (process.env.ETSY_CLIENT_ID + ':' + (process.env.ETSY_CLIENT_SECRET || '')).replace(/:$/, ''),
           },
           timeout: 60000,
         }
@@ -298,7 +298,7 @@ async function getEtsyShopId(etsyToken) {
   try {
     const r = await axios.get('https://openapi.etsy.com/v3/application/users/me', {
       headers: {
-        'x-api-key':     process.env.ETSY_CLIENT_ID,
+        'x-api-key':     (process.env.ETSY_CLIENT_ID + ':' + (process.env.ETSY_CLIENT_SECRET || '')).replace(/:$/, ''),
         'Authorization': 'Bearer ' + etsyToken,
       },
       timeout: 15000,
@@ -319,7 +319,7 @@ async function getEtsyShopId(etsyToken) {
       'https://openapi.etsy.com/v3/application/users/' + userId + '/shops',
       {
         headers: {
-          'x-api-key':     process.env.ETSY_CLIENT_ID,
+          'x-api-key':     (process.env.ETSY_CLIENT_ID + ':' + (process.env.ETSY_CLIENT_SECRET || '')).replace(/:$/, ''),
           'Authorization': 'Bearer ' + etsyToken,
         },
         timeout: 15000,
@@ -343,7 +343,7 @@ async function resolveTaxonomyId(category, etsyToken) {
     const r = await axios.get('https://openapi.etsy.com/v3/application/seller-taxonomy/nodes', {
       headers: {
         'Authorization': 'Bearer ' + etsyToken,
-        'x-api-key':     process.env.ETSY_CLIENT_ID,
+        'x-api-key':     (process.env.ETSY_CLIENT_ID + ':' + (process.env.ETSY_CLIENT_SECRET || '')).replace(/:$/, ''),
       },
     });
 
