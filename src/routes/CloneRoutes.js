@@ -11,6 +11,8 @@ const express = require('express');
 const router  = express.Router();
 const axios   = require('axios');
 const { requireAuth } = require('./auth');
+const jwt  = require('jsonwebtoken');
+const User = require('../models/userModel');
 // ScraperAPI conservé UNIQUEMENT pour AliExpress
 const { scraperApiFetch } = require('../services/scrapingFetch');
 const { uploadToImgBB }   = require('../services/imgbbUploader');
@@ -289,16 +291,15 @@ async function createEtsyListing(etsyToken, shopId, listingData) {
 /**
  * Résout le shop_id Etsy à partir du token OAuth
  */
-async function getEtsyShopId(etsyToken) {
-  const r = await axios.get('https://openapi.etsy.com/v3/application/users/me', {
-    headers: {
-      'Authorization': 'Bearer ' + etsyToken,
-      'x-api-key':     process.env.ETSY_CLIENT_ID,
-    },
-  });
-  const shopId = r.data.shop_id;
-  if (!shopId) throw new Error('No Etsy shop linked to this account');
-  return shopId;
+async function getEtsyShopId(etsyToken, shopName) {
+  // Résoudre le shop_id numérique depuis le nom de la boutique cible
+  const r = await axios.get(
+    'https://api.etsy.com/v3/application/shops?shop_name=' + encodeURIComponent(shopName),
+    { headers: { 'x-api-key': process.env.ETSY_CLIENT_ID }, timeout: 15000 }
+  );
+  const found = (r.data.results || []);
+  if (!found.length) throw new Error('Shop "' + shopName + '" introuvable sur Etsy');
+  return found[0].shop_id;
 }
 
 /**
@@ -337,10 +338,27 @@ async function resolveTaxonomyId(category, etsyToken) {
 // SSE stream : envoie les étapes en temps réel
 // ══════════════════════════════════════════════════════════════════
 router.post('/start', requireAuth, async (req, res) => {
-  const { shopName, etsyToken } = req.body;
+  const { shopName } = req.body;
 
-  if (!shopName)   return res.status(400).json({ error: 'shopName required' });
-  if (!etsyToken)  return res.status(400).json({ error: 'etsyToken (Etsy OAuth token) required' });
+  if (!shopName) return res.status(400).json({ error: 'shopName required' });
+
+  // Récupérer le vrai access_token Etsy depuis la DB (pas depuis le frontend)
+  const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
+  const header = req.headers.authorization || '';
+  const appJwt = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!appJwt) return res.status(401).json({ error: 'Not authenticated' });
+
+  let etsyToken;
+  try {
+    const decoded = jwt.verify(appJwt, JWT_SECRET);
+    const user = await User.findById(decoded.id).select('etsyAccessToken');
+    if (!user || !user.etsyAccessToken) {
+      return res.status(403).json({ error: 'Etsy account not linked. Please reconnect your Etsy account.' });
+    }
+    etsyToken = user.etsyAccessToken;
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid session: ' + e.message });
+  }
 
   // Vérifications clés API
   const missing = [];
@@ -383,7 +401,7 @@ router.post('/start', requireAuth, async (req, res) => {
     send({ step: 'etsy_auth', status: 'running', message: '🔑 Verifying Etsy access...' });
     let etsyShopId;
     try {
-      etsyShopId = await getEtsyShopId(etsyToken);
+      etsyShopId = await getEtsyShopId(etsyToken, shopName);
       send({ step: 'etsy_auth', status: 'done', message: '✅ Etsy shop verified (id: ' + etsyShopId + ')' });
     } catch (e) {
       send({ step: 'error', message: '❌ Etsy auth failed: ' + e.message });
@@ -556,5 +574,6 @@ router.post('/start', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
 
 
