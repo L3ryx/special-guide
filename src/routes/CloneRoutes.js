@@ -292,31 +292,47 @@ async function createEtsyListing(etsyToken, shopId, listingData) {
  * Résout le shop_id Etsy à partir du token OAuth
  */
 async function getEtsyShopId(etsyToken) {
-  // Récupérer les infos du user connecté via son OAuth token
-  const r = await axios.get('https://openapi.etsy.com/v3/application/users/me', {
-    headers: {
-      'x-api-key':     process.env.ETSY_CLIENT_ID,
-      'Authorization': 'Bearer ' + etsyToken,
-    },
-    timeout: 15000,
-  });
-  const userId = r.data.user_id;
-  if (!userId) throw new Error('Impossible de récupérer le user_id Etsy');
+  console.log('[getEtsyShopId] token prefix:', etsyToken ? etsyToken.slice(0, 20) + '...' : 'NULL');
 
-  // Récupérer le shop lié à ce user
-  const shopRes = await axios.get(
-    'https://openapi.etsy.com/v3/application/users/' + userId + '/shops',
-    {
+  let userId;
+  try {
+    const r = await axios.get('https://openapi.etsy.com/v3/application/users/me', {
       headers: {
         'x-api-key':     process.env.ETSY_CLIENT_ID,
         'Authorization': 'Bearer ' + etsyToken,
       },
       timeout: 15000,
-    }
-  );
-  const shopId = shopRes.data?.shop_id || shopRes.data?.results?.[0]?.shop_id;
-  if (!shopId) throw new Error('Aucune boutique Etsy trouvée pour ce compte');
-  return shopId;
+    });
+    userId = r.data.user_id;
+    console.log('[getEtsyShopId] /users/me OK, user_id:', userId, 'shop_id direct:', r.data.shop_id);
+    // Etsy retourne parfois shop_id directement sur /users/me
+    if (r.data.shop_id) return r.data.shop_id;
+  } catch(e) {
+    console.error('[getEtsyShopId] /users/me failed:', e.response?.status, JSON.stringify(e.response?.data));
+    throw new Error('Etsy /users/me error ' + e.response?.status + ': ' + JSON.stringify(e.response?.data));
+  }
+
+  if (!userId) throw new Error('Impossible de récupérer le user_id Etsy');
+
+  try {
+    const shopRes = await axios.get(
+      'https://openapi.etsy.com/v3/application/users/' + userId + '/shops',
+      {
+        headers: {
+          'x-api-key':     process.env.ETSY_CLIENT_ID,
+          'Authorization': 'Bearer ' + etsyToken,
+        },
+        timeout: 15000,
+      }
+    );
+    console.log('[getEtsyShopId] /users/shops response:', JSON.stringify(shopRes.data).slice(0, 200));
+    const shopId = shopRes.data?.shop_id || shopRes.data?.results?.[0]?.shop_id;
+    if (!shopId) throw new Error('Aucune boutique Etsy trouvée pour ce compte');
+    return shopId;
+  } catch(e) {
+    console.error('[getEtsyShopId] /users/shops failed:', e.response?.status, JSON.stringify(e.response?.data));
+    throw new Error('Etsy /users/shops error ' + e.response?.status + ': ' + JSON.stringify(e.response?.data));
+  }
 }
 
 /**
