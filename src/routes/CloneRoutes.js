@@ -448,8 +448,6 @@ router.post('/start', requireAuth, async (req, res) => {
         // ── ÉTAPE 3 : Récupérer les détails + toutes les images via API Etsy ──
         send({ step: 'listing_detail', status: 'running', message: '🔍 Fetching listing details...' });
 
-        // On a déjà l'image principale depuis getShopListings
-        // On récupère les images supplémentaires via getListingDetail(listingId)
         let allEtsyImages = listing.image ? [listing.image] : [];
         let title = listing.title || 'Product';
         let price = listing.price || '9.99';
@@ -457,20 +455,20 @@ router.post('/start', requireAuth, async (req, res) => {
         if (listing.listingId) {
           try {
             const detail = await getListingDetail(listing.listingId);
-            if (detail.images && detail.images.length) {
-              allEtsyImages = detail.images; // toutes les images Etsy (jusqu'à 10)
-            }
+            console.log('[clone] listing', listing.listingId, '| detail.images:', detail?.images?.length, '| detail.title:', detail?.title?.slice(0,30));
+            if (detail.images && detail.images.length) allEtsyImages = detail.images;
             if (detail.title) title = detail.title;
             if (detail.price) price = detail.price;
           } catch (e) {
-            console.warn('[clone] getListingDetail failed for', listing.listingId, ':', e.message);
-            // On continue avec ce qu'on a déjà
+            console.warn('[clone] getListingDetail failed for', listing.listingId, ':', e.response?.status, e.message);
           }
         }
 
-        const firstImage = allEtsyImages[0];
+        console.log('[clone] listing', listingIndex, '| allEtsyImages:', allEtsyImages.length, '| first:', allEtsyImages[0]?.slice(0,60));
+
+        const firstImage = allEtsyImages[0] || null;
         if (!firstImage) {
-          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: no image found, skipping` });
+          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: no image found (listingId: ${listing.listingId}), skipping` });
           continue;
         }
         send({ step: 'listing_detail', status: 'done', message: `✅ "${title.slice(0,60)}..." | $${price} | ${allEtsyImages.length} images` });
