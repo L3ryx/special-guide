@@ -56,7 +56,7 @@ function normalizeListing(item, shopName = null) {
   };
 }
 
-async function searchListings(keyword, limit = 25, offset = 0) {
+async function searchListings(keyword, limit = 25, offset = 0, accessToken = null) {
   const qs = new URLSearchParams({
     keywords:   keyword,
     limit:      String(Math.min(limit, 100)),
@@ -68,7 +68,7 @@ async function searchListings(keyword, limit = 25, offset = 0) {
   qs.append('includes', 'shop');
 
   const r = await axios.get(`${BASE}/listings/active?${qs.toString()}`, {
-    headers: headers(), // pas besoin d'OAuth pour la recherche publique
+    headers: headers(accessToken), // utilise le token OAuth si disponible
     timeout: 30000,
   });
 
@@ -159,5 +159,6 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
+
 
 
