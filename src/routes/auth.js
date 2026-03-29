@@ -126,11 +126,18 @@ router.get('/etsy/callback', async (req, res) => {
     // Email de substitution basé sur le user_id Etsy si pas d'email fourni
     const userEmail = etsyEmail ? etsyEmail.toLowerCase().trim() : ('etsy_' + etsyId + '@finder-niche.com');
 
-    // Trouver ou créer l'utilisateur dans MongoDB (cherche d'abord par email Etsy, sinon par email substitut)
-    let user = await User.findOne({ email: userEmail });
+    // Trouver ou créer l'utilisateur — cherche d'abord par etsyUserId (stable),
+    // puis par email, pour éviter les doublons si Etsy ne retourne pas toujours l'email
+    let user = await User.findOne({ etsyUserId: etsyId });
+    if (!user && etsyEmail) {
+      user = await User.findOne({ email: userEmail });
+    }
     if (!user) {
       const randomPwd = crypto.randomBytes(24).toString('hex');
-      user = await new User({ email: userEmail, password: randomPwd }).save();
+      user = await new User({ email: userEmail, password: randomPwd, etsyUserId: etsyId }).save();
+    } else if (!user.etsyUserId) {
+      user.etsyUserId = etsyId;
+      await user.save();
     }
 
     // Sauvegarder les tokens Etsy sur le document utilisateur (optionnel mais utile)
@@ -317,5 +324,6 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
+
 
 
