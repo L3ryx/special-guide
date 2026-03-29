@@ -18,9 +18,11 @@ const axios = require('axios');
 const BASE = 'https://openapi.etsy.com/v3/application';
 
 function getKey() {
-  const key = process.env.ETSY_CLIENT_ID;
-  if (!key) throw new Error('ETSY_CLIENT_ID not configured');
-  return key;
+  const id     = process.env.ETSY_CLIENT_ID;
+  const secret = process.env.ETSY_CLIENT_SECRET;
+  if (!id) throw new Error('ETSY_CLIENT_ID not configured');
+  // L'API Etsy v3 requiert keystring:sharedsecret séparés par ":"
+  return secret ? `${id}:${secret}` : id;
 }
 
 function headers() {
