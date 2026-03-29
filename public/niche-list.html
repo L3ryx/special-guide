@@ -497,7 +497,6 @@
       else { TOKEN = localStorage.getItem('scout_token'); }
       if (!TOKEN) { window.location.href = '/finder'; return; }
       handleEtsyCallback();
-      await checkEtsyLinked();
       loadShops();
     });
   </script>
