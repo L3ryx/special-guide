@@ -178,7 +178,30 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 : Google Lens via Serper ──
+    // ── STEP 2 : Récupérer les listings Etsy ──
+    send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
+
+    let listings = [];
+    try {
+      listings = await fetchListingsForDropship(
+        keyword,
+        (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' boutiques...' }),
+        usedShops
+      );
+    } catch(e) {
+      send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
+    }
+
+    listings = listings.filter(l => l.shopName);
+    console.log('[search-dropship] listings found:', listings.length);
+
+    if (!listings.length) {
+      send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
+      return res.end();
+    }
+    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse...' });
+
+    // ── STEP 3 : Google Lens via Serper ──
     const imgbbCache = new Map();
     async function uploadCached(url) {
       if (imgbbCache.has(url)) return imgbbCache.get(url);
