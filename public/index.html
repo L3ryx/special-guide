@@ -485,14 +485,15 @@
       const token   = params.get('token');
       const email   = params.get('email');
       const etsyErr = params.get('etsy_error');
-      if (token && email) {
+      if (token) {
         localStorage.setItem('scout_token', token);
         localStorage.setItem('etsy_connected', '1');
         SCOUT_TOKEN = token;
         window.history.replaceState({}, '', window.location.pathname);
-        setTimeout(function() {
-          onLoggedIn(decodeURIComponent(email));
-        }, 0);
+        // Toujours afficher l'email du compte, pas celui d'Etsy
+        fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } })
+          .then(function(r) { return r.json(); })
+          .then(function(d) { if (d && d.email) onLoggedIn(d.email); });
       } else if (etsyErr) {
         window.history.replaceState({}, '', window.location.pathname);
         setTimeout(function() {
@@ -1437,6 +1438,7 @@
   </script>
 </body>
 </html>
+
 
 
 
