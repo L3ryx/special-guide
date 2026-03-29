@@ -52,7 +52,7 @@ router.post('/niche-keyword', async (req, res) => {
  * - Ignore les boutiques déjà analysées (usedShops)
  * Retourne un tableau de { link, image, shopName, shopUrl }.
  */
-async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
+async function fetchListingsForDropship(keyword, onBatch, usedShops = [], accessToken = null) {
   const MAX_PAGES = 8;
   const perPage   = 100;
   const shopsSeen = new Set(usedShops); // pré-remplir avec les boutiques déjà vues
@@ -63,7 +63,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
   while (page < MAX_PAGES) {
     let results;
     try {
-      results = await searchListings(keyword, perPage, offset);
+      results = await searchListings(keyword, perPage, offset, accessToken);
     } catch (e) {
       handleEtsyError(e);
     }
@@ -189,7 +189,8 @@ router.post('/search-dropship', async (req, res) => {
       listings = await fetchListingsForDropship(
         keyword,
         (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' new shops...' }),
-        usedShops
+        usedShops,
+        etsyAccessToken
       );
     } catch(e) {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
@@ -345,6 +346,7 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
 
 
