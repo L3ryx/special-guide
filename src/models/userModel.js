@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
   resetPasswordExpires: { type: Date },
   email:      { type: String, required: true, unique: true, lowercase: true, trim: true },
   password:   { type: String, required: true },
-  etsyUserId: { type: String, default: null }, // ID Etsy lié au compte
+  etsyUserId: { type: String, default: null, sparse: true, index: true }, // ID Etsy lié au compte
   createdAt:  { type: Date, default: Date.now },
 });
 
