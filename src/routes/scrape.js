@@ -103,7 +103,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(([shopId, raw]) =>
-        getShopNameAndImage(shopId).then(({ shopName, shopUrl, image }) => ({
+        getShopNameAndImage(shopId, raw.listingId).then(({ shopName, shopUrl, image }) => ({
           shopId, shopName, shopUrl, image,
           listingId: raw.listingId,
           link:      raw.link,
