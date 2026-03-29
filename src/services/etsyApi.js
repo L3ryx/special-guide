@@ -145,11 +145,8 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
 }
 
 async function getShopListings(shopIdOrName, limit = 20) {
-  const qs = new URLSearchParams({ limit: String(Math.min(limit, 100)) });
-  qs.append('includes', 'images');
-
   const r = await axios.get(
-    `${BASE}/shops/${encodeURIComponent(shopIdOrName)}/listings/active?${qs.toString()}`,
+    `${BASE}/shops/${encodeURIComponent(shopIdOrName)}/listings/active?limit=${Math.min(limit, 100)}&includes=images`,
     { headers: headers(), timeout: 30000 }
   );
 
@@ -174,11 +171,7 @@ async function getShopInfo(shopIdOrName) {
 }
 
 async function getListingDetail(listingId) {
-  const qs = new URLSearchParams();
-  qs.append('includes', 'images');
-  qs.append('includes', 'shop');
-
-  const r = await axios.get(`${BASE}/listings/${listingId}?${qs.toString()}`, {
+  const r = await axios.get(`${BASE}/listings/${listingId}?includes=images%2Cshop`, {
     headers: headers(), timeout: 30000,
   });
 
@@ -220,4 +213,5 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
+
 
