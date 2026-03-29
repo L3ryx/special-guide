@@ -30,24 +30,12 @@ async function scrapeShopListings(shopName) {
   try {
     const results = await getShopListings(shopName, 20);
     return results.map(l => ({
-      url:   l.link,
-      image: l.image,
-      title: l.title,
-      price: l.price,
+      url:       l.link,
+      listingId: l.listingId,
+      image:     l.image,
+      title:     l.title,
+      price:     l.price,
     }));
-  } catch (e) {
-    handleEtsyError(e);
-  }
-}
-
-/**
- * Récupère le détail d'un listing Etsy via l'API officielle.
- */
-async function scrapeListingDetail(listingUrl) {
-  const idMatch = listingUrl.match(/\/listing\/(\d+)\//);
-  if (!idMatch) throw new Error('Invalid listing URL: ' + listingUrl);
-  try {
-    return await getListingDetail(idMatch[1]);
   } catch (e) {
     handleEtsyError(e);
   }
@@ -457,27 +445,37 @@ router.post('/start', requireAuth, async (req, res) => {
       });
 
       try {
-        // ── ÉTAPE 3 : Scrape du listing (titre, prix, 5 images) ──
+        // ── ÉTAPE 3 : Récupérer les détails + toutes les images via API Etsy ──
         send({ step: 'listing_detail', status: 'running', message: '🔍 Fetching listing details...' });
-        let detail;
-        try {
-          detail = await scrapeListingDetail(listing.url);
-        } catch (e) {
-          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: scrape failed (${e.message}), skipping` });
-          continue;
+
+        // On a déjà l'image principale depuis getShopListings
+        // On récupère les images supplémentaires via getListingDetail(listingId)
+        let allEtsyImages = listing.image ? [listing.image] : [];
+        let title = listing.title || 'Product';
+        let price = listing.price || '9.99';
+
+        if (listing.listingId) {
+          try {
+            const detail = await getListingDetail(listing.listingId);
+            if (detail.images && detail.images.length) {
+              allEtsyImages = detail.images; // toutes les images Etsy (jusqu'à 10)
+            }
+            if (detail.title) title = detail.title;
+            if (detail.price) price = detail.price;
+          } catch (e) {
+            console.warn('[clone] getListingDetail failed for', listing.listingId, ':', e.message);
+            // On continue avec ce qu'on a déjà
+          }
         }
 
-        const firstImage = detail.images[0] || listing.image;
+        const firstImage = allEtsyImages[0];
         if (!firstImage) {
           send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: no image found, skipping` });
           continue;
         }
+        send({ step: 'listing_detail', status: 'done', message: `✅ "${title.slice(0,60)}..." | $${price} | ${allEtsyImages.length} images` });
 
-        const title = detail.title || listing.title || 'Product';
-        const price = detail.price || '9.99';
-        send({ step: 'listing_detail', status: 'done', message: `✅ Title: "${title.slice(0,60)}..." | Price: $${price}` });
-
-        // ── ÉTAPE 4 : Google Lens → AliExpress check ──
+        // ── ÉTAPE 4 : Google Lens sur la 1ère image → filtre AliExpress ──
         send({ step: 'lens_search', status: 'running', message: '🔍 Reverse image search on Google Lens...' });
         let aliMatch;
         try {
@@ -488,30 +486,18 @@ router.post('/start', requireAuth, async (req, res) => {
         }
 
         if (!aliMatch) {
-          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: not found on AliExpress, trying next listing...` });
+          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: not found on AliExpress, skipping...` });
           continue;
         }
 
         const aliUrl = aliMatch.link || aliMatch.url;
         send({ step: 'lens_search', status: 'done', message: '✅ Found on AliExpress: ' + aliUrl.slice(0, 80) + '...' });
 
-        // ── ÉTAPE 5 : Récupérer les 4 images AliExpress supplémentaires ──
-        send({ step: 'ali_images', status: 'running', message: '📸 Fetching AliExpress product images...' });
-        let aliImages = [];
-        try {
-          aliImages = await scrapeAliExpressImages(aliUrl);
-        } catch (e) {
-          send({ step: 'ali_images', status: 'warn', message: '⚠️ Could not fetch AliExpress images, using Etsy images' });
-        }
-
-        // Combiner : image Etsy + images AliExpress (max 5)
-        const sourceImages = [firstImage, ...aliImages].slice(0, 5);
-        // Compléter avec les autres images Etsy si pas assez
-        for (const img of detail.images.slice(1)) {
-          if (sourceImages.length >= 5) break;
-          if (!sourceImages.includes(img)) sourceImages.push(img);
-        }
-        send({ step: 'ali_images', status: 'done', message: `✅ ${sourceImages.length} source images collected` });
+        // ── ÉTAPE 5 : Prendre les 5 images Etsy de l'annonce pour Leonardo ──
+        // La 1ère image a matché AliExpress → le produit est du dropshipping
+        // On transforme les images ETSY de l'annonce (pas AliExpress)
+        const sourceImages = allEtsyImages.slice(0, 5);
+        send({ step: 'ali_images', status: 'done', message: `✅ ${sourceImages.length} Etsy images ready for Leonardo` });
 
         // ── ÉTAPE 6 : Transformation avec Leonardo.ai ──
         send({ step: 'leonardo', status: 'running', message: '🎨 Transforming images with Leonardo AI...' });
