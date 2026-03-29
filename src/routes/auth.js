@@ -54,10 +54,9 @@ router.get('/etsy', (req, res) => {
 
   const { verifier, challenge } = generatePKCE();
   const state = crypto.randomBytes(16).toString('hex');
-  const jwt_token = req.query.jwt || null;
 
-  // Stocker le verifier + JWT utilisateur lié au state (expire après 10 min)
-  pkceStore.set(state, { verifier, jwt_token, createdAt: Date.now() });
+  // Stocker le verifier lié au state (expire après 10 min)
+  pkceStore.set(state, { verifier, createdAt: Date.now() });
   setTimeout(() => pkceStore.delete(state), 10 * 60 * 1000);
 
   const params = new URLSearchParams({
@@ -120,36 +119,35 @@ router.get('/etsy/callback', async (req, res) => {
       timeout: 10000,
     });
 
-    const etsyUser = profileRes.data;
-    const etsyId   = String(etsyUser.user_id);
+    const etsyUser  = profileRes.data;
+    const etsyId    = String(etsyUser.user_id);
+    // Etsy ne retourne pas toujours l'email — on utilise l'etsyId comme identifiant unique
+    const etsyEmail = etsyUser.primary_email || etsyUser.email || null;
+    // Email de substitution basé sur le user_id Etsy si pas d'email fourni
+    const userEmail = etsyEmail ? etsyEmail.toLowerCase().trim() : ('etsy_' + etsyId + '@finder-niche.com');
 
-    // ── Chercher le compte utilisateur lié à cet etsyId ──
-    // Priorité : compte déjà lié → compte connecté via JWT → création impossible sans compte préalable
-    let user = await User.findOne({ etsyUserId: etsyId });
-
+    // Trouver ou créer l'utilisateur dans MongoDB (cherche d'abord par email Etsy, sinon par email substitut)
+    let user = await User.findOne({ email: userEmail });
     if (!user) {
-      // Essayer de récupérer le compte depuis un JWT existant dans le state ou le cookie
-      // On lit le JWT depuis le header si présent (connexion depuis une session active)
-      // Récupérer le JWT stocké dans le state PKCE (passé depuis niche-list.html)
-      const existingToken = pkce.jwt_token || null;
-      if (existingToken) {
-        try {
-          const decoded = jwt.verify(existingToken, JWT_SECRET);
-          user = await User.findById(decoded.id);
-        } catch {}
-      }
-      if (user) {
-        // Lier l'etsyId à ce compte existant
-        user.etsyUserId = etsyId;
-        await user.save();
-      } else {
-        // Aucun compte trouvé — rediriger avec erreur, l'utilisateur doit d'abord créer un compte
-        return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent('Connecte-toi d'abord à ton compte avant de lier Etsy'));
-      }
+      const randomPwd = crypto.randomBytes(24).toString('hex');
+      user = await new User({ email: userEmail, password: randomPwd }).save();
     }
 
+    // Sauvegarder les tokens Etsy sur le document utilisateur (optionnel mais utile)
+    // Si tu veux les stocker, ajoute les champs dans userModel.js :
+    //   etsyAccessToken, etsyRefreshToken, etsyTokenExpires, etsyUserId
+    // user.etsyAccessToken  = access_token;
+    // user.etsyRefreshToken = refresh_token;
+    // user.etsyTokenExpires = new Date(Date.now() + expires_in * 1000);
+    // user.etsyUserId       = etsyId;
+    // await user.save();
+
     const appToken = makeToken(user._id);
-    res.redirect(APP_URL + '/niche-list?token=' + appToken);
+
+    // Rediriger vers le frontend avec le token JWT dans l'URL
+    // Le frontend doit récupérer ce token et le stocker (localStorage, etc.)
+    // Redirige vers /niche-list (où se trouve le bouton Etsy) avec le token
+    res.redirect(APP_URL + '/niche-list?token=' + appToken + '&email=' + encodeURIComponent(etsyEmail || ('Etsy #' + etsyId)));
 
   } catch (err) {
     console.error('Etsy OAuth error:', err.response?.data || err.message);
