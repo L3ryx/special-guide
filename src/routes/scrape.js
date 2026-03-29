@@ -55,10 +55,13 @@ router.post('/niche-keyword', async (req, res) => {
 async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
   const MAX_PAGES = 8;
   const perPage   = 100;
-  const shopsSeen = new Set(usedShops); // pré-remplir avec les boutiques déjà vues
+  const shopsSeen = new Set(usedShops);
   const listings  = [];
   let   offset    = 0;
   let   page      = 0;
+
+  // Cache shopId → shopName pour éviter des appels répétés
+  const shopNameCache = new Map();
 
   while (page < MAX_PAGES) {
     let results;
@@ -72,8 +75,41 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
 
     let added = 0;
     for (const l of results) {
-      if (!l.image || !l.shopName) continue;
-      if (shopsSeen.has(l.shopName)) continue; // boutique déjà vue ou déjà analysée
+      // Résoudre shopName si c'est un ID numérique
+      const shopNameIsId = !l.shopName || /^\d+$/.test(String(l.shopName));
+      if (shopNameIsId && l.shopId) {
+        const cached = shopNameCache.get(String(l.shopId));
+        if (cached) {
+          l.shopName = cached.shopName;
+          l.shopUrl  = cached.shopUrl;
+        } else {
+          try {
+            const info = await getShopInfo(l.shopId);
+            l.shopName = info.shopName;
+            l.shopUrl  = info.shopUrl;
+            shopNameCache.set(String(l.shopId), { shopName: info.shopName, shopUrl: info.shopUrl });
+          } catch (e) {
+            console.warn('[fetchListings] getShopInfo failed for shopId', l.shopId, ':', e.message);
+          }
+        }
+      }
+
+      // Récupérer l'image via le listing detail si manquante
+      if (!l.image && l.listingId) {
+        try {
+          const detail = await getListingDetail(l.listingId);
+          if (detail.images?.[0]) l.image = detail.images[0];
+          if (!l.shopName && detail.shopName) {
+            l.shopName = detail.shopName;
+            l.shopUrl  = `https://www.etsy.com/shop/${detail.shopName}`;
+          }
+        } catch (e) {
+          console.warn('[fetchListings] getListingDetail failed for', l.listingId, ':', e.message);
+        }
+      }
+
+      if (!l.image || !l.shopName || /^\d+$/.test(String(l.shopName))) continue;
+      if (shopsSeen.has(l.shopName)) continue;
       shopsSeen.add(l.shopName);
       listings.push(l);
       added++;
