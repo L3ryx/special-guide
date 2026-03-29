@@ -14,8 +14,10 @@ function getKey() {
   return secret ? `${id}:${secret}` : id;
 }
 
-function headers() {
-  return { 'x-api-key': getKey() };
+function headers(accessToken = null) {
+  const h = { 'x-api-key': getKey() };
+  if (accessToken) h['Authorization'] = 'Bearer ' + accessToken;
+  return h;
 }
 
 function cleanImage(url) {
@@ -66,7 +68,7 @@ async function searchListings(keyword, limit = 25, offset = 0) {
   qs.append('includes', 'shop');
 
   const r = await axios.get(`${BASE}/listings/active?${qs.toString()}`, {
-    headers: headers(),
+    headers: headers(), // pas besoin d'OAuth pour la recherche publique
     timeout: 30000,
   });
 
@@ -81,15 +83,12 @@ async function searchListings(keyword, limit = 25, offset = 0) {
   return results.map(item => normalizeListing(item));
 }
 
-async function getShopListings(shopIdOrName, limit = 20) {
-  // Cet endpoint accepte shop_id numerique OU shop_name dans le path — les deux fonctionnent
-  const qs = new URLSearchParams({
-    limit: String(Math.min(limit, 100)),
-  });
+async function getShopListings(shopIdOrName, limit = 20, accessToken = null) {
+  const qs = new URLSearchParams({ limit: String(Math.min(limit, 100)) });
   qs.append('includes', 'images');
 
   const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}/listings/active?${qs.toString()}`, {
-    headers: headers(),
+    headers: headers(accessToken),
     timeout: 30000,
   });
 
@@ -98,11 +97,9 @@ async function getShopListings(shopIdOrName, limit = 20) {
   return results.map(item => normalizeListing(item, resolvedShopName));
 }
 
-async function getShopInfo(shopIdOrName) {
-  // L'endpoint /shops/{id_or_name} accepte aussi bien un ID numerique qu'un nom
-  // Le 400 precedent venait de /shops?shop_id= qui n'existe pas — on utilise le path directement
+async function getShopInfo(shopIdOrName, accessToken = null) {
   const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}`, {
-    headers: headers(),
+    headers: headers(accessToken),
     timeout: 30000,
   });
   const s = r.data;
@@ -116,13 +113,13 @@ async function getShopInfo(shopIdOrName) {
   };
 }
 
-async function getListingDetail(listingId) {
+async function getListingDetail(listingId, accessToken = null) {
   const qs = new URLSearchParams();
   qs.append('includes', 'images');
   qs.append('includes', 'shop');
 
   const r = await axios.get(`${BASE}/listings/${listingId}?${qs.toString()}`, {
-    headers: headers(),
+    headers: headers(accessToken),
     timeout: 30000,
   });
 
@@ -144,6 +141,31 @@ async function getListingDetail(listingId) {
     shopId:   item.shop_id || null,
   };
 }
+  const qs = new URLSearchParams({
+    keywords:   keyword,
+    limit:      String(Math.min(limit, 100)),
+    offset:     String(offset),
+    sort_on:    'score',
+    sort_order: 'desc',
+  });
+  qs.append('includes', 'images');
+  qs.append('includes', 'shop');
+
+  const r = await axios.get(`${BASE}/listings/active?${qs.toString()}`, {
+    headers: headers(),
+    timeout: 30000,
+  });
+
+  const results = r.data.results || [];
+  if (results.length > 0) {
+    const s = results[0];
+    const norm = normalizeListing(s);
+    console.log('[etsyApi] page results:', results.length, '| shop_id:', s.shop_id, '| image:', !!norm.image, '| shopName:', norm.shopName);
+  } else {
+    console.log('[etsyApi] 0 results for keyword:', keyword);
+  }
+  return results.map(item => normalizeListing(item));
+}
 
 function handleEtsyError(e) {
   const status = e.response?.status;
@@ -162,4 +184,5 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
+
 
