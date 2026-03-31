@@ -11,8 +11,6 @@ const express = require('express');
 const router  = express.Router();
 const axios   = require('axios');
 const { requireAuth } = require('./auth');
-const jwt  = require('jsonwebtoken');
-const User = require('../models/userModel');
 // ScraperAPI conservé UNIQUEMENT pour AliExpress
 const { scraperApiFetch } = require('../services/scrapingFetch');
 const { uploadToImgBB }   = require('../services/imgbbUploader');
@@ -30,12 +28,24 @@ async function scrapeShopListings(shopName) {
   try {
     const results = await getShopListings(shopName, 20);
     return results.map(l => ({
-      url:       l.link,
-      listingId: l.listingId,
-      image:     l.image,
-      title:     l.title,
-      price:     l.price,
+      url:   l.link,
+      image: l.image,
+      title: l.title,
+      price: l.price,
     }));
+  } catch (e) {
+    handleEtsyError(e);
+  }
+}
+
+/**
+ * Récupère le détail d'un listing Etsy via l'API officielle.
+ */
+async function scrapeListingDetail(listingUrl) {
+  const idMatch = listingUrl.match(/\/listing\/(\d+)\//);
+  if (!idMatch) throw new Error('Invalid listing URL: ' + listingUrl);
+  try {
+    return await getListingDetail(idMatch[1]);
   } catch (e) {
     handleEtsyError(e);
   }
@@ -130,34 +140,25 @@ async function transformImageWithLeonardo(imageUrl, index) {
   ];
   const anglePrompt = angleVariants[index % angleVariants.length];
 
-  const genBody = {
-    prompt: `Product photography, same product, ${anglePrompt}. Change the background to a clean, contextually relevant setting matching the product theme. Keep the product identical, only change background and viewing angle. Professional ecommerce photography, high quality.`,
-    negative_prompt: 'blurry, distorted, watermark, text, low quality, deformed product',
-    modelId: 'b24e16ff-06e3-43eb-8d33-4416c2d75876', // Leonardo Phoenix
-    width: 1024,
-    height: 1024,
-    num_images: 1,
-    guidance_scale: 7,
-    init_image_id: initImageId,
-    init_strength: 0.45,
-  };
-
-  console.log('[Leonardo] POST /generations body:', JSON.stringify(genBody).slice(0, 300));
-  let genRes;
-  try {
-    genRes = await axios.post(
-      'https://cloud.leonardo.ai/api/rest/v1/generations',
-      genBody,
-      { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 30000 }
-    );
-  } catch(e) {
-    console.error('[Leonardo] /generations error:', e.response?.status, JSON.stringify(e.response?.data));
-    throw new Error('Leonardo generations error ' + e.response?.status + ': ' + JSON.stringify(e.response?.data));
-  }
+  const genRes = await axios.post(
+    'https://cloud.leonardo.ai/api/rest/v1/generations',
+    {
+      prompt: `Product photography, same product, ${anglePrompt}. Change the background to a clean, contextually relevant setting matching the product theme. Keep the product identical, only change background and viewing angle. Professional ecommerce photography, high quality.`,
+      negative_prompt: 'blurry, distorted, watermark, text, low quality, deformed product',
+      modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3', // Leonardo Diffusion XL
+      width: 1024,
+      height: 1024,
+      num_images: 1,
+      guidance_scale: 7,
+      init_image_id: initImageId,
+      init_strength: 0.45,
+      presetStyle: 'PRODUCT_PHOTOGRAPHY',
+    },
+    { headers: { Authorization: 'Bearer ' + LEONARDO_KEY, 'Content-Type': 'application/json' }, timeout: 30000 }
+  );
 
   const generationId = genRes.data.sdGenerationJob?.generationId;
-  console.log('[Leonardo] generationId:', generationId, '| full response:', JSON.stringify(genRes.data).slice(0,300));
-  if (!generationId) throw new Error('Leonardo: no generationId — response: ' + JSON.stringify(genRes.data).slice(0,200));
+  if (!generationId) throw new Error('Leonardo: no generationId');
 
   // 3. Attendre la fin de la génération (polling)
   for (let i = 0; i < 30; i++) {
@@ -336,27 +337,10 @@ async function resolveTaxonomyId(category, etsyToken) {
 // SSE stream : envoie les étapes en temps réel
 // ══════════════════════════════════════════════════════════════════
 router.post('/start', requireAuth, async (req, res) => {
-  const { shopName } = req.body;
+  const { shopName, etsyToken } = req.body;
 
-  if (!shopName) return res.status(400).json({ error: 'shopName required' });
-
-  // Récupérer le vrai access_token Etsy depuis la DB (pas depuis le frontend)
-  const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
-  const header = req.headers.authorization || '';
-  const appJwt = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!appJwt) return res.status(401).json({ error: 'Not authenticated' });
-
-  let etsyToken;
-  try {
-    const decoded = jwt.verify(appJwt, JWT_SECRET);
-    const user = await User.findById(decoded.id).select('etsyAccessToken');
-    if (!user || !user.etsyAccessToken) {
-      return res.status(403).json({ error: 'Etsy account not linked. Please reconnect your Etsy account.' });
-    }
-    etsyToken = user.etsyAccessToken;
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid session: ' + e.message });
-  }
+  if (!shopName)   return res.status(400).json({ error: 'shopName required' });
+  if (!etsyToken)  return res.status(400).json({ error: 'etsyToken (Etsy OAuth token) required' });
 
   // Vérifications clés API
   const missing = [];
@@ -422,35 +406,27 @@ router.post('/start', requireAuth, async (req, res) => {
       });
 
       try {
-        // ── ÉTAPE 3 : Récupérer les détails + toutes les images via API Etsy ──
+        // ── ÉTAPE 3 : Scrape du listing (titre, prix, 5 images) ──
         send({ step: 'listing_detail', status: 'running', message: '🔍 Fetching listing details...' });
-
-        let allEtsyImages = listing.image ? [listing.image] : [];
-        let title = listing.title || 'Product';
-        let price = listing.price || '9.99';
-
-        if (listing.listingId) {
-          try {
-            const detail = await getListingDetail(listing.listingId);
-            console.log('[clone] listing', listing.listingId, '| detail.images:', detail?.images?.length, '| detail.title:', detail?.title?.slice(0,30));
-            if (detail.images && detail.images.length) allEtsyImages = detail.images;
-            if (detail.title) title = detail.title;
-            if (detail.price) price = detail.price;
-          } catch (e) {
-            console.warn('[clone] getListingDetail failed for', listing.listingId, ':', e.response?.status, e.message);
-          }
-        }
-
-        console.log('[clone] listing', listingIndex, '| allEtsyImages:', allEtsyImages.length, '| first:', allEtsyImages[0]?.slice(0,60));
-
-        const firstImage = allEtsyImages[0] || null;
-        if (!firstImage) {
-          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: no image found (listingId: ${listing.listingId}), skipping` });
+        let detail;
+        try {
+          detail = await scrapeListingDetail(listing.url);
+        } catch (e) {
+          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: scrape failed (${e.message}), skipping` });
           continue;
         }
-        send({ step: 'listing_detail', status: 'done', message: `✅ "${title.slice(0,60)}..." | $${price} | ${allEtsyImages.length} images` });
 
-        // ── ÉTAPE 4 : Google Lens sur la 1ère image → filtre AliExpress ──
+        const firstImage = detail.images[0] || listing.image;
+        if (!firstImage) {
+          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: no image found, skipping` });
+          continue;
+        }
+
+        const title = detail.title || listing.title || 'Product';
+        const price = detail.price || '9.99';
+        send({ step: 'listing_detail', status: 'done', message: `✅ Title: "${title.slice(0,60)}..." | Price: $${price}` });
+
+        // ── ÉTAPE 4 : Google Lens → AliExpress check ──
         send({ step: 'lens_search', status: 'running', message: '🔍 Reverse image search on Google Lens...' });
         let aliMatch;
         try {
@@ -461,18 +437,30 @@ router.post('/start', requireAuth, async (req, res) => {
         }
 
         if (!aliMatch) {
-          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: not found on AliExpress, skipping...` });
+          send({ step: 'listing_skip', message: `⏩ Listing ${listingIndex}: not found on AliExpress, trying next listing...` });
           continue;
         }
 
         const aliUrl = aliMatch.link || aliMatch.url;
         send({ step: 'lens_search', status: 'done', message: '✅ Found on AliExpress: ' + aliUrl.slice(0, 80) + '...' });
 
-        // ── ÉTAPE 5 : Prendre les 5 images Etsy de l'annonce pour Leonardo ──
-        // La 1ère image a matché AliExpress → le produit est du dropshipping
-        // On transforme les images ETSY de l'annonce (pas AliExpress)
-        const sourceImages = allEtsyImages.slice(0, 5);
-        send({ step: 'ali_images', status: 'done', message: `✅ ${sourceImages.length} Etsy images ready for Leonardo` });
+        // ── ÉTAPE 5 : Récupérer les 4 images AliExpress supplémentaires ──
+        send({ step: 'ali_images', status: 'running', message: '📸 Fetching AliExpress product images...' });
+        let aliImages = [];
+        try {
+          aliImages = await scrapeAliExpressImages(aliUrl);
+        } catch (e) {
+          send({ step: 'ali_images', status: 'warn', message: '⚠️ Could not fetch AliExpress images, using Etsy images' });
+        }
+
+        // Combiner : image Etsy + images AliExpress (max 5)
+        const sourceImages = [firstImage, ...aliImages].slice(0, 5);
+        // Compléter avec les autres images Etsy si pas assez
+        for (const img of detail.images.slice(1)) {
+          if (sourceImages.length >= 5) break;
+          if (!sourceImages.includes(img)) sourceImages.push(img);
+        }
+        send({ step: 'ali_images', status: 'done', message: `✅ ${sourceImages.length} source images collected` });
 
         // ── ÉTAPE 6 : Transformation avec Leonardo.ai ──
         send({ step: 'leonardo', status: 'running', message: '🎨 Transforming images with Leonardo AI...' });
@@ -568,7 +556,6 @@ router.post('/start', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
-
 
 
 
