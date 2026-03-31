@@ -1083,12 +1083,13 @@
       _autoSearch = false;
       // Signaler l'arrêt au serveur
       if (_sessionId) {
+        const sidToStop = _sessionId;
+        _sessionId = null;
         fetch('/api/stop-search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {}) },
-          body: JSON.stringify({ sessionId: _sessionId })
+          body: JSON.stringify({ sessionId: sidToStop })
         }).catch(() => {});
-        _sessionId = null;
       }
       const toggle = document.getElementById('auto-search-toggle');
       const label  = document.getElementById('auto-search-label');
