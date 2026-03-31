@@ -64,6 +64,78 @@
     #user-badge { transition: opacity 0.3s ease; }
     #user-badge.hidden { opacity:0; pointer-events:none; }
 
+    /* ── LOADER & PROGRESS BAR ── */
+    #search-btn.searching { position: relative; }
+    #search-btn.searching::after {
+      content: '';
+      position: absolute;
+      inset: 4px;
+      border: 2.5px solid rgba(255,255,255,0.2);
+      border-top-color: #22c55e;
+      border-right-color: #22c55e;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    #search-btn.searching span {
+      opacity: 0;
+      visibility: hidden;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #progress-container {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 999;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    #progress-container.show {
+      display: flex;
+    }
+
+    #progress-bar {
+      width: 280px;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(34,197,94,0.3);
+    }
+    #progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+      width: 0%;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 12px rgba(34,197,94,0.6);
+    }
+
+    #stop-btn {
+      padding: 10px 24px;
+      background: #ef4444;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-family: 'Croissant One', cursive;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+    }
+    #stop-btn:hover {
+      background: #dc2626;
+      box-shadow: 0 6px 16px rgba(239,68,68,0.5);
+    }
+    #stop-btn:active {
+      transform: scale(0.95);
+    }
+
     /* ── USER BADGE (top right) ── */
     #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; }
     #user-avatar-btn { background:none; border:none; cursor:pointer; font-size:1.7rem; line-height:1; padding:4px; display:flex; align-items:center; justify-content:center; transition:transform 0.15s; }
@@ -162,20 +234,22 @@
     #auto-search-toggle::after { display: none !important; }
     #auto-status { font-size:1rem; transition:all 0.2s; }
 
-    #start-btn { background:transparent !important; box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:18px; }
+    #start-btn { background:transparent !important; box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:18px; position: relative; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
+    #start-btn.loading { pointer-events: none; }
 
     /* ── SPINNER LOADER POUR BOUTON ── */
     .btn-spinner {
-      width: 24px;
-      height: 24px;
-      border: 3px solid rgba(255, 255, 255, 0.3);
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #22c55e;
+      border-right-color: #22c55e;
       border-radius: 50%;
-      border-top-color: #fff;
-      animation: spin 1s ease-in-out infinite;
+      animation: spinBtn 0.9s linear infinite;
       display: inline-block;
     }
-    @keyframes spin {
+    @keyframes spinBtn {
       to { transform: rotate(360deg); }
     }
 
