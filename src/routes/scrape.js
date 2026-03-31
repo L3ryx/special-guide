@@ -13,6 +13,17 @@ if (mongoose.connection.readyState === 0) {
     .catch(err => console.error('❌ MongoDB:', err.message));
 }
 
+// ── Active searches registry (sessionId → aborted) ──
+const activeSearches = new Map();
+
+router.post('/stop-search', (req, res) => {
+  const { sessionId } = req.body;
+  if (sessionId && activeSearches.has(sessionId)) {
+    activeSearches.set(sessionId, true);
+  }
+  res.json({ ok: true });
+});
+
 // ── NICHE KEYWORD (dice button) ──
 router.post('/niche-keyword', async (req, res) => {
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
@@ -56,7 +67,7 @@ router.post('/niche-keyword', async (req, res) => {
  *
  * Retourne un tableau de { listingId, link, image, shopName, shopUrl }.
  */
-async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
+async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
   const MAX_PAGES  = 8;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
@@ -66,6 +77,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
 
   // ── PHASE 1 : collecter tous les shop_id uniques ──
   while (page < MAX_PAGES) {
+    if (isAborted()) return [];
     let results;
     try {
       results = await searchListingIds(keyword, perPage, offset);
@@ -108,6 +120,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
   const shopIdList = [...shopIdToRaw.entries()];
 
   for (let i = 0; i < shopIdList.length; i += BATCH) {
+    if (isAborted()) return listings;
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(([shopId, raw]) =>
@@ -151,7 +164,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
 
 // ── SEARCH DROPSHIP ──
 router.post('/search-dropship', async (req, res) => {
-  const { keyword } = req.body;
+  const { keyword, sessionId } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
@@ -162,6 +175,15 @@ router.post('/search-dropship', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   const send = d => { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch {} };
+
+  // ── Abort detection ──
+  // Nettoyer les anciennes sessions terminées pour éviter les faux positifs
+  for (const [key, val] of activeSearches.entries()) {
+    if (val === true) activeSearches.delete(key);
+  }
+  const sid = sessionId && sessionId.trim() ? sessionId.trim() : (Date.now() + Math.random()).toString(36);
+  activeSearches.set(sid, false);   // false = en cours
+  const isAborted = () => activeSearches.get(sid) === true;
 
   try {
     const { uploadToImgBB } = require('../services/imgbbUploader');
@@ -195,12 +217,14 @@ router.post('/search-dropship', async (req, res) => {
       listings = await fetchListingsForDropship(
         keyword,
         (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' boutiques...' }),
-        usedShops
+        usedShops,
+        isAborted
       );
     } catch(e) {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
     }
 
+    if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
     listings = listings.filter(l => l.shopName);
     console.log('[search-dropship] listings found:', listings.length);
 
@@ -220,13 +244,15 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     async function lensMatch(imageUrl) {
+      if (isAborted()) return null;
       try {
         const pub = await uploadCached(imageUrl);
-        if (!pub) return null;
+        if (!pub || isAborted()) return null;
         const r = await axios.post('https://google.serper.dev/lens',
           { url: pub, gl: 'us', hl: 'en' },
           { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
         );
+        if (isAborted()) return null;
         const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
         return all.find(x => { const u = x.link || x.url || ''; return u.includes('aliexpress.com') && u.includes('/item/') && (x.imageUrl || x.thumbnailUrl); }) || null;
       } catch (e) {
@@ -241,6 +267,7 @@ router.post('/search-dropship', async (req, res) => {
 
     async function worker() {
       while (queue.length > 0) {
+        if (isAborted()) break;
         const listing = queue.shift();
         if (!listing) continue;
         analyzed++;
@@ -253,6 +280,7 @@ router.post('/search-dropship', async (req, res) => {
 
           console.log('[worker] running lensMatch for', listing.shopName);
           const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(img2)]);
+          if (isAborted()) break;
           console.log('[worker]', listing.shopName, '| m1:', !!m1, '| m2:', !!m2);
           if (m1 && m2) {
             dropshippers.push({
@@ -271,10 +299,16 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     await Promise.all([worker(), worker(), worker(), worker()]);
-    send({ step: 'complete', dropshippers, total: listings.length });
+    activeSearches.delete(sid);
+    if (isAborted()) {
+      send({ step: 'stopped', message: '🛑 Search stopped by user.' });
+    } else {
+      send({ step: 'complete', dropshippers, total: listings.length });
+    }
     res.end();
 
   } catch (err) {
+    activeSearches.delete(sid);
     send({ step: 'error', message: '❌ ' + err.message });
     res.end();
   }
