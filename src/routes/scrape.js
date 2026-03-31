@@ -67,7 +67,7 @@ router.post('/niche-keyword', async (req, res) => {
  *
  * Retourne un tableau de { listingId, link, image, shopName, shopUrl }.
  */
-async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
+async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
   const MAX_PAGES  = 8;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
@@ -77,6 +77,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
 
   // ── PHASE 1 : collecter tous les shop_id uniques ──
   while (page < MAX_PAGES) {
+    if (isAborted()) return [];
     let results;
     try {
       results = await searchListingIds(keyword, perPage, offset);
@@ -119,6 +120,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
   const shopIdList = [...shopIdToRaw.entries()];
 
   for (let i = 0; i < shopIdList.length; i += BATCH) {
+    if (isAborted()) return listings;
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(([shopId, raw]) =>
@@ -213,12 +215,14 @@ router.post('/search-dropship', async (req, res) => {
       listings = await fetchListingsForDropship(
         keyword,
         (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' boutiques...' }),
-        usedShops
+        usedShops,
+        isAborted
       );
     } catch(e) {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
     }
 
+    if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
     listings = listings.filter(l => l.shopName);
     console.log('[search-dropship] listings found:', listings.length);
 
@@ -238,13 +242,15 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     async function lensMatch(imageUrl) {
+      if (isAborted()) return null;
       try {
         const pub = await uploadCached(imageUrl);
-        if (!pub) return null;
+        if (!pub || isAborted()) return null;
         const r = await axios.post('https://google.serper.dev/lens',
           { url: pub, gl: 'us', hl: 'en' },
           { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
         );
+        if (isAborted()) return null;
         const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
         return all.find(x => { const u = x.link || x.url || ''; return u.includes('aliexpress.com') && u.includes('/item/') && (x.imageUrl || x.thumbnailUrl); }) || null;
       } catch (e) {
@@ -272,6 +278,7 @@ router.post('/search-dropship', async (req, res) => {
 
           console.log('[worker] running lensMatch for', listing.shopName);
           const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(img2)]);
+          if (isAborted()) break;
           console.log('[worker]', listing.shopName, '| m1:', !!m1, '| m2:', !!m2);
           if (m1 && m2) {
             dropshippers.push({
