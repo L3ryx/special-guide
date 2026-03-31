@@ -1080,7 +1080,7 @@
       const btn = document.getElementById('start-btn');
       btn.disabled = false;
       btn.classList.remove('loading', 'retry');
-      btn.textContent = 'Search';
+      btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Search</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
       // Réafficher les boutons et le logo
       document.getElementById('title-outer').classList.remove('hidden');
       document.getElementById('niche-list-btn').classList.remove('hidden');
@@ -1110,7 +1110,7 @@
     function setRetryMode(btn) {
       btn.classList.remove('loading');
       btn.classList.add('retry');
-      btn.textContent = 'Retry';
+      btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Retry</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
       btn.disabled = false;
     }
 
@@ -1155,7 +1155,7 @@
       if (etsyBtn) etsyBtn.classList.add('hidden');
 
       const btn = document.getElementById('start-btn');
-      if (btn) { btn.disabled = true; btn.textContent = 'LOADING'; btn.classList.remove('retry'); btn.classList.add('loading'); }
+      if (btn) { btn.disabled = true; btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>LOADING…</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>'; btn.classList.remove('retry'); btn.classList.add('loading'); }
       const kwInput = document.getElementById('keyword-input');
       if (kwInput) kwInput.disabled = true;
 
