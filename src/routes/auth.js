@@ -77,7 +77,7 @@ router.get('/etsy', (req, res) => {
     response_type:         'code',
     client_id:             ETSY_CLIENT_ID,
     redirect_uri:          ETSY_REDIRECT_URI,
-    scope:                 'email_r profile_r listings_r listings_w listings_d shops_r',
+    scope:                 'email_r listings_r shops_r',
     state,
     code_challenge:        challenge,
     code_challenge_method: 'S256',
@@ -112,7 +112,6 @@ router.get('/etsy/callback', async (req, res) => {
       new URLSearchParams({
         grant_type:    'authorization_code',
         client_id:     ETSY_CLIENT_ID,
-        ...(ETSY_CLIENT_SECRET ? { client_secret: ETSY_CLIENT_SECRET } : {}),
         redirect_uri:  ETSY_REDIRECT_URI,
         code,
         code_verifier: pkce.verifier,
@@ -128,7 +127,7 @@ router.get('/etsy/callback', async (req, res) => {
     // Récupérer le profil Etsy pour avoir l'email / user_id
     const profileRes = await axios.get('https://api.etsy.com/v3/application/users/me', {
       headers: {
-        'x-api-key':     ETSY_CLIENT_ID,
+        'x-api-key':     ETSY_CLIENT_ID + ':' + ETSY_CLIENT_SECRET,
         'Authorization': 'Bearer ' + access_token,
       },
       timeout: 10000,
@@ -147,7 +146,6 @@ router.get('/etsy/callback', async (req, res) => {
       return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent('Compte introuvable — reconnecte-toi'));
     }
     user.etsyUserId = etsyId;
-    user.etsyAccessToken = access_token;
     await user.save();
 
     // On retourne le même token (le compte n'a pas changé) + confirmation
@@ -322,7 +320,6 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
-
 
 
 
