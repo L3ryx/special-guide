@@ -163,6 +163,17 @@
     #auto-status { font-size:1rem; transition:all 0.2s; }
 
     #start-btn { background:transparent !important; box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:18px; }
+    #start-btn.stop-mode {
+      background: #dc2626 !important;
+      background-image: none !important;
+      border: none !important;
+      box-shadow: 0 6px 32px rgba(220,38,38,0.55) !important;
+      animation: none !important;
+      color: #fff;
+      font-size: 1.2rem;
+      letter-spacing: 0.15em;
+    }
+    #start-btn.stop-mode:hover { background: #b91c1c !important; transform: scale(1.03); }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
 
     /* ── SPINNER LOADER POUR BOUTON ── */
@@ -409,7 +420,6 @@
         <div class="progress-steps" id="progress-steps"></div>
         <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
         <div class="progress-msg" id="progress-msg"></div>
-        <button id="stop-btn" onclick="stopSearch()">Stop</button>
       </div>
 
     <section id="results-section">
@@ -1040,8 +1050,9 @@
       document.getElementById('keyword-input').disabled = false;
       const btn = document.getElementById('start-btn');
       btn.disabled = false;
-      btn.classList.remove('loading', 'retry');
+      btn.classList.remove('loading', 'retry', 'stop-mode');
       btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Search</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
+      btn.onclick = startSearch;
       
       // Cache la barre de progression et le bouton Stop en fin de recherche
       document.getElementById('progress-wrap').style.display = 'none';
@@ -1120,11 +1131,11 @@
 
       const btn = document.getElementById('start-btn');
       if (btn) { 
-        btn.disabled = true; 
-        // Transforme le bouton en loader spinner
-        btn.innerHTML = '<div class="btn-spinner"></div>'; 
-        btn.classList.remove('retry'); 
-        btn.classList.add('loading'); 
+        btn.disabled = false;
+        btn.classList.remove('retry');
+        btn.classList.add('stop-mode');
+        btn.innerHTML = '<span>Stop</span>';
+        btn.onclick = stopSearch;
       }
       
       const kwInput = document.getElementById('keyword-input');
