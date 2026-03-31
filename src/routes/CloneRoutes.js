@@ -220,115 +220,65 @@ Respond ONLY with valid JSON, no markdown, no explanation.`;
  */
 async function createEtsyListing(etsyToken, shopId, listingData) {
   const { title, description, tags, price, imageUrls } = listingData;
-  const apiKey = process.env.ETSY_CLIENT_ID;
-  const authHeaders = {
-    'Authorization': 'Bearer ' + etsyToken,
-    'x-api-key':     apiKey,
-  };
 
-  // 1. Récupérer un shipping_profile_id existant sur la boutique
-  let shippingProfileId = null;
-  try {
-    const spRes = await axios.get(
-      `https://api.etsy.com/v3/application/shops/${shopId}/shipping-profiles`,
-      { headers: authHeaders, timeout: 15000 }
-    );
-    const profiles = spRes.data.results || [];
-    if (profiles.length > 0) shippingProfileId = profiles[0].shipping_profile_id;
-  } catch (e) {
-    console.warn('[createEtsyListing] Could not fetch shipping profiles:', e.response?.status, e.message);
-  }
-
-  // 2. Récupérer un readiness_state_id existant sur la boutique
-  let readinessStateId = null;
-  try {
-    const rsRes = await axios.get(
-      `https://api.etsy.com/v3/application/shops/${shopId}/readiness-state-definitions`,
-      { headers: authHeaders, timeout: 15000 }
-    );
-    const states = rsRes.data.results || [];
-    if (states.length > 0) readinessStateId = states[0].readiness_state_id;
-  } catch (e) {
-    console.warn('[createEtsyListing] Could not fetch readiness states:', e.response?.status, e.message);
-  }
-
-  // 3. Si pas de readiness_state_id, en créer un
-  if (!readinessStateId) {
-    try {
-      const rsCreate = await axios.post(
-        `https://api.etsy.com/v3/application/shops/${shopId}/readiness-state-definitions`,
-        new URLSearchParams({
-          readiness_state:     'ready_to_ship',
-          min_processing_time: '1',
-          max_processing_time: '3',
-          processing_time_unit: 'days',
-        }).toString(),
-        {
-          headers: { ...authHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-          timeout: 15000,
-        }
-      );
-      readinessStateId = rsCreate.data.readiness_state_id;
-      console.log('[createEtsyListing] Created readiness_state_id:', readinessStateId);
-    } catch (e) {
-      console.warn('[createEtsyListing] Could not create readiness state:', e.response?.status, JSON.stringify(e.response?.data));
+  // 1. Créer le brouillon de listing
+  const createRes = await axios.post(
+    `https://openapi.etsy.com/v3/application/shops/${shopId}/listings`,
+    {
+      quantity:               5,
+      title:                  title.slice(0, 140),
+      description,
+      price:                  parseFloat(price) || 9.99,
+      who_made:               'i_did',
+      when_made:              'made_to_order',
+      taxonomy_id:            listingData.taxonomyId || 68887469, // Home & Living par défaut
+      state:                  'draft',
+      is_supply:              false,
+      is_customizable:        false,
+      is_digital:             false,
+      processing_min:         1,
+      processing_max:         3,
+      tags:                   tags.slice(0, 13).map(t => t.slice(0, 20)),
+      materials:              [],
+      shipping_profile_id:    null, // sera défini manuellement
+      item_weight_unit:       'oz',
+      item_dimensions_unit:   'in',
+      production_partner_ids: [],
+    },
+    {
+      headers: {
+        'Authorization': 'Bearer ' + etsyToken,
+        'x-api-key':     process.env.ETSY_CLIENT_ID,
+        'Content-Type':  'application/json',
+      },
     }
-  }
-
-  // 4. Construire le body du listing (application/x-www-form-urlencoded)
-  const params = new URLSearchParams();
-  params.append('quantity',    '5');
-  params.append('title',       title.slice(0, 140));
-  params.append('description', description);
-  params.append('price',       String(parseFloat(price) || 9.99));
-  params.append('who_made',    'someone_else');
-  params.append('when_made',   '2020_2024');
-  params.append('taxonomy_id', String(listingData.taxonomyId || 68887469));
-  tags.slice(0, 13).forEach(t => params.append('tags[]', t.slice(0, 20)));
-
-  if (shippingProfileId) params.append('shipping_profile_id', String(shippingProfileId));
-  if (readinessStateId)  params.append('readiness_state_id',  String(readinessStateId));
-
-  console.log('[createEtsyListing] POST body preview:', params.toString().slice(0, 300));
-
-  // 5. Créer le brouillon de listing
-  let createRes;
-  try {
-    createRes = await axios.post(
-      `https://api.etsy.com/v3/application/shops/${shopId}/listings`,
-      params.toString(),
-      {
-        headers: { ...authHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-        timeout: 30000,
-      }
-    );
-  } catch (e) {
-    console.error('[createEtsyListing] createDraftListing error:', e.response?.status, JSON.stringify(e.response?.data));
-    throw new Error('Failed to create Etsy listing: ' + (e.response?.data?.error_description || e.response?.data?.error || e.message));
-  }
+  );
 
   const listingId = createRes.data.listing_id;
-  console.log('[createEtsyListing] listing_id:', listingId);
 
-  // 6. Upload des images
+  // 2. Upload des images
   for (let i = 0; i < Math.min(imageUrls.length, 5); i++) {
     try {
+      // Télécharger l'image
       const imgResp = await axios.get(imageUrls[i], { responseType: 'arraybuffer', timeout: 20000 });
       const form    = new (require('form-data'))();
       form.append('image', Buffer.from(imgResp.data), { filename: `image_${i+1}.jpg`, contentType: 'image/jpeg' });
       form.append('rank', String(i + 1));
 
       await axios.post(
-        `https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}/images`,
+        `https://openapi.etsy.com/v3/application/shops/${shopId}/listings/${listingId}/images`,
         form,
         {
-          headers: { ...form.getHeaders(), ...authHeaders },
+          headers: {
+            ...form.getHeaders(),
+            'Authorization': 'Bearer ' + etsyToken,
+            'x-api-key':     process.env.ETSY_CLIENT_ID,
+          },
           timeout: 60000,
         }
       );
-      console.log(`[createEtsyListing] image ${i+1} uploaded`);
     } catch (imgErr) {
-      console.warn(`[createEtsyListing] image ${i+1} upload failed:`, imgErr.response?.status, imgErr.message);
+      console.warn(`Image ${i+1} upload failed:`, imgErr.message);
     }
   }
 
@@ -339,47 +289,15 @@ async function createEtsyListing(etsyToken, shopId, listingData) {
  * Résout le shop_id Etsy à partir du token OAuth
  */
 async function getEtsyShopId(etsyToken) {
-  console.log('[getEtsyShopId] token prefix:', etsyToken ? etsyToken.slice(0, 20) + '...' : 'NULL');
-
-  let userId;
-  try {
-    const r = await axios.get('https://api.etsy.com/v3/application/users/me', {
-      headers: {
-        'x-api-key':     process.env.ETSY_CLIENT_ID,
-        'Authorization': 'Bearer ' + etsyToken,
-      },
-      timeout: 15000,
-    });
-    userId = r.data.user_id;
-    console.log('[getEtsyShopId] /users/me OK, user_id:', userId, 'shop_id direct:', r.data.shop_id);
-    // Etsy retourne parfois shop_id directement sur /users/me
-    if (r.data.shop_id) return r.data.shop_id;
-  } catch(e) {
-    console.error('[getEtsyShopId] /users/me failed:', e.response?.status, JSON.stringify(e.response?.data));
-    throw new Error('Etsy /users/me error ' + e.response?.status + ': ' + JSON.stringify(e.response?.data));
-  }
-
-  if (!userId) throw new Error('Impossible de récupérer le user_id Etsy');
-
-  try {
-    const shopRes = await axios.get(
-      'https://api.etsy.com/v3/application/users/' + userId + '/shops',
-      {
-        headers: {
-          'x-api-key':     process.env.ETSY_CLIENT_ID,
-          'Authorization': 'Bearer ' + etsyToken,
-        },
-        timeout: 15000,
-      }
-    );
-    console.log('[getEtsyShopId] /users/shops response:', JSON.stringify(shopRes.data).slice(0, 200));
-    const shopId = shopRes.data?.shop_id || shopRes.data?.results?.[0]?.shop_id;
-    if (!shopId) throw new Error('Aucune boutique Etsy trouvée pour ce compte');
-    return shopId;
-  } catch(e) {
-    console.error('[getEtsyShopId] /users/shops failed:', e.response?.status, JSON.stringify(e.response?.data));
-    throw new Error('Etsy /users/shops error ' + e.response?.status + ': ' + JSON.stringify(e.response?.data));
-  }
+  const r = await axios.get('https://openapi.etsy.com/v3/application/users/me', {
+    headers: {
+      'Authorization': 'Bearer ' + etsyToken,
+      'x-api-key':     process.env.ETSY_CLIENT_ID,
+    },
+  });
+  const shopId = r.data.shop_id;
+  if (!shopId) throw new Error('No Etsy shop linked to this account');
+  return shopId;
 }
 
 /**
@@ -387,7 +305,7 @@ async function getEtsyShopId(etsyToken) {
  */
 async function resolveTaxonomyId(category, etsyToken) {
   try {
-    const r = await axios.get('https://api.etsy.com/v3/application/seller-taxonomy/nodes', {
+    const r = await axios.get('https://openapi.etsy.com/v3/application/seller-taxonomy/nodes', {
       headers: {
         'Authorization': 'Bearer ' + etsyToken,
         'x-api-key':     process.env.ETSY_CLIENT_ID,
