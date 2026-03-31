@@ -1058,6 +1058,7 @@
     // ── SEARCH ──
     let _searching = false;
     let _stopRequested = false;
+    let _sessionId = null;
 
     function restoreUI() {
       _searching = false;
@@ -1080,6 +1081,15 @@
     function stopSearch() {
       _stopRequested = true;
       _autoSearch = false;
+      // Signaler l'arrêt au serveur
+      if (_sessionId) {
+        fetch('/api/stop-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {}) },
+          body: JSON.stringify({ sessionId: _sessionId })
+        }).catch(() => {});
+        _sessionId = null;
+      }
       const toggle = document.getElementById('auto-search-toggle');
       const label  = document.getElementById('auto-search-label');
       const input  = document.getElementById('keyword-input');
@@ -1133,6 +1143,7 @@
 
       _searching = true;
       _stopRequested = false;
+      _sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
       window._shopDataMap = {};
 
       // Cacher les boutons fixes et le logo pendant la recherche
@@ -1197,7 +1208,7 @@
               'Content-Type': 'application/json',
               ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {})
             },
-            body: JSON.stringify({ keyword })
+            body: JSON.stringify({ keyword, sessionId: _sessionId })
           });
 
           const ct = response.headers.get('content-type') || '';
