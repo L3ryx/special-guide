@@ -13,6 +13,17 @@ if (mongoose.connection.readyState === 0) {
     .catch(err => console.error('❌ MongoDB:', err.message));
 }
 
+// ── Active searches registry (sessionId → aborted) ──
+const activeSearches = new Map();
+
+router.post('/stop-search', (req, res) => {
+  const { sessionId } = req.body;
+  if (sessionId && activeSearches.has(sessionId)) {
+    activeSearches.set(sessionId, true);
+  }
+  res.json({ ok: true });
+});
+
 // ── NICHE KEYWORD (dice button) ──
 router.post('/niche-keyword', async (req, res) => {
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
@@ -151,7 +162,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = []) {
 
 // ── SEARCH DROPSHIP ──
 router.post('/search-dropship', async (req, res) => {
-  const { keyword } = req.body;
+  const { keyword, sessionId } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
@@ -162,6 +173,13 @@ router.post('/search-dropship', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   const send = d => { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch {} };
+
+  // ── Abort detection ──
+  const sid = sessionId || (Date.now() + Math.random()).toString(36);
+  activeSearches.set(sid, false);
+  let aborted = false;
+  req.on('close', () => { aborted = true; activeSearches.set(sid, true); });
+  const isAborted = () => aborted || activeSearches.get(sid) === true;
 
   try {
     const { uploadToImgBB } = require('../services/imgbbUploader');
@@ -241,6 +259,7 @@ router.post('/search-dropship', async (req, res) => {
 
     async function worker() {
       while (queue.length > 0) {
+        if (isAborted()) break;
         const listing = queue.shift();
         if (!listing) continue;
         analyzed++;
@@ -271,10 +290,16 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     await Promise.all([worker(), worker(), worker(), worker()]);
-    send({ step: 'complete', dropshippers, total: listings.length });
+    activeSearches.delete(sid);
+    if (isAborted()) {
+      send({ step: 'stopped', message: '🛑 Search stopped by user.' });
+    } else {
+      send({ step: 'complete', dropshippers, total: listings.length });
+    }
     res.end();
 
   } catch (err) {
+    activeSearches.delete(sid);
     send({ step: 'error', message: '❌ ' + err.message });
     res.end();
   }
@@ -299,6 +324,7 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
 
 
