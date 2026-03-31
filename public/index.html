@@ -1062,6 +1062,7 @@
     function stopSearch() {
       _stopRequested = true;
       _autoSearch = false;
+      _searching = false;
       // Signaler l'arrêt au serveur
       if (_sessionId) {
         const sidToStop = _sessionId;
@@ -1077,15 +1078,18 @@
       const input  = document.getElementById('keyword-input');
       if (toggle) toggle.classList.remove('active');
       if (label)  label.innerHTML = '🤖 Automated';
-      if (input) {
-        input.style.opacity = '1';
-        input.style.visibility = 'visible';
-        input.disabled = false;
-      }
+      if (input) { input.style.opacity = '1'; input.style.visibility = 'visible'; input.disabled = false; }
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
-      document.getElementById('keyword-input').disabled = false;
-      restoreUI();
+
+      // Restaurer le bouton Search correctement
+      const btn = document.getElementById('start-btn');
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('loading', 'retry', 'stop-mode');
+        btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Search</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
+        btn.onclick = startSearch;
+      }
     }
 
     function setRetryMode(btn) {
