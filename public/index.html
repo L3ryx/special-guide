@@ -164,6 +164,8 @@
 
     #start-btn { box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:18px; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
+    #stop-btn { display:none; height:3.5rem; width:65%; align-self:center; margin-top:18px; padding:0; border:none; border-radius:5rem; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:1.2rem; font-weight:700; letter-spacing:0.15em; cursor:pointer; box-shadow:0 6px 32px rgba(220,38,38,0.55); transition:background 0.2s, transform 0.2s; }
+    #stop-btn:hover { background:#b91c1c; transform:scale(1.03); }
 
     /* ── SPINNER LOADER POUR BOUTON ── */
     .btn-spinner {
@@ -403,6 +405,7 @@
   <span>Search</span>
   <div id="glow"><div class="circle"></div><div class="circle"></div></div>
 </button>
+          <button id="stop-btn" onclick="stopSearch()" style="display:none;">Stop</button>
       </div>
       <div id="progress-wrap" style="width:100%;">
         <div class="progress-keyword-label" id="progress-keyword-label"></div>
@@ -1034,31 +1037,22 @@
     let _sessionId = null;
 
     function restoreUI() {
-      if (_stopRequested) return; // Ne pas écraser si stop en cours
+      if (_stopRequested) return;
       _searching = false;
       _stopRequested = false;
       document.getElementById('keyword-input').disabled = false;
-      const btn = document.getElementById('start-btn');
-      btn.disabled = false;
-      btn.style.cssText = '';
-      btn.querySelector('span').textContent = 'Search';
-      btn.onclick = startSearch;
+      document.getElementById('start-btn').style.display = 'flex';
+      document.getElementById('stop-btn').style.display = 'none';
       document.getElementById('progress-wrap').style.display = 'none';
       resetProgress();
     }
 
     function setStopMode(btn) {
-      btn.disabled = false;
-      btn.style.background = '#dc2626';
-      btn.style.backgroundImage = 'none';
-      btn.style.boxShadow = '0 6px 32px rgba(220,38,38,0.55)';
-      btn.style.animation = 'none';
-      btn.style.border = 'none';
-      btn.style.color = '#fff';
-      const sp = btn.querySelector('span');
-      if (sp) sp.textContent = 'Stop';
-      btn.onclick = stopSearch;
+      document.getElementById('start-btn').style.display = 'none';
+      document.getElementById('stop-btn').style.display = 'flex';
     }
+
+    let _restoreTimer = null;
 
     function stopSearch() {
       _stopRequested = true;
@@ -1084,15 +1078,12 @@
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
 
-      // Forcer la restauration du bouton avec un léger délai pour laisser la boucle async se terminer
-      setTimeout(function() {
-        const btn = document.getElementById('start-btn');
-        if (!btn) return;
-        btn.disabled = false;
-        btn.style.cssText = '';
-        btn.querySelector('span').textContent = 'Search';
-        btn.onclick = startSearch;
-      }, 100);
+      if (_restoreTimer) clearTimeout(_restoreTimer);
+      _restoreTimer = null;
+
+      document.getElementById('start-btn').style.display = 'flex';
+      document.getElementById('stop-btn').style.display = 'none';
+      document.getElementById('keyword-input').disabled = false;
     }
 
     function setRetryMode(btn) {
@@ -1136,10 +1127,8 @@
       _sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
       window._shopDataMap = {};
 
-      const btn = document.getElementById('start-btn');
-      if (btn) {
-        setStopMode(btn);
-      }
+      if (_restoreTimer) { clearTimeout(_restoreTimer); _restoreTimer = null; }
+      setStopMode();
       
       const kwInput = document.getElementById('keyword-input');
       if (kwInput) kwInput.disabled = true;
