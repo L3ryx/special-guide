@@ -177,8 +177,12 @@ router.post('/search-dropship', async (req, res) => {
   const send = d => { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch {} };
 
   // ── Abort detection ──
-  const sid = sessionId || (Date.now() + Math.random()).toString(36);
-  activeSearches.set(sid, false);
+  // Nettoyer les anciennes sessions terminées pour éviter les faux positifs
+  for (const [key, val] of activeSearches.entries()) {
+    if (val === true) activeSearches.delete(key);
+  }
+  const sid = sessionId && sessionId.trim() ? sessionId.trim() : (Date.now() + Math.random()).toString(36);
+  activeSearches.set(sid, false);   // false = en cours
   const isAborted = () => activeSearches.get(sid) === true;
 
   try {
