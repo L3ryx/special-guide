@@ -821,6 +821,7 @@
     var _autoSearch = false;
     var _keywordQueue = [];
     var _usedKeywords = [];
+    var _totalAutoMatches = 0;
     var _usedShops    = [];
 
     async function loadAutoState() {
@@ -866,6 +867,7 @@
       const toggle = document.getElementById('auto-search-toggle');
       const input  = document.getElementById('keyword-input');
       if (_autoSearch) {
+        _totalAutoMatches = 0;
         toggle.classList.add('active');
         input.style.opacity = '0';
         input.style.visibility = 'hidden';
@@ -1087,9 +1089,6 @@
       }
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
-      document.getElementById('results-section').style.display = 'none';
-      document.getElementById('results-container').innerHTML = '';
-      document.getElementById('results-count').innerHTML = '';
       restoreUI();
     }
 
@@ -1149,9 +1148,11 @@
       if (searchInputs) searchInputs.style.display = 'none';
       document.getElementById('loading-spinner').style.display = 'flex';
       document.getElementById('progress-wrap').style.display = 'none';
-      document.getElementById('results-section').style.display = 'none';
-      document.getElementById('results-container').innerHTML = '';
-      document.getElementById('results-count').textContent = '';
+      if (!_autoSearch) {
+        document.getElementById('results-section').style.display = 'none';
+        document.getElementById('results-container').innerHTML = '';
+        document.getElementById('results-count').textContent = '';
+      }
 
       document.documentElement.classList.remove('unlocked');
       window.scrollTo({ top: 0 });
@@ -1300,7 +1301,15 @@
       var countBar = document.getElementById('results-count');
       countBar.innerHTML = '';
 
-      if (totalMatches > 0) {
+      if (_autoSearch) {
+        _totalAutoMatches += totalMatches;
+        if (_totalAutoMatches > 0) {
+          const badge = document.createElement('div');
+          badge.textContent = _totalAutoMatches + ' résultat(s) au total';
+          badge.style.color = 'var(--muted)';
+          countBar.appendChild(badge);
+        }
+      } else if (totalMatches > 0) {
         const badge = document.createElement('div');
         badge.textContent = totalMatches + ' résultat(s)';
         badge.style.color = 'var(--muted)';
@@ -1441,6 +1450,8 @@
   </script>
 </body>
 </html>
+
+
 
 
 
