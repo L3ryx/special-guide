@@ -112,6 +112,7 @@ router.get('/etsy/callback', async (req, res) => {
       new URLSearchParams({
         grant_type:    'authorization_code',
         client_id:     ETSY_CLIENT_ID,
+        ...(ETSY_CLIENT_SECRET ? { client_secret: ETSY_CLIENT_SECRET } : {}),
         redirect_uri:  ETSY_REDIRECT_URI,
         code,
         code_verifier: pkce.verifier,
