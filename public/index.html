@@ -42,8 +42,8 @@
     .auth-input { width:100%; padding:14px 18px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#fff; font-family:'Croissant One',cursive; font-size:0.95rem; outline:none; transition:border-color 0.2s; }
     .auth-input:focus { border-color:var(--green); }
     .auth-input::placeholder { color:var(--muted); }
-    #auth-submit { width:100%; padding:15px; background:var(--green); border:none; border-radius:12px; color:#fff; font-family:'Croissant One',cursive; font-weight:700; font-size:1rem; cursor:pointer; transition:all 0.2s; }
-    #auth-submit:hover { background:#16a34a; }
+    #auth-submit { width:100%; padding:15px; background:#f97316; border:none; border-radius:12px; color:#fff; font-family:'Croissant One',cursive; font-weight:700; font-size:1rem; cursor:pointer; transition:all 0.2s; }
+    #auth-submit:hover { background:#ea6c0a; }
     #auth-submit:disabled { opacity:0.6; cursor:not-allowed; }
     #auth-error { text-align:center; font-size:0.82rem; color:#f87171; min-height:1.2em; }
     #auth-forgot { text-align:center; font-size:0.8rem; color:var(--muted); cursor:pointer; text-decoration:underline; }
@@ -336,20 +336,8 @@
   <div id="auth-overlay" style="display:none;">
     <div id="auth-box">
       <div id="auth-logo">
-        <div id="logo-letters">
-          <img class="logo-letter" src="/f.png" alt="f">
-          <img class="logo-letter" src="/i.png" alt="i">
-          <img class="logo-letter" src="/n.png" alt="n">
-          <img class="logo-letter" src="/d.png" alt="d">
-          <img class="logo-letter" src="/e.png" alt="e">
-          <img class="logo-letter" src="/r.png" alt="r">
-          <span class="logo-space"></span>
-          <img class="logo-letter" src="/n.png" alt="n">
-          <img class="logo-letter" src="/i.png" alt="i">
-          <img class="logo-letter" src="/c.png" alt="c">
-          <img class="logo-letter" src="/h.png" alt="h">
-          <img class="logo-letter" src="/e.png" alt="e">
-        </div>
+        <img src="/finder.png" alt="Finder" style="display:block;margin:0 auto;max-width:180px;width:100%;height:auto;">
+        <img src="/niche.png"  alt="Niche"  style="display:block;margin:4px auto 0;max-width:110px;width:100%;height:auto;">
       </div>
       <div id="auth-subtitle">Sign in to access the tool</div>
       <div class="auth-tabs">
@@ -360,7 +348,7 @@
         <input class="auth-input" id="auth-email" type="email" placeholder="Email" />
         <input class="auth-input" id="auth-password" type="password" placeholder="Password" />
         <div id="auth-error"></div>
-        <button id="auth-submit" onclick="authSubmit()">Login</button>
+        <button id="auth-submit" onclick="authSubmit()">Register</button>
         <div id="auth-forgot" onclick="showForgot()">Forgot password?</div>
       </div>
       <div id="auth-forgot-form">
@@ -522,7 +510,7 @@
     })();
 
 
-    let _authTab = 'login';
+    let _authTab = 'register';
 
     function checkAuth() {
       const timeout = new Promise(function(_, reject) {
