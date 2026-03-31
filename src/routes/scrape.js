@@ -179,9 +179,7 @@ router.post('/search-dropship', async (req, res) => {
   // ── Abort detection ──
   const sid = sessionId || (Date.now() + Math.random()).toString(36);
   activeSearches.set(sid, false);
-  let aborted = false;
-  req.on('close', () => { aborted = true; activeSearches.set(sid, true); });
-  const isAborted = () => aborted || activeSearches.get(sid) === true;
+  const isAborted = () => activeSearches.get(sid) === true;
 
   try {
     const { uploadToImgBB } = require('../services/imgbbUploader');
