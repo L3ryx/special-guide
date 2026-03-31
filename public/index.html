@@ -234,9 +234,36 @@
     #auto-search-toggle::after { display: none !important; }
     #auto-status { font-size:1rem; transition:all 0.2s; }
 
-    #start-btn { background:transparent !important; box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:18px; position: relative; }
+    #start-btn { background:transparent !important; box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:18px; position: relative; transition: all 0.3s ease; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
     #start-btn.loading { pointer-events: none; }
+    
+    /* Bouton en mode STOP */
+    #start-btn.searching {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+      border: 2px solid #ef4444 !important;
+      box-shadow: 0 0 20px rgba(239,68,68,0.4), 0 0 40px rgba(220,38,38,0.2) !important;
+    }
+    #start-btn.searching:hover {
+      background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%) !important;
+      box-shadow: 0 0 30px rgba(239,68,68,0.6), 0 0 50px rgba(220,38,38,0.3) !important;
+      transform: scale(1.02);
+    }
+    #start-btn.searching:active {
+      transform: scale(0.98);
+    }
+    #start-btn.searching span {
+      opacity: 1;
+      visibility: visible;
+      color: #fff;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: 0.05em;
+    }
+    #start-btn.searching #container-stars,
+    #start-btn.searching #glow {
+      display: none;
+    }
 
     /* ── SPINNER LOADER POUR BOUTON ── */
     .btn-spinner {
@@ -295,9 +322,19 @@
     /* Loader supprimé */
     #loading-spinner { display:none !important; }
     /* Progress centré en overlay */
-    #progress-wrap { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:90%; max-width:520px; display:none; flex-direction:column; align-items:center; gap:16px; z-index:200; background:rgba(10,10,10,0.88); border:1px solid rgba(255,255,255,0.1); border-radius:24px; padding:36px 32px; backdrop-filter:blur(20px); box-shadow:0 20px 60px rgba(0,0,0,0.7); }
-    #stop-btn { margin-top:8px; padding:18px 0; border-radius:18px; border:none; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:1.2rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:10px; letter-spacing:0.1em; box-shadow:0 6px 32px rgba(220,38,38,0.55); width:100%; }
-    #stop-btn:hover { background:#b91c1c; transform:scale(1.03); box-shadow:0 10px 40px rgba(220,38,38,0.7); }
+    #progress-wrap { 
+      position: relative;
+      width: 100%;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      z-index: 200;
+      margin-top: 16px;
+    }
+    #progress-wrap[style*="flex"] {
+      display: flex;
+    }
     #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
     .progress-steps { display:flex; justify-content:space-between; gap:4px; }
@@ -479,12 +516,8 @@
   <div id="glow"><div class="circle"></div><div class="circle"></div></div>
 </button>
       </div>
-    <div id="progress-wrap">
-      <div class="progress-keyword-label" id="progress-keyword-label"></div>
-      <div class="progress-steps" id="progress-steps"></div>
-      <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
-      <div class="progress-msg" id="progress-msg"></div>
-      <button id="stop-btn" onclick="stopSearch()">Stop</button>
+    <div id="progress-wrap" style="display:none; width:100%; flex-direction:column; gap:12px; align-items:center;">
+      <div class="progress-track" style="width:100%; max-width:400px;"><div class="progress-fill" id="progress-fill"></div></div>
     </div>
 
     <section id="results-section">
@@ -1116,10 +1149,11 @@
       document.getElementById('keyword-input').disabled = false;
       const btn = document.getElementById('start-btn');
       btn.disabled = false;
-      btn.classList.remove('loading', 'retry');
+      btn.classList.remove('loading', 'retry', 'searching');
+      btn.onclick = startSearch;
       btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Search</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
       
-      // Cache la barre de progression et le bouton Stop en fin de recherche manuelle
+      // Cache la barre de progression
       document.getElementById('progress-wrap').style.display = 'none';
     }
 
@@ -1194,19 +1228,21 @@
 
       const btn = document.getElementById('start-btn');
       if (btn) { 
-        btn.disabled = true; 
-        // Applique le loader CSS
-        btn.innerHTML = '<div class="btn-spinner"></div>'; 
-        btn.classList.remove('retry'); 
-        btn.classList.add('loading'); 
+        btn.disabled = false;
+        // Transformer en bouton STOP rouge
+        btn.innerHTML = '<span>STOP</span>'; 
+        btn.onclick = stopSearch;
+        btn.classList.remove('retry', 'loading'); 
+        btn.classList.add('searching'); 
       }
       
       const kwInput = document.getElementById('keyword-input');
-      if (kwInput) kwInput.disabled = true;
+      if (kwInput) kwInput.disabled = false;
 
+      // Garde tout visible - n'affiche pas la barre tout de suite
       const searchInputs = document.getElementById('search-inputs');
-      if (searchInputs) searchInputs.style.display = 'none';
-      document.getElementById('progress-wrap').style.display = 'none';
+      if (searchInputs) searchInputs.style.display = 'flex';
+      // La barre de progression s'affichera quand la recherche commence vraiment
       if (!_autoSearch) {
         document.getElementById('results-section').style.display = 'none';
         document.getElementById('results-container').innerHTML = '';
