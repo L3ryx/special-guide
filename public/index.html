@@ -20,7 +20,7 @@
 
     /* ── INTRO ── */
     #intro { position:fixed; inset:0; z-index:9999; background:#000; display:flex; align-items:center; justify-content:center; }
-    #intro-text { font-family:'Croissant One',cursive; font-size:clamp(2.8rem,9vw,6rem); color:#f97316; letter-spacing:0.06em; text-align:center; text-shadow:0 0 40px rgba(249,115,22,0.5); animation:introAppear 0.8s ease forwards; }
+    #intro-text { font-family:'Croissant One',cursive; font-size:clamp(2.8rem,9vw,6rem); color:#fff; letter-spacing:0.06em; text-align:center; text-shadow:0 0 40px rgba(255,255,255,0.3); animation:introAppear 0.8s ease forwards; }
     @keyframes introAppear { from{opacity:0;transform:scale(0.8)} to{opacity:1;transform:scale(1)} }
     #intro-text span { display:inline-block; }
     #intro-text span.blast { animation:blast 0.6s ease forwards; }
@@ -42,8 +42,8 @@
     .auth-input { width:100%; padding:14px 18px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#fff; font-family:'Croissant One',cursive; font-size:0.95rem; outline:none; transition:border-color 0.2s; }
     .auth-input:focus { border-color:var(--green); }
     .auth-input::placeholder { color:var(--muted); }
-    #auth-submit { width:100%; padding:15px; background:#f97316; border:none; border-radius:12px; color:#fff; font-family:'Croissant One',cursive; font-weight:700; font-size:1rem; cursor:pointer; transition:all 0.2s; }
-    #auth-submit:hover { background:#ea6c0a; }
+    #auth-submit { width:100%; padding:15px; background:var(--green); border:none; border-radius:12px; color:#fff; font-family:'Croissant One',cursive; font-weight:700; font-size:1rem; cursor:pointer; transition:all 0.2s; }
+    #auth-submit:hover { background:#16a34a; }
     #auth-submit:disabled { opacity:0.6; cursor:not-allowed; }
     #auth-error { text-align:center; font-size:0.82rem; color:#f87171; min-height:1.2em; }
     #auth-forgot { text-align:center; font-size:0.8rem; color:var(--muted); cursor:pointer; text-decoration:underline; }
@@ -101,30 +101,13 @@
     /* ── TITLE ── */
     #title-outer { width:100%; display:flex; justify-content:center; }
     #title-wrap { position:relative; display:inline-block; padding:90px 40px 8px; }
-    #niche-title { position:relative; z-index:101; text-align:center; user-select:none; display:flex; flex-direction:column; align-items:center; gap:4px; }
-    #main-logo-letters { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
-    #finder-img { max-width:clamp(220px,40vw,480px); width:100%; height:auto; display:block; transform-origin:center center; animation: heartbeat-finder 3.2s ease-in-out infinite; }
-    #niche-img  { max-width:clamp(140px,26vw,300px); width:100%; height:auto; display:block; transform-origin:center center; animation: heartbeat-niche  3.2s ease-in-out infinite; }
-    /* finder bat 2× puis niche bat 2× — cycle 3.2s */
-    /* finder: bat à 0% et 18% | niche: bat à 40% et 58% */
-    @keyframes heartbeat-finder {
-      0%   { transform: scale(1); }
-      8%   { transform: scale(1.12); }
-      16%  { transform: scale(1); }
-      24%  { transform: scale(1.12); }
-      32%  { transform: scale(1); }
-      100% { transform: scale(1); }
-    }
-    @keyframes heartbeat-niche {
-      0%   { transform: scale(1); }
-      32%  { transform: scale(1); }
-      40%  { transform: scale(1.10); }
-      48%  { transform: scale(1); }
-      56%  { transform: scale(1.10); }
-      64%  { transform: scale(1); }
-      100% { transform: scale(1); }
-    }
+    #niche-title { position:relative; z-index:101; text-align:center; user-select:none; }
+    #main-logo-letters { display:flex; align-items:center; justify-content:center; }
+    .main-logo-letter { height:clamp(48px,8vw,80px); width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); margin-right:-18px; }
+    .main-logo-letter:last-child { margin-right:0; }
     .main-logo-letter.pop { transform:scale(1.5); }
+    .main-logo-space { display:inline-block; width:clamp(6px,1.2vw,12px); margin-right:0; }
+    .title-space { display:inline-block; width:0.35em; }
     @keyframes wave3d { 0%,100%{transform:translateY(0)rotateX(0deg)scale(1)} 25%{transform:translateY(-18px)rotateX(20deg)scale(1.08)} 50%{transform:translateY(0)rotateX(0deg)scale(1)} }
 
     /* ── MAIN ── */
@@ -204,12 +187,39 @@
     @keyframes pulse_3011 { 0%{transform:scale(0.75);box-shadow:0 0 0 0 rgba(0,0,0,0.7)} 70%{transform:scale(1);box-shadow:0 0 0 10px rgba(0,0,0,0)} 100%{transform:scale(0.75);box-shadow:0 0 0 0 rgba(0,0,0,0)} }
 
     /* ── PROGRESS ── */
-    /* Loader supprimé */
-    #loading-spinner { display:none !important; }
-    /* Progress centré en overlay */
-    #progress-wrap { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:90%; max-width:520px; display:none; flex-direction:column; align-items:center; gap:16px; z-index:200; background:rgba(10,10,10,0.88); border:1px solid rgba(255,255,255,0.1); border-radius:24px; padding:36px 32px; backdrop-filter:blur(20px); box-shadow:0 20px 60px rgba(0,0,0,0.7); }
-    #stop-btn { margin-top:8px; padding:18px 0; border-radius:18px; border:none; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:1.2rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:10px; letter-spacing:0.1em; box-shadow:0 6px 32px rgba(220,38,38,0.55); width:100%; }
-    #stop-btn:hover { background:#b91c1c; transform:scale(1.03); box-shadow:0 10px 40px rgba(220,38,38,0.7); }
+    #progress-wrap { width:100%; max-width:660px; display:none; flex-direction:column; gap:12px; }
+    #loading-spinner { display:none; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:40px 0; }
+    .loader {
+      display: inline-block;
+      text-align: center;
+      line-height: 86px;
+      position: relative;
+      padding: 0 48px;
+      font-size: 48px;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #fff;
+    }
+    .loader:before, .loader:after {
+      content: "";
+      display: block;
+      width: 15px;
+      height: 15px;
+      background: currentColor;
+      position: absolute;
+      animation: load .7s infinite alternate ease-in-out;
+      top: 0;
+    }
+    .loader:after {
+      top: auto;
+      bottom: 0;
+    }
+    @keyframes load {
+      0% { left: 0; height: 43px; width: 15px; transform: translateX(0); }
+      50% { height: 10px; width: 40px; }
+      100% { left: 100%; height: 43px; width: 15px; transform: translateX(-100%); }
+    }
+    #stop-btn { padding:12px 32px; border-radius:14px; border:none; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; letter-spacing:0.08em; box-shadow:0 4px 20px rgba(220,38,38,0.4); }
+    #stop-btn:hover { background:#b91c1c; transform:scale(1.03); box-shadow:0 6px 28px rgba(220,38,38,0.55); }
     #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
     .progress-steps { display:flex; justify-content:space-between; gap:4px; }
@@ -309,8 +319,16 @@
   <div id="auth-overlay" style="display:none;">
     <div id="auth-box">
       <div id="auth-logo">
-        <img src="/finder.png" alt="Finder" style="display:block;margin:0 auto;max-width:180px;width:100%;height:auto;">
-        <img src="/niche.png"  alt="Niche"  style="display:block;margin:4px auto 0;max-width:110px;width:100%;height:auto;">
+        <div id="logo-letters">
+          <img class="logo-letter" src="/c.png" alt="c">
+          <img class="logo-letter" src="/l.png" alt="l">
+          <img class="logo-letter" src="/o.png" alt="o">
+          <img class="logo-letter" src="/n.png" alt="n">
+          <img class="logo-letter" src="/y.png" alt="y">
+          <span class="logo-space"></span>
+          <img class="logo-letter" src="/a.png" alt="a">
+          <img class="logo-letter" src="/i.png" alt="i">
+        </div>
       </div>
       <div id="auth-subtitle">Sign in to access the tool</div>
       <div class="auth-tabs">
@@ -321,7 +339,7 @@
         <input class="auth-input" id="auth-email" type="email" placeholder="Email" />
         <input class="auth-input" id="auth-password" type="password" placeholder="Password" />
         <div id="auth-error"></div>
-        <button id="auth-submit" onclick="authSubmit()">Register</button>
+        <button id="auth-submit" onclick="authSubmit()">Login</button>
         <div id="auth-forgot" onclick="showForgot()">Forgot password?</div>
       </div>
       <div id="auth-forgot-form">
@@ -377,8 +395,14 @@
   <!-- TITLE -->
   <div id="title-outer"><div id="title-wrap"><div id="niche-title">
     <div id="main-logo-letters">
-      <img id="finder-img" src="/finder.png" alt="Finder">
-      <img id="niche-img"  src="/niche.png"  alt="Niche">
+      <img class="main-logo-letter" src="/c.png" alt="C">
+      <img class="main-logo-letter" src="/l.png" alt="L">
+      <img class="main-logo-letter" src="/o.png" alt="O">
+      <img class="main-logo-letter" src="/n.png" alt="N">
+      <img class="main-logo-letter" src="/y.png" alt="Y">
+      <span class="main-logo-space"></span>
+      <img class="main-logo-letter" src="/a.png" alt="A">
+      <img class="main-logo-letter" src="/i.png" alt="I" style="margin-right:0;">
     </div>
   </div></div></div>
 
@@ -396,12 +420,18 @@
   <div id="glow"><div class="circle"></div><div class="circle"></div></div>
 </button>
       </div>
+      <div id="loading-spinner">
+        <span class="loader">Loading</span>
+      </div>
+
     <div id="progress-wrap">
       <div class="progress-keyword-label" id="progress-keyword-label"></div>
       <div class="progress-steps" id="progress-steps"></div>
-      <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
       <div class="progress-msg" id="progress-msg"></div>
-      <button id="stop-btn" onclick="stopSearch()">⛔ Stop</button>
+      <div style="display:flex;justify-content:center;margin-top:8px;">
+        <button id="stop-btn" onclick="stopSearch()">Stop</button>
+      </div>
     </div>
 
     <section id="results-section">
@@ -436,7 +466,7 @@
       }
       function startAnimations() {
         animateGroup('.logo-letter');       // modal auth
-        // titre principal : animation CSS heartbeat sur #finder-img et #niche-img
+        animateGroup('.main-logo-letter');  // titre principal
       }
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', startAnimations);
@@ -477,7 +507,7 @@
     })();
 
 
-    let _authTab = 'register';
+    let _authTab = 'login';
 
     function checkAuth() {
       const timeout = new Promise(function(_, reject) {
@@ -791,7 +821,6 @@
     var _autoSearch = false;
     var _keywordQueue = [];
     var _usedKeywords = [];
-    var _totalAutoMatches = 0;
     var _usedShops    = [];
 
     async function loadAutoState() {
@@ -837,7 +866,6 @@
       const toggle = document.getElementById('auto-search-toggle');
       const input  = document.getElementById('keyword-input');
       if (_autoSearch) {
-        _totalAutoMatches = 0;
         toggle.classList.add('active');
         input.style.opacity = '0';
         input.style.visibility = 'hidden';
@@ -1025,17 +1053,17 @@
     // ── SEARCH ──
     let _searching = false;
     let _stopRequested = false;
-    let _sessionId = null;
 
     function restoreUI() {
       _searching = false;
       _stopRequested = false;
       document.getElementById('search-inputs').style.display = 'flex';
+      document.getElementById('loading-spinner').style.display = 'none';
       document.getElementById('keyword-input').disabled = false;
       const btn = document.getElementById('start-btn');
       btn.disabled = false;
       btn.classList.remove('loading', 'retry');
-      btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Search</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
+      btn.textContent = 'Search';
       // Réafficher les boutons et le logo
       document.getElementById('title-outer').classList.remove('hidden');
       document.getElementById('niche-list-btn').classList.remove('hidden');
@@ -1047,16 +1075,6 @@
     function stopSearch() {
       _stopRequested = true;
       _autoSearch = false;
-      // Signaler l'arrêt au serveur
-      if (_sessionId) {
-        const sidToStop = _sessionId;
-        _sessionId = null;
-        fetch('/api/stop-search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {}) },
-          body: JSON.stringify({ sessionId: sidToStop })
-        }).catch(() => {});
-      }
       const toggle = document.getElementById('auto-search-toggle');
       const label  = document.getElementById('auto-search-label');
       const input  = document.getElementById('keyword-input');
@@ -1075,7 +1093,7 @@
     function setRetryMode(btn) {
       btn.classList.remove('loading');
       btn.classList.add('retry');
-      btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Retry</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
+      btn.textContent = 'Retry';
       btn.disabled = false;
     }
 
@@ -1110,7 +1128,6 @@
 
       _searching = true;
       _stopRequested = false;
-      _sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
       window._shopDataMap = {};
 
       // Cacher les boutons fixes et le logo pendant la recherche
@@ -1121,18 +1138,17 @@
       if (etsyBtn) etsyBtn.classList.add('hidden');
 
       const btn = document.getElementById('start-btn');
-      if (btn) { btn.disabled = true; btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>LOADING…</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>'; btn.classList.remove('retry'); btn.classList.add('loading'); }
+      if (btn) { btn.disabled = true; btn.textContent = 'LOADING'; btn.classList.remove('retry'); btn.classList.add('loading'); }
       const kwInput = document.getElementById('keyword-input');
       if (kwInput) kwInput.disabled = true;
 
       const searchInputs = document.getElementById('search-inputs');
       if (searchInputs) searchInputs.style.display = 'none';
+      document.getElementById('loading-spinner').style.display = 'flex';
       document.getElementById('progress-wrap').style.display = 'none';
-      if (!_autoSearch) {
-        document.getElementById('results-section').style.display = 'none';
-        document.getElementById('results-container').innerHTML = '';
-        document.getElementById('results-count').textContent = '';
-      }
+      document.getElementById('results-section').style.display = 'none';
+      document.getElementById('results-container').innerHTML = '';
+      document.getElementById('results-count').textContent = '';
 
       document.documentElement.classList.remove('unlocked');
       window.scrollTo({ top: 0 });
@@ -1174,7 +1190,7 @@
               'Content-Type': 'application/json',
               ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {})
             },
-            body: JSON.stringify({ keyword, sessionId: _sessionId })
+            body: JSON.stringify({ keyword })
           });
 
           const ct = response.headers.get('content-type') || '';
@@ -1281,15 +1297,7 @@
       var countBar = document.getElementById('results-count');
       countBar.innerHTML = '';
 
-      if (_autoSearch) {
-        _totalAutoMatches += totalMatches;
-        if (_totalAutoMatches > 0) {
-          const badge = document.createElement('div');
-          badge.textContent = _totalAutoMatches + ' résultat(s) au total';
-          badge.style.color = 'var(--muted)';
-          countBar.appendChild(badge);
-        }
-      } else if (totalMatches > 0) {
+      if (totalMatches > 0) {
         const badge = document.createElement('div');
         badge.textContent = totalMatches + ' résultat(s)';
         badge.style.color = 'var(--muted)';
@@ -1430,8 +1438,6 @@
   </script>
 </body>
 </html>
-
-
 
 
 
