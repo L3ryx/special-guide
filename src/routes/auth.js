@@ -127,7 +127,7 @@ router.get('/etsy/callback', async (req, res) => {
     // Récupérer le profil Etsy pour avoir l'email / user_id
     const profileRes = await axios.get('https://api.etsy.com/v3/application/users/me', {
       headers: {
-        'x-api-key':     ETSY_CLIENT_ID + ':' + ETSY_CLIENT_SECRET,
+        'x-api-key':     ETSY_CLIENT_ID,
         'Authorization': 'Bearer ' + access_token,
       },
       timeout: 10000,
@@ -321,6 +321,7 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
+
 
 
 
