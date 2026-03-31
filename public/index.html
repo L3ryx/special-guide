@@ -20,7 +20,7 @@
 
     /* ── INTRO ── */
     #intro { position:fixed; inset:0; z-index:9999; background:#000; display:flex; align-items:center; justify-content:center; }
-    #intro-text { font-family:'Croissant One',cursive; font-size:clamp(2.8rem,9vw,6rem); color:#fff; letter-spacing:0.06em; text-align:center; text-shadow:0 0 40px rgba(255,255,255,0.3); animation:introAppear 0.8s ease forwards; }
+    #intro-text { font-family:'Croissant One',cursive; font-size:clamp(2.8rem,9vw,6rem); color:#f97316; letter-spacing:0.06em; text-align:center; text-shadow:0 0 40px rgba(249,115,22,0.5); animation:introAppear 0.8s ease forwards; }
     @keyframes introAppear { from{opacity:0;transform:scale(0.8)} to{opacity:1;transform:scale(1)} }
     #intro-text span { display:inline-block; }
     #intro-text span.blast { animation:blast 0.6s ease forwards; }
@@ -101,13 +101,30 @@
     /* ── TITLE ── */
     #title-outer { width:100%; display:flex; justify-content:center; }
     #title-wrap { position:relative; display:inline-block; padding:90px 40px 8px; }
-    #niche-title { position:relative; z-index:101; text-align:center; user-select:none; }
-    #main-logo-letters { display:flex; align-items:center; justify-content:center; }
-    .main-logo-letter { height:clamp(48px,8vw,80px); width:auto; display:inline-block; transition:transform 0.25s ease; transform:scale(1); margin-right:-18px; }
-    .main-logo-letter:last-child { margin-right:0; }
+    #niche-title { position:relative; z-index:101; text-align:center; user-select:none; display:flex; flex-direction:column; align-items:center; gap:4px; }
+    #main-logo-letters { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
+    #finder-img { max-width:clamp(220px,40vw,480px); width:100%; height:auto; display:block; transform-origin:center center; animation: heartbeat-finder 3.2s ease-in-out infinite; }
+    #niche-img  { max-width:clamp(140px,26vw,300px); width:100%; height:auto; display:block; transform-origin:center center; animation: heartbeat-niche  3.2s ease-in-out infinite; }
+    /* finder bat 2× puis niche bat 2× — cycle 3.2s */
+    /* finder: bat à 0% et 18% | niche: bat à 40% et 58% */
+    @keyframes heartbeat-finder {
+      0%   { transform: scale(1); }
+      8%   { transform: scale(1.12); }
+      16%  { transform: scale(1); }
+      24%  { transform: scale(1.12); }
+      32%  { transform: scale(1); }
+      100% { transform: scale(1); }
+    }
+    @keyframes heartbeat-niche {
+      0%   { transform: scale(1); }
+      32%  { transform: scale(1); }
+      40%  { transform: scale(1.10); }
+      48%  { transform: scale(1); }
+      56%  { transform: scale(1.10); }
+      64%  { transform: scale(1); }
+      100% { transform: scale(1); }
+    }
     .main-logo-letter.pop { transform:scale(1.5); }
-    .main-logo-space { display:inline-block; width:clamp(6px,1.2vw,12px); margin-right:0; }
-    .title-space { display:inline-block; width:0.35em; }
     @keyframes wave3d { 0%,100%{transform:translateY(0)rotateX(0deg)scale(1)} 25%{transform:translateY(-18px)rotateX(20deg)scale(1.08)} 50%{transform:translateY(0)rotateX(0deg)scale(1)} }
 
     /* ── MAIN ── */
@@ -320,14 +337,18 @@
     <div id="auth-box">
       <div id="auth-logo">
         <div id="logo-letters">
-          <img class="logo-letter" src="/c.png" alt="c">
-          <img class="logo-letter" src="/l.png" alt="l">
-          <img class="logo-letter" src="/o.png" alt="o">
-          <img class="logo-letter" src="/n.png" alt="n">
-          <img class="logo-letter" src="/y.png" alt="y">
-          <span class="logo-space"></span>
-          <img class="logo-letter" src="/a.png" alt="a">
+          <img class="logo-letter" src="/f.png" alt="f">
           <img class="logo-letter" src="/i.png" alt="i">
+          <img class="logo-letter" src="/n.png" alt="n">
+          <img class="logo-letter" src="/d.png" alt="d">
+          <img class="logo-letter" src="/e.png" alt="e">
+          <img class="logo-letter" src="/r.png" alt="r">
+          <span class="logo-space"></span>
+          <img class="logo-letter" src="/n.png" alt="n">
+          <img class="logo-letter" src="/i.png" alt="i">
+          <img class="logo-letter" src="/c.png" alt="c">
+          <img class="logo-letter" src="/h.png" alt="h">
+          <img class="logo-letter" src="/e.png" alt="e">
         </div>
       </div>
       <div id="auth-subtitle">Sign in to access the tool</div>
@@ -395,14 +416,8 @@
   <!-- TITLE -->
   <div id="title-outer"><div id="title-wrap"><div id="niche-title">
     <div id="main-logo-letters">
-      <img class="main-logo-letter" src="/c.png" alt="C">
-      <img class="main-logo-letter" src="/l.png" alt="L">
-      <img class="main-logo-letter" src="/o.png" alt="O">
-      <img class="main-logo-letter" src="/n.png" alt="N">
-      <img class="main-logo-letter" src="/y.png" alt="Y">
-      <span class="main-logo-space"></span>
-      <img class="main-logo-letter" src="/a.png" alt="A">
-      <img class="main-logo-letter" src="/i.png" alt="I" style="margin-right:0;">
+      <img id="finder-img" src="/finder.png" alt="Finder">
+      <img id="niche-img"  src="/niche.png"  alt="Niche">
     </div>
   </div></div></div>
 
@@ -466,7 +481,7 @@
       }
       function startAnimations() {
         animateGroup('.logo-letter');       // modal auth
-        animateGroup('.main-logo-letter');  // titre principal
+        // titre principal : animation CSS heartbeat sur #finder-img et #niche-img
       }
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', startAnimations);
@@ -1450,6 +1465,7 @@
   </script>
 </body>
 </html>
+
 
 
 
