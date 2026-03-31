@@ -1034,21 +1034,15 @@
     let _sessionId = null;
 
     function restoreUI() {
+      if (_stopRequested) return; // Ne pas écraser si stop en cours
       _searching = false;
       _stopRequested = false;
       document.getElementById('keyword-input').disabled = false;
       const btn = document.getElementById('start-btn');
-      // Remet le bouton en mode Search sans toucher aux classes sw-btn
       btn.disabled = false;
-      btn.style.background = '';
-      btn.style.backgroundImage = '';
-      btn.style.boxShadow = '';
-      btn.style.animation = '';
-      btn.style.border = '';
+      btn.style.cssText = '';
       btn.querySelector('span').textContent = 'Search';
       btn.onclick = startSearch;
-      
-      // Cache la barre de progression
       document.getElementById('progress-wrap').style.display = 'none';
       resetProgress();
     }
@@ -1060,7 +1054,9 @@
       btn.style.boxShadow = '0 6px 32px rgba(220,38,38,0.55)';
       btn.style.animation = 'none';
       btn.style.border = 'none';
-      btn.querySelector('span').textContent = 'Stop';
+      btn.style.color = '#fff';
+      const sp = btn.querySelector('span');
+      if (sp) sp.textContent = 'Stop';
       btn.onclick = stopSearch;
     }
 
@@ -1068,7 +1064,7 @@
       _stopRequested = true;
       _autoSearch = false;
       _searching = false;
-      // Signaler l'arrêt au serveur
+
       if (_sessionId) {
         const sidToStop = _sessionId;
         _sessionId = null;
@@ -1078,6 +1074,7 @@
           body: JSON.stringify({ sessionId: sidToStop })
         }).catch(() => {});
       }
+
       const toggle = document.getElementById('auto-search-toggle');
       const label  = document.getElementById('auto-search-label');
       const input  = document.getElementById('keyword-input');
@@ -1087,7 +1084,15 @@
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
 
-      restoreUI();
+      // Forcer la restauration du bouton avec un léger délai pour laisser la boucle async se terminer
+      setTimeout(function() {
+        const btn = document.getElementById('start-btn');
+        if (!btn) return;
+        btn.disabled = false;
+        btn.style.cssText = '';
+        btn.querySelector('span').textContent = 'Search';
+        btn.onclick = startSearch;
+      }, 100);
     }
 
     function setRetryMode(btn) {
