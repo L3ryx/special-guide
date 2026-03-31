@@ -165,6 +165,20 @@
     #start-btn { background:transparent !important; box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:18px; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
 
+    /* ── SPINNER LOADER POUR BOUTON ── */
+    .btn-spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      display: inline-block;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     /* ── STEALTHWORM BUTTON ── */
     .sw-btn {
       display: flex; justify-content: center; align-items: center;
@@ -285,7 +299,6 @@
   </style>
 </head>
 <body>
-  <!-- ERROR POPUP -->
   <div id="error-popup" onclick="closeErrorPopup(event)">
     <div class="ep-box">
       <div class="ep-header">
@@ -305,7 +318,6 @@
   <div id="bg-layer"></div>
   <canvas id="milkyway-canvas"></canvas>
 
-  <!-- AUTH MODAL -->
   <div id="auth-overlay" style="display:none;">
     <div id="auth-box">
       <div id="auth-logo">
@@ -333,7 +345,6 @@
     </div>
   </div>
 
-  <!-- FIXED BUTTONS -->
   <a id="niche-list-btn" href="/niche-list">❤️<span class="nl-count" id="nl-count" style="position:absolute;top:-2px;right:-2px;">0</span></a>
 
   <div id="user-badge">
@@ -348,7 +359,6 @@
       <button class="user-dropdown-item danger" onclick="deleteAccount()">🗑 Delete account</button>
     </div>
   </div>
-  <!-- Account modals -->
   <div class="acct-overlay" id="acct-modal-email">
     <div class="acct-box">
       <div class="acct-box-title">✉️ Change email</div>
@@ -374,7 +384,6 @@
     </div>
   </div>
 
-  <!-- TITLE -->
   <div id="title-outer"><div id="title-wrap"><div id="niche-title">
     <div id="main-logo-letters">
       <img id="finder-img" src="/finder.png" alt="Finder">
@@ -401,7 +410,7 @@
       <div class="progress-steps" id="progress-steps"></div>
       <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
       <div class="progress-msg" id="progress-msg"></div>
-      <button id="stop-btn" onclick="stopSearch()">⛔ Stop</button>
+      <button id="stop-btn" onclick="stopSearch()">Stop</button>
     </div>
 
     <section id="results-section">
@@ -413,7 +422,6 @@
     </section>
   </div>
 
-  <!-- SCRIPT -->
   <script>
     // ── LOGO ANIMATION ──
     (function() {
@@ -1036,12 +1044,9 @@
       btn.disabled = false;
       btn.classList.remove('loading', 'retry');
       btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Search</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
-      // Réafficher les boutons et le logo
-      document.getElementById('title-outer').classList.remove('hidden');
-      document.getElementById('niche-list-btn').classList.remove('hidden');
-      document.getElementById('user-badge').classList.remove('hidden');
-      const etsyBtn = document.getElementById('etsy-logout-btn');
-      if (etsyBtn) etsyBtn.classList.remove('hidden');
+      
+      // Cache la barre de progression et le bouton Stop en fin de recherche manuelle
+      document.getElementById('progress-wrap').style.display = 'none';
     }
 
     function stopSearch() {
@@ -1113,15 +1118,15 @@
       _sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
       window._shopDataMap = {};
 
-      // Cacher les boutons fixes et le logo pendant la recherche
-      document.getElementById('title-outer').classList.add('hidden');
-      document.getElementById('niche-list-btn').classList.add('hidden');
-      document.getElementById('user-badge').classList.add('hidden');
-      const etsyBtn = document.getElementById('etsy-logout-btn');
-      if (etsyBtn) etsyBtn.classList.add('hidden');
-
       const btn = document.getElementById('start-btn');
-      if (btn) { btn.disabled = true; btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>LOADING…</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>'; btn.classList.remove('retry'); btn.classList.add('loading'); }
+      if (btn) { 
+        btn.disabled = true; 
+        // Applique le loader CSS
+        btn.innerHTML = '<div class="btn-spinner"></div>'; 
+        btn.classList.remove('retry'); 
+        btn.classList.add('loading'); 
+      }
+      
       const kwInput = document.getElementById('keyword-input');
       if (kwInput) kwInput.disabled = true;
 
@@ -1306,7 +1311,7 @@
           if (_autoSearch && !_stopRequested) {
             document.getElementById('keyword-input').value = '';
             _keywords = [];
-            startSearch();
+            startSearch(); // Lance et réinitialise la barre pour le nouveau mot clé
           }
         }, 1500);
       } else if (!_autoSearch && !_stopRequested) {
@@ -1430,13 +1435,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
