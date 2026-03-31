@@ -163,17 +163,6 @@
     #auto-status { font-size:1rem; transition:all 0.2s; }
 
     #start-btn { box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:18px; }
-    #start-btn.stop-mode {
-      background: #dc2626 !important;
-      background-image: none !important;
-      border: none !important;
-      box-shadow: 0 6px 32px rgba(220,38,38,0.55) !important;
-      animation: none !important;
-      color: #fff;
-      font-size: 1.2rem;
-      letter-spacing: 0.15em;
-    }
-    #start-btn.stop-mode:hover { background: #b91c1c !important; transform: scale(1.03); }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
 
     /* ── SPINNER LOADER POUR BOUTON ── */
@@ -1049,14 +1038,30 @@
       _stopRequested = false;
       document.getElementById('keyword-input').disabled = false;
       const btn = document.getElementById('start-btn');
+      // Remet le bouton en mode Search sans toucher aux classes sw-btn
       btn.disabled = false;
-      btn.classList.remove('loading', 'retry', 'stop-mode');
-      btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Search</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
+      btn.style.background = '';
+      btn.style.backgroundImage = '';
+      btn.style.boxShadow = '';
+      btn.style.animation = '';
+      btn.style.border = '';
+      btn.querySelector('span').textContent = 'Search';
       btn.onclick = startSearch;
       
-      // Cache la barre de progression et le bouton Stop en fin de recherche
+      // Cache la barre de progression
       document.getElementById('progress-wrap').style.display = 'none';
       resetProgress();
+    }
+
+    function setStopMode(btn) {
+      btn.disabled = false;
+      btn.style.background = '#dc2626';
+      btn.style.backgroundImage = 'none';
+      btn.style.boxShadow = '0 6px 32px rgba(220,38,38,0.55)';
+      btn.style.animation = 'none';
+      btn.style.border = 'none';
+      btn.querySelector('span').textContent = 'Stop';
+      btn.onclick = stopSearch;
     }
 
     function stopSearch() {
@@ -1082,14 +1087,7 @@
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
 
-      // Restaurer le bouton Search correctement
-      const btn = document.getElementById('start-btn');
-      if (btn) {
-        btn.disabled = false;
-        btn.classList.remove('loading', 'retry', 'stop-mode');
-        btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Search</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
-        btn.onclick = startSearch;
-      }
+      restoreUI();
     }
 
     function setRetryMode(btn) {
@@ -1134,12 +1132,8 @@
       window._shopDataMap = {};
 
       const btn = document.getElementById('start-btn');
-      if (btn) { 
-        btn.disabled = false;
-        btn.classList.remove('retry');
-        btn.classList.add('stop-mode');
-        btn.innerHTML = '<span>Stop</span>';
-        btn.onclick = stopSearch;
+      if (btn) {
+        setStopMode(btn);
       }
       
       const kwInput = document.getElementById('keyword-input');
