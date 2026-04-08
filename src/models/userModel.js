@@ -9,6 +9,14 @@ const userSchema = new mongoose.Schema({
   etsyUserId:      { type: String, default: null, sparse: true, index: true },
   etsyAccessToken: { type: String, default: null },
   createdAt:       { type: Date, default: Date.now },
+
+  // ── Stripe payment / search credits ──
+  // Nombre de mots-clés avec boutiques trouvées depuis le dernier paiement
+  keywordsWithResults: { type: Number, default: 0 },
+  // true = a payé et peut chercher (reset à false quand keywordsWithResults atteint 2)
+  searchPaid:          { type: Boolean, default: false },
+  // ID de session Stripe pour vérification
+  stripeSessionId:     { type: String, default: null },
 });
 
 userSchema.pre('save', async function(next) {
