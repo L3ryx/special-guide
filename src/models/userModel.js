@@ -6,8 +6,6 @@ const userSchema = new mongoose.Schema({
   resetPasswordExpires: { type: Date },
   email:           { type: String, required: true, unique: true, lowercase: true, trim: true },
   password:        { type: String, required: true },
-  etsyUserId:      { type: String, default: null, sparse: true, index: true },
-  etsyAccessToken: { type: String, default: null },
   createdAt:       { type: Date, default: Date.now },
 
   // ── Stripe payment / search credits ──
