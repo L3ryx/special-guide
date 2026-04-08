@@ -297,6 +297,35 @@
     .ep-close { align-self:flex-end; padding:10px 24px; border-radius:10px; border:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; font-family:'Croissant One',cursive; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s; }
     .ep-close:hover { background:rgba(239,68,68,0.28); color:#fff; }
 
+
+    /* ── PAYMENT MODAL ── */
+    #payment-overlay {
+      display:none; position:fixed; inset:0; z-index:9999;
+      background:rgba(0,0,0,0.75); backdrop-filter:blur(6px);
+      align-items:center; justify-content:center;
+    }
+    #payment-overlay.open { display:flex; }
+    #payment-modal {
+      background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);
+      border:1px solid rgba(255,255,255,0.1); border-radius:20px;
+      padding:36px 32px; max-width:420px; width:90%; box-shadow:0 25px 60px rgba(0,0,0,0.6);
+      display:flex; flex-direction:column; gap:20px; text-align:center;
+    }
+    .payment-icon { font-size:3rem; line-height:1; }
+    .payment-title { font-family:'Croissant One',cursive; font-size:1.5rem; color:#fff; }
+    .payment-subtitle { font-size:0.9rem; color:rgba(255,255,255,0.6); line-height:1.6; }
+    .payment-price { font-size:2.8rem; font-weight:900; color:#60a5fa; font-family:'Inter',sans-serif; letter-spacing:-1px; }
+    .payment-price span { font-size:1rem; font-weight:400; color:rgba(255,255,255,0.4); }
+    .payment-features { display:flex; flex-direction:column; gap:8px; text-align:left; background:rgba(255,255,255,0.04); border-radius:12px; padding:16px; border:1px solid rgba(255,255,255,0.06); }
+    .payment-feature { font-size:0.85rem; color:rgba(255,255,255,0.75); display:flex; align-items:center; gap:8px; }
+    .payment-feature::before { content:'\2713'; color:#22c55e; font-weight:700; }
+    .payment-warning { font-size:0.78rem; color:rgba(249,115,22,0.85); background:rgba(249,115,22,0.08); border:1px solid rgba(249,115,22,0.2); border-radius:8px; padding:10px 14px; line-height:1.5; }
+    .btn-pay { padding:16px 24px; border-radius:14px; border:none; cursor:pointer; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; font-size:1.05rem; font-weight:700; font-family:'Croissant One',cursive; transition:all 0.25s; box-shadow:0 4px 20px rgba(99,102,241,0.4); }
+    .btn-pay:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(99,102,241,0.55); }
+    .btn-pay:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+    .btn-pay-cancel { background:none; border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.45); font-size:0.82rem; padding:10px; border-radius:10px; cursor:pointer; transition:all 0.2s; }
+    .btn-pay-cancel:hover { color:rgba(255,255,255,0.7); border-color:rgba(255,255,255,0.3); }
+    .payment-status-msg { font-size:0.8rem; color:rgba(255,255,255,0.4); min-height:18px; }
   </style>
 </head>
 <body>
@@ -1031,6 +1060,84 @@
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
+
+    // ══════════ PAYMENT SYSTEM ══════════
+    // Storage keys
+    const PAY_KEY = 'scout_paid';
+    const MATCHES_KEY = 'scout_paid_matches'; // number of keywords that found stores
+
+    function isPaid() {
+      return localStorage.getItem(PAY_KEY) === '1';
+    }
+    function getPaidMatches() {
+      return parseInt(localStorage.getItem(MATCHES_KEY) || '0', 10);
+    }
+    function setPaidMatches(n) {
+      localStorage.setItem(MATCHES_KEY, String(n));
+    }
+    function canSearch() {
+      // Must have paid AND found stores for fewer than 2 keywords
+      return isPaid() && getPaidMatches() < 2;
+    }
+    function openPaymentModal() {
+      document.getElementById('payment-overlay').classList.add('open');
+      document.getElementById('payment-status-msg').textContent = '';
+      document.getElementById('pay-btn').disabled = false;
+      document.getElementById('pay-btn').textContent = 'Pay $20 with Stripe';
+    }
+    function closePaymentModal() {
+      document.getElementById('payment-overlay').classList.remove('open');
+    }
+    async function initiateStripePayment() {
+      const btn = document.getElementById('pay-btn');
+      const statusMsg = document.getElementById('payment-status-msg');
+      btn.disabled = true;
+      btn.textContent = 'Redirecting to Stripe...';
+      statusMsg.textContent = 'Please wait...';
+      try {
+        // Call backend to create Stripe Checkout session
+        const resp = await fetch('/api/create-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {})
+          },
+          body: JSON.stringify({ amount: 2000, currency: 'usd', description: 'Search unlock - 2 keyword sessions' })
+        });
+        const data = await resp.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else if (data.error) {
+          statusMsg.textContent = '❌ ' + data.error;
+          btn.disabled = false;
+          btn.textContent = 'Pay $20 with Stripe';
+        } else {
+          statusMsg.textContent = '❌ Unexpected error. Please try again.';
+          btn.disabled = false;
+          btn.textContent = 'Pay $20 with Stripe';
+        }
+      } catch(e) {
+        statusMsg.textContent = '❌ Network error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = 'Pay $20 with Stripe';
+      }
+    }
+    // Check if returning from Stripe with success
+    (function checkPaymentReturn() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('payment') === 'success') {
+        localStorage.setItem(PAY_KEY, '1');
+        localStorage.setItem(MATCHES_KEY, '0');
+        window.history.replaceState({}, '', window.location.pathname);
+        showToast('✅ Payment successful! You can now search freely.', '#22c55e');
+      }
+      if (params.get('payment') === 'cancel') {
+        window.history.replaceState({}, '', window.location.pathname);
+        showToast('❌ Payment cancelled.', '#ef4444');
+      }
+    })();
+    // ══════════ END PAYMENT SYSTEM ══════════
+
     // ── SEARCH ──
     let _searching = false;
     let _stopRequested = false;
@@ -1096,6 +1203,21 @@
     // --- START SEARCH (corrected) ---
     async function startSearch() {
       if (_searching) return;
+
+      // ── PAYMENT GATE ──
+      if (!canSearch()) {
+        const paidMatches = getPaidMatches();
+        if (!isPaid()) {
+          openPaymentModal();
+          return;
+        } else if (paidMatches >= 2) {
+          // Reset payment so they need to pay again
+          localStorage.removeItem(PAY_KEY);
+          localStorage.removeItem(MATCHES_KEY);
+          openPaymentModal();
+          return;
+        }
+      }
 
       // Mode auto : prendre le prochain keyword de la queue
       if (_autoSearch) {
@@ -1217,6 +1339,14 @@
                   document.getElementById('progress-msg').textContent = '✅ ' + found + ' dropshipper(s) found';
                   if (tag) tag.className = 'keyword-tag done';
                   totalMatches += found;
+                  // ── PAYMENT: count keyword sessions that found stores ──
+                  if (found > 0) {
+                    const newCount = getPaidMatches() + 1;
+                    setPaidMatches(newCount);
+                    if (newCount >= 2) {
+                      showToast('⚠️ You found stores for 2 keywords. A new payment is required to continue.', '#f97316');
+                    }
+                  }
                 } else if (ev.step === 'match') {
                   if (ev.shop) {
                     if (_autoSearch && ev.shop.shopName && _usedShops.includes(ev.shop.shopName)) {
@@ -1438,3 +1568,4 @@
   </script>
 </body>
 </html>
+
