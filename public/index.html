@@ -487,32 +487,7 @@
     let SCOUT_TOKEN = localStorage.getItem('scout_token') || null;
     let _currentUser = null;
 
-    // ── Gestion du retour OAuth Etsy ──
-    (function handleOAuthReturn() {
-      const params = new URLSearchParams(window.location.search);
-      const token   = params.get('token');
-      const email   = params.get('email');
-      const etsyErr = params.get('etsy_error');
-      if (token) {
-        localStorage.setItem('scout_token', token);
-        localStorage.setItem('etsy_connected', '1');
-        SCOUT_TOKEN = token;
-        window.history.replaceState({}, '', window.location.pathname);
-        // Toujours afficher l'email du compte, pas celui d'Etsy
-        fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } })
-          .then(function(r) { return r.json(); })
-          .then(function(d) { if (d && d.email) onLoggedIn(d.email); });
-      } else if (etsyErr) {
-        window.history.replaceState({}, '', window.location.pathname);
-        setTimeout(function() {
-          const errEl = document.getElementById('auth-error');
-          if (errEl) {
-            const msgs = { 'no_email': 'Etsy n\'a pas fourni votre email.', 'access_denied': 'Connexion Etsy annulée.' };
-            errEl.textContent = msgs[etsyErr] || ('Erreur Etsy : ' + etsyErr);
-          }
-        }, 500);
-      }
-    })();
+
 
 
     let _authTab = 'register';
@@ -1568,4 +1543,5 @@
   </script>
 </body>
 </html>
+
 
