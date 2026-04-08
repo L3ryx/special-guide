@@ -8,6 +8,7 @@ const scrapeRoutes = require('./routes/scrape');
 const { router: authRouter } = require('./routes/auth');
 const shopRoutes   = require('./routes/shopRoutes');
 const cloneRoutes  = require('./routes/CloneRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -47,6 +48,7 @@ app.use('/api', scrapeRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
 app.use('/api/clone', cloneRoutes);
+app.use('/api', paymentRoutes);
 
 // ── Pages
 app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
