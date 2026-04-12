@@ -70,14 +70,16 @@ router.post('/niche-keyword', async (req, res) => {
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
   const MAX_PAGES  = 10;
   const perPage    = 100;
-  // usedShops contient des shopNames (strings) — utilisé pour exclure les boutiques déjà traitées
+
+  // usedShops = shopNames déjà traités (MongoDB) → on les ignore immédiatement
   const usedShopNames = new Set(usedShops.map(s => String(s).toLowerCase()));
-  const shopIdsSeen  = new Set(); // dédup par shopId en phase 1
-  const shopIdToRaw = new Map(); // shopId → { listingId, link, title }
+  const shopIdsSeen   = new Set(); // dédup par shopId (phase 1)
+  const shopNamesSeen = new Set(); // dédup par shopName (phase 2, dans cette session)
+  const shopIdToRaw   = new Map(); // shopId → { listingId, link, title }
   let offset = 0;
   let page   = 0;
 
-  // ── PHASE 1 : collecter tous les shop_id uniques ──
+  // ── PHASE 1 : scan Etsy — collecter les shop_id uniques non encore vus ──
   while (page < MAX_PAGES) {
     if (isAborted()) return [];
     let results;
@@ -92,15 +94,14 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     for (const r of results) {
       if (!r.shopId) continue;
       const sid = String(r.shopId);
-      if (shopIdsSeen.has(sid)) continue;
+      if (shopIdsSeen.has(sid)) continue; // déjà vu dans cette session
       shopIdsSeen.add(sid);
-      if (!shopIdToRaw.has(sid)) {
-        shopIdToRaw.set(sid, { listingId: r.listingId, link: r.link, title: r.title });
-      }
+      // On garde le premier listing trouvé pour cette boutique (image 1)
+      shopIdToRaw.set(sid, { listingId: r.listingId, link: r.link, title: r.title });
     }
 
     page++;
-    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique new shopIds`);
+    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} boutiques uniques`);
     if (onBatch) onBatch(page, shopIdToRaw.size);
 
     if (results.length < perPage) break;
@@ -108,9 +109,15 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     await new Promise(r => setTimeout(r, 100));
   }
 
-  console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
+  console.log('[fetchListings] Total shopIds à résoudre:', shopIdToRaw.size);
 
-  // ── PHASE 2 : résoudre shopName + image par batch de 5 ──
+  // ── PHASE 2 : résoudre shopName + 3 images par batch de 5 ──
+  //
+  // Pour chaque boutique :
+  //   - Image 1 : première image du listing trouvé dans la recherche (listingId)
+  //   - Images 2 & 3 : premières images de 2 autres listings actifs de la boutique
+  //
+  // Si la boutique est dans usedShopNames (déjà traitée) → on l'ignore.
   const BATCH = 5;
   const listings = [];
   const shopIdList = [...shopIdToRaw.entries()];
@@ -136,10 +143,18 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       }
       const l = r.value;
       if (!l.shopName || !l.image) continue;
-      // Exclure les boutiques déjà traitées (par shopName, insensible à la casse)
-      if (usedShopNames.has(l.shopName.toLowerCase())) continue;
-      if (shopIdsSeen.has('name:' + l.shopName.toLowerCase())) continue;
-      shopIdsSeen.add('name:' + l.shopName.toLowerCase());
+
+      const nameKey = l.shopName.toLowerCase();
+
+      // Ignorer si boutique déjà traitée (sessions précédentes via MongoDB)
+      if (usedShopNames.has(nameKey)) {
+        console.log('[fetchListings] ignorée (déjà vue):', l.shopName);
+        continue;
+      }
+      // Ignorer si boutique déjà ajoutée dans cette session
+      if (shopNamesSeen.has(nameKey)) continue;
+      shopNamesSeen.add(nameKey);
+
       listings.push({
         listingId: l.listingId,
         link:      l.link,
@@ -155,7 +170,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     await new Promise(r => setTimeout(r, 100));
   }
 
-  console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
+  console.log('fetchListingsForDropship done:', listings.length, 'boutiques avec images');
   return listings;
 }
 
