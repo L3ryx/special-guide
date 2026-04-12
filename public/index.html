@@ -1458,10 +1458,7 @@
                 if (_stopRequested) { reader.cancel(); break; }
                 if (ev.step === 'complete') {
                   completeAllSteps();
-                  const found = (ev.dropshippers || []).length;
-                  document.getElementById('progress-msg').textContent = '✅ ' + found + ' dropshipper(s) found';
                   if (tag) tag.className = 'keyword-tag done';
-                  totalMatches += found;
                 } else if (ev.step === 'match') {
                   if (ev.shop) {
                     if (_autoSearch && ev.shop.shopName && _usedShops.includes(ev.shop.shopName)) {
@@ -1683,6 +1680,7 @@
   </script>
 </body>
 </html>
+
 
 
 
