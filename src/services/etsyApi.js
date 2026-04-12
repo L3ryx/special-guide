@@ -89,7 +89,8 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 }
 
 /**
- * Pour un shop_id : récupère shop_name + 2 images via getListingDetail.
+ * Pour un shop_id : récupère shop_name + jusqu'à 3 images de listings différents.
+ * Les 3 images servent à la détection dropshipping (1 match suffit).
  */
 async function getShopNameAndImage(shopId, listingId) {
   // 1. Nom de boutique
@@ -100,27 +101,55 @@ async function getShopNameAndImage(shopId, listingId) {
   const shopName = shop.shop_name;
   const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
 
-  // 2. Image 1 via /listings/{id}?includes=images
-  let image = null;
+  // 2. Récupérer jusqu'à 3 listings de la boutique pour avoir 3 images différentes
+  const images = [];
+
+  // Image du listing principal (déjà connu)
   if (listingId) {
     try {
       const r = await axios.get(`${BASE}/listings/${listingId}?includes=images`, {
         headers: headers(), timeout: 15000,
       });
-      const item = r.data;
-      image = cleanImage(
-        item.images?.[0]?.url_fullxfull ||
-        item.images?.[0]?.url_570xN ||
-        item.images?.[0]?.url_170x135 ||
+      const img = cleanImage(
+        r.data.images?.[0]?.url_fullxfull ||
+        r.data.images?.[0]?.url_570xN ||
+        r.data.images?.[0]?.url_170x135 ||
         null
       );
+      if (img) images.push(img);
     } catch(e) {
       console.warn('[etsyApi] image1 failed for listing', listingId, ':', e.message);
     }
   }
 
-  console.log('[etsyApi] getShopNameAndImage:', shopName, '| image1:', !!image);
-  return { shopName, shopUrl, image };
+  // Images supplémentaires depuis d'autres listings de la boutique
+  if (images.length < 3) {
+    try {
+      const r = await axios.get(
+        `${BASE}/shops/${shopId}/listings/active?limit=5&includes=images`,
+        { headers: headers(), timeout: 15000 }
+      );
+      const results = r.data.results || [];
+      for (const item of results) {
+        if (images.length >= 3) break;
+        if (item.listing_id === listingId) continue; // déjà ajouté
+        const img = cleanImage(
+          item.images?.[0]?.url_fullxfull ||
+          item.images?.[0]?.url_570xN ||
+          item.images?.[0]?.url_170x135 ||
+          null
+        );
+        if (img && !images.includes(img)) images.push(img);
+      }
+    } catch(e) {
+      console.warn('[etsyApi] extra images failed for shop', shopId, ':', e.message);
+    }
+  }
+
+  // image = première image (compatibilité), images = tableau des 3
+  const image = images[0] || null;
+  console.log('[etsyApi] getShopNameAndImage:', shopName, '| images:', images.length);
+  return { shopName, shopUrl, image, images };
 }
 
 /**
@@ -212,6 +241,7 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
+
 
 
 
