@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema({
   etsyUserId:      { type: String, default: null, sparse: true, index: true },
   etsyAccessToken: { type: String, default: null },
   searchCredits:   { type: Number, default: 0 },
+  unlimited:       { type: Boolean, default: false },
   createdAt:       { type: Date, default: Date.now },
 });
 
