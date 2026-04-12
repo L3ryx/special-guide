@@ -7,7 +7,6 @@ const path    = require('path');
 const scrapeRoutes = require('./routes/scrape');
 const { router: authRouter } = require('./routes/auth');
 const shopRoutes   = require('./routes/shopRoutes');
-const cloneRoutes  = require('./routes/CloneRoutes');
 const stripeRoutes = require('./routes/stripeRoutes');
 
 const app  = express();
@@ -47,7 +46,6 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api', scrapeRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
-app.use('/api/clone', cloneRoutes);
 app.use('/api/stripe', stripeRoutes);
 
 // ── Pages
