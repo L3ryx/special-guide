@@ -244,8 +244,8 @@
     .progress-msg { text-align:center; font-size:0.78rem; color:var(--muted); min-height:1.2em; }
 
     /* ── RESULTS ── */
-    #results-section { position:relative; z-index:10; padding:0 20px 80px; display:none; }
-    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:28px; }
+    #results-section { position:relative; z-index:10; padding:0 12px 80px; display:none; }
+    .results-grid { max-width:min(460px,96vw); margin:0 auto; display:flex; flex-direction:column; gap:16px; }
     #results-container { display:flex; flex-direction:column; gap:20px; }
     .keyword-section-title { font-size:0.75rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#f97316; padding:8px 0 4px; border-bottom:1px solid rgba(249,115,22,0.2); }
     .results-count-bar { text-align:center; font-size:0.8rem; color:var(--muted); margin-bottom:4px; }
@@ -265,12 +265,12 @@
     .match-card-inner {
       background:rgba(8,8,16,0.92);
       border-radius:12px;
-      display:flex; align-items:center; gap:12px;
-      padding:16px 18px;
+      display:flex; align-items:center; gap:10px;
+      padding:11px 13px;
       backdrop-filter:blur(20px);
     }
-    .shop-result-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.15); }
-    .shop-result-avatar-ph { width:48px; height:48px; border-radius:50%; flex-shrink:0; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:1.3rem; }
+    .shop-result-avatar { width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.15); }
+    .shop-result-avatar-ph { width:40px; height:40px; border-radius:50%; flex-shrink:0; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
     .shop-result-info { flex:1; min-width:0; }
     .shop-result-name { font-weight:700; font-size:0.9rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .shop-result-tag { font-size:0.62rem; color:#a78bfa; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; margin-top:2px; }
