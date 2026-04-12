@@ -326,13 +326,8 @@ router.get('/health', (req, res) => {
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
 
-// ── AUTH + SHOPS ──
-const { router: authRouter } = require('./auth');
-const shopRouter              = require('./shopRoutes');
-router.use('/auth',  authRouter);
-router.use('/shops', shopRouter);
-
 module.exports = router;
+
 
 
 
