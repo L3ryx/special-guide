@@ -68,7 +68,7 @@ router.post('/niche-keyword', async (req, res) => {
  * Retourne un tableau de { listingId, link, image, shopName, shopUrl }.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 8;
+  const MAX_PAGES  = 10;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
   const shopIdToRaw = new Map(); // shopId → { listingId, link, title }
