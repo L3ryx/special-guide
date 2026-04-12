@@ -256,24 +256,44 @@
     // ── Shop list ──
     async function loadShops() {
       const list = document.getElementById('shops-list');
-      list.innerHTML = '<div class="empty-state"><span class="emoji">⏳</span>Chargement…</div>';
+      const token = localStorage.getItem('scout_token');
+      list.innerHTML = '';
+
+      // PANNEAU DEBUG
+      const debug = document.createElement('div');
+      debug.style.cssText = 'background:#1a1a2e;border:1px solid #f1641e;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:0.75rem;color:#fff;line-height:2;font-family:monospace;word-break:break-all;';
+      debug.innerHTML = '<b>🔍 DEBUG</b><br>Token: ' + (token ? token.slice(0,40)+'...' : '<span style=color:#f87171>ABSENT - non connecte</span>');
+      list.appendChild(debug);
+
       try {
         const r = await apiFetch('/api/shops');
+        debug.innerHTML += '<br>Status HTTP: <b style=color:#60a5fa>' + r.status + '</b>';
+
         if (r.status === 401) {
+          debug.innerHTML += ' <span style=color:#f87171>(token invalide)</span>';
           localStorage.removeItem('scout_token');
-          window.location.href = '/finder';
           return;
         }
-        const data = await r.json();
+
+        const raw = await r.text();
+        debug.innerHTML += '<br>Reponse brute: <b>' + raw.slice(0, 400) + '</b>';
+
+        let data;
+        try { data = JSON.parse(raw); } catch(pe) {
+          debug.innerHTML += '<br><span style=color:#f87171>JSON invalide: ' + pe.message + '</span>';
+          return;
+        }
+
         const shops = Array.isArray(data) ? data : [];
+        debug.innerHTML += '<br>Boutiques: <b style=color:#4ade80>' + shops.length + '</b>';
+
         if (!shops.length) {
-          list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved listings yet.<br>Save listings from your search results.</div>';
+          list.innerHTML += '<div class="empty-state"><span class="emoji">🏪</span>Aucune boutique sauvegardee.</div>';
           return;
         }
-        list.innerHTML = '';
         shops.forEach(shop => list.appendChild(buildShopRow(shop)));
       } catch(e) {
-        list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>Erreur de chargement : ' + (e.message || 'inconnue') + '</div>';
+        debug.innerHTML += '<br><span style=color:#f87171>Erreur fetch: ' + (e.message || 'inconnue') + '</span>';
       }
     }
 
