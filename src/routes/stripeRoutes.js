@@ -104,23 +104,29 @@ router.post('/confirm-payment', requireAuth, async (req, res) => {
 });
 
 // ── GET /api/stripe/credits ──
-// Returns the number of remaining searches
+// Returns the number of remaining searches and unlimited status
 router.get('/credits', requireAuth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('searchCredits');
+    const user = await User.findById(req.user.id).select('searchCredits unlimited');
     if (!user) return res.status(404).json({ error: 'User not found.' });
-    res.json({ searchCredits: user.searchCredits });
+    res.json({ searchCredits: user.searchCredits, unlimited: user.unlimited || false });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // ── POST /api/stripe/consume ──
-// Consumes 1 credit when a search is launched
+// Consumes 1 credit when a search is launched (skipped for unlimited accounts)
 router.post('/consume', requireAuth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('searchCredits');
+    const user = await User.findById(req.user.id).select('searchCredits unlimited');
     if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    // Unlimited accounts are never debited
+    if (user.unlimited) {
+      return res.json({ ok: true, searchCredits: user.searchCredits, unlimited: true });
+    }
+
     if (user.searchCredits <= 0) {
       return res.status(402).json({ error: 'No search credits available.' });
     }
@@ -129,7 +135,7 @@ router.post('/consume', requireAuth, async (req, res) => {
       { $inc: { searchCredits: -1 } },
       { new: true }
     );
-    res.json({ ok: true, searchCredits: updated.searchCredits });
+    res.json({ ok: true, searchCredits: updated.searchCredits, unlimited: false });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
