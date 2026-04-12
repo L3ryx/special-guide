@@ -5,8 +5,9 @@ const cors    = require('cors');
 const path    = require('path');
 
 const scrapeRoutes = require('./routes/scrape');
+const { router: authRouter } = require('./routes/auth');
+const shopRoutes   = require('./routes/shopRoutes');
 const stripeRoutes = require('./routes/stripeRoutes');
-// Auth et shops sont déjà montés dans scrape.js (/api/auth et /api/shops)
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -42,7 +43,9 @@ app.get('/proxy-image', async (req, res) => {
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 // ── Routes API
-app.use('/api', scrapeRoutes);   // inclut /api/auth et /api/shops via scrape.js
+app.use('/api', scrapeRoutes);
+app.use('/api/auth', authRouter);
+app.use('/api/shops', shopRoutes);
 app.use('/api/stripe', stripeRoutes);
 
 // ── Pages
