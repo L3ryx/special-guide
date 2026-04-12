@@ -1275,14 +1275,12 @@
       document.getElementById('start-btn').style.display = 'flex';
       document.getElementById('stop-btn').style.display = 'none';
       document.getElementById('progress-wrap').style.display = 'none';
-      document.getElementById('title-outer').style.display = 'flex';
       resetProgress();
     }
 
     function setStopMode(btn) {
       document.getElementById('start-btn').style.display = 'none';
       document.getElementById('stop-btn').style.display = 'flex';
-      document.getElementById('title-outer').style.display = 'none';
     }
 
     let _restoreTimer = null;
@@ -1317,7 +1315,6 @@
       document.getElementById('start-btn').style.display = 'flex';
       document.getElementById('stop-btn').style.display = 'none';
       document.getElementById('keyword-input').disabled = false;
-      document.getElementById('title-outer').style.display = 'flex';
     }
 
     function setRetryMode(btn) {
