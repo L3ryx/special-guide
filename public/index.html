@@ -638,6 +638,7 @@
     var _stripeElements = null;
     var _stripePaymentEl = null;
     var _searchCredits = 0;
+    var _unlimited = false;
 
     function initSearchCredits() {
       // Load credits from server (stored in DB)
@@ -645,14 +646,18 @@
         headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN }
       })
       .then(function(r){ return r.json(); })
-      .then(function(d){ _searchCredits = d.searchCredits || 0; renderCredits(); })
-      .catch(function(){ _searchCredits = 0; renderCredits(); });
+      .then(function(d){ _searchCredits = d.searchCredits || 0; _unlimited = d.unlimited || false; renderCredits(); })
+      .catch(function(){ _searchCredits = 0; _unlimited = false; renderCredits(); });
     }
 
     function renderCredits() {
       var counter = document.getElementById('search-counter');
       var countEl = document.getElementById('sc-count');
-      if (_searchCredits > 0) {
+      if (_unlimited) {
+        counter.style.display = 'block';
+        countEl.textContent = '∞';
+        countEl.className = 'sc-count';
+      } else if (_searchCredits > 0) {
         counter.style.display = 'block';
         countEl.textContent = _searchCredits;
         countEl.className = 'sc-count' + (_searchCredits <= 2 ? ' low' : '');
@@ -669,6 +674,7 @@
         });
         var d = await r.json();
         if (!r.ok) return false;
+        _unlimited = d.unlimited || false;
         _searchCredits = d.searchCredits;
         renderCredits();
         return true;
@@ -1321,7 +1327,7 @@
       if (_searching) return;
 
       // ── CHECK CREDITS ──
-      if (_searchCredits <= 0) {
+      if (!_unlimited && _searchCredits <= 0) {
         showToast('⚠️ No searches left — buy more to continue!', '#facc15');
         openStripeModal();
         return;
