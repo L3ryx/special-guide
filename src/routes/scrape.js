@@ -70,7 +70,9 @@ router.post('/niche-keyword', async (req, res) => {
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
   const MAX_PAGES  = 10;
   const perPage    = 100;
-  const shopsSeen  = new Set(usedShops);
+  // usedShops contient des shopNames (strings) — utilisé pour exclure les boutiques déjà traitées
+  const usedShopNames = new Set(usedShops.map(s => String(s).toLowerCase()));
+  const shopIdsSeen  = new Set(); // dédup par shopId en phase 1
   const shopIdToRaw = new Map(); // shopId → { listingId, link, title }
   let offset = 0;
   let page   = 0;
@@ -90,9 +92,9 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     for (const r of results) {
       if (!r.shopId) continue;
       const sid = String(r.shopId);
-      if (shopsSeen.has(sid)) continue;
+      if (shopIdsSeen.has(sid)) continue;
+      shopIdsSeen.add(sid);
       if (!shopIdToRaw.has(sid)) {
-        // Premier listing de cette boutique — on ne garde qu'une seule image
         shopIdToRaw.set(sid, { listingId: r.listingId, link: r.link, title: r.title });
       }
     }
@@ -118,8 +120,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(([shopId, raw]) =>
-        getShopNameAndImage(shopId, raw.listingId).then(({ shopName, shopUrl, image }) => ({
-          shopId, shopName, shopUrl, image,
+        getShopNameAndImage(shopId, raw.listingId).then(({ shopName, shopUrl, image, images }) => ({
+          shopId, shopName, shopUrl, image, images: images || (image ? [image] : []),
           listingId: raw.listingId,
           link:      raw.link,
           title:     raw.title,
@@ -134,13 +136,16 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       }
       const l = r.value;
       if (!l.shopName || !l.image) continue;
-      if (shopsSeen.has(l.shopName)) continue;
-      shopsSeen.add(l.shopName);
+      // Exclure les boutiques déjà traitées (par shopName, insensible à la casse)
+      if (usedShopNames.has(l.shopName.toLowerCase())) continue;
+      if (shopIdsSeen.has('name:' + l.shopName.toLowerCase())) continue;
+      shopIdsSeen.add('name:' + l.shopName.toLowerCase());
       listings.push({
         listingId: l.listingId,
         link:      l.link,
         title:     l.title,
         image:     l.image,
+        images:    l.images || [l.image],
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
@@ -209,7 +214,7 @@ router.post('/search-dropship', async (req, res) => {
     try {
       listings = await fetchListingsForDropship(
         keyword,
-        (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' boutiques...' }),
+        (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/10 — ' + count + ' boutiques...' }),
         usedShops,
         isAborted
       );
@@ -266,19 +271,28 @@ router.post('/search-dropship', async (req, res) => {
         analyzed++;
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
-          const img1 = listing.image;
-          if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
+          const shopImages = listing.images || (listing.image ? [listing.image] : []);
+          if (!shopImages.length) { console.warn('[worker] no images for', listing.shopName); continue; }
 
-          console.log('[worker] running lensMatch for', listing.shopName);
-          const m1 = await lensMatch(img1);
+          console.log('[worker] testing', shopImages.length, 'images for', listing.shopName);
+
+          // Tester les images une par une — 1 match suffit pour confirmer le dropshipping
+          let matchFound = null;
+          let matchedImg = shopImages[0];
+          for (const imgUrl of shopImages) {
+            if (isAborted()) break;
+            const m = await lensMatch(imgUrl);
+            if (m) { matchFound = m; matchedImg = imgUrl; break; }
+          }
+
           if (isAborted()) break;
-          console.log('[worker]', listing.shopName, '| m1:', !!m1);
-          if (m1) {
+          console.log('[worker]', listing.shopName, '| match:', !!matchFound, '| images tested:', shopImages.length);
+          if (matchFound) {
             dropshippers.push({
               shopName:   listing.shopName,
               shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
               shopAvatar: null,
-              shopImage:  img1,
+              shopImage:  matchedImg,
               listingUrl: listing.link,
             });
             send({ step: 'match', message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)', shop: dropshippers[dropshippers.length - 1] });
@@ -324,6 +338,7 @@ router.use('/auth',  authRouter);
 router.use('/shops', shopRouter);
 
 module.exports = router;
+
 
 
 
