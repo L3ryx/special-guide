@@ -24,6 +24,7 @@ router.post('/save', requireAuth, async (req, res) => {
   }
 
   if (!productUrl && shopUrl) productUrl = shopUrl;
+  if (!productUrl && shopName) productUrl = 'https://www.etsy.com/shop/' + shopName;
   if (!productUrl) return res.status(400).json({ error: 'productUrl requis' });
 
   try {
@@ -116,6 +117,7 @@ router.post('/auto-state/queue', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
 
 
 
