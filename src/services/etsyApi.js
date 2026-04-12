@@ -89,8 +89,14 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 }
 
 /**
- * Pour un shop_id : récupère shop_name + jusqu'à 3 images de listings différents.
- * Les 3 images servent à la détection dropshipping (1 match suffit).
+ * Pour un shop_id : récupère shop_name + 3 images de listings différents.
+ *
+ * Stratégie :
+ *  - Image 1 : première image du listing trouvé dans la recherche Etsy (listingId)
+ *  - Images 2 & 3 : première image de 2 autres listings actifs de la boutique
+ *
+ * Les 3 images sont ensuite testées sur AliExpress via Serper Lens.
+ * Si la boutique a moins de 3 listings, on retourne ce qu'on a.
  */
 async function getShopNameAndImage(shopId, listingId) {
   // 1. Nom de boutique
@@ -101,10 +107,9 @@ async function getShopNameAndImage(shopId, listingId) {
   const shopName = shop.shop_name;
   const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
 
-  // 2. Récupérer jusqu'à 3 listings de la boutique pour avoir 3 images différentes
   const images = [];
 
-  // Image du listing principal (déjà connu)
+  // Image 1 : première image du listing de l'annonce trouvée dans la recherche
   if (listingId) {
     try {
       const r = await axios.get(`${BASE}/listings/${listingId}?includes=images`, {
@@ -117,38 +122,39 @@ async function getShopNameAndImage(shopId, listingId) {
         null
       );
       if (img) images.push(img);
+      console.log('[etsyApi] image1 (listing', listingId, '):', !!img);
     } catch(e) {
       console.warn('[etsyApi] image1 failed for listing', listingId, ':', e.message);
     }
   }
 
-  // Images supplémentaires depuis d'autres listings de la boutique
-  if (images.length < 3) {
-    try {
-      const r = await axios.get(
-        `${BASE}/shops/${shopId}/listings/active?limit=5&includes=images`,
-        { headers: headers(), timeout: 15000 }
+  // Images 2 & 3 : premières images de 2 autres listings actifs de la boutique
+  try {
+    const r = await axios.get(
+      `${BASE}/shops/${shopId}/listings/active?limit=10&includes=images`,
+      { headers: headers(), timeout: 15000 }
+    );
+    const results = r.data.results || [];
+    for (const item of results) {
+      if (images.length >= 3) break;
+      if (String(item.listing_id) === String(listingId)) continue; // déjà en image 1
+      const img = cleanImage(
+        item.images?.[0]?.url_fullxfull ||
+        item.images?.[0]?.url_570xN ||
+        item.images?.[0]?.url_170x135 ||
+        null
       );
-      const results = r.data.results || [];
-      for (const item of results) {
-        if (images.length >= 3) break;
-        if (item.listing_id === listingId) continue; // déjà ajouté
-        const img = cleanImage(
-          item.images?.[0]?.url_fullxfull ||
-          item.images?.[0]?.url_570xN ||
-          item.images?.[0]?.url_170x135 ||
-          null
-        );
-        if (img && !images.includes(img)) images.push(img);
+      if (img && !images.includes(img)) {
+        images.push(img);
+        console.log('[etsyApi] image' + images.length + ' (listing', item.listing_id, '):', !!img);
       }
-    } catch(e) {
-      console.warn('[etsyApi] extra images failed for shop', shopId, ':', e.message);
     }
+  } catch(e) {
+    console.warn('[etsyApi] shop listings failed for shop', shopId, ':', e.message);
   }
 
-  // image = première image (compatibilité), images = tableau des 3
   const image = images[0] || null;
-  console.log('[etsyApi] getShopNameAndImage:', shopName, '| images:', images.length);
+  console.log('[etsyApi] getShopNameAndImage:', shopName, '| total images:', images.length);
   return { shopName, shopUrl, image, images };
 }
 
