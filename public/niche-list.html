@@ -196,9 +196,7 @@
       <button type="button" class="btn-back" onclick="goBack()">← Back</button>
       <span class="nav-title">Dashboard</span>
     </div>
-    <button class="btn-etsy-login" id="etsy-login-btn" onclick="handleEtsyLogin()">
-      🛍 Etsy Login
-    </button>
+
   </nav>
 
   <div class="container">
@@ -307,10 +305,6 @@
       visitBtn.className = 'btn-visit'; visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener'; visitBtn.textContent = 'Visit shop ↗';
       actions.appendChild(visitBtn);
 
-      const cloneBtn = document.createElement('button');
-      cloneBtn.className = 'btn-clone'; cloneBtn.textContent = 'Clone';
-      cloneBtn.addEventListener('click', function() { openCloneModal(shopName); });
-      actions.appendChild(cloneBtn);
 
       center.appendChild(actions);
       row.appendChild(center);
@@ -546,6 +540,7 @@
   </script>
 </body>
 </html>
+
 
 
 
