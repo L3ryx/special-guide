@@ -92,14 +92,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       const sid = String(r.shopId);
       if (shopsSeen.has(sid)) continue;
       if (!shopIdToRaw.has(sid)) {
-        // Premier listing de cette boutique
-        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
-      } else {
-        // Deuxième listing différent — on le stocke si pas encore trouvé
-        const existing = shopIdToRaw.get(sid);
-        if (!existing.listingId2 && r.listingId !== existing.listingId) {
-          existing.listingId2 = r.listingId;
-        }
+        // Premier listing de cette boutique — on ne garde qu'une seule image
+        shopIdToRaw.set(sid, { listingId: r.listingId, link: r.link, title: r.title });
       }
     }
 
@@ -124,8 +118,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(([shopId, raw]) =>
-        getShopNameAndImage(shopId, raw.listingId, raw.listingId2).then(({ shopName, shopUrl, image, image2 }) => ({
-          shopId, shopName, shopUrl, image, image2,
+        getShopNameAndImage(shopId, raw.listingId).then(({ shopName, shopUrl, image }) => ({
+          shopId, shopName, shopUrl, image,
           listingId: raw.listingId,
           link:      raw.link,
           title:     raw.title,
@@ -139,7 +133,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         continue;
       }
       const l = r.value;
-      if (!l.shopName || !l.image || !l.image2) continue;
+      if (!l.shopName || !l.image) continue;
       if (shopsSeen.has(l.shopName)) continue;
       shopsSeen.add(l.shopName);
       listings.push({
@@ -147,7 +141,6 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         link:      l.link,
         title:     l.title,
         image:     l.image,
-        image2:    l.image2,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
@@ -274,15 +267,13 @@ router.post('/search-dropship', async (req, res) => {
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
           const img1 = listing.image;
-          const img2 = listing.image2;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
-          if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
           console.log('[worker] running lensMatch for', listing.shopName);
-          const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(img2)]);
+          const m1 = await lensMatch(img1);
           if (isAborted()) break;
-          console.log('[worker]', listing.shopName, '| m1:', !!m1, '| m2:', !!m2);
-          if (m1 && m2) {
+          console.log('[worker]', listing.shopName, '| m1:', !!m1);
+          if (m1) {
             dropshippers.push({
               shopName:   listing.shopName,
               shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
@@ -325,6 +316,12 @@ router.get('/health', (req, res) => {
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
+
+// ── AUTH + SHOPS ──
+const { router: authRouter } = require('./auth');
+const shopRouter              = require('./shopRoutes');
+router.use('/auth',  authRouter);
+router.use('/shops', shopRouter);
 
 module.exports = router;
 
