@@ -8,19 +8,20 @@ const User    = require('../models/userModel');
 const JWT_SECRET  = process.env.JWT_SECRET || 'Bretignydu91';
 const JWT_EXPIRES = '30d';
 
-const APP_URL = process.env.APP_URL || 'https://www.finder-niche.com';
+const ETSY_CLIENT_ID     = process.env.ETSY_CLIENT_ID;
+const ETSY_CLIENT_SECRET = process.env.ETSY_CLIENT_SECRET;
+const APP_URL            = process.env.APP_URL || 'https://www.finder-niche.com';
+const ETSY_REDIRECT_URI  = APP_URL + '/api/auth/etsy/callback';
 
-// Stripe
-const STRIPE_SECRET_KEY          = process.env.STRIPE_SECRET_KEY;
-const STRIPE_WEBHOOK_SECRET      = process.env.STRIPE_WEBHOOK_SECRET;
-const SEARCH_PRICE_CENTS         = 2000; // $20.00
-const KEYWORDS_WITH_RESULTS_LIMIT = 2;   // Après 2 mots-clés avec résultats → payer à nouveau
+// Stockage temporaire des code_verifier (en mémoire — suffit pour un seul serveur)
+// Pour multi-instance, remplacer par Redis ou MongoDB
+const pkceStore = new Map();
 
 function makeToken(userId) {
   return jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
-// ── Middleware auth ──
+// ── Middleware auth — vérifie le JWT dans le header Authorization ──
 function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -34,144 +35,141 @@ function requireAuth(req, res, next) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// STRIPE PAYMENT
+// ETSY OAUTH 2.0 (PKCE)
 // ══════════════════════════════════════════════════════════════════
 
-// POST /api/auth/payment/create-session
-// Crée une session Stripe Checkout de $20
-router.post('/payment/create-session', requireAuth, async (req, res) => {
-  if (!STRIPE_SECRET_KEY) {
-    return res.status(500).json({ error: 'STRIPE_SECRET_KEY manquant' });
-  }
-  try {
-    const stripe = require('stripe')(STRIPE_SECRET_KEY);
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: 'Finder Niche — Search Access',
-            description: 'Unlimited searches until dropshipping shops are found for 2 keywords',
-          },
-          unit_amount: SEARCH_PRICE_CENTS,
-        },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      success_url: APP_URL + '/finder?payment=success&session_id={CHECKOUT_SESSION_ID}',
-      cancel_url:  APP_URL + '/finder?payment=cancelled',
-      metadata: { userId: req.user.id },
-    });
+// Génère un code_verifier aléatoire et son code_challenge SHA-256
+function generatePKCE() {
+  const verifier  = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  return { verifier, challenge };
+}
 
-    res.json({ url: session.url, sessionId: session.id });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+// GET /api/auth/etsy
+// Redirige l'utilisateur vers la page d'autorisation Etsy
+router.get('/etsy', (req, res) => {
+  if (!ETSY_CLIENT_ID) {
+    return res.status(500).json({ error: 'ETSY_CLIENT_ID manquant dans les variables d\'environnement' });
   }
+
+  // Récupérer l'userId depuis le JWT — accepte header Authorization OU query param ?token=
+  const header = req.headers.authorization || '';
+  const token  = (header.startsWith('Bearer ') ? header.slice(7) : null) || req.query.token || req.query.jwt || null;
+  if (!token) {
+    return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent('Connecte-toi d\'abord à ton compte avant de lier Etsy'));
+  }
+  let userId;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    userId = decoded.id;
+  } catch {
+    return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent('Session expirée — reconnecte-toi'));
+  }
+
+  const { verifier, challenge } = generatePKCE();
+  const state = crypto.randomBytes(16).toString('hex');
+
+  // Stocker le verifier ET l'userId lié au state (expire après 10 min)
+  pkceStore.set(state, { verifier, userId, createdAt: Date.now() });
+  setTimeout(() => pkceStore.delete(state), 10 * 60 * 1000);
+
+  const params = new URLSearchParams({
+    response_type:         'code',
+    client_id:             ETSY_CLIENT_ID,
+    redirect_uri:          ETSY_REDIRECT_URI,
+    scope:                 'email_r listings_r shops_r',
+    state,
+    code_challenge:        challenge,
+    code_challenge_method: 'S256',
+  });
+
+  res.redirect('https://www.etsy.com/oauth/connect?' + params.toString());
 });
 
-// POST /api/auth/payment/webhook
-// Webhook Stripe — confirme le paiement et active les crédits
-router.post('/payment/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  if (!STRIPE_WEBHOOK_SECRET) {
-    return res.status(500).json({ error: 'STRIPE_WEBHOOK_SECRET manquant' });
-  }
-  const stripe = require('stripe')(STRIPE_SECRET_KEY);
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+// GET /api/auth/etsy/callback
+// Etsy redirige ici après l'autorisation de l'utilisateur
+router.get('/etsy/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+
+  if (error) {
+    return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent(error));
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const userId  = session.metadata?.userId;
-    if (userId) {
-      try {
-        await User.findByIdAndUpdate(userId, {
-          searchPaid:          true,
-          keywordsWithResults: 0,
-          stripeSessionId:     session.id,
-        });
-      } catch (e) {
-        console.error('Webhook DB update error:', e.message);
+  if (!code || !state) {
+    return res.status(400).json({ error: 'Paramètres manquants (code ou state)' });
+  }
+
+  const pkce = pkceStore.get(state);
+  if (!pkce) {
+    return res.status(400).json({ error: 'State invalide ou expiré — recommence la connexion' });
+  }
+  pkceStore.delete(state);
+
+  try {
+    // Échanger le code contre un access_token
+    const tokenRes = await axios.post(
+      'https://api.etsy.com/v3/public/oauth/token',
+      new URLSearchParams({
+        grant_type:    'authorization_code',
+        client_id:     ETSY_CLIENT_ID,
+        redirect_uri:  ETSY_REDIRECT_URI,
+        code,
+        code_verifier: pkce.verifier,
+      }).toString(),
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 15000,
       }
-    }
-  }
+    );
 
-  res.json({ received: true });
-});
+    const { access_token, refresh_token, expires_in } = tokenRes.data;
 
-// GET /api/auth/payment/status
-// Retourne le statut de paiement de l'utilisateur connecté
-router.get('/payment/status', requireAuth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('searchPaid keywordsWithResults');
-    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
-    res.json({
-      paid:                user.searchPaid,
-      keywordsWithResults: user.keywordsWithResults,
-      limit:               KEYWORDS_WITH_RESULTS_LIMIT,
+    // Récupérer le profil Etsy pour avoir l'email / user_id
+    const profileRes = await axios.get('https://api.etsy.com/v3/application/users/me', {
+      headers: {
+        'x-api-key':     ETSY_CLIENT_ID + ':' + ETSY_CLIENT_SECRET,
+        'Authorization': 'Bearer ' + access_token,
+      },
+      timeout: 10000,
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// POST /api/auth/payment/verify-session
-// Vérifie une session Stripe côté client après redirection success
-router.post('/payment/verify-session', requireAuth, async (req, res) => {
-  if (!STRIPE_SECRET_KEY) return res.status(500).json({ error: 'STRIPE_SECRET_KEY manquant' });
-  const { sessionId } = req.body;
-  if (!sessionId) return res.status(400).json({ error: 'sessionId manquant' });
-  try {
-    const stripe  = require('stripe')(STRIPE_SECRET_KEY);
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    if (session.payment_status === 'paid' && String(session.metadata?.userId) === String(req.user.id)) {
-      await User.findByIdAndUpdate(req.user.id, {
-        searchPaid:          true,
-        keywordsWithResults: 0,
-        stripeSessionId:     session.id,
-      });
-      return res.json({ ok: true, paid: true });
+    const etsyUser  = profileRes.data;
+    const etsyId    = String(etsyUser.user_id);
+    // Etsy ne retourne pas toujours l'email — on utilise l'etsyId comme identifiant unique
+    const etsyEmail = etsyUser.primary_email || etsyUser.email || null;
+    // Email de substitution basé sur le user_id Etsy si pas d'email fourni
+    const userEmail = etsyEmail ? etsyEmail.toLowerCase().trim() : ('etsy_' + etsyId + '@finder-niche.com');
+
+    // Lier la boutique Etsy au compte déjà connecté (pkce.userId = id du user connecté)
+    const user = await User.findById(pkce.userId);
+    if (!user) {
+      return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent('Compte introuvable — reconnecte-toi'));
     }
-    res.json({ ok: false, paid: false });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/auth/payment/record-result
-// Appelé par le backend de recherche quand un mot-clé a trouvé ≥1 boutique
-// Incrémente keywordsWithResults et révoque searchPaid si limite atteinte
-router.post('/payment/record-result', requireAuth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
-
-    user.keywordsWithResults = (user.keywordsWithResults || 0) + 1;
-
-    if (user.keywordsWithResults >= KEYWORDS_WITH_RESULTS_LIMIT) {
-      user.searchPaid          = false;
-      user.keywordsWithResults = 0; // reset pour le prochain cycle
-    }
-
+    user.etsyUserId = etsyId;
     await user.save();
-    res.json({
-      paid:                user.searchPaid,
-      keywordsWithResults: user.keywordsWithResults,
-      limit:               KEYWORDS_WITH_RESULTS_LIMIT,
-    });
+
+    // On retourne le même token (le compte n'a pas changé) + confirmation
+    const appToken = makeToken(user._id);
+    res.redirect(APP_URL + '/niche-list?token=' + appToken + '&etsy_linked=1&email=' + encodeURIComponent(user.email));
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Etsy OAuth error:', err.response?.data || err.message);
+    const msg = err.response?.data?.error_description || err.message;
+    res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent(msg));
   }
+});
+
+// GET /api/auth/etsy/status
+// Permet au frontend de savoir si ETSY_CLIENT_ID est configuré
+router.get('/etsy/status', (req, res) => {
+  res.json({ configured: !!ETSY_CLIENT_ID });
 });
 
 // ══════════════════════════════════════════════════════════════════
 // AUTH CLASSIQUE (email / mot de passe)
 // ══════════════════════════════════════════════════════════════════
 
+// POST /api/auth/register
 router.post('/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
@@ -186,6 +184,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// POST /api/auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
@@ -200,12 +199,14 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// GET /api/auth/me
 router.get('/me', requireAuth, async (req, res) => {
   const user = await User.findById(req.user.id).select('-password');
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json({ email: user.email, id: user._id });
 });
 
+// POST /api/auth/change-password
 router.post('/change-password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both fields required' });
@@ -223,6 +224,7 @@ router.post('/change-password', requireAuth, async (req, res) => {
   }
 });
 
+// DELETE /api/auth/delete-account
 router.delete('/delete-account', requireAuth, async (req, res) => {
   const { password } = req.body;
   if (!password) return res.status(400).json({ error: 'Password required' });
@@ -240,6 +242,7 @@ router.delete('/delete-account', requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/auth/change-email
 router.post('/change-email', requireAuth, async (req, res) => {
   const { newEmail, password } = req.body;
   if (!newEmail || !password) return res.status(400).json({ error: 'Both fields required' });
@@ -258,6 +261,7 @@ router.post('/change-email', requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/auth/forgot-password
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email required' });
@@ -294,6 +298,7 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
+// POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) return res.status(400).json({ error: 'Token and password required' });
@@ -315,4 +320,9 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
+
+
+
+
+
 
