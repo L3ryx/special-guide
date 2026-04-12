@@ -8,12 +8,17 @@ const scrapeRoutes = require('./routes/scrape');
 const { router: authRouter } = require('./routes/auth');
 const shopRoutes   = require('./routes/shopRoutes');
 const cloneRoutes  = require('./routes/CloneRoutes');
+const stripeRoutes = require('./routes/stripeRoutes');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+// Le webhook Stripe doit recevoir le raw body — on l'exclut du json parser global
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/stripe/webhook') return next();
+  express.json()(req, res, next);
+});
 app.use(express.static(path.join(__dirname, '../public'), { index: false }));
 
 // ── Proxy image
@@ -47,6 +52,7 @@ app.use('/api', scrapeRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
 app.use('/api/clone', cloneRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 // ── Pages
 app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
