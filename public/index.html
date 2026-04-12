@@ -297,9 +297,11 @@
     .sc-count.low { color:#f87171; }
 
     /* ── STRIPE MODAL ── */
-    #stripe-overlay { position:fixed; inset:0; z-index:99000; background:rgba(0,0,0,0.82); backdrop-filter:blur(10px); display:none; align-items:center; justify-content:center; padding:20px; }
+    #stripe-overlay { position:fixed; inset:0; z-index:99000; background:rgba(0,0,0,0.82); backdrop-filter:blur(10px); display:none; align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto; }
     #stripe-overlay.open { display:flex; animation:epFade 0.2s ease; }
-    #stripe-box { background:#0f0f14; border:1px solid rgba(250,204,21,0.25); border-radius:24px; padding:36px 32px; width:100%; max-width:420px; display:flex; flex-direction:column; gap:20px; box-shadow:0 24px 80px rgba(0,0,0,0.9); animation:epSlide 0.22s ease; }
+    #stripe-box { position:relative; background:#0f0f14; border:1px solid rgba(250,204,21,0.25); border-radius:24px; padding:36px 32px; width:100%; max-width:420px; display:flex; flex-direction:column; gap:20px; box-shadow:0 24px 80px rgba(0,0,0,0.9); animation:epSlide 0.22s ease; margin:auto; }
+    #stripe-close-btn { position:absolute; top:14px; right:16px; background:rgba(255,255,255,0.07); border:none; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:rgba(255,255,255,0.6); font-size:1.1rem; line-height:1; transition:background 0.2s, color 0.2s; }
+    #stripe-close-btn:hover { background:rgba(255,255,255,0.15); color:#fff; }
     .stripe-logo { text-align:center; font-size:1.5rem; }
     .stripe-title { text-align:center; font-size:1.3rem; font-weight:700; color:#fff; }
     .stripe-subtitle { text-align:center; font-size:0.85rem; color:rgba(255,255,255,0.5); line-height:1.5; }
@@ -395,6 +397,7 @@
   <!-- STRIPE MODAL -->
   <div id="stripe-overlay" onclick="stripeOverlayClick(event)">
     <div id="stripe-box">
+      <button id="stripe-close-btn" onclick="closeStripeModal()" aria-label="Close">✕</button>
       <div class="stripe-logo">💳</div>
       <div class="stripe-title">Unlock Searches</div>
       <div class="stripe-subtitle">Get 10 searches instantly. No subscription, pay once.</div>
@@ -548,8 +551,8 @@
         setTimeout(function() {
           const errEl = document.getElementById('auth-error');
           if (errEl) {
-            const msgs = { 'no_email': 'Etsy n\'a pas fourni votre email.', 'access_denied': 'Connexion Etsy annulée.' };
-            errEl.textContent = msgs[etsyErr] || ('Erreur Etsy : ' + etsyErr);
+            const msgs = { 'no_email': 'Etsy did not provide your email.', 'access_denied': 'Etsy login cancelled.' };
+            errEl.textContent = msgs[etsyErr] || ('Etsy error: ' + etsyErr);
           }
         }, 500);
       }
@@ -637,7 +640,7 @@
     var _searchCredits = 0;
 
     function initSearchCredits() {
-      // Charger les crédits depuis le serveur (stockés en DB)
+      // Load credits from server (stored in DB)
       fetch('/api/stripe/credits', {
         headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN }
       })
@@ -686,7 +689,7 @@
           headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN, 'Content-Type': 'application/json' }
         });
         var d = await r.json();
-        if (!r.ok) throw new Error(d.error || 'Erreur serveur');
+        if (!r.ok) throw new Error(d.error || 'Server error');
 
         // 2. Init Stripe Elements
         _stripe = Stripe(STRIPE_PK);
@@ -735,7 +738,7 @@
       msg.textContent = '';
 
       try {
-        // Confirmer le paiement côté Stripe
+        // Confirm payment on Stripe side
         var result = await _stripe.confirmPayment({
           elements: _stripeElements,
           redirect: 'if_required',
@@ -756,7 +759,7 @@
             body: JSON.stringify({ paymentIntentId: result.paymentIntent.id })
           });
           var d2 = await r2.json();
-          if (!r2.ok) throw new Error(d2.error || 'Erreur de confirmation');
+          if (!r2.ok) throw new Error(d2.error || 'Confirmation error');
 
           _searchCredits = d2.searchCredits;
           renderCredits();
@@ -1669,5 +1672,6 @@
   </script>
 </body>
 </html>
+
 
 
