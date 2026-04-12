@@ -7,33 +7,34 @@ const User    = require('../models/userModel');
 const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 
-// ── Middleware auth ──
+// ── Auth middleware ──
 function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ error: 'Non authentifié' });
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
     next();
   } catch {
-    res.status(401).json({ error: 'Token invalide ou expiré' });
+    res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
 
 // ── POST /api/stripe/create-payment-intent ──
-// Crée un PaymentIntent Stripe pour 24,99 USD (10 recherches)
+// Creates a Stripe PaymentIntent for $24.99 (10 searches)
 router.post('/create-payment-intent', requireAuth, async (req, res) => {
   if (!STRIPE_SECRET_KEY) {
-    return res.status(500).json({ error: 'STRIPE_SECRET_KEY non configurée sur le serveur.' });
+    return res.status(500).json({ error: 'STRIPE_SECRET_KEY is not configured on the server.' });
   }
 
   try {
     const params = new URLSearchParams({
-      amount: '2499',          // en centimes → $24.99
+      amount: '2499',          // in cents → $24.99
       currency: 'usd',
       'metadata[userId]': req.user.id,
       'metadata[credits]': '10',
       'automatic_payment_methods[enabled]': 'true',
+      'automatic_payment_methods[allow_redirects]': 'never',
     });
 
     const response = await axios.post(
@@ -55,17 +56,17 @@ router.post('/create-payment-intent', requireAuth, async (req, res) => {
 });
 
 // ── POST /api/stripe/confirm-payment ──
-// Appelé après confirmation côté client pour créditer le compte
+// Called after client-side confirmation to credit the account
 router.post('/confirm-payment', requireAuth, async (req, res) => {
   if (!STRIPE_SECRET_KEY) {
-    return res.status(500).json({ error: 'STRIPE_SECRET_KEY non configurée.' });
+    return res.status(500).json({ error: 'STRIPE_SECRET_KEY is not configured.' });
   }
 
   const { paymentIntentId } = req.body;
-  if (!paymentIntentId) return res.status(400).json({ error: 'paymentIntentId manquant.' });
+  if (!paymentIntentId) return res.status(400).json({ error: 'Missing paymentIntentId.' });
 
   try {
-    // Vérifier le statut du PaymentIntent directement auprès de Stripe
+    // Verify the PaymentIntent status directly with Stripe
     const response = await axios.get(
       `https://api.stripe.com/v1/payment_intents/${paymentIntentId}`,
       {
@@ -76,24 +77,24 @@ router.post('/confirm-payment', requireAuth, async (req, res) => {
     const pi = response.data;
 
     if (pi.status !== 'succeeded') {
-      return res.status(400).json({ error: `Paiement non validé (statut: ${pi.status})` });
+      return res.status(400).json({ error: `Payment not validated (status: ${pi.status})` });
     }
 
-    // Vérifier que le metadata userId correspond bien à l'utilisateur connecté
+    // Verify that the metadata userId matches the logged-in user
     if (pi.metadata?.userId !== req.user.id) {
-      return res.status(403).json({ error: 'Paiement non associé à ce compte.' });
+      return res.status(403).json({ error: 'Payment not associated with this account.' });
     }
 
     const creditsToAdd = parseInt(pi.metadata?.credits || '10', 10);
 
-    // Créditer le compte (atomique avec $inc)
+    // Credit the account (atomic with $inc)
     const user = await User.findByIdAndUpdate(
       req.user.id,
       { $inc: { searchCredits: creditsToAdd } },
       { new: true }
     );
 
-    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
 
     res.json({ ok: true, searchCredits: user.searchCredits });
   } catch (err) {
@@ -103,11 +104,11 @@ router.post('/confirm-payment', requireAuth, async (req, res) => {
 });
 
 // ── GET /api/stripe/credits ──
-// Retourne le nombre de recherches restantes
+// Returns the number of remaining searches
 router.get('/credits', requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('searchCredits');
-    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
     res.json({ searchCredits: user.searchCredits });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -115,13 +116,13 @@ router.get('/credits', requireAuth, async (req, res) => {
 });
 
 // ── POST /api/stripe/consume ──
-// Consomme 1 crédit au lancement d'une recherche
+// Consumes 1 credit when a search is launched
 router.post('/consume', requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('searchCredits');
-    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
     if (user.searchCredits <= 0) {
-      return res.status(402).json({ error: 'Aucun crédit de recherche disponible.' });
+      return res.status(402).json({ error: 'No search credits available.' });
     }
     const updated = await User.findByIdAndUpdate(
       req.user.id,
