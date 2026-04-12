@@ -256,9 +256,16 @@
     // ── Shop list ──
     async function loadShops() {
       const list = document.getElementById('shops-list');
+      list.innerHTML = '<div class="empty-state"><span class="emoji">⏳</span>Chargement…</div>';
       try {
         const r = await apiFetch('/api/shops');
-        const shops = await r.json();
+        if (r.status === 401) {
+          localStorage.removeItem('scout_token');
+          window.location.href = '/finder';
+          return;
+        }
+        const data = await r.json();
+        const shops = Array.isArray(data) ? data : [];
         if (!shops.length) {
           list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved listings yet.<br>Save listings from your search results.</div>';
           return;
@@ -266,7 +273,7 @@
         list.innerHTML = '';
         shops.forEach(shop => list.appendChild(buildShopRow(shop)));
       } catch(e) {
-        list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>' + e.message + '</div>';
+        list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>Erreur de chargement : ' + (e.message || 'inconnue') + '</div>';
       }
     }
 
@@ -540,6 +547,7 @@
   </script>
 </body>
 </html>
+
 
 
 
