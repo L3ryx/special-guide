@@ -5,7 +5,8 @@
  * Stratégie :
  *  - /listings/active                              → listing_id + shop_id (pas d'images ni shop_name)
  *  - /shops/{shopId}                               → shop_name
- *  - /shops/{shopId}/listings/active?includes=images → images
+ *  - /listings/{id}?includes=images                → image du listing
+ *  - /shops/{shopId}/listings/active?includes=images → images supplémentaires
  */
 
 const axios = require('axios');
@@ -91,14 +92,13 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 /**
  * Pour un shop_id : récupère shop_name + 3 images de listings différents.
  *
- * Stratégie :
- *  - Image 1 : première image du listing trouvé dans la recherche Etsy (listingId)
- *  - Images 2 & 3 : première image de 2 autres listings actifs de la boutique
+ * - Image 1 : première image du listing trouvé dans la recherche (listingId)
+ * - Image 2 : première image du 2ème listing trouvé (listingId2)
+ * - Image 3 : première image d'un 3ème listing actif de la boutique
  *
- * Les 3 images sont ensuite testées sur AliExpress via Serper Lens.
- * Si la boutique a moins de 3 listings, on retourne ce qu'on a.
+ * Les 3 images seront testées sur AliExpress via Serper Lens.
  */
-async function getShopNameAndImage(shopId, listingId) {
+async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
   // 1. Nom de boutique
   const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
     headers: headers(), timeout: 15000,
@@ -107,68 +107,79 @@ async function getShopNameAndImage(shopId, listingId) {
   const shopName = shop.shop_name;
   const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
 
-  const images = [];
-
-  // Image 1 : première image du listing de l'annonce trouvée dans la recherche
+  // 2. Image 1 — première image du listing de la recherche
+  let image = null;
   if (listingId) {
     try {
       const r = await axios.get(`${BASE}/listings/${listingId}?includes=images`, {
         headers: headers(), timeout: 15000,
       });
-      const img = cleanImage(
+      image = cleanImage(
         r.data.images?.[0]?.url_fullxfull ||
         r.data.images?.[0]?.url_570xN ||
         r.data.images?.[0]?.url_170x135 ||
         null
       );
-      if (img) images.push(img);
-      console.log('[etsyApi] image1 (listing', listingId, '):', !!img);
     } catch(e) {
       console.warn('[etsyApi] image1 failed for listing', listingId, ':', e.message);
     }
   }
 
-  // Images 2 & 3 : premières images de 2 autres listings actifs de la boutique
+  // 3. Image 2 — première image du 2ème listing trouvé dans la recherche
+  let image2 = null;
+  if (listingId2) {
+    try {
+      const r = await axios.get(`${BASE}/listings/${listingId2}?includes=images`, {
+        headers: headers(), timeout: 15000,
+      });
+      image2 = cleanImage(
+        r.data.images?.[0]?.url_fullxfull ||
+        r.data.images?.[0]?.url_570xN ||
+        r.data.images?.[0]?.url_170x135 ||
+        null
+      );
+    } catch(e) {
+      console.warn('[etsyApi] image2 failed for listing', listingId2, ':', e.message);
+    }
+  }
+
+  // 4. Image 3 — première image d'un 3ème listing actif de la boutique
+  //    (différent de listingId et listingId2)
+  let image3 = null;
   try {
     const r = await axios.get(
       `${BASE}/shops/${shopId}/listings/active?limit=10&includes=images`,
       { headers: headers(), timeout: 15000 }
     );
     const results = r.data.results || [];
+    const seenIds = new Set([String(listingId), String(listingId2)].filter(Boolean));
     for (const item of results) {
-      if (images.length >= 3) break;
-      if (String(item.listing_id) === String(listingId)) continue; // déjà en image 1
+      if (seenIds.has(String(item.listing_id))) continue;
       const img = cleanImage(
         item.images?.[0]?.url_fullxfull ||
         item.images?.[0]?.url_570xN ||
         item.images?.[0]?.url_170x135 ||
         null
       );
-      if (img && !images.includes(img)) {
-        images.push(img);
-        console.log('[etsyApi] image' + images.length + ' (listing', item.listing_id, '):', !!img);
-      }
+      if (img) { image3 = img; break; }
     }
   } catch(e) {
-    console.warn('[etsyApi] shop listings failed for shop', shopId, ':', e.message);
+    console.warn('[etsyApi] image3 failed for shop', shopId, ':', e.message);
   }
 
-  const image = images[0] || null;
-  console.log('[etsyApi] getShopNameAndImage:', shopName, '| total images:', images.length);
-  return { shopName, shopUrl, image, images };
+  console.log('[etsyApi] getShopNameAndImage:', shopName,
+    '| image1:', !!image, '| image2:', !!image2, '| image3:', !!image3);
+  return { shopName, shopUrl, image, image2, image3 };
 }
 
 /**
  * Récupère les listings d'une boutique.
- * L'API Etsy v3 n'accepte que des shop_id numériques pour ce endpoint.
- * Si un nom est fourni, on résout d'abord via /shops?shop_name=
  */
 async function getShopListings(shopIdOrName, limit = 20) {
   let shopId   = shopIdOrName;
   let shopName = null;
 
   if (isNaN(shopIdOrName)) {
-    // Résoudre le nom → shop_id numérique
     const infoRes = await axios.get(
       `${BASE}/shops?shop_name=${encodeURIComponent(shopIdOrName)}`,
       { headers: headers(), timeout: 15000 }
@@ -247,7 +258,4 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
-
-
-
 
