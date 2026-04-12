@@ -683,7 +683,7 @@
       document.getElementById('stripe-payment-element').innerHTML = '';
 
       try {
-        // 1. Demander un PaymentIntent au backend
+        // 1. Request a PaymentIntent from the backend
         var r = await fetch('/api/stripe/create-payment-intent', {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN, 'Content-Type': 'application/json' }
@@ -695,6 +695,7 @@
         _stripe = Stripe(STRIPE_PK);
         _stripeElements = _stripe.elements({
           clientSecret: d.clientSecret,
+          locale: 'en',
           appearance: {
             theme: 'night',
             variables: {
@@ -708,7 +709,9 @@
           }
         });
 
-        _stripePaymentEl = _stripeElements.create('payment');
+        _stripePaymentEl = _stripeElements.create('payment', {
+          wallets: { amazonPay: 'never' }
+        });
         _stripePaymentEl.mount('#stripe-payment-element');
         _stripePaymentEl.on('ready', function() {
           document.getElementById('stripe-pay-btn').disabled = false;
@@ -752,7 +755,7 @@
         }
 
         if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
-          // Créditer côté serveur
+          // Credit account server-side
           var r2 = await fetch('/api/stripe/confirm-payment', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN, 'Content-Type': 'application/json' },
@@ -1367,7 +1370,7 @@
       const kwInput = document.getElementById('keyword-input');
       if (kwInput) kwInput.disabled = true;
 
-      // Réinitialise la barre de progression (notamment en mode auto pour repartir de 0)
+      // Reset the progress bar (especially in auto mode to start from 0)
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'flex';
       if (!_autoSearch) {
@@ -1400,7 +1403,7 @@
         if (currentLabel) currentLabel.textContent = keyword;
         setProgress(5);
 
-        // Section titre dans les résultats
+        // Results section title
         if (_keywords.length > 1) {
           const sec = document.createElement('div');
           sec.className = 'keyword-section-title';
@@ -1516,7 +1519,7 @@
       }
 
       if (totalMatches === 0 && !hasError && !_autoSearch) {
-        document.getElementById('results-container').innerHTML += '<div class="empty">Aucune correspondance trouvée.</div>';
+        document.getElementById('results-container').innerHTML += '<div class="empty">No results found.</div>';
         document.getElementById('results-section').style.display = 'block';
       }
 
@@ -1527,13 +1530,13 @@
         _totalAutoMatches += totalMatches;
         if (_totalAutoMatches > 0) {
           const badge = document.createElement('div');
-          badge.textContent = _totalAutoMatches + ' résultat(s) au total';
+          badge.textContent = _totalAutoMatches + ' result(s) total';
           badge.style.color = 'var(--muted)';
           countBar.appendChild(badge);
         }
       } else if (totalMatches > 0) {
         const badge = document.createElement('div');
-        badge.textContent = totalMatches + ' résultat(s)';
+        badge.textContent = totalMatches + ' result(s)';
         badge.style.color = 'var(--muted)';
         countBar.appendChild(badge);
         setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
@@ -1548,7 +1551,7 @@
           if (_autoSearch && !_stopRequested) {
             document.getElementById('keyword-input').value = '';
             _keywords = [];
-            startSearch(); // Lance et réinitialise la barre pour le nouveau mot clé
+            startSearch(); // Start and reset the bar for the new keyword
           }
         }, 1500);
       } else if (!_autoSearch && !_stopRequested) {
