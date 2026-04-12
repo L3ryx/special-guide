@@ -256,6 +256,17 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
+    /**
+     * Vérifie si l'objet sur une image Etsy est trouvé sur AliExpress via Google Lens.
+     *
+     * Google Lens reconnaît le même objet même si le fond, l'angle ou la couleur diffèrent.
+     * On cherche dans visual_matches ET organic un vrai lien produit AliExpress.
+     *
+     * Critères :
+     *  - visual_matches en priorité (top 15), puis organic (top 10)
+     *  - URL doit être un vrai produit AliExpress : aliexpress.com/item/ + chiffres
+     *  - On exclut les pages génériques AliExpress (homepage, search, category)
+     */
     async function lensMatch(imageUrl) {
       if (isAborted()) return null;
       try {
@@ -266,8 +277,28 @@ router.post('/search-dropship', async (req, res) => {
           { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
         );
         if (isAborted()) return null;
-        const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
-        return all.find(x => { const u = x.link || x.url || ''; return u.includes('aliexpress.com') && u.includes('/item/') && (x.imageUrl || x.thumbnailUrl); }) || null;
+
+        // Filtre : vrai lien produit AliExpress avec ID numérique
+        function isAliProduct(x) {
+          const u = x.link || x.url || '';
+          return u.includes('aliexpress.com') && /\/item\/\d{5,}/.test(u);
+        }
+
+        // 1. Chercher dans visual_matches (top 15) — même objet, fond/angle différents OK
+        const visualMatches = (r.data.visual_matches || []).slice(0, 15);
+        let match = visualMatches.find(isAliProduct);
+
+        // 2. Si pas trouvé, chercher dans organic (top 10)
+        if (!match) {
+          const organic = (r.data.organic || []).slice(0, 10);
+          match = organic.find(isAliProduct);
+        }
+
+        console.log('[lensMatch] visual_matches:', (r.data.visual_matches||[]).length,
+          '| organic:', (r.data.organic||[]).length,
+          '| aliexpress match:', !!match, match ? (match.link||match.url) : '');
+
+        return match || null;
       } catch (e) {
         if (e.response?.status === 401) throw new Error('serper_401');
         return null;
