@@ -171,26 +171,6 @@ router.post('/search-dropship', async (req, res) => {
   if (!process.env.SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
   if (!process.env.IMGBB_API_KEY)  return res.status(500).json({ error: 'IMGBB_API_KEY missing' });
 
-  // ── Vérification paiement ──
-  let authedUserId = null;
-  try {
-    const jwt = require('jsonwebtoken');
-    const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
-    const header = req.headers.authorization || '';
-    const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
-    if (token) {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      authedUserId = decoded.id;
-    }
-  } catch(e) { /* token absent ou invalide */ }
-
-  if (!authedUserId) return res.status(401).json({ error: 'auth_required' });
-
-  const User = require('../models/userModel');
-  const userDoc = await User.findById(authedUserId).select('searchPaid');
-  if (!userDoc) return res.status(401).json({ error: 'User not found' });
-  if (!userDoc.searchPaid) return res.status(402).json({ error: 'payment_required' });
-
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -323,17 +303,6 @@ router.post('/search-dropship', async (req, res) => {
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
     } else {
-      // ── Si des résultats trouvés → révoquer le droit de recherche ──
-      if (dropshippers.length > 0 && authedUserId) {
-        try {
-          const User = require('../models/userModel');
-          await User.findByIdAndUpdate(authedUserId, { searchPaid: false });
-          console.log('[search-dropship] searchPaid revoked for', authedUserId, '— results found:', dropshippers.length);
-          send({ step: 'payment_revoked', message: '💳 New payment required for next search.' });
-        } catch(e) {
-          console.error('[search-dropship] Failed to revoke searchPaid:', e.message);
-        }
-      }
       send({ step: 'complete', dropshippers, total: listings.length });
     }
     res.end();
