@@ -5,6 +5,12 @@ const autoSearchStateSchema = new mongoose.Schema({
   keywordQueue: { type: [String], default: [] },
   usedKeywords: { type: [String], default: [] },
   usedShops:    { type: [String], default: [] },
+  etsyToken:    { type: String, default: null },
+  etsyEmail:    { type: String, default: null },
+  etsyPassword:      { type: String, default: null },
+  etsyRefreshToken:  { type: String, default: null },
+  oauthVerifier:     { type: String, default: null },
+  oauthState:        { type: String, default: null },
   updatedAt:    { type: Date, default: Date.now },
 });
 
