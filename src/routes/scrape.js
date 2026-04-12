@@ -276,23 +276,24 @@ router.post('/search-dropship', async (req, res) => {
 
           console.log('[worker] testing', shopImages.length, 'images for', listing.shopName);
 
-          // Tester les images une par une — 1 match suffit pour confirmer le dropshipping
-          let matchFound = null;
-          let matchedImg = shopImages[0];
+          // Tester les 3 images — TOUTES doivent matcher AliExpress pour confirmer le dropshipping
+          let matchCount = 0;
           for (const imgUrl of shopImages) {
             if (isAborted()) break;
             const m = await lensMatch(imgUrl);
-            if (m) { matchFound = m; matchedImg = imgUrl; break; }
+            console.log('[worker]', listing.shopName, '| img match:', !!m);
+            if (m) matchCount++; else break; // dès qu'une image ne matche pas, on arrête
           }
 
           if (isAborted()) break;
-          console.log('[worker]', listing.shopName, '| match:', !!matchFound, '| images tested:', shopImages.length);
-          if (matchFound) {
+          const allMatch = matchCount === shopImages.length && shopImages.length > 0;
+          console.log('[worker]', listing.shopName, '| matched:', matchCount + '/' + shopImages.length);
+          if (allMatch) {
             dropshippers.push({
               shopName:   listing.shopName,
               shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
               shopAvatar: null,
-              shopImage:  matchedImg,
+              shopImage:  shopImages[0],
               listingUrl: listing.link,
             });
             send({ step: 'match', message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)', shop: dropshippers[dropshippers.length - 1] });
