@@ -61,25 +61,27 @@ router.post('/niche-keyword', async (req, res) => {
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  *
  * Stratégie :
- *  1. Collecter tous les shop_id uniques via /listings/active (8 pages x 100)
- *  2. Pour chaque shop_id nouveau : appeler getShopNameAndImage() en parallèle (batch de 5)
- *     → /shops/{id} pour le nom + /shops/{id}/listings?includes=images pour l'image
+ *  1. Scanner 10 pages x 100 listings → collecter les shop_id uniques
+ *     Pour chaque boutique, on retient les 2 premiers listing_id différents trouvés
+ *     (image 1 et image 2). L'image 3 sera récupérée depuis la boutique dans la phase 2.
+ *  2. Pour chaque shop_id : appeler getShopNameAndImage() en parallèle (batch de 5)
+ *     → shopName + image1 (listing 1) + image2 (listing 2) + image3 (autre listing boutique)
  *
- * Retourne un tableau de { listingId, link, image, shopName, shopUrl }.
+ * Boutiques déjà traitées (usedShops) → ignorées immédiatement.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 10;
-  const perPage    = 100;
+  const MAX_PAGES = 10;
+  const perPage   = 100;
 
-  // usedShops = shopNames déjà traités (MongoDB) → on les ignore immédiatement
+  // usedShops contient des shopNames déjà traités → on les ignore
   const usedShopNames = new Set(usedShops.map(s => String(s).toLowerCase()));
-  const shopIdsSeen   = new Set(); // dédup par shopId (phase 1)
-  const shopNamesSeen = new Set(); // dédup par shopName (phase 2, dans cette session)
-  const shopIdToRaw   = new Map(); // shopId → { listingId, link, title }
+  const shopIdsSeen   = new Set(); // dédup shopId en phase 1
+  const shopNamesSeen = new Set(); // dédup shopName en phase 2 (cette session)
+  const shopIdToRaw   = new Map(); // shopId → { listingId, listingId2, link, title }
   let offset = 0;
   let page   = 0;
 
-  // ── PHASE 1 : scan Etsy — collecter les shop_id uniques non encore vus ──
+  // ── PHASE 1 : scan Etsy — collecter shop_id + 2 listing_id par boutique ──
   while (page < MAX_PAGES) {
     if (isAborted()) return [];
     let results;
@@ -94,10 +96,16 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     for (const r of results) {
       if (!r.shopId) continue;
       const sid = String(r.shopId);
-      if (shopIdsSeen.has(sid)) continue; // déjà vu dans cette session
+      if (shopIdsSeen.has(sid)) {
+        // Boutique déjà vue — on cherche un 2ème listing différent
+        const existing = shopIdToRaw.get(sid);
+        if (existing && !existing.listingId2 && r.listingId !== existing.listingId) {
+          existing.listingId2 = r.listingId;
+        }
+        continue;
+      }
       shopIdsSeen.add(sid);
-      // On garde le premier listing trouvé pour cette boutique (image 1)
-      shopIdToRaw.set(sid, { listingId: r.listingId, link: r.link, title: r.title });
+      shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
     }
 
     page++;
@@ -114,10 +122,12 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
   // ── PHASE 2 : résoudre shopName + 3 images par batch de 5 ──
   //
   // Pour chaque boutique :
-  //   - Image 1 : première image du listing trouvé dans la recherche (listingId)
-  //   - Images 2 & 3 : premières images de 2 autres listings actifs de la boutique
+  //   - Image 1 : première image du 1er listing trouvé dans la recherche
+  //   - Image 2 : première image du 2ème listing trouvé dans la recherche
+  //   - Image 3 : première image d'un 3ème listing actif de la boutique (via API boutique)
   //
-  // Si la boutique est dans usedShopNames (déjà traitée) → on l'ignore.
+  // Les 3 images seront testées sur AliExpress — les 3 doivent matcher.
+  // Si boutique déjà dans usedShopNames → ignorée.
   const BATCH = 5;
   const listings = [];
   const shopIdList = [...shopIdToRaw.entries()];
@@ -127,8 +137,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(([shopId, raw]) =>
-        getShopNameAndImage(shopId, raw.listingId).then(({ shopName, shopUrl, image, images }) => ({
-          shopId, shopName, shopUrl, image, images: images || (image ? [image] : []),
+        getShopNameAndImage(shopId, raw.listingId, raw.listingId2).then(({ shopName, shopUrl, image, image2, image3 }) => ({
+          shopId, shopName, shopUrl, image, image2, image3,
           listingId: raw.listingId,
           link:      raw.link,
           title:     raw.title,
@@ -142,7 +152,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         continue;
       }
       const l = r.value;
-      if (!l.shopName || !l.image) continue;
+      if (!l.shopName) continue;
 
       const nameKey = l.shopName.toLowerCase();
 
@@ -155,12 +165,16 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       if (shopNamesSeen.has(nameKey)) continue;
       shopNamesSeen.add(nameKey);
 
+      // Il faut au moins image1 pour continuer
+      if (!l.image) continue;
+
       listings.push({
         listingId: l.listingId,
         link:      l.link,
         title:     l.title,
         image:     l.image,
-        images:    l.images || [l.image],
+        image2:    l.image2 || null,
+        image3:    l.image3 || null,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
@@ -190,12 +204,11 @@ router.post('/search-dropship', async (req, res) => {
   const send = d => { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch {} };
 
   // ── Abort detection ──
-  // Nettoyer les anciennes sessions terminées pour éviter les faux positifs
   for (const [key, val] of activeSearches.entries()) {
     if (val === true) activeSearches.delete(key);
   }
   const sid = sessionId && sessionId.trim() ? sessionId.trim() : (Date.now() + Math.random()).toString(36);
-  activeSearches.set(sid, false);   // false = en cours
+  activeSearches.set(sid, false);
   const isAborted = () => activeSearches.get(sid) === true;
 
   try {
@@ -205,7 +218,6 @@ router.post('/search-dropship', async (req, res) => {
     const AutoSearchState = require('../models/autoSearchModel');
     let usedShops = [];
     try {
-      const { requireAuth } = require('./auth');
       const jwt = require('jsonwebtoken');
       const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
       const header = req.headers.authorization || '';
@@ -260,12 +272,7 @@ router.post('/search-dropship', async (req, res) => {
      * Vérifie si l'objet sur une image Etsy est trouvé sur AliExpress via Google Lens.
      *
      * Google Lens reconnaît le même objet même si le fond, l'angle ou la couleur diffèrent.
-     * On cherche dans visual_matches ET organic un vrai lien produit AliExpress.
-     *
-     * Critères :
-     *  - visual_matches en priorité (top 15), puis organic (top 10)
-     *  - URL doit être un vrai produit AliExpress : aliexpress.com/item/ + chiffres
-     *  - On exclut les pages génériques AliExpress (homepage, search, category)
+     * On cherche dans visual_matches (top 15) puis organic (top 10) un vrai lien produit AliExpress.
      */
     async function lensMatch(imageUrl) {
       if (isAborted()) return null;
@@ -278,17 +285,17 @@ router.post('/search-dropship', async (req, res) => {
         );
         if (isAborted()) return null;
 
-        // Filtre : vrai lien produit AliExpress avec ID numérique
+        // Filtre : vrai lien produit AliExpress avec ID numérique (au moins 5 chiffres)
         function isAliProduct(x) {
           const u = x.link || x.url || '';
           return u.includes('aliexpress.com') && /\/item\/\d{5,}/.test(u);
         }
 
-        // 1. Chercher dans visual_matches (top 15) — même objet, fond/angle différents OK
+        // 1. visual_matches en priorité (top 15) — même objet, fond/angle différents OK
         const visualMatches = (r.data.visual_matches || []).slice(0, 15);
         let match = visualMatches.find(isAliProduct);
 
-        // 2. Si pas trouvé, chercher dans organic (top 10)
+        // 2. organic en fallback (top 10)
         if (!match) {
           const organic = (r.data.organic || []).slice(0, 10);
           match = organic.find(isAliProduct);
@@ -309,6 +316,10 @@ router.post('/search-dropship', async (req, res) => {
     let analyzed = 0;
     const queue = [...listings];
 
+    /**
+     * Worker : pour chaque boutique, teste les 3 images sur AliExpress.
+     * Les 3 doivent matcher pour que la boutique soit considérée dropshipper.
+     */
     async function worker() {
       while (queue.length > 0) {
         if (isAborted()) break;
@@ -317,33 +328,42 @@ router.post('/search-dropship', async (req, res) => {
         analyzed++;
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
-          const shopImages = listing.images || (listing.image ? [listing.image] : []);
-          if (!shopImages.length) { console.warn('[worker] no images for', listing.shopName); continue; }
+          const img1 = listing.image;
+          const img2 = listing.image2;
+          const img3 = listing.image3;
 
-          console.log('[worker] testing', shopImages.length, 'images for', listing.shopName);
+          if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
+          if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
+          if (!img3) { console.warn('[worker] no img3 for', listing.shopName); continue; }
 
-          // Tester les 3 images — TOUTES doivent matcher AliExpress pour confirmer le dropshipping
-          let matchCount = 0;
-          for (const imgUrl of shopImages) {
-            if (isAborted()) break;
-            const m = await lensMatch(imgUrl);
-            console.log('[worker]', listing.shopName, '| img match:', !!m);
-            if (m) matchCount++; else break; // dès qu'une image ne matche pas, on arrête
-          }
+          console.log('[worker] testing 3 images for', listing.shopName);
 
+          // Tester les 3 images une par une — dès qu'une ne matche pas, on arrête
+          const m1 = await lensMatch(img1);
           if (isAborted()) break;
-          const allMatch = matchCount === shopImages.length && shopImages.length > 0;
-          console.log('[worker]', listing.shopName, '| matched:', matchCount + '/' + shopImages.length);
-          if (allMatch) {
-            dropshippers.push({
-              shopName:   listing.shopName,
-              shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
-              shopAvatar: null,
-              shopImage:  shopImages[0],
-              listingUrl: listing.link,
-            });
-            send({ step: 'match', message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)', shop: dropshippers[dropshippers.length - 1] });
-          }
+          console.log('[worker]', listing.shopName, '| m1:', !!m1);
+          if (!m1) continue;
+
+          const m2 = await lensMatch(img2);
+          if (isAborted()) break;
+          console.log('[worker]', listing.shopName, '| m2:', !!m2);
+          if (!m2) continue;
+
+          const m3 = await lensMatch(img3);
+          if (isAborted()) break;
+          console.log('[worker]', listing.shopName, '| m3:', !!m3);
+          if (!m3) continue;
+
+          // Les 3 images matchent AliExpress → dropshipper confirmé
+          dropshippers.push({
+            shopName:   listing.shopName,
+            shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
+            shopAvatar: null,
+            shopImage:  img1,
+            listingUrl: listing.link,
+          });
+          send({ step: 'match', message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)', shop: dropshippers[dropshippers.length - 1] });
+
         } catch (e) {
           if (e.message === 'serper_401') { send({ step: 'error', message: '\u274C Serper key invalid' }); return; }
         }
@@ -372,23 +392,10 @@ router.get('/health', (req, res) => {
     ETSY_CLIENT_ID: !!process.env.ETSY_CLIENT_ID,
     SERPER_API_KEY: !!process.env.SERPER_API_KEY,
     IMGBB_API_KEY:  !!process.env.IMGBB_API_KEY,
-    // SCRAPEAPI_KEY uniquement pour AliExpress dans CloneRoutes
     SCRAPEAPI_KEY:  !!process.env.SCRAPEAPI_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
 
-// ── AUTH + SHOPS ──
-const { router: authRouter } = require('./auth');
-const shopRouter              = require('./shopRoutes');
-router.use('/auth',  authRouter);
-router.use('/shops', shopRouter);
-
 module.exports = router;
-
-
-
-
-
-
 
