@@ -93,12 +93,16 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       if (shopsSeen.has(sid)) continue;
       if (!shopIdToRaw.has(sid)) {
         // Premier listing de cette boutique
-        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
+        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, listingId3: null, listingId4: null, link: r.link, title: r.title });
       } else {
-        // Deuxième listing différent — on le stocke si pas encore trouvé
+        // Listings suivants — stocker jusqu'à 4
         const existing = shopIdToRaw.get(sid);
         if (!existing.listingId2 && r.listingId !== existing.listingId) {
           existing.listingId2 = r.listingId;
+        } else if (!existing.listingId3 && r.listingId !== existing.listingId && r.listingId !== existing.listingId2) {
+          existing.listingId3 = r.listingId;
+        } else if (!existing.listingId4 && r.listingId !== existing.listingId && r.listingId !== existing.listingId2 && r.listingId !== existing.listingId3) {
+          existing.listingId4 = r.listingId;
         }
       }
     }
@@ -124,8 +128,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(([shopId, raw]) =>
-        getShopNameAndImage(shopId, raw.listingId, raw.listingId2).then(({ shopName, shopUrl, image, image2 }) => ({
-          shopId, shopName, shopUrl, image, image2,
+        getShopNameAndImage(shopId, raw.listingId, raw.listingId2, raw.listingId3, raw.listingId4).then(({ shopName, shopUrl, image, image2, image3, image4 }) => ({
+          shopId, shopName, shopUrl, image, image2, image3, image4,
           listingId: raw.listingId,
           link:      raw.link,
           title:     raw.title,
@@ -148,6 +152,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         title:     l.title,
         image:     l.image,
         image2:    l.image2,
+        image3:    l.image3 || null,
+        image4:    l.image4 || null,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
@@ -275,14 +281,24 @@ router.post('/search-dropship', async (req, res) => {
         try {
           const img1 = listing.image;
           const img2 = listing.image2;
+          const img3 = listing.image3;
+          const img4 = listing.image4;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
           if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
+          if (!img3) { console.warn('[worker] no img3 for', listing.shopName); continue; }
+          if (!img4) { console.warn('[worker] no img4 for', listing.shopName); continue; }
 
           console.log('[worker] running lensMatch for', listing.shopName);
-          const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(img2)]);
+          const [m1, m2, m3, m4] = await Promise.all([
+            lensMatch(img1),
+            lensMatch(img2),
+            lensMatch(img3),
+            lensMatch(img4),
+          ]);
           if (isAborted()) break;
-          console.log('[worker]', listing.shopName, '| m1:', !!m1, '| m2:', !!m2);
-          if (m1 && m2) {
+          const matchCount = [m1, m2, m3, m4].filter(Boolean).length;
+          console.log('[worker]', listing.shopName, '| m1:', !!m1, '| m2:', !!m2, '| m3:', !!m3, '| m4:', !!m4, '| matches:', matchCount);
+          if (matchCount === 4) {
             dropshippers.push({
               shopName:   listing.shopName,
               shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
@@ -327,6 +343,7 @@ router.get('/health', (req, res) => {
 });
 
 module.exports = router;
+
 
 
 
