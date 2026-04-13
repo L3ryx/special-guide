@@ -89,10 +89,7 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 }
 
 /**
- * Pour un shop_id : récupère shop_name + 2 images.
- * - image  : 1er listing trouvé lors du scan (listingId)
- * - image2 : TOUJOURS prise directement depuis les listings actifs de la boutique
- *            (1er listing différent de listingId)
+ * Pour un shop_id : récupère shop_name + 2 images via getListingDetail.
  */
 async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
   // 1. Nom de boutique
@@ -103,7 +100,7 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
   const shopName = shop.shop_name;
   const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
 
-  // 2. Image 1 — via le listing du scan
+  // 2. Image 1 via /listings/{id}?includes=images
   let image = null;
   if (listingId) {
     try {
@@ -113,8 +110,8 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
       const item = r.data;
       image = cleanImage(
         item.images?.[0]?.url_fullxfull ||
-        item.images?.[0]?.url_570xN     ||
-        item.images?.[0]?.url_170x135   ||
+        item.images?.[0]?.url_570xN ||
+        item.images?.[0]?.url_170x135 ||
         null
       );
     } catch(e) {
@@ -122,30 +119,23 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
     }
   }
 
-  // 3. Image 2 — TOUJOURS depuis les listings actifs de la boutique
+  // 3. Image 2 via second listing
   let image2 = null;
-  try {
-    const r = await axios.get(
-      `${BASE}/shops/${shopId}/listings/active?limit=10&includes=images`,
-      { headers: headers(), timeout: 15000 }
-    );
-    const results = r.data.results || [];
-    const alt = results.find(item =>
-      item.listing_id !== listingId &&
-      (item.images?.[0]?.url_fullxfull || item.images?.[0]?.url_570xN || item.images?.[0]?.url_170x135)
-    );
-    if (alt) {
+  if (listingId2) {
+    try {
+      const r = await axios.get(`${BASE}/listings/${listingId2}?includes=images`, {
+        headers: headers(), timeout: 15000,
+      });
+      const item = r.data;
       image2 = cleanImage(
-        alt.images?.[0]?.url_fullxfull ||
-        alt.images?.[0]?.url_570xN     ||
-        alt.images?.[0]?.url_170x135   ||
+        item.images?.[0]?.url_fullxfull ||
+        item.images?.[0]?.url_570xN ||
+        item.images?.[0]?.url_170x135 ||
         null
       );
-    } else {
-      console.warn('[etsyApi] no 2nd listing found in shop for', shopName);
+    } catch(e) {
+      console.warn('[etsyApi] image2 failed for listing', listingId2, ':', e.message);
     }
-  } catch(e) {
-    console.warn('[etsyApi] image2 shop fetch failed for shop', shopId, ':', e.message);
   }
 
   console.log('[etsyApi] getShopNameAndImage:', shopName, '| image1:', !!image, '| image2:', !!image2);
@@ -241,7 +231,6 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
-
 
 
 
