@@ -4,7 +4,7 @@ const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 // DINOv2 : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
-const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable } = require('../services/dinoCompare');
+const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable, isDinoReady } = require('../services/dinoCompare');
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -225,9 +225,13 @@ router.post('/search-dropship', async (req, res) => {
     send({ step: 'analyzing', message: '🤖 Vérification du service DINOv2...' });
     send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
 
-    async function waitForDino(maxAttempts = 5, delayMs = 15000) {
+    async function waitForDino(maxAttempts = 8, delayMs = 20000) {
       for (let i = 0; i < maxAttempts; i++) {
-        const ready = await isClipAvailable().catch(() => false);
+        // First check: is the service reachable at all (ready OR loading)?
+        const reachable = await isClipAvailable().catch(() => false);
+        if (!reachable) continue;
+        // Second check: is the model fully loaded?
+        const ready = await isDinoReady().catch(() => false);
         if (ready) return true;
         if (i < maxAttempts - 1) {
           send({ step: 'analyzing', message: `⏳ DINOv2 en démarrage... (${i + 1}/${maxAttempts}) — nouvelle tentative dans ${delayMs / 1000}s` });
