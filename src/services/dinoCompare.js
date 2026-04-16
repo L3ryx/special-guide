@@ -109,30 +109,43 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
     return { similarity: 0, match: false, scales: [], error: 'URLs manquantes', fallback: false };
   }
 
-  try {
-    const r = await axios.post(
-      `${CLIP_BASE}/compare-images`,
-      { etsy_url: etsyUrl, ali_url: aliUrl, threshold },
-      { timeout: TIMEOUT_MS }
-    );
+  const MAX_RETRIES = 2;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const r = await axios.post(
+        `${CLIP_BASE}/compare-images`,
+        { etsy_url: etsyUrl, ali_url: aliUrl, threshold },
+        { timeout: TIMEOUT_MS }
+      );
 
-    return {
-      similarity: r.data.similarity ?? 0,
-      match:      r.data.match      ?? false,
-      scales:     r.data.scales     ?? [],
-      error:      r.data.error      ?? null,
-      fallback:   false,
-    };
+      return {
+        similarity: r.data.similarity ?? 0,
+        match:      r.data.match      ?? false,
+        scales:     r.data.scales     ?? [],
+        error:      r.data.error      ?? null,
+        fallback:   false,
+      };
 
-  } catch (e) {
-    const isConnRefused = e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND';
-    if (isConnRefused) {
-      console.warn('[dinoCompare] Service DINOv2 indisponible — fallback sans comparaison visuelle');
-      return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
+    } catch (e) {
+      const httpStatus = e.response?.status;
+      const isConnRefused = e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND';
+      const isServerError = httpStatus >= 500;
+
+      if (isServerError && attempt < MAX_RETRIES) {
+        const wait = 2000 * (attempt + 1); // 2s, 4s
+        console.warn(`[dinoCompare] HTTP ${httpStatus} — retry ${attempt + 1}/${MAX_RETRIES} dans ${wait}ms`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+
+      if (isConnRefused || isServerError) {
+        console.warn(`[dinoCompare] Service DINOv2 indisponible (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback sans comparaison visuelle`);
+        return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
+      }
+      const msg = e.response?.data?.error || e.message;
+      console.warn('[dinoCompare] Erreur:', msg);
+      return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
     }
-    const msg = e.response?.data?.error || e.message;
-    console.warn('[dinoCompare] Erreur:', msg);
-    return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
   }
 }
 
@@ -174,9 +187,11 @@ async function compareImagesHybrid(etsyUrl, aliUrl, options = {}) {
     };
 
   } catch (e) {
+    const httpStatus = e.response?.status;
     const isConnRefused = e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND';
-    if (isConnRefused) {
-      console.warn('[dinoCompare] Service DINOv2 indisponible (hybrid) — fallback');
+    const isServerError = httpStatus >= 500;
+    if (isConnRefused || isServerError) {
+      console.warn(`[dinoCompare] Service DINOv2 indisponible (hybrid) (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback`);
       return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
     }
     const msg = e.response?.data?.error || e.message;
@@ -208,7 +223,7 @@ async function findBestAliMatch(etsyUrl, aliUrls, options = {}) {
 
   const compareFn = options.hybrid ? compareImagesHybrid : compareImages;
 
-  const CONCURRENT = 3;
+  const CONCURRENT = 2; // réduit de 5 à 2 — HuggingFace Space gratuit (CPU) ne supporte pas 5 req parallèles
   let bestSimilarity = -1;
   let bestUrl        = null;
   let anyFallback    = false;
