@@ -15,16 +15,6 @@ if (mongoose.connection.readyState === 0) {
     .catch(err => console.error('❌ MongoDB:', err.message));
 }
 
-// ── Cache ImgBB global avec TTL (1h) pour éviter les re-uploads entre recherches ──
-const globalImgbbCache = new Map();
-const IMGBB_CACHE_TTL = 60 * 60 * 1000; // 1 heure
-setInterval(() => {
-  const now = Date.now();
-  for (const [url, entry] of globalImgbbCache.entries()) {
-    if (now - entry.ts > IMGBB_CACHE_TTL) globalImgbbCache.delete(url);
-  }
-}, 10 * 60 * 1000); // nettoyage toutes les 10 min
-
 
 const activeSearches = new Map();
 
@@ -186,9 +176,8 @@ router.post('/search-dropship', async (req, res) => {
   const isAborted = () => activeSearches.get(sid) === true;
 
   try {
-    const { uploadToImgBB } = require('../services/imgbbUploader');
 
-    // ── STEP 1 : Récupérer les boutiques déjà analysées ──
+ : Récupérer les boutiques déjà analysées ──
     const AutoSearchState = require('../models/autoSearchModel');
     let usedShops = [];
     try {
@@ -265,13 +254,6 @@ router.post('/search-dropship', async (req, res) => {
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse CLIP...' });
 
     // ── STEP 4 : Google Lens + CLIP obligatoire ──
-    async function uploadCached(url) {
-      const cached = globalImgbbCache.get(url);
-      if (cached) return cached.value;
-      const r = await uploadToImgBB(url);
-      globalImgbbCache.set(url, { value: r, ts: Date.now() });
-      return r;
-    }
 
     /**
      * Vérifie si une image Etsy trouve son objet sur AliExpress.
@@ -286,7 +268,7 @@ router.post('/search-dropship', async (req, res) => {
     async function lensMatchWithClip(etsyImageUrl) {
       if (isAborted()) return null;
       try {
-        const pub = await uploadCached(etsyImageUrl);
+        const pub = etsyImageUrl;
         if (!pub || isAborted()) return null;
 
         // Étape 1 : Google Lens pour trouver des candidats AliExpress
