@@ -358,7 +358,7 @@ router.post('/search-dropship', async (req, res) => {
 
         // Étape 2 : CLIP — vérification visuelle OBLIGATOIRE
         const aliUrls = aliMatches
-          .slice(0, 2) // plan gratuit Serper : on limite à 2 candidats
+          .slice(0, 5) // 5 candidats pour maximiser les chances sur angles différents
           .flatMap(m => extractAliImageUrls(m))
           .filter(Boolean);
 
@@ -369,7 +369,8 @@ router.post('/search-dropship', async (req, res) => {
         }
 
         const clipResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
-          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
+          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.75'),
+          hybrid: true, // score combiné CLIP 75% + structure 25% (ratio + couleurs)
         });
 
         console.log(`[CLIP] sim=${clipResult.similarity} match=${clipResult.match} fallback=${clipResult.fallback}`);
