@@ -217,6 +217,11 @@
 
   <div class="container">
     <h1>My shops</h1>
+    <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+      <button id="delete-all-btn" onclick="deleteAllShops()" style="display:none; padding:8px 16px; border-radius:10px; border:1px solid rgba(255,80,80,0.4); background:rgba(255,80,80,0.1); color:#ff5050; font-size:0.8rem; font-weight:600; cursor:pointer; transition:all 0.2s;">
+        🗑 Tout supprimer
+      </button>
+    </div>
     <div class="shops-list" id="shops-list"></div>
   </div>
 
@@ -282,10 +287,13 @@
         }
         const data = await r.json();
         const shops = Array.isArray(data) ? data : [];
+        const deleteAllBtn = document.getElementById('delete-all-btn');
         if (!shops.length) {
           list.innerHTML = '<div class="empty-state"><span class="emoji">🏪</span>No saved listings yet.<br>Save listings from your search results.</div>';
+          if (deleteAllBtn) deleteAllBtn.style.display = 'none';
           return;
         }
+        if (deleteAllBtn) deleteAllBtn.style.display = 'block';
         list.innerHTML = '';
         // Grouper par keyword
         const groups = {};
@@ -533,6 +541,14 @@
         const btn = document.getElementById('etsy-login-btn');
         if (btn) { btn.innerHTML = 'Etsy Logout'; btn.classList.add('connected'); }
       }
+    }
+
+    function deleteAllShops() {
+      if (!confirm('Supprimer toutes les boutiques sauvegardées ?')) return;
+      apiFetch('/api/shops', { method: 'DELETE' }).then(() => {
+        showToast('Toutes les boutiques supprimées', '#ef4444');
+        loadShops();
+      });
     }
 
     function deleteShop(id) {
