@@ -439,6 +439,8 @@ def shop_name_and_image():
 
 if __name__ == "__main__":
     import os
-    port = int(os.environ.get("SCRAPER_PORT", 5001))
+    # Sur Render, utiliser la variable PORT (assignée automatiquement par Render).
+    # En local, utiliser SCRAPER_PORT ou 5001.
+    port = int(os.environ.get("PORT") or os.environ.get("SCRAPER_PORT") or 5001)
     print(f"✅ Etsy Scraper Service (botasaurus) démarré sur port {port}")
     app.run(host="0.0.0.0", port=port, debug=False)
