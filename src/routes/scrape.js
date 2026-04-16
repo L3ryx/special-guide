@@ -14,11 +14,8 @@ if (mongoose.connection.readyState === 0) {
 }
 
 
-// ── Rotation des clés Serper ──
-const SERPER_KEYS = [
-  process.env.SERPER_API_KEY,
-  process.env.SERPER_API_KEY_2,
-].filter(Boolean);
+// ── Clé Serper unique ──
+const SERPER_KEYS = [process.env.SERPER_API_KEY].filter(Boolean);
 let _serperKeyIndex = 0;
 function getSerperKey() {
   const key = SERPER_KEYS[_serperKeyIndex % SERPER_KEYS.length];
@@ -206,7 +203,7 @@ router.post('/search-dropship', async (req, res) => {
     try {
       const { requireAuth } = require('./auth');
       const jwt = require('jsonwebtoken');
-      const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
+      const JWT_SECRET = process.env.JWT_SECRET;
       const header = req.headers.authorization || '';
       const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
       if (token) {
@@ -447,7 +444,7 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     // 3 workers max — au-delà, Serper retourne 429 (rate limit)
-    await Promise.all(Array.from({ length: 6 }, worker));
+    await Promise.all(Array.from({ length: 3 }, worker));
     activeSearches.delete(sid);
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
