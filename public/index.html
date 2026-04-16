@@ -1250,13 +1250,15 @@
     }
 
     async function getNextKeyword() {
-      if (_keywordQueue.length === 0) {
-        await generateKeywordBatch();
-      }
-      if (_keywordQueue.length === 0) throw new Error('No keywords available');
-      const kw = _keywordQueue.shift();
-      await saveQueueState(null);
-      return kw;
+      const token = localStorage.getItem('scout_token') || '';
+      const res = await fetch('/api/niche-keyword', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ usedKeywords: _usedKeywords, count: 1 })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.keywords || data.keywords.length === 0) throw new Error(data.error || 'Failed to generate keyword');
+      return data.keywords[0];
     }
 
     function saveUsedShops(shopNames) {
@@ -1276,11 +1278,7 @@
     function updateQueueDisplay() {
       const label = document.getElementById('auto-search-label');
       if (!label) return;
-      if (_autoSearch) {
-        const remaining = _keywordQueue.length;
-        const suffix = remaining > 0 ? ' (' + remaining + ' left)' : '';
-        label.innerHTML = '🤖 Automated' + suffix;
-      }
+      label.innerHTML = '🤖 Automated';
     }
 
     function clearKeywords() {
