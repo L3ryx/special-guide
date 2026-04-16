@@ -268,12 +268,17 @@ router.post('/search-dropship', async (req, res) => {
     async function lensMatchWithClip(etsyImageUrl) {
       if (isAborted()) return null;
       try {
-        const pub = etsyImageUrl;
-        if (!pub || isAborted()) return null;
+        if (!etsyImageUrl || isAborted()) return null;
+
+        // Télécharger l'image Etsy en mémoire et l'envoyer en base64 à Serper
+        // (les URLs i.etsystatic.com sont rejetées directement par Serper Lens)
+        const imgRes = await axios.get(etsyImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
+        const base64 = Buffer.from(imgRes.data).toString('base64');
+        const mimeType = imgRes.headers['content-type'] || 'image/jpeg';
 
         // Étape 1 : Google Lens pour trouver des candidats AliExpress
         const r = await axios.post('https://google.serper.dev/lens',
-          { url: pub, gl: 'us', hl: 'en' },
+          { image: `data:${mimeType};base64,${base64}`, gl: 'us', hl: 'en' },
           { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
         );
         if (isAborted()) return null;
