@@ -86,18 +86,17 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     if (isAborted()) return [];
     const batch = pageNums.slice(i, i + PAGE_CONCURRENCY);
     const fetched = await Promise.allSettled(
-      batch.map(p => searchListingIds(keyword, perPage, p * perPage).catch(e => { handleEtsyError(e); return []; }))
+      batch.map(p => searchListingIds(keyword, perPage, p * perPage).catch(() => []))
     );
-    let anyFull = false;
+    let shouldStop = false;
     for (let j = 0; j < fetched.length; j++) {
       if (fetched[j].status !== 'fulfilled') continue;
       const res = fetched[j].value || [];
-      if (res.length === perPage) anyFull = true;
+      if (res.length < perPage) shouldStop = true;
       allResults.push(...res);
     }
     if (onBatch) onBatch(Math.min(i + PAGE_CONCURRENCY, MAX_PAGES), allResults.length);
-    // Si aucune page n'est pleine, on a tout récupéré
-    if (!anyFull) break;
+    if (shouldStop) break;
   }
 
   // ── Dédupliquer les shops ──
