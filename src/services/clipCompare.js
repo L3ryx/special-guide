@@ -24,10 +24,10 @@ const axios = require('axios');
 // Exemple incorrect : https://Keeldkdf3-Special-clip-service.hf.space  ← majuscules = erreur DNS
 const CLIP_BASE = process.env.CLIP_SERVICE_URL || 'http://localhost:7860';
 
-// Seuil de similarité cosinus par défaut (0.78 = bon équilibre précision/rappel)
-// Augmenter jusqu'à 0.85 pour moins de faux positifs
-// Diminuer jusqu'à 0.70 pour plus de sensibilité
-const DEFAULT_THRESHOLD = parseFloat(process.env.CLIP_THRESHOLD || '0.78');
+// Seuil de similarité cosinus par défaut (0.75 = meilleur rappel sur angles différents)
+// Augmenter jusqu'à 0.82 pour moins de faux positifs
+// Diminuer jusqu'à 0.68 pour plus de sensibilité
+const DEFAULT_THRESHOLD = parseFloat(process.env.CLIP_THRESHOLD || '0.75');
 
 
 /**
@@ -46,27 +46,27 @@ function getAdaptiveThreshold(productTitle = '') {
 
   // Bijoux & accessoires : photos très variables → seuil plus bas
   if (/ring|necklace|earring|bracelet|jewelry|pendant|charm|bangle|brooch/.test(title)) {
-    return 0.72;
+    return 0.68;
   }
 
   // Maroquinerie & sacs : silhouettes proches → seuil modéré-haut
   if (/bag|purse|wallet|handbag|tote|clutch|backpack|pouch/.test(title)) {
-    return 0.80;
+    return 0.76;
   }
 
   // Vêtements : coupes similaires fréquentes entre marques → seuil haut
   if (/dress|shirt|pants|jeans|hoodie|jacket|coat|skirt|blouse|sweater|legging/.test(title)) {
-    return 0.82;
+    return 0.78;
   }
 
   // Électronique & accessoires tech : produits quasi-identiques → seuil élevé
   if (/phone|case|charger|cable|led|lamp|keyboard|mouse|headphone|earphone/.test(title)) {
-    return 0.85;
+    return 0.82;
   }
 
   // Décoration / art / home : créations uniques → seuil bas
   if (/print|poster|art|painting|decor|candle|frame|pillow|cushion/.test(title)) {
-    return 0.74;
+    return 0.70;
   }
 
   return DEFAULT_THRESHOLD; // 0.78 par défaut
