@@ -1619,7 +1619,8 @@
                   hasError = true;
                   setRetryMode();
                 } else {
-                  advanceStep(ev.step, ev.message);
+                  const msg = (ev.step === 'scraping') ? null : ev.message;
+                  advanceStep(ev.step, msg);
                 }
               } catch(e) {
                 // ignore parse errors
