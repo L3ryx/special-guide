@@ -254,7 +254,7 @@ router.post('/search-dropship', async (req, res) => {
         waitForClip(),
         fetchListingsForDropship(
           keyword,
-          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
+          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' shops...' }),
           usedShops,
           isAborted
         ),
@@ -283,7 +283,7 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
       return res.end();
     }
-    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse CLIP...' });
+    send({ step: 'analyzing', message: '✅ ' + listings.length + ' unique shops. CLIP analysis...' });
 
     // ── STEP 4 : Google Lens + CLIP obligatoire ──
 
