@@ -1,0 +1,14 @@
+# requirements.txt — Microservice CLIP (clip_service.py)
+# Installation : pip install -r requirements.txt
+
+flask>=3.0.0
+transformers>=4.40.0
+torch>=2.0.0
+torchvision>=0.15.0
+Pillow>=10.0.0
+requests>=2.31.0
+numpy>=1.24.0
+
+# Optionnel : accélération GPU
+# torch==2.0.0+cu118   (si CUDA 11.8)
+# torch==2.0.0+cu121   (si CUDA 12.1)
