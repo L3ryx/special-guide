@@ -8,7 +8,7 @@
  *   - findBestAliMatch(etsyUrl, aliUrls, options) → { bestUrl, similarity, match }
  *   - isClipAvailable()  → true si le service répond
  *
- * Le microservice tourne en local sur port 5001 (configurable via CLIP_SERVICE_URL).
+ * Le microservice tourne sur HuggingFace Spaces (configurable via CLIP_SERVICE_URL).
  * Si le service est indisponible, les fonctions retournent { match: false, fallback: true }
  * sans bloquer le flow principal.
  *
@@ -21,14 +21,21 @@
 const axios = require('axios');
 
 // URL du microservice Python CLIP
-const CLIP_BASE = process.env.CLIP_SERVICE_URL || 'http://localhost:5001';
+// ⚠️  IMPORTANT : le sous-domaine HuggingFace est ENTIÈREMENT en minuscules
+// Exemple correct   : https://keeldkdf3-special-clip-service.hf.space
+// Exemple incorrect : https://Keeldkdf3-Special-clip-service.hf.space  ← majuscules = erreur DNS
+const CLIP_BASE = process.env.CLIP_SERVICE_URL || 'http://localhost:7860';
 
 // Seuil de similarité cosinus par défaut (0.78 = bon équilibre précision/rappel)
 // Augmenter jusqu'à 0.85 pour moins de faux positifs
 // Diminuer jusqu'à 0.70 pour plus de sensibilité
 const DEFAULT_THRESHOLD = parseFloat(process.env.CLIP_THRESHOLD || '0.78');
 
-const TIMEOUT_MS = 30000; // 30s max par comparaison
+// 90s max — HuggingFace Spaces peut avoir un cold start de 60-90s
+const TIMEOUT_MS = 90000;
+
+// Timeout court pour le health check (on laisse plus de temps au démarrage)
+const HEALTH_TIMEOUT_MS = 8000;
 
 
 /**
@@ -37,7 +44,7 @@ const TIMEOUT_MS = 30000; // 30s max par comparaison
  */
 async function isClipAvailable() {
   try {
-    const r = await axios.get(`${CLIP_BASE}/health`, { timeout: 3000 });
+    const r = await axios.get(`${CLIP_BASE}/health`, { timeout: HEALTH_TIMEOUT_MS });
     return r.data?.status === 'ready';
   } catch {
     return false;
@@ -93,8 +100,6 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
 /**
  * Teste plusieurs URLs AliExpress et retourne la meilleure correspondance.
  *
- * Utile quand on a plusieurs images AliExpress pour un même produit.
- *
  * @param {string}   etsyUrl  - URL de l'image Etsy
  * @param {string[]} aliUrls  - Liste d'URLs d'images AliExpress
  * @param {object}   options
@@ -140,7 +145,6 @@ async function findBestAliMatch(etsyUrl, aliUrls, options = {}) {
 
 /**
  * Extrait les URLs d'images depuis un résultat AliExpress (Serper Lens ou scraping).
- * Tolère plusieurs formats de résultats.
  *
  * @param {object} serperMatch - Résultat d'un match Serper Lens
  * @returns {string[]} - Liste d'URLs d'images AliExpress
