@@ -73,7 +73,7 @@ router.post('/niche-keyword', async (req, res) => {
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 7;
+  const MAX_PAGES  = 6;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
   const shopIdToRaw = new Map();
@@ -99,16 +99,14 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       const sid = String(r.shopId);
       if (shopsSeen.has(sid)) continue;
       if (!shopIdToRaw.has(sid)) {
-        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, listingId3: null, listingId4: null, link: r.link, title: r.title });
+        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, listingId3: null, link: r.link, title: r.title });
       } else {
         const existing = shopIdToRaw.get(sid);
         if (!existing.listingId2 && r.listingId !== existing.listingId) {
           existing.listingId2 = r.listingId;
         } else if (!existing.listingId3 && r.listingId !== existing.listingId && r.listingId !== existing.listingId2) {
           existing.listingId3 = r.listingId;
-        } else if (!existing.listingId4 && r.listingId !== existing.listingId && r.listingId !== existing.listingId2 && r.listingId !== existing.listingId3) {
-          existing.listingId4 = r.listingId;
-        }
+
       }
     }
 
@@ -136,21 +134,20 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const resolved = await Promise.allSettled(
       batch.map(async ([shopId, raw]) => {
         // Récupérer jusqu'à 4 listings différents dans la boutique
-        let listingId2 = null, listingId3 = null, listingId4 = null;
+        let listingId2 = null, listingId3 = null;
         try {
-          const shopListings = await getShopListings(shopId, 8);
+          const shopListings = await getShopListings(shopId, 6);
           const others = shopListings
             .filter(l => l.listingId && String(l.listingId) !== String(raw.listingId))
             .map(l => l.listingId);
           if (others[0]) listingId2 = others[0];
           if (others[1]) listingId3 = others[1];
-          if (others[2]) listingId4 = others[2];
         } catch (e) {
           console.warn('[fetchListings] getShopListings failed for shop', shopId, ':', e.message);
         }
 
-        const { shopName, shopUrl, image, image2, image3, image4 } = await getShopNameAndImage(shopId, raw.listingId, listingId2, listingId3, listingId4);
-        return { shopId, shopName, shopUrl, image, image2, image3, image4, listingId: raw.listingId, link: raw.link, title: raw.title };
+        const { shopName, shopUrl, image, image2, image3 } = await getShopNameAndImage(shopId, raw.listingId, listingId2, listingId3);
+        return { shopId, shopName, shopUrl, image, image2, image3, listingId: raw.listingId, link: raw.link, title: raw.title };
       })
     );
 
@@ -170,8 +167,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         image:     l.image,
         image2:    l.image2,
         image3:    l.image3 || null,
-        image4:    l.image4 || null,
-        shopName:  l.shopName,
+                shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
         source:    'etsy',
@@ -254,7 +250,7 @@ router.post('/search-dropship', async (req, res) => {
         waitForClip(),
         fetchListingsForDropship(
           keyword,
-          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' shops...' }),
+          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/6 — ' + count + ' shops...' }),
           usedShops,
           isAborted
         ),
@@ -417,12 +413,11 @@ router.post('/search-dropship', async (req, res) => {
           const img1 = listing.image;
           const img2 = listing.image2;
           const img3 = listing.image3 || null;
-          const img4 = listing.image4 || null;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
           if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
           // Toutes les images disponibles (2 minimum, 4 si disponibles)
-          const imgCandidates = [img1, img2, img3, img4].filter(Boolean);
+          const imgCandidates = [img1, img2, img3].filter(Boolean);
           console.log('[worker] running lensMatch+CLIP pour', listing.shopName,
             '| imgs disponibles:', imgCandidates.length);
 
@@ -448,7 +443,6 @@ router.post('/search-dropship', async (req, res) => {
               clipSimilarity1: matchResults[0]?.clipSimilarity || null,
               clipSimilarity2: matchResults[1]?.clipSimilarity || null,
               clipSimilarity3: matchResults[2]?.clipSimilarity || null,
-              clipSimilarity4: matchResults[3]?.clipSimilarity || null,
               imagesChecked:   totalChecked,
             });
             send({
