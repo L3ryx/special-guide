@@ -66,36 +66,9 @@
     #user-badge.hidden { opacity:0; pointer-events:none; }
 
     /* ── USER BADGE (top right) ── */
-    #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; align-items:center; gap:8px; }
+    #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; }
     #user-avatar-btn { background:none; border:none; cursor:pointer; font-size:1.7rem; line-height:1; padding:4px; display:flex; align-items:center; justify-content:center; transition:transform 0.15s; }
     #user-avatar-btn:hover { transform:scale(1.25); }
-
-    /* ── ONLINE INDICATOR ── */
-    #online-badge {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      pointer-events: none;
-    }
-    #online-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: #22c55e;
-      box-shadow: 0 0 6px #22c55e;
-      flex-shrink: 0;
-      animation: pulse-dot 2s ease-in-out infinite;
-    }
-    @keyframes pulse-dot {
-      0%, 100% { box-shadow: 0 0 4px #22c55e; }
-      50%       { box-shadow: 0 0 10px #22c55e, 0 0 18px rgba(34,197,94,0.5); }
-    }
-    #online-count {
-      font-family: 'Croissant One', cursive;
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: rgba(255,255,255,0.65);
-    }
     .user-dropdown { position:absolute; top:calc(100% + 10px); right:0; background:rgba(10,10,10,0.97); border:1px solid rgba(255,255,255,0.13); border-radius:16px; padding:8px; min-width:220px; box-shadow:0 16px 48px rgba(0,0,0,0.7); backdrop-filter:blur(20px); display:none; flex-direction:column; gap:2px; z-index:600; animation:menuPop 0.15s ease; }
     .user-dropdown.open { display:flex; }
     @keyframes menuPop { from{opacity:0;transform:translateY(-6px)scale(0.97)} to{opacity:1;transform:none} }
@@ -128,11 +101,11 @@
 
     /* ── TITLE ── */
     #title-outer { width:100%; display:flex; justify-content:center; }
-    #title-wrap { position:relative; display:inline-block; padding:10px 40px 4px; overflow:visible; }
+    #title-wrap { position:relative; display:inline-block; padding:10px 40px 4px; }
     #niche-title { position:relative; z-index:101; text-align:center; user-select:none; display:flex; flex-direction:column; align-items:center; gap:4px; }
     #main-logo-letters { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
-    #finder-img { max-width:clamp(220px,40vw,480px); width:100%; height:auto; display:block; transform-origin:center bottom; animation: heartbeat-finder 3.2s ease-in-out infinite; }
-    #niche-img  { max-width:clamp(140px,26vw,300px); width:100%; height:auto; display:block; transform-origin:center bottom; animation: heartbeat-niche  3.2s ease-in-out infinite; }
+    #finder-img { max-width:clamp(220px,40vw,480px); width:100%; height:auto; display:block; transform-origin:center center; animation: heartbeat-finder 3.2s ease-in-out infinite; }
+    #niche-img  { max-width:clamp(140px,26vw,300px); width:100%; height:auto; display:block; transform-origin:center center; animation: heartbeat-niche  3.2s ease-in-out infinite; }
     /* finder bat 2× puis niche bat 2× — cycle 3.2s */
     /* finder: bat à 0% et 18% | niche: bat à 40% et 58% */
     @keyframes heartbeat-finder {
@@ -156,7 +129,7 @@
     @keyframes wave3d { 0%,100%{transform:translateY(0)rotateX(0deg)scale(1)} 25%{transform:translateY(-18px)rotateX(20deg)scale(1.08)} 50%{transform:translateY(0)rotateX(0deg)scale(1)} }
 
     /* ── MAIN ── */
-    #main-view { position:relative; z-index:10; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:80px 20px 20px; gap:10px; }
+    #main-view { position:relative; z-index:10; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:60px 20px 20px; gap:10px; }
     .search-card { width:100%; max-width:660px; display:flex; flex-direction:column; align-items:center; gap:14px; }
 
     /* Input row: input + add btn + tags inline + trash */
@@ -308,7 +281,7 @@
     .shop-result-btn { flex-shrink:0; padding:8px 14px; border-radius:9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; font-family:'Croissant One',cursive; font-size:0.75rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:all 0.2s; }
     .shop-result-btn:hover { background:rgba(255,255,255,0.18); }
     .empty { text-align:center; padding:40px 20px; color:var(--muted); }
-    @media(max-width:640px){ #main-view{padding:80px 14px 20px} .input-row input{font-size:0.95rem;padding:14px 16px} #add-keyword-btn{width:46px;height:46px} }
+    @media(max-width:640px){ #main-view{padding:60px 14px 20px} .input-row input{font-size:0.95rem;padding:14px 16px} #add-keyword-btn{width:46px;height:46px} }
 
     /* ── PAY BUTTON (top center) ── */
     #pay-btn-wrap { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:600; display:none; }
@@ -365,78 +338,6 @@
     .ep-close { align-self:flex-end; padding:10px 24px; border-radius:10px; border:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; font-family:'Croissant One',cursive; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s; }
     .ep-close:hover { background:rgba(239,68,68,0.28); color:#fff; }
 
-    /* ── CREDIT NUDGE POPUP ── */
-    #credit-nudge-popup {
-      position: fixed;
-      inset: 0;
-      z-index: 99998;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.55);
-      backdrop-filter: blur(4px);
-      padding: 20px;
-    }
-    #credit-nudge-popup.open { display: flex; animation: epFade 0.2s ease; }
-    #credit-nudge-box {
-      position: relative;
-      background: #0f0f14;
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 20px;
-      padding: 32px 28px 24px;
-      max-width: 320px;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.85);
-      animation: epSlide 0.22s ease;
-      text-align: center;
-    }
-    #credit-nudge-close {
-      position: absolute;
-      top: 12px;
-      right: 14px;
-      background: rgba(255,255,255,0.07);
-      border: none;
-      border-radius: 50%;
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: rgba(255,255,255,0.5);
-      font-size: 1rem;
-      line-height: 1;
-      transition: background 0.2s, color 0.2s;
-    }
-    #credit-nudge-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
-    #credit-nudge-icon { font-size: 2rem; }
-    #credit-nudge-text {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #fff;
-      line-height: 1.45;
-    }
-    #credit-nudge-buy-btn {
-      width: 100%;
-      padding: 14px;
-      background: #22c55e;
-      border: none;
-      border-radius: 12px;
-      color: #fff;
-      font-family: 'Croissant One', cursive;
-      font-weight: 700;
-      font-size: 1.05rem;
-      cursor: pointer;
-      transition: background 0.2s, transform 0.15s;
-      letter-spacing: 0.04em;
-    }
-    #credit-nudge-buy-btn:hover { background: #16a34a; transform: translateY(-1px); }
-    #credit-nudge-buy-btn:active { transform: translateY(0); }
-
   </style>
 </head>
 <body>
@@ -452,16 +353,6 @@
       <div class="ep-message" id="ep-message">An error occurred.</div>
       <div class="ep-hint" id="ep-hint"></div>
       <button class="ep-close" onclick="closeErrorPopupBtn()">Close</button>
-    </div>
-  </div>
-
-  <!-- ── CREDIT NUDGE POPUP ── -->
-  <div id="credit-nudge-popup" onclick="creditNudgeOverlayClick(event)">
-    <div id="credit-nudge-box">
-      <button id="credit-nudge-close" onclick="closeCreditNudge()" aria-label="Close">✕</button>
-      <div id="credit-nudge-icon">🔍</div>
-      <div id="credit-nudge-text">Credit your account to continue researching.</div>
-      <button id="credit-nudge-buy-btn" onclick="creditNudgeBuy()">Buy</button>
     </div>
   </div>
 
@@ -500,7 +391,7 @@
 
   <!-- PAY BUTTON -->
   <div id="pay-btn-wrap">
-    <button id="pay-btn" onclick="openStripeModal()">💳 Buy</button>
+    <button id="pay-btn" onclick="openStripeModal()">💳 Pay</button>
   </div>
 
   <!-- STRIPE MODAL -->
@@ -524,10 +415,6 @@
   </div>
 
   <div id="user-badge">
-    <div id="online-badge">
-      <span id="online-dot"></span>
-      <span id="online-count">0</span>
-    </div>
     <button id="user-avatar-btn" onclick="toggleUserDropdown()">👤</button>
     <div class="user-dropdown" id="user-dropdown">
       <div class="user-dropdown-email" id="user-email-display">—</div>
@@ -794,22 +681,6 @@
         renderCredits();
         return true;
       } catch(e) { return false; }
-    }
-
-    // ── CREDIT NUDGE POPUP ──
-    function openCreditNudge() {
-      if (_unlimited) return;
-      document.getElementById('credit-nudge-popup').classList.add('open');
-    }
-    function closeCreditNudge() {
-      document.getElementById('credit-nudge-popup').classList.remove('open');
-    }
-    function creditNudgeOverlayClick(e) {
-      if (e.target === document.getElementById('credit-nudge-popup')) closeCreditNudge();
-    }
-    function creditNudgeBuy() {
-      closeCreditNudge();
-      openStripeModal();
     }
 
     async function openStripeModal() {
@@ -1251,15 +1122,13 @@
     }
 
     async function getNextKeyword() {
-      const token = localStorage.getItem('scout_token') || '';
-      const res = await fetch('/api/niche-keyword', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ usedKeywords: _usedKeywords, count: 1 })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.keywords || data.keywords.length === 0) throw new Error(data.error || 'Failed to generate keyword');
-      return data.keywords[0];
+      if (_keywordQueue.length === 0) {
+        await generateKeywordBatch();
+      }
+      if (_keywordQueue.length === 0) throw new Error('No keywords available');
+      const kw = _keywordQueue.shift();
+      await saveQueueState(null);
+      return kw;
     }
 
     function saveUsedShops(shopNames) {
@@ -1279,7 +1148,11 @@
     function updateQueueDisplay() {
       const label = document.getElementById('auto-search-label');
       if (!label) return;
-      label.innerHTML = '🤖 Automated';
+      if (_autoSearch) {
+        const remaining = _keywordQueue.length;
+        const suffix = remaining > 0 ? ' (' + remaining + ' left)' : '';
+        label.innerHTML = '🤖 Automated' + suffix;
+      }
     }
 
     function clearKeywords() {
@@ -1466,7 +1339,7 @@
       // ── CHECK CREDITS ──
       if (!_unlimited && _searchCredits <= 0) {
         showToast('⚠️ No searches left — buy more to continue!', '#facc15');
-        openCreditNudge();
+        openStripeModal();
         return;
       }
 
@@ -1498,7 +1371,7 @@
       const credited = await consumeCredit();
       if (!credited) {
         showToast('⚠️ No searches left — buy more to continue!', '#facc15');
-        openCreditNudge();
+        openStripeModal();
         return;
       }
 
@@ -1619,8 +1492,7 @@
                   hasError = true;
                   setRetryMode();
                 } else {
-                  const msg = (ev.step === 'scraping') ? null : ev.message;
-                  advanceStep(ev.step, msg);
+                  advanceStep(ev.step, ev.message);
                 }
               } catch(e) {
                 // ignore parse errors
@@ -1804,41 +1676,6 @@
     // ── MILKY WAY ──
     (function(){const canvas=document.getElementById('milkyway-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H,cx,cy;const bandAngle=Math.PI/5,bandW=600,rand=function(a,b){return Math.random()*(b-a)+a;};let nebulae=[];function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;cx=W/2;cy=H/2;buildNebulae();}window.addEventListener('resize',resize);resize();function buildNebulae(){nebulae=[];const colors=[[180,100,200],[100,120,255],[255,120,80],[80,200,255],[200,80,255]];for(var i=0;i<5;i++){const col=colors[i],along=rand(-bandW*0.4,bandW*0.4),spread=rand(-60,60);nebulae.push({x:cx+Math.cos(bandAngle)*along-Math.sin(bandAngle)*spread,y:cy+Math.sin(bandAngle)*along+Math.cos(bandAngle)*spread,rx:rand(80,220),ry:rand(40,120),angle:bandAngle+rand(-0.3,0.3),r:col[0],g:col[1],b:col[2],alpha:rand(0.04,0.1),pulse:rand(0.001,0.003),pulseDir:1});}}var driftAngle=0;function draw(){ctx.clearRect(0,0,W,H);driftAngle+=0.00008;ctx.save();ctx.translate(W/2,H/2);ctx.rotate(driftAngle);ctx.translate(-W/2,-H/2);nebulae.forEach(function(n){n.alpha+=n.pulse*n.pulseDir;if(n.alpha>0.12||n.alpha<0.03)n.pulseDir*=-1;ctx.save();ctx.translate(n.x,n.y);ctx.rotate(n.angle);const g=ctx.createRadialGradient(0,0,0,0,0,n.rx);g.addColorStop(0,'rgba('+n.r+','+n.g+','+n.b+','+n.alpha+')');g.addColorStop(0.5,'rgba('+n.r+','+n.g+','+n.b+','+(n.alpha*0.4)+')');g.addColorStop(1,'rgba('+n.r+','+n.g+','+n.b+',0)');ctx.scale(1,n.ry/n.rx);ctx.beginPath();ctx.arc(0,0,n.rx,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();ctx.restore();});ctx.restore();requestAnimationFrame(draw);}draw();})();
 
-  </script>
-
-  <!-- ── Socket.io : compteur d'utilisateurs en ligne ── -->
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    (function () {
-      const countEl = document.getElementById('online-count');
-      if (!countEl) return;
-
-      try {
-        const socket = io({ transports: ['websocket', 'polling'] });
-
-        socket.on('online_count', function (n) {
-          countEl.textContent = n;
-        });
-
-        socket.on('connect_error', function () {
-          // Fallback : polling HTTP toutes les 10s
-          pollCount();
-        });
-      } catch (e) {
-        pollCount();
-      }
-
-      function pollCount() {
-        fetch('/api/online-count')
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
-            const n = d.count || 0;
-            countEl.textContent = n;
-          })
-          .catch(function () {});
-        setTimeout(pollCount, 10000);
-      }
-    })();
   </script>
 </body>
 </html>
