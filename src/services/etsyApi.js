@@ -67,6 +67,14 @@ async function searchListingIds(keyword, limit = 100, offset = 0) {
 async function searchListings(keyword, limit = 25, offset = 0) {
   return searchListingIds(keyword, limit, offset);
 }
+async function searchListingsWithShopDedup(keyword, limit = 700, offset = 0, usedShops = []) {
+  const results = await call('/search', { keyword, limit, offset, usedShops });
+  if (!Array.isArray(results)) throw new Error('Scrapling /search: unexpected response');
+  console.log('[etsyApi→scrapling] searchListingsWithShopDedup:', results.length, 'boutiques | keyword:', keyword);
+  return results; // { listingId, listingId2, shopId, shopName, title, link, image, image2 }
+}
+
+
 
 async function getShopNameAndImage(shopId, listingId, listingId2 = null, listingId3 = null, listingId4 = null) {
   const data = await call('/shop-info', { shopName: String(shopId) });
@@ -122,6 +130,7 @@ function handleEtsyError(e) {
 module.exports = {
   searchListings,
   searchListingIds,
+  searchListingsWithShopDedup,
   getShopNameAndImage,
   getShopListings,
   getShopInfo,
