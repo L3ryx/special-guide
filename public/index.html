@@ -1465,7 +1465,7 @@
                     if (_autoSearch && ev.shop.shopName && _usedShops.includes(ev.shop.shopName)) {
                       // skip
                     } else {
-                      renderShopResult(ev.shop);
+                      renderShopResult(ev.shop, keyword);
                       totalMatches++;
                       document.getElementById('results-section').style.display = 'block';
                       document.documentElement.classList.add('unlocked');
@@ -1570,7 +1570,7 @@
     window._shopDataMap = {};
     function encodeShopKey(u) { return (u || '').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40); }
 
-    function renderShopResult(shop) {
+    function renderShopResult(shop, keyword) {
       const productUrl = shop.listingUrl || shop.shopUrl || '#';
       const idx = Object.keys(window._shopDataMap).length;
       const shopUrl = shop.shopName ? 'https://www.etsy.com/shop/' + shop.shopName : (shop.shopUrl || '#');
@@ -1580,6 +1580,7 @@
         shopAvatar:   shop.shopAvatar || shop.shopImage || null,
         productImage: shop.shopImage || null,
         productUrl:   shopUrl,
+        keyword:      keyword || null,
       };
 
       const card = document.createElement('div');
@@ -1663,7 +1664,7 @@
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ shopUrl: data.shopUrl, shopName: data.shopName, shopAvatar: data.shopAvatar, productImage: data.productImage, productUrl: data.productUrl })
+          body: JSON.stringify({ shopUrl: data.shopUrl, shopName: data.shopName, shopAvatar: data.shopAvatar, productImage: data.productImage, productUrl: data.productUrl, keyword: data.keyword || null })
         });
         if (r.ok) {
           _savedShopUrls.add(data.shopUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
