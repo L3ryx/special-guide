@@ -13,15 +13,12 @@ setInterval(() => {
 }, 10 * 60 * 1000); // nettoyage toutes les 10 min
 
 /**
- * Télécharge une image Etsy et l'héberge sur un service public gratuit.
+ * Télécharge une image Etsy et l'héberge sur litterbox (catbox.moe).
  * Retourne une URL publique utilisable par Serper Lens.
- *
- * Services tentés dans l'ordre :
- *  1. 0x0.st     — pas de clé, TTL ~1h, max 512 MB
- *  2. litterbox  — pas de clé, TTL 1h, max 1 GB (catbox.moe)
+ * Pas de clé API requise — TTL 1h — max 1 GB.
  *
  * @param {string} etsyUrl  URL i.etsystatic.com à uploader
- * @returns {string|null}   URL publique ou null en cas d'échec total
+ * @returns {string|null}   URL publique ou null en cas d'échec
  */
 async function uploadImageFree(etsyUrl) {
   if (!etsyUrl) return null;
@@ -57,28 +54,7 @@ async function uploadImageFree(etsyUrl) {
     return null;
   }
 
-  // ── Étape 2 : uploader sur 0x0.st ──
-  try {
-    const form = new FormData();
-    form.append('file', imgBuffer, { filename: 'image.jpg', contentType: mimeType });
-
-    const res = await axios.post('https://0x0.st', form, {
-      headers: form.getHeaders(),
-      timeout: 20000,
-      maxContentLength: Infinity,
-    });
-
-    const url = res.data?.trim();
-    if (url && url.startsWith('https://')) {
-      uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
-      console.log('[freeUploader] 0x0.st ✅', url);
-      return url;
-    }
-  } catch (e) {
-    console.warn('[freeUploader] 0x0.st failed:', e.message);
-  }
-
-  // ── Étape 3 : fallback sur litterbox (catbox.moe) ──
+  // ── Étape 2 : uploader sur litterbox (catbox.moe) ──
   try {
     const form = new FormData();
     form.append('reqtype', 'fileupload');
@@ -101,7 +77,7 @@ async function uploadImageFree(etsyUrl) {
     console.warn('[freeUploader] litterbox failed:', e.message);
   }
 
-  console.error('[freeUploader] tous les services ont échoué pour', etsyUrl);
+  console.error('[freeUploader] upload échoué pour', etsyUrl);
   return null;
 }
 
