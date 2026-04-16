@@ -106,7 +106,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
           existing.listingId2 = r.listingId;
         } else if (!existing.listingId3 && r.listingId !== existing.listingId && r.listingId !== existing.listingId2) {
           existing.listingId3 = r.listingId;
-
+        }
       }
     }
 
