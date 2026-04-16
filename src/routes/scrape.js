@@ -5,8 +5,8 @@ const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 // ScraperAPI conservé UNIQUEMENT pour AliExpress
 const { scraperApiFetch } = require('../services/scrapingFetch');
-// Comparaison d'images pHash — 100% gratuit, sans API externe
-const { compareImages, findBestAliMatch } = require('../services/imageComparator');
+// CLIP : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
+const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable } = require('../services/clipCompare');
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -236,7 +236,7 @@ router.post('/search-dropship', async (req, res) => {
     }
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse...' });
 
-    // ── STEP 3 : Google Lens via Serper + Comparaison pHash (gratuit) ──
+    // ── STEP 3 : Google Lens via Serper ──
     const imgbbCache = new Map();
     async function uploadCached(url) {
       if (imgbbCache.has(url)) return imgbbCache.get(url);
@@ -245,68 +245,70 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
+    // ── Vérification disponibilité CLIP au démarrage du scan ──
+    const clipEnabled = await isClipAvailable().catch(() => false);
+    if (clipEnabled) {
+      console.log('[search-dropship] ✅ CLIP disponible — comparaison visuelle activée');
+      send({ step: 'analyzing', message: '🤖 CLIP activé — comparaison visuelle objet activée' });
+    } else {
+      console.log('[search-dropship] ⚠️ CLIP non disponible — mode Serper seul');
+    }
+
     /**
-     * lensSearch : interroge Serper Lens et retourne TOUS les résultats AliExpress
-     * (avec leur image thumbnail) pour que pHash puisse choisir le meilleur.
+     * Vérifie si une image Etsy trouve son objet sur AliExpress :
+     *  1. Google Lens (Serper) → trouve l'URL AliExpress + son image
+     *  2. CLIP → vérifie que l'OBJET Etsy est bien l'OBJET AliExpress
+     *            (résistant aux différences de fond, angle, lumière)
      */
-    async function lensSearch(imageUrl) {
-      if (isAborted()) return [];
+    async function lensMatchWithClip(etsyImageUrl) {
+      if (isAborted()) return null;
       try {
-        const pub = await uploadCached(imageUrl);
-        if (!pub || isAborted()) return [];
+        const pub = await uploadCached(etsyImageUrl);
+        if (!pub || isAborted()) return null;
+
+        // Étape 1 : Google Lens pour trouver AliExpress
         const r = await axios.post('https://google.serper.dev/lens',
           { url: pub, gl: 'us', hl: 'en' },
           { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
         );
-        if (isAborted()) return [];
+        if (isAborted()) return null;
+
         const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
-        // Retourne tous les résultats AliExpress avec leur image pour comparaison pHash
-        return all
-          .filter(x => {
-            const u = x.link || x.url || '';
-            return u.includes('aliexpress.com') && u.includes('/item/');
-          })
-          .map(x => ({
-            aliUrl:   x.link || x.url,
-            aliImage: x.imageUrl || x.thumbnailUrl || null,
-            title:    x.title || null,
-          }))
-          .filter(x => x.aliImage); // on ne garde que ceux avec une image
+        const aliMatches = all.filter(x => {
+          const u = x.link || x.url || '';
+          return u.includes('aliexpress.com') && u.includes('/item/') &&
+                 (x.imageUrl || x.thumbnailUrl);
+        });
+
+        if (!aliMatches.length) return null;
+
+        // Étape 2 : CLIP — vérification visuelle objet
+        if (clipEnabled) {
+          const aliUrls = aliMatches
+            .slice(0, 3)
+            .flatMap(m => extractAliImageUrls(m))
+            .filter(Boolean);
+
+          if (aliUrls.length > 0) {
+            const clipResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
+              threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
+            });
+
+            console.log(`[CLIP] sim=${clipResult.similarity} match=${clipResult.match} fallback=${clipResult.fallback}`);
+
+            if (clipResult.fallback) return aliMatches[0]; // service down → fallback Serper
+            if (clipResult.match)    return { ...aliMatches[0], clipSimilarity: clipResult.similarity };
+            console.log(`[CLIP] ❌ Objet non confirmé`);
+            return null;
+          }
+        }
+
+        return aliMatches[0]; // Pas de CLIP → confiance Serper
+
       } catch (e) {
         if (e.response?.status === 401) throw new Error('serper_401');
-        return [];
-      }
-    }
-
-    /**
-     * lensMatchWithPHash :
-     *  1. Récupère tous les candidats AliExpress via Lens
-     *  2. Compare chaque image AliExpress avec l'image Etsy par pHash
-     *  3. Retourne le meilleur match (score >= seuil) ou null
-     */
-    const PHASH_THRESHOLD = 0.78; // seuil : même produit
-
-    async function lensMatchWithPHash(etsyImageUrl) {
-      if (isAborted()) return null;
-
-      // Étape A : Google Lens → candidats AliExpress
-      const candidates = await lensSearch(etsyImageUrl);
-      if (!candidates.length) {
-        console.log('[lensMatchWithPHash] no AliExpress candidates from Lens');
         return null;
       }
-      console.log(`[lensMatchWithPHash] ${candidates.length} AliExpress candidates → pHash comparison`);
-
-      // Étape B : pHash comparison (gratuit, local)
-      const { best, score } = await findBestAliMatch(etsyImageUrl, candidates, PHASH_THRESHOLD);
-
-      if (best) {
-        console.log(`[lensMatchWithPHash] ✅ pHash match! score=${score} | ${best.aliUrl}`);
-      } else {
-        console.log(`[lensMatchWithPHash] ❌ no pHash match (best score=${score})`);
-      }
-
-      return best; // null si aucun match au-dessus du seuil
     }
 
     const dropshippers = [];
@@ -326,39 +328,33 @@ router.post('/search-dropship', async (req, res) => {
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
           if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
-          console.log('[worker] running lensMatchWithPHash for', listing.shopName);
-
-          // Les 2 images doivent chacune trouver un match AliExpress confirmé par pHash
-          const [m1, m2] = await Promise.all([
-            lensMatchWithPHash(img1),
-            lensMatchWithPHash(img2),
-          ]);
+          console.log('[worker] running lensMatch+CLIP for', listing.shopName);
+          const [m1, m2] = await Promise.all([lensMatchWithClip(img1), lensMatchWithClip(img2)]);
           if (isAborted()) break;
 
-          console.log('[worker]', listing.shopName,
-            '| m1:', m1 ? `✅ score=${m1.score}` : '❌',
-            '| m2:', m2 ? `✅ score=${m2.score}` : '❌'
-          );
+          const sim1 = m1?.clipSimilarity ? ` (CLIP: ${m1.clipSimilarity})` : '';
+          const sim2 = m2?.clipSimilarity ? ` (CLIP: ${m2.clipSimilarity})` : '';
+          console.log('[worker]', listing.shopName, '| m1:', !!m1, sim1, '| m2:', !!m2, sim2);
 
           if (m1 && m2) {
             dropshippers.push({
-              shopName:    listing.shopName,
-              shopUrl:     listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
-              shopAvatar:  null,
-              shopImage:   img1,
-              listingUrl:  listing.link,
-              aliUrl:      m1.aliUrl,      // URL AliExpress du produit trouvé
-              pHashScore:  Math.min(m1.score, m2.score), // score de confiance
+              shopName:        listing.shopName,
+              shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
+              shopAvatar:      null,
+              shopImage:       img1,
+              listingUrl:      listing.link,
+              clipSimilarity1: m1.clipSimilarity || null,
+              clipSimilarity2: m2.clipSimilarity || null,
             });
+            const clipInfo = clipEnabled && m1.clipSimilarity ? ` | CLIP: ${m1.clipSimilarity}` : '';
             send({
               step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (score=' + Math.min(m1.score, m2.score) + ' | ' + dropshippers.length + ' dropshippers)',
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)' + clipInfo,
               shop: dropshippers[dropshippers.length - 1],
             });
           }
         } catch (e) {
           if (e.message === 'serper_401') { send({ step: 'error', message: '\u274C Serper key invalid' }); return; }
-          console.warn('[worker] error for', listing.shopName, ':', e.message);
         }
       }
     }
