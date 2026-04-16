@@ -14,10 +14,16 @@ if (mongoose.connection.readyState === 0) {
 }
 
 
-// ── Serper API key (free plan — single key) ──
-const SERPER_KEY = process.env.SERPER_API_KEY;
+// ── Rotation des clés Serper ──
+const SERPER_KEYS = [
+  process.env.SERPER_API_KEY,
+  process.env.SERPER_API_KEY_2,
+].filter(Boolean);
+let _serperKeyIndex = 0;
 function getSerperKey() {
-  return SERPER_KEY;
+  const key = SERPER_KEYS[_serperKeyIndex % SERPER_KEYS.length];
+  _serperKeyIndex++;
+  return key;
 }
 
 const activeSearches = new Map();
@@ -181,7 +187,7 @@ router.post('/search-dropship', async (req, res) => {
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
-  if (!SERPER_KEY) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
+  if (!SERPER_KEYS.length) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
 
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -220,17 +226,16 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 & 3 : Warm-up CLIP + Scraping Etsy in parallel ──
-    send({ step: 'analyzing', message: '🤖 Checking CLIP service (HuggingFace)...' });
-    send({ step: 'scraping', message: '🔍 Searching Etsy for "' + keyword + '"...' });
+    // ── STEP 2 & 3 : Warm-up CLIP + Scraping Etsy en parallèle ──
+    send({ step: 'analyzing', message: '🤖 Vérification du service CLIP...' });
+    send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
 
-    // Free HuggingFace Spaces cold start can take 60-120s — 6 attempts × 20s = 2 min max
-    async function waitForClip(maxAttempts = 6, delayMs = 20000) {
+    async function waitForClip(maxAttempts = 5, delayMs = 15000) {
       for (let i = 0; i < maxAttempts; i++) {
         const ready = await isClipAvailable().catch(() => false);
         if (ready) return true;
         if (i < maxAttempts - 1) {
-          send({ step: 'analyzing', message: `⏳ CLIP warming up... (${i + 1}/${maxAttempts}) — retrying in ${delayMs / 1000}s` });
+          send({ step: 'analyzing', message: `⏳ CLIP en démarrage... (${i + 1}/${maxAttempts}) — nouvelle tentative dans ${delayMs / 1000}s` });
           await new Promise(r => setTimeout(r, delayMs));
         }
       }
@@ -257,21 +262,21 @@ router.post('/search-dropship', async (req, res) => {
     if (!clipReady) {
       send({
         step: 'error',
-        message: '❌ CLIP service unavailable after 6 attempts (HuggingFace free cold start). Please retry in 1-2 minutes.',
+        message: '❌ Le service CLIP est indisponible après plusieurs tentatives. Veuillez réessayer dans 1-2 minutes (cold start HuggingFace ~60-90s).',
       });
       activeSearches.delete(sid);
       return res.end();
     }
 
-    send({ step: 'analyzing', message: '✅ CLIP ready — visual comparison enabled' });
-    console.log('[search-dropship] ✅ CLIP available — mandatory visual comparison');
+    send({ step: 'analyzing', message: '✅ CLIP prêt — comparaison visuelle obligatoire activée' });
+    console.log('[search-dropship] ✅ CLIP disponible — comparaison visuelle obligatoire');
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
     listings = listings.filter(l => l.shopName);
     console.log('[search-dropship] listings found:', listings.length);
 
     if (!listings.length) {
-      send({ step: 'error', message: '❌ No shops found in Etsy results' });
+      send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
       return res.end();
     }
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' unique shops. CLIP analysis...' });
@@ -353,7 +358,7 @@ router.post('/search-dropship', async (req, res) => {
 
         // Étape 2 : CLIP — vérification visuelle OBLIGATOIRE
         const aliUrls = aliMatches
-          .slice(0, 5) // 5 candidats pour maximiser les chances sur angles différents
+          .slice(0, 2) // plan gratuit Serper : on limite à 2 candidats
           .flatMap(m => extractAliImageUrls(m))
           .filter(Boolean);
 
@@ -364,8 +369,7 @@ router.post('/search-dropship', async (req, res) => {
         }
 
         const clipResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
-          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.75'),
-          hybrid: true, // score combiné CLIP 75% + structure 25% (ratio + couleurs)
+          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
         });
 
         console.log(`[CLIP] sim=${clipResult.similarity} match=${clipResult.match} fallback=${clipResult.fallback}`);
@@ -448,15 +452,14 @@ router.post('/search-dropship', async (req, res) => {
             });
           }
         } catch (e) {
-          if (e.message === 'serper_401') { send({ step: 'error', message: '❌ Serper API key invalid — check your SERPER_API_KEY' }); return; }
-          if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Serper free credits exhausted (2,500/month) — top up at serper.dev' }); return; }
+          if (e.message === 'serper_401') { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
+          if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge ton compte sur serper.dev' }); return; }
         }
       }
     }
 
-    // 3 workers = maximum safe concurrency for Serper free plan (~1 req/sec rate limit).
-    // Automatic 429 backoff is in lensMatchWithClip. Do NOT raise above 3.
-    await Promise.all(Array.from({ length: 3 }, worker));
+    // 3 workers max — au-delà, Serper retourne 429 (rate limit)
+    await Promise.all(Array.from({ length: 6 }, worker));
     activeSearches.delete(sid);
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
