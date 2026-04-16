@@ -265,68 +265,18 @@ router.post('/search-dropship', async (req, res) => {
      *
      * @returns {object|null} Le match AliExpress confirmé par CLIP, ou null
      */
-    // Taille maximale autorisée par Serper Lens (~700 KB en bytes décodés)
-    // Au-delà, Serper retourne 400. On essaie d'abord l'URL 570px d'Etsy,
-    // sinon on tronque à 700 KB en dernier recours.
-    const SERPER_MAX_BYTES = 700_000;
-
-    // Etsy expose plusieurs résolutions via le suffixe de l'URL :
-    //   _fullxfull → original (peut dépasser 2 Mo)
-    //   _1588xN    → ~1588px
-    //   _794xN     → ~794px  (bonne qualité, ~200-400 KB)
-    //   _570xN     → ~570px  (légère, ~80-180 KB) ← cible idéale pour Serper
-    //   _340xN     → ~340px
-    function downsizeEtsyUrl(url) {
-      if (!url) return url;
-      // Remplace n'importe quelle résolution connue par _570x
-      return url.replace(/_(fullxfull|\d{3,4}x[^.]*)\./i, '_570x.');
-    }
+    const { uploadImageFree } = require('../services/freeImageUploader');
 
     async function lensMatchWithClip(etsyImageUrl) {
       if (isAborted()) return null;
       try {
         if (!etsyImageUrl || isAborted()) return null;
 
-        // ── Étape 0 : téléchargement de l'image Etsy ──
-        // Serper Lens rejette les URLs i.etsystatic.com directement → on envoie en base64.
-        // On essaie d'abord la version 570px (légère), puis l'originale en fallback.
-        const smallUrl = downsizeEtsyUrl(etsyImageUrl);
-        let imgBuffer = null;
-        let mimeType  = 'image/jpeg';
-
-        // Tentative 1 : version 570px
-        if (smallUrl !== etsyImageUrl) {
-          try {
-            const imgRes = await axios.get(smallUrl, { responseType: 'arraybuffer', timeout: 15000 });
-            const buf = Buffer.from(imgRes.data);
-            // Valide que c'est bien une image (magic bytes JPEG ou PNG)
-            if (buf.length > 100 && (buf[0] === 0xFF || buf[0] === 0x89)) {
-              imgBuffer = buf;
-              mimeType  = (imgRes.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
-            }
-          } catch { /* URL 570px absente ou erreur réseau → fallback */ }
-        }
-
-        // Tentative 2 : URL originale si la 570px a échoué ou retourné un fichier invalide
-        if (!imgBuffer) {
-          const imgRes = await axios.get(etsyImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
-          const buf = Buffer.from(imgRes.data);
-          if (!buf.length || buf.length < 100) {
-            console.warn(`[lensMatchWithClip] image vide pour ${etsyImageUrl} — skip`);
-            return null;
-          }
-          imgBuffer = buf;
-          mimeType  = (imgRes.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
-        }
-
-        // Sécurité : si l'image dépasse encore la limite Serper, on skip
-        // (tronquer un JPEG produit un fichier corrompu → Serper retourne 400 de toute façon)
-        if (imgBuffer.length > SERPER_MAX_BYTES) {
-          console.warn(`[lensMatchWithClip] image trop lourde (${imgBuffer.length} bytes) — skip (limite ${SERPER_MAX_BYTES} bytes)`);
-          return null;
-        }
-
-        const base64 = imgBuffer.toString('base64');
+        // ── Étape 0 : upload vers un hébergeur public gratuit ──
+        // Serper Lens nécessite une URL publique (les URLs i.etsystatic.com sont rejetées).
+        // On utilise 0x0.st avec fallback sur litterbox — sans clé API.
+        const pub = await uploadImageFree(etsyImageUrl);
+        if (!pub || isAborted()) return null;
 
         // ── Étape 1 : Google Lens pour trouver des candidats AliExpress ──
         // Retry automatique sur 429 (rate limit Serper) avec backoff exponentiel
@@ -335,7 +285,7 @@ router.post('/search-dropship', async (req, res) => {
         for (let attempt = 0; attempt < SERPER_RETRIES; attempt++) {
           try {
             r = await axios.post('https://google.serper.dev/lens',
-              { image: `data:${mimeType};base64,${base64}`, gl: 'us', hl: 'en' },
+              { url: pub, gl: 'us', hl: 'en' },
               { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
             );
             break; // succès → sort du loop
