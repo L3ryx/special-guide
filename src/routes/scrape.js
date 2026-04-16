@@ -288,45 +288,83 @@ router.post('/search-dropship', async (req, res) => {
         if (!etsyImageUrl || isAborted()) return null;
 
         // ── Étape 0 : téléchargement de l'image Etsy ──
-        // On essaie d'abord la version 570px (légère), puis l'originale en fallback.
         // Serper Lens rejette les URLs i.etsystatic.com directement → on envoie en base64.
+        // On essaie d'abord la version 570px (légère), puis l'originale en fallback.
         const smallUrl = downsizeEtsyUrl(etsyImageUrl);
-        let imgBuffer;
-        let mimeType = 'image/jpeg';
+        let imgBuffer = null;
+        let mimeType  = 'image/jpeg';
 
-        try {
-          const imgRes = await axios.get(smallUrl, { responseType: 'arraybuffer', timeout: 15000 });
-          imgBuffer = Buffer.from(imgRes.data);
-          // Nettoie le content-type : "image/jpeg; charset=utf-8" → "image/jpeg"
-          mimeType = (imgRes.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
-        } catch {
-          // URL 570px inexistante → retente avec l'URL originale
+        // Tentative 1 : version 570px
+        if (smallUrl !== etsyImageUrl) {
+          try {
+            const imgRes = await axios.get(smallUrl, { responseType: 'arraybuffer', timeout: 15000 });
+            const buf = Buffer.from(imgRes.data);
+            // Valide que c'est bien une image (magic bytes JPEG ou PNG)
+            if (buf.length > 100 && (buf[0] === 0xFF || buf[0] === 0x89)) {
+              imgBuffer = buf;
+              mimeType  = (imgRes.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
+            }
+          } catch { /* URL 570px absente ou erreur réseau → fallback */ }
+        }
+
+        // Tentative 2 : URL originale si la 570px a échoué ou retourné un fichier invalide
+        if (!imgBuffer) {
           const imgRes = await axios.get(etsyImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
-          imgBuffer = Buffer.from(imgRes.data);
+          const buf = Buffer.from(imgRes.data);
+          if (!buf.length || buf.length < 100) {
+            console.warn(`[lensMatchWithClip] image vide pour ${etsyImageUrl} — skip`);
+            return null;
+          }
+          imgBuffer = buf;
           mimeType  = (imgRes.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
         }
 
-        // Sécurité : si l'image dépasse encore la limite Serper, on la tronque
-        // (rare avec la version 570px, mais peut arriver avec des PNG non compressés)
+        // Sécurité : si l'image dépasse encore la limite Serper, on skip
+        // (tronquer un JPEG produit un fichier corrompu → Serper retourne 400 de toute façon)
         if (imgBuffer.length > SERPER_MAX_BYTES) {
-          console.warn(`[lensMatchWithClip] image trop lourde (${imgBuffer.length} bytes) — troncature à ${SERPER_MAX_BYTES} bytes`);
-          imgBuffer = imgBuffer.slice(0, SERPER_MAX_BYTES);
+          console.warn(`[lensMatchWithClip] image trop lourde (${imgBuffer.length} bytes) — skip (limite ${SERPER_MAX_BYTES} bytes)`);
+          return null;
         }
 
         const base64 = imgBuffer.toString('base64');
 
         // ── Étape 1 : Google Lens pour trouver des candidats AliExpress ──
+        // Retry automatique sur 429 (rate limit Serper) avec backoff exponentiel
         let r;
-        try {
-          r = await axios.post('https://google.serper.dev/lens',
-            { image: `data:${mimeType};base64,${base64}`, gl: 'us', hl: 'en' },
-            { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
-          );
-        } catch (serperErr) {
-          if (serperErr.response?.status === 400) {
-            console.warn('[lensMatchWithClip] Serper 400 — détail:', JSON.stringify(serperErr.response.data));
+        const SERPER_RETRIES = 3;
+        for (let attempt = 0; attempt < SERPER_RETRIES; attempt++) {
+          try {
+            r = await axios.post('https://google.serper.dev/lens',
+              { image: `data:${mimeType};base64,${base64}`, gl: 'us', hl: 'en' },
+              { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
+            );
+            break; // succès → sort du loop
+          } catch (serperErr) {
+            const status = serperErr.response?.status;
+            const detail = serperErr.response?.data;
+
+            if (status === 400) {
+              console.warn('[lensMatchWithClip] Serper 400 — détail:', JSON.stringify(detail));
+              if (detail?.message?.toLowerCase().includes('not enough credits')) {
+                throw new Error('serper_no_credits');
+              }
+              throw serperErr; // autre 400 non récupérable
+            }
+
+            if (status === 429) {
+              if (attempt < SERPER_RETRIES - 1) {
+                const wait = 1500 * Math.pow(2, attempt); // 1.5s, 3s
+                console.warn(`[lensMatchWithClip] Serper 429 — rate limit, retry dans ${wait}ms`);
+                await new Promise(res => setTimeout(res, wait));
+                continue;
+              }
+              // Dernier essai épuisé → on skip silencieusement (pas un crash)
+              console.warn('[lensMatchWithClip] Serper 429 — skip après', SERPER_RETRIES, 'tentatives');
+              return null;
+            }
+
+            throw serperErr; // autre erreur (réseau, 5xx…)
           }
-          throw serperErr;
         }
         if (isAborted()) return null;
 
@@ -375,6 +413,7 @@ router.post('/search-dropship', async (req, res) => {
 
       } catch (e) {
         if (e.response?.status === 401) throw new Error('serper_401');
+        if (e.message === 'serper_no_credits') throw e; // remonte pour stopper la recherche
         console.warn('[lensMatchWithClip] erreur:', e.message);
         return null;
       }
@@ -421,12 +460,14 @@ router.post('/search-dropship', async (req, res) => {
             });
           }
         } catch (e) {
-          if (e.message === 'serper_401') { send({ step: 'error', message: '\u274C Serper key invalid' }); return; }
+          if (e.message === 'serper_401') { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
+          if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge ton compte sur serper.dev' }); return; }
         }
       }
     }
 
-    await Promise.all(Array.from({ length: 6 }, worker));
+    // 3 workers max — au-delà, Serper retourne 429 (rate limit)
+    await Promise.all(Array.from({ length: 3 }, worker));
     activeSearches.delete(sid);
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
