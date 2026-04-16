@@ -19,7 +19,7 @@ import logging
 from urllib.parse import urlencode, quote_plus
 
 from flask import Flask, request, jsonify
-from scrapling.fetchers import PlaywrightFetcher
+from scrapling.fetchers import StealthyFetcher
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="[scrapling] %(message)s")
@@ -31,15 +31,14 @@ app = Flask(__name__)
 
 def fetch(url: str, timeout: int = 30):
     """
-    Récupère une page via Playwright (vrai Chromium headless).
-    Beaucoup plus difficile à détecter qu'un simple HTTP client.
+    Récupère une page via StealthyFetcher (Firefox modifié, anti-détection).
+    Contourne les protections anti-bot comme celles d'Etsy.
     """
-    return PlaywrightFetcher().fetch(
+    return StealthyFetcher().fetch(
         url,
         headless=True,
         network_idle=True,
         timeout=timeout * 1000,
-        hide_browser=True,
     )
 
 
