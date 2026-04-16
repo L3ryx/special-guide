@@ -19,7 +19,7 @@ import logging
 from urllib.parse import urlencode, quote_plus
 
 from flask import Flask, request, jsonify
-from scrapling.fetchers import FetcherSession
+from scrapling.fetchers import PlaywrightFetcher
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="[scrapling] %(message)s")
@@ -29,9 +29,18 @@ app = Flask(__name__)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def make_session():
-    """Crée une FetcherSession avec les en-têtes d'un vrai navigateur."""
-    return FetcherSession(impersonate="chrome")
+def fetch(url: str, timeout: int = 30):
+    """
+    Récupère une page via Playwright (vrai Chromium headless).
+    Beaucoup plus difficile à détecter qu'un simple HTTP client.
+    """
+    return PlaywrightFetcher().fetch(
+        url,
+        headless=True,
+        network_idle=True,
+        timeout=timeout * 1000,
+        hide_browser=True,
+    )
 
 
 def clean_image(url: str | None) -> str | None:
@@ -41,13 +50,13 @@ def clean_image(url: str | None) -> str | None:
     return url.split("?")[0]
 
 
-def random_delay(min_s=0.4, max_s=1.2):
+def random_delay(min_s=0.5, max_s=1.5):
     time.sleep(random.uniform(min_s, max_s))
 
 
 # ── Scraping helpers ──────────────────────────────────────────────────────────
 
-def _search_page(session: FetcherSession, keyword: str, offset: int = 0, limit: int = 100):
+def _search_page(keyword: str, offset: int = 0, limit: int = 100):
     """
     Scrape une page de résultats de recherche Etsy.
     Retourne une liste de dicts {listingId, shopId, title, link, image}.
@@ -56,23 +65,17 @@ def _search_page(session: FetcherSession, keyword: str, offset: int = 0, limit: 
         "q": keyword,
         "explicit": "1",
         "ref": "search_bar",
-        "page": str(offset // 48 + 1),  # Etsy pagine par ~48 résultats
+        "page": str(offset // 48 + 1),
     })
     url = f"https://www.etsy.com/search?{params}"
     log.info(f"GET {url}")
 
-    page = session.get(url, stealthy_headers=True, timeout=30)
+    page = fetch(url, timeout=40)
 
     if page.status != 200:
         raise RuntimeError(f"Etsy returned HTTP {page.status} for search")
 
     listings = []
-
-    # Etsy injecte les données dans un JSON dans la balise <script id="initial-state">
-    # On tente d'abord ça, puis fallback CSS.
-    script = page.css('script[data-component-name="SearchPageBrowseResults"]', first=True)
-    if not script:
-        script = page.css('[data-search-results-count]', first=True)
 
     # ── Méthode principale : JSON embarqué ──
     json_tags = page.find_all("script", {"type": "application/json"})
@@ -110,7 +113,6 @@ def _search_page(session: FetcherSession, keyword: str, offset: int = 0, limit: 
                     img_el.attrib.get("src") or img_el.attrib.get("data-src")
                 )
 
-            # shop_id via data-shop-id ou depuis le lien
             shop_id = card.attrib.get("data-shop-id")
 
             listings.append({
@@ -160,23 +162,21 @@ def _extract_listings_from_json(data, depth=0):
     return results
 
 
-def _get_shop_info(session: FetcherSession, shop_name: str):
+def _get_shop_info(shop_name: str):
     """
     Scrape la page d'une boutique Etsy et retourne son nom + ses listings.
     """
     url = f"https://www.etsy.com/shop/{quote_plus(shop_name)}"
     log.info(f"GET shop page: {url}")
 
-    page = session.get(url, stealthy_headers=True, timeout=30)
+    page = fetch(url, timeout=35)
     if page.status != 200:
         raise RuntimeError(f"Etsy shop page returned HTTP {page.status}")
 
-    # Nom de la boutique
     name_el = page.css("h1", first=True)
     resolved_name = name_el.text.strip() if name_el else shop_name
     shop_url = f"https://www.etsy.com/shop/{resolved_name}"
 
-    # Images des listings (on prend les 4 premières cards)
     images = []
     listing_ids = []
     cards = page.css("[data-listing-id]") or []
@@ -199,15 +199,14 @@ def _get_shop_info(session: FetcherSession, shop_name: str):
     }
 
 
-def _get_listing_images(session: FetcherSession, listing_id: str):
+def _get_listing_images(listing_id: str):
     """Scrape la page d'un listing pour récupérer ses images et son prix."""
     url = f"https://www.etsy.com/listing/{listing_id}"
     log.info(f"GET listing: {url}")
-    page = session.get(url, stealthy_headers=True, timeout=25)
+    page = fetch(url, timeout=30)
     if page.status != 200:
         return None, None
 
-    # Images
     img_els = page.css('[data-zoom-src]') or page.css('img[src*="etsystatic"]') or []
     images = []
     for el in img_els[:5]:
@@ -215,7 +214,6 @@ def _get_listing_images(session: FetcherSession, listing_id: str):
         if src and src not in images:
             images.append(src)
 
-    # Prix
     price_el = page.css('[data-buy-box-region] p[class*="price"]', first=True)
     price = price_el.text.strip() if price_el else None
 
@@ -244,8 +242,7 @@ def search():
         return jsonify({"error": "keyword required"}), 400
 
     try:
-        with make_session() as session:
-            results = _search_page(session, keyword, offset=offset, limit=limit)
+        results = _search_page(keyword, offset=offset, limit=limit)
         return jsonify(results)
     except Exception as e:
         log.exception("search error")
@@ -257,7 +254,6 @@ def shop_info():
     """
     Body: { shopName: str, listingId?: str, listingId2?: str, listingId3?: str, listingId4?: str }
     Réponse: { shopName, shopUrl, image, image2, image3, image4 }
-    Remplace etsyApi.getShopNameAndImage()
     """
     body = request.get_json(force=True)
     shop_name = (body.get("shopName") or body.get("shopId") or "").strip()
@@ -266,11 +262,9 @@ def shop_info():
         return jsonify({"error": "shopName required"}), 400
 
     try:
-        with make_session() as session:
-            info = _get_shop_info(session, shop_name)
+        info = _get_shop_info(shop_name)
 
         images = info.get("images", [])
-        # Complète avec None si moins de 4 images
         while len(images) < 4:
             images.append(None)
 
@@ -292,7 +286,6 @@ def shop_listings():
     """
     Body: { shopName: str, limit?: int }
     Réponse: [{ listingId, title, link, image, shopName, shopUrl }]
-    Remplace etsyApi.getShopListings()
     """
     body = request.get_json(force=True)
     shop_name = (body.get("shopName") or body.get("shopIdOrName") or "").strip()
@@ -302,8 +295,7 @@ def shop_listings():
         return jsonify({"error": "shopName required"}), 400
 
     try:
-        with make_session() as session:
-            info = _get_shop_info(session, shop_name)
+        info = _get_shop_info(shop_name)
 
         listing_ids = info.get("listingIds", [])[:limit]
         results = []
@@ -327,7 +319,6 @@ def listing_detail():
     """
     Body: { listingId: str }
     Réponse: { title, price, images, shopName, shopId }
-    Remplace etsyApi.getListingDetail()
     """
     body = request.get_json(force=True)
     listing_id = str(body.get("listingId") or "").strip()
@@ -336,8 +327,7 @@ def listing_detail():
         return jsonify({"error": "listingId required"}), 400
 
     try:
-        with make_session() as session:
-            images, price = _get_listing_images(session, listing_id)
+        images, price = _get_listing_images(listing_id)
 
         return jsonify({
             "title": None,
