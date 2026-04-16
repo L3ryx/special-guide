@@ -404,15 +404,15 @@
       <button id="stripe-close-btn" onclick="closeStripeModal()" aria-label="Close">✕</button>
       <div class="stripe-logo">💳</div>
       <div class="stripe-title">Unlock Searches</div>
-      <div class="stripe-subtitle">Get 10 searches instantly. No subscription, pay once.</div>
+      <div class="stripe-subtitle">Get 20 searches instantly. No subscription, pay once.</div>
       <div class="stripe-price-badge">
-        <div class="stripe-price">$24.99</div>
-        <div class="stripe-price-detail">= 10 searches · $2.50 per search</div>
+        <div class="stripe-price">$19.99</div>
+        <div class="stripe-price-detail">= 20 searches · $1.00 per search</div>
       </div>
       <!-- Stripe Elements injecte ici -->
       <div id="stripe-payment-element"></div>
       <div class="stripe-msg" id="stripe-msg"></div>
-      <button class="stripe-pay-btn" id="stripe-pay-btn" onclick="processPay()">🔒 Pay $24.99</button>
+      <button class="stripe-pay-btn" id="stripe-pay-btn" onclick="processPay()">🔒 Pay $19.99</button>
       <div class="stripe-cancel" onclick="closeStripeModal()">Cancel</div>
       <div class="stripe-secure">🔒 Secured by Stripe · SSL encrypted</div>
     </div>
@@ -731,11 +731,11 @@
         _stripePaymentEl.mount('#stripe-payment-element');
         _stripePaymentEl.on('ready', function() {
           document.getElementById('stripe-pay-btn').disabled = false;
-          document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $24.99';
+          document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $19.99';
         });
       } catch(e) {
         document.getElementById('stripe-msg').textContent = e.message;
-        document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $24.99';
+        document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $19.99';
       }
     }
 
@@ -766,7 +766,7 @@
         if (result.error) {
           msg.textContent = result.error.message;
           btn.disabled = false;
-          btn.innerHTML = '🔒 Pay $24.99';
+          btn.innerHTML = '🔒 Pay $19.99';
           return;
         }
 
@@ -783,16 +783,16 @@
           _searchCredits = d2.searchCredits;
           renderCredits();
           closeStripeModal();
-          showToast('✅ Payment successful! 10 searches unlocked.', '#22c55e');
+          showToast('✅ Payment successful! 20 searches unlocked.', '#22c55e');
         } else {
           msg.textContent = 'Payment not completed. Please try again.';
           btn.disabled = false;
-          btn.innerHTML = '🔒 Pay $24.99';
+          btn.innerHTML = '🔒 Pay $19.99';
         }
       } catch(e) {
         msg.textContent = e.message;
         btn.disabled = false;
-        btn.innerHTML = '🔒 Pay $24.99';
+        btn.innerHTML = '🔒 Pay $19.99';
       }
     }
 
