@@ -500,7 +500,7 @@
 
   <!-- PAY BUTTON -->
   <div id="pay-btn-wrap">
-    <button id="pay-btn" onclick="openCreditNudge()">💳 Buy</button>
+    <button id="pay-btn" onclick="openStripeModal()">💳 Buy</button>
   </div>
 
   <!-- STRIPE MODAL -->
@@ -798,6 +798,7 @@
 
     // ── CREDIT NUDGE POPUP ──
     function openCreditNudge() {
+      if (_unlimited) return;
       document.getElementById('credit-nudge-popup').classList.add('open');
     }
     function closeCreditNudge() {
