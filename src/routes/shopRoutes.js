@@ -66,6 +66,20 @@ router.delete('/:id', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── DELETE auto-search state (clear history) ──
+router.delete('/auto-state', requireAuth, async (req, res) => {
+  try {
+    await AutoSearchState.findOneAndUpdate(
+      { userId: req.user.id },
+      { $set: { keywordQueue: [], usedKeywords: [], usedShops: [], updatedAt: new Date() } },
+      { upsert: true }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET auto-search state ──
 router.get('/auto-state', requireAuth, async (req, res) => {
   try {
