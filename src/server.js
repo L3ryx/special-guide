@@ -31,7 +31,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── API endpoint for online count (fallback SSE / polling) ──
 app.get('/api/online-count', (req, res) => {
   res.json({ count: onlineCount });
 });
@@ -80,11 +79,13 @@ app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, '../p
 
 server.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`ℹ️  Le microservice scraper botasaurus doit tourner sur http://localhost:${process.env.SCRAPER_PORT || 5001}`);
+  console.log(`   Démarrez-le avec : cd etsy_scraper_service && python etsy_scraper.py`);
 });
 
-// ── Keep-alive CLIP : ping toutes les 4 minutes pour éviter le cold start HuggingFace ──
+// ── Keep-alive CLIP
 const { isClipAvailable } = require('./services/dinoCompare');
 setInterval(async () => {
   const alive = await isClipAvailable().catch(() => false);
   console.log(`[clip-keepalive] ${alive ? '✅ CLIP actif' : '⚠️ CLIP indisponible (cold start en cours)'}`);
-}, 4 * 60 * 1000); // toutes les 4 minutes
+}, 4 * 60 * 1000);
