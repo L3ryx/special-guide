@@ -25,6 +25,7 @@ from urllib.parse import urlencode, quote_plus
 
 from flask import Flask, request, jsonify
 from scrapling.fetchers import Fetcher, FetcherSession
+from scrapling import ProxyRotator
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="[scrapling] %(message)s")
@@ -34,11 +35,39 @@ app = Flask(__name__)
 
 # ── Session globale réutilisable (cookies persistants + TLS fingerprint) ──────
 _session: FetcherSession | None = None
+_proxy_rotator: ProxyRotator | None = None
+
+
+def get_proxy_rotator() -> ProxyRotator | None:
+    """
+    Retourne un ProxyRotator si des proxies sont configurés via la variable
+    d'environnement SCRAPLING_PROXIES (liste séparée par des virgules).
+
+    Exemple :
+        SCRAPLING_PROXIES=http://user:pass@proxy1:8080,http://user:pass@proxy2:8080
+    """
+    global _proxy_rotator
+    if _proxy_rotator is None:
+        import os
+        raw = os.environ.get("SCRAPLING_PROXIES", "")
+        proxies = [p.strip() for p in raw.split(",") if p.strip()]
+        if proxies:
+            _proxy_rotator = ProxyRotator(proxies)
+            log.info(f"ProxyRotator initialisé avec {len(proxies)} proxy(s)")
+        else:
+            log.info("Aucun proxy configuré (SCRAPLING_PROXIES non défini)")
+    return _proxy_rotator
+
 
 def get_session() -> FetcherSession:
     global _session
     if _session is None:
-        _session = FetcherSession(impersonate="chrome124", stealthy_headers=True)
+        rotator = get_proxy_rotator()
+        _session = FetcherSession(
+            impersonate="chrome124",
+            stealthy_headers=True,
+            proxy_rotator=rotator,  # None si aucun proxy configuré
+        )
         log.info("FetcherSession créée (chrome124)")
     return _session
 
