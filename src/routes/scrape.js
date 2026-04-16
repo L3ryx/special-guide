@@ -48,7 +48,7 @@ router.post('/niche-keyword', async (req, res) => {
       ? `\nDo NOT include any of these already-used keywords: ${usedKeywords.join(', ')}.`
       : '';
 
-    const prompt = `It is ${month} ${year}. Generate a list of exactly 50 unique English product keywords suitable for AliExpress searches.\n\nRules:\n- Each keyword must be 2-4 words\n- ALL must be PHYSICAL products only (no digital, no printables, no SVG, no downloads, no templates)\n- All 50 must be DIFFERENT product types — no variations of the same product\n- Mix categories: home decor, jewelry, clothing, accessories, electronics, toys, beauty, kitchen, garden, sports, pets, baby, outdoor, gadgets, etc.\n- Each must be specific and searchable (not generic like \"handmade gift\")\n- Prioritize products trending in ${month} ${year}${excludeList}\n\nRespond with ONLY a JSON array of 50 strings, no explanation, no markdown, no numbering.\nExample format: [\"keyword one\",\"keyword two\",\"keyword three\"]`;
+    const prompt = `It is ${month} ${year}. Generate exactly 1 unique English product keyword suitable for AliExpress searches.\n\nRules:\n- The keyword must be 2-4 words\n- Must be a PHYSICAL product only (no digital, no printables, no SVG, no downloads, no templates)\n- NO electronics, NO tech gadgets, NO smartphones, NO computers, NO cables, NO chargers, NO smart devices\n- Categories allowed: home decor, jewelry, clothing, accessories, toys, beauty, kitchen, garden, sports, pets, baby, outdoor, etc.\n- Must be specific and searchable (not generic like \"handmade gift\")\n- Prioritize products trending in ${month} ${year}${excludeList}\n\nRespond with ONLY a JSON array of 1 string, no explanation, no markdown, no numbering.\nExample format: [\"keyword one\"]`;
 
     const r = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
@@ -60,7 +60,7 @@ router.post('/niche-keyword', async (req, res) => {
     const clean = rawText.replace(/```json|```/g, '').trim();
     let keywords = JSON.parse(clean);
     if (!Array.isArray(keywords)) throw new Error('Invalid response format');
-    keywords = [...new Set(keywords.map(k => k.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()))].filter(k => k.length > 2).slice(0, 50);
+    keywords = [...new Set(keywords.map(k => k.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()))].filter(k => k.length > 2).slice(0, 1);
     res.json({ keywords });
   } catch(e) {
     const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
