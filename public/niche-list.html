@@ -219,7 +219,7 @@
     <h1>My shops</h1>
     <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
       <button id="delete-all-btn" onclick="deleteAllShops()" style="display:none; padding:8px 16px; border-radius:10px; border:1px solid rgba(255,80,80,0.4); background:rgba(255,80,80,0.1); color:#ff5050; font-size:0.8rem; font-weight:600; cursor:pointer; transition:all 0.2s;">
-        🗑 Tout supprimer
+        🗑 Delete all
       </button>
     </div>
     <div class="shops-list" id="shops-list"></div>
@@ -308,8 +308,7 @@
           const header = document.createElement('div');
           header.className = 'keyword-group-header';
           header.innerHTML =
-            '<span class="keyword-group-label">🔍 ' + kw + '</span>' +
-            '<span class="keyword-group-count">' + group.length + ' shop' + (group.length > 1 ? 's' : '') + '</span>';
+            '<span class="keyword-group-label">🔍 ' + kw + '</span>';
           groupEl.appendChild(header);
           group.forEach(shop => groupEl.appendChild(buildShopRow(shop)));
           list.appendChild(groupEl);
@@ -544,9 +543,9 @@
     }
 
     function deleteAllShops() {
-      if (!confirm('Supprimer toutes les boutiques sauvegardées ?')) return;
+      if (!confirm('Delete all saved shops?')) return;
       apiFetch('/api/shops', { method: 'DELETE' }).then(() => {
-        showToast('Toutes les boutiques supprimées', '#ef4444');
+        showToast('All shops deleted', '#ef4444');
         loadShops();
       });
     }
