@@ -370,9 +370,9 @@ router.post('/search-dropship', async (req, res) => {
 
         console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
 
-        // Si le service DINOv2 a planté pendant la requête → refus (pas de fallback)
+        // Si le service DINOv2 est en 500 (fallback=true) → on skip ce shop et on log
         if (dinoResult.fallback) {
-          console.log(`[DINO] ⚠️ Service DINOv2 down en cours de requête — résultat ignoré`);
+          console.warn(`[DINO] ⚠️ Service DINOv2 retourne 500/indisponible — shop ignoré (${etsyImageUrl?.slice(-30)})`);
           return null;
         }
 
