@@ -227,15 +227,15 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     // ── STEP 2 & 3 : Warm-up CLIP + Scraping Etsy en parallèle ──
-    send({ step: 'analyzing', message: '🤖 Vérification du service CLIP...' });
-    send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
+    send({ step: 'analyzing', message: '🤖 Checking CLIP service...' });
+    send({ step: 'scraping', message: '🔍 Searching Etsy for "' + keyword + '"...' });
 
     async function waitForClip(maxAttempts = 5, delayMs = 15000) {
       for (let i = 0; i < maxAttempts; i++) {
         const ready = await isClipAvailable().catch(() => false);
         if (ready) return true;
         if (i < maxAttempts - 1) {
-          send({ step: 'analyzing', message: `⏳ CLIP en démarrage... (${i + 1}/${maxAttempts}) — nouvelle tentative dans ${delayMs / 1000}s` });
+          send({ step: 'analyzing', message: `⏳ CLIP starting up... (${i + 1}/${maxAttempts}) — retrying in ${delayMs / 1000}s` });
           await new Promise(r => setTimeout(r, delayMs));
         }
       }
@@ -262,21 +262,21 @@ router.post('/search-dropship', async (req, res) => {
     if (!clipReady) {
       send({
         step: 'error',
-        message: '❌ Le service CLIP est indisponible après plusieurs tentatives. Veuillez réessayer dans 1-2 minutes (cold start HuggingFace ~60-90s).',
+        message: '❌ CLIP service unavailable after multiple attempts. Please retry in 1-2 minutes (HuggingFace cold start ~60-90s).',
       });
       activeSearches.delete(sid);
       return res.end();
     }
 
-    send({ step: 'analyzing', message: '✅ CLIP prêt — comparaison visuelle obligatoire activée' });
-    console.log('[search-dropship] ✅ CLIP disponible — comparaison visuelle obligatoire');
+    send({ step: 'analyzing', message: '✅ CLIP ready — mandatory visual comparison enabled' });
+    console.log('[search-dropship] ✅ CLIP available — mandatory visual comparison');
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
     listings = listings.filter(l => l.shopName);
     console.log('[search-dropship] listings found:', listings.length);
 
     if (!listings.length) {
-      send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
+      send({ step: 'error', message: '❌ No shops found in Etsy results' });
       return res.end();
     }
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' unique shops. CLIP analysis...' });
