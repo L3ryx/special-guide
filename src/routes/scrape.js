@@ -14,16 +14,10 @@ if (mongoose.connection.readyState === 0) {
 }
 
 
-// ── Rotation des clés Serper ──
-const SERPER_KEYS = [
-  process.env.SERPER_API_KEY,
-  process.env.SERPER_API_KEY_2,
-].filter(Boolean);
-let _serperKeyIndex = 0;
+// ── Serper API key (free plan — single key) ──
+const SERPER_KEY = process.env.SERPER_API_KEY;
 function getSerperKey() {
-  const key = SERPER_KEYS[_serperKeyIndex % SERPER_KEYS.length];
-  _serperKeyIndex++;
-  return key;
+  return SERPER_KEY;
 }
 
 const activeSearches = new Map();
@@ -187,7 +181,7 @@ router.post('/search-dropship', async (req, res) => {
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
-  if (!SERPER_KEYS.length) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
+  if (!SERPER_KEY) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
 
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -226,16 +220,17 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 & 3 : Warm-up CLIP + Scraping Etsy en parallèle ──
-    send({ step: 'analyzing', message: '🤖 Checking CLIP service...' });
+    // ── STEP 2 & 3 : Warm-up CLIP + Scraping Etsy in parallel ──
+    send({ step: 'analyzing', message: '🤖 Checking CLIP service (HuggingFace)...' });
     send({ step: 'scraping', message: '🔍 Searching Etsy for "' + keyword + '"...' });
 
-    async function waitForClip(maxAttempts = 5, delayMs = 15000) {
+    // Free HuggingFace Spaces cold start can take 60-120s — 6 attempts × 20s = 2 min max
+    async function waitForClip(maxAttempts = 6, delayMs = 20000) {
       for (let i = 0; i < maxAttempts; i++) {
         const ready = await isClipAvailable().catch(() => false);
         if (ready) return true;
         if (i < maxAttempts - 1) {
-          send({ step: 'analyzing', message: `⏳ CLIP starting up... (${i + 1}/${maxAttempts}) — retrying in ${delayMs / 1000}s` });
+          send({ step: 'analyzing', message: `⏳ CLIP warming up... (${i + 1}/${maxAttempts}) — retrying in ${delayMs / 1000}s` });
           await new Promise(r => setTimeout(r, delayMs));
         }
       }
@@ -262,13 +257,13 @@ router.post('/search-dropship', async (req, res) => {
     if (!clipReady) {
       send({
         step: 'error',
-        message: '❌ CLIP service unavailable after multiple attempts. Please retry in 1-2 minutes (HuggingFace cold start ~60-90s).',
+        message: '❌ CLIP service unavailable after 6 attempts (HuggingFace free cold start). Please retry in 1-2 minutes.',
       });
       activeSearches.delete(sid);
       return res.end();
     }
 
-    send({ step: 'analyzing', message: '✅ CLIP ready — mandatory visual comparison enabled' });
+    send({ step: 'analyzing', message: '✅ CLIP ready — visual comparison enabled' });
     console.log('[search-dropship] ✅ CLIP available — mandatory visual comparison');
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
@@ -453,14 +448,15 @@ router.post('/search-dropship', async (req, res) => {
             });
           }
         } catch (e) {
-          if (e.message === 'serper_401') { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
-          if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge ton compte sur serper.dev' }); return; }
+          if (e.message === 'serper_401') { send({ step: 'error', message: '❌ Serper API key invalid — check your SERPER_API_KEY' }); return; }
+          if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Serper free credits exhausted (2,500/month) — top up at serper.dev' }); return; }
         }
       }
     }
 
-    // 3 workers max — au-delà, Serper retourne 429 (rate limit)
-    await Promise.all(Array.from({ length: 6 }, worker));
+    // 3 workers = maximum safe concurrency for Serper free plan (~1 req/sec rate limit).
+    // Automatic 429 backoff is in lensMatchWithClip. Do NOT raise above 3.
+    await Promise.all(Array.from({ length: 3 }, worker));
     activeSearches.delete(sid);
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
