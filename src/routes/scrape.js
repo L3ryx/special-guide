@@ -15,7 +15,17 @@ if (mongoose.connection.readyState === 0) {
     .catch(err => console.error('❌ MongoDB:', err.message));
 }
 
-// ── Active searches registry (sessionId → aborted) ──
+// ── Cache ImgBB global avec TTL (1h) pour éviter les re-uploads entre recherches ──
+const globalImgbbCache = new Map();
+const IMGBB_CACHE_TTL = 60 * 60 * 1000; // 1 heure
+setInterval(() => {
+  const now = Date.now();
+  for (const [url, entry] of globalImgbbCache.entries()) {
+    if (now - entry.ts > IMGBB_CACHE_TTL) globalImgbbCache.delete(url);
+  }
+}, 10 * 60 * 1000); // nettoyage toutes les 10 min
+
+
 const activeSearches = new Map();
 
 router.post('/stop-search', (req, res) => {
@@ -106,7 +116,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
 
   console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
 
-  const BATCH = 5;
+  const BATCH = 12;
   const listings = [];
   const shopIdList = [...shopIdToRaw.entries()];
 
@@ -199,10 +209,10 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 : Vérification CLIP OBLIGATOIRE avant de démarrer ──
+    // ── STEP 2 & 3 : Warm-up CLIP + Scraping Etsy en parallèle ──
     send({ step: 'analyzing', message: '🤖 Vérification du service CLIP...' });
+    send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
 
-    // Retry jusqu'à 5 fois (toutes les 15s) pour laisser le temps au cold start HuggingFace (~60-90s)
     async function waitForClip(maxAttempts = 5, delayMs = 15000) {
       for (let i = 0; i < maxAttempts; i++) {
         const ready = await isClipAvailable().catch(() => false);
@@ -215,10 +225,24 @@ router.post('/search-dropship', async (req, res) => {
       return false;
     }
 
-    const clipReady = await waitForClip();
+    let listings = [];
+    let clipReady = false;
+
+    try {
+      [clipReady, listings] = await Promise.all([
+        waitForClip(),
+        fetchListingsForDropship(
+          keyword,
+          (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' boutiques...' }),
+          usedShops,
+          isAborted
+        ),
+      ]);
+    } catch(e) {
+      send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
+    }
 
     if (!clipReady) {
-      // CLIP indisponible après toutes les tentatives → on bloque la recherche
       send({
         step: 'error',
         message: '❌ Le service CLIP est indisponible après plusieurs tentatives. Veuillez réessayer dans 1-2 minutes (cold start HuggingFace ~60-90s).',
@@ -229,21 +253,6 @@ router.post('/search-dropship', async (req, res) => {
 
     send({ step: 'analyzing', message: '✅ CLIP prêt — comparaison visuelle obligatoire activée' });
     console.log('[search-dropship] ✅ CLIP disponible — comparaison visuelle obligatoire');
-
-    // ── STEP 3 : Récupérer les listings Etsy ──
-    send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
-
-    let listings = [];
-    try {
-      listings = await fetchListingsForDropship(
-        keyword,
-        (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' boutiques...' }),
-        usedShops,
-        isAborted
-      );
-    } catch(e) {
-      send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
-    }
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
     listings = listings.filter(l => l.shopName);
@@ -256,11 +265,11 @@ router.post('/search-dropship', async (req, res) => {
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse CLIP...' });
 
     // ── STEP 4 : Google Lens + CLIP obligatoire ──
-    const imgbbCache = new Map();
     async function uploadCached(url) {
-      if (imgbbCache.has(url)) return imgbbCache.get(url);
+      const cached = globalImgbbCache.get(url);
+      if (cached) return cached.value;
       const r = await uploadToImgBB(url);
-      imgbbCache.set(url, r);
+      globalImgbbCache.set(url, { value: r, ts: Date.now() });
       return r;
     }
 
@@ -383,7 +392,7 @@ router.post('/search-dropship', async (req, res) => {
       }
     }
 
-    await Promise.all([worker(), worker(), worker(), worker()]);
+    await Promise.all(Array.from({ length: 6 }, worker));
     activeSearches.delete(sid);
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
