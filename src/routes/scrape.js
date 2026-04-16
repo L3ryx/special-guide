@@ -63,7 +63,7 @@ router.post('/niche-keyword', async (req, res) => {
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 8;
+  const MAX_PAGES  = 7;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
   const shopIdToRaw = new Map();
@@ -101,7 +101,6 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
 
     if (results.length < perPage) break;
     offset += perPage;
-    await new Promise(r => setTimeout(r, 100));
   }
 
   console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
@@ -152,7 +151,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         source:    'etsy',
       });
     }
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 50));
   }
 
   console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
@@ -337,7 +336,7 @@ router.post('/search-dropship', async (req, res) => {
 
         // Étape 2 : CLIP — vérification visuelle OBLIGATOIRE
         const aliUrls = aliMatches
-          .slice(0, 5) // on teste jusqu'à 5 candidats pour maximiser les chances
+          .slice(0, 2) // plan gratuit Serper : on limite à 2 candidats
           .flatMap(m => extractAliImageUrls(m))
           .filter(Boolean);
 
