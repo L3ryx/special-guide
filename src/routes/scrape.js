@@ -79,9 +79,12 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
   const shopIdToRaw = new Map();
   let offset = 0;
   let page   = 0;
+  const pageTimes = [];
+  let lastPageStart = Date.now();
 
   while (page < MAX_PAGES) {
     if (isAborted()) return [];
+    lastPageStart = Date.now();
     let results;
     try {
       results = await searchListingIds(keyword, perPage, offset);
@@ -105,9 +108,13 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       }
     }
 
+    const pageElapsed = Date.now() - lastPageStart;
+    pageTimes.push(pageElapsed);
+    const avgPageMs = pageTimes.reduce((a, b) => a + b, 0) / pageTimes.length;
+
     page++;
     console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique new shopIds`);
-    if (onBatch) onBatch(page, shopIdToRaw.size);
+    if (onBatch) onBatch(page, shopIdToRaw.size, avgPageMs, MAX_PAGES);
 
     if (results.length < perPage) break;
     offset += perPage;
@@ -238,7 +245,7 @@ router.post('/search-dropship', async (req, res) => {
         waitForClip(),
         fetchListingsForDropship(
           keyword,
-          (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
+          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
           usedShops,
           isAborted
         ),
@@ -395,6 +402,7 @@ router.post('/search-dropship', async (req, res) => {
         const listing = queue.shift();
         if (!listing) continue;
         analyzed++;
+        const shopStart = Date.now();
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
           const img1 = listing.image;
@@ -404,6 +412,8 @@ router.post('/search-dropship', async (req, res) => {
 
           console.log('[worker] running lensMatch+CLIP pour', listing.shopName);
           const [m1, m2] = await Promise.all([lensMatchWithClip(img1), lensMatchWithClip(img2)]);
+          const shopElapsedMs = Date.now() - shopStart;
+          send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
           console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
