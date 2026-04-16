@@ -57,3 +57,10 @@ app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, '../p
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
+
+// ── Keep-alive CLIP : ping toutes les 4 minutes pour éviter le cold start HuggingFace ──
+const { isClipAvailable } = require('./services/clipCompare');
+setInterval(async () => {
+  const alive = await isClipAvailable().catch(() => false);
+  console.log(`[clip-keepalive] ${alive ? '✅ CLIP actif' : '⚠️ CLIP indisponible (cold start en cours)'}`);
+}, 4 * 60 * 1000); // toutes les 4 minutes
