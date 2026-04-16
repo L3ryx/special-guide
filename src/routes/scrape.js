@@ -4,7 +4,7 @@ const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 // CLIP : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
-const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable } = require('../services/clipCompare');
+const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable } = require('../services/dinoCompare');
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -462,7 +462,7 @@ router.post('/search-dropship', async (req, res) => {
 
 // ── CLIP WAKE-UP ──
 // Appelé au chargement de la page pour réveiller HuggingFace avant la recherche
-router.get('/clip-warmup', async (req, res) => {
+router.get('/dino-warmup', async (req, res) => {
   try {
     const ready = await isClipAvailable();
     res.json({ ready });
