@@ -1,0 +1,2 @@
+scrapling[all]>=0.4.6
+flask>=3.0.0
