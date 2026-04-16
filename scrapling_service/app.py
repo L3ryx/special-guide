@@ -1,10 +1,16 @@
 """
 scrapling_service/app.py
 Microservice Python qui remplace l'API officielle Etsy.
-Utilise curl_cffi pour le TLS fingerprinting + endpoints JSON internes Etsy.
+Utilise la librairie Scrapling (FetcherSession) pour le TLS fingerprinting.
+
+Logique principale du /search :
+  - Recherche Etsy par mot-clé
+  - Pour chaque boutique unique trouvée, on récupère 2 images de listings différents
+  - Si une boutique a déjà été vue (passée dans `usedShops`), elle est ignorée
+  - Les résultats sont compatibles avec ce qu'attend etsyApi.js / scrape.js
 
 Endpoints :
-  POST /search          — recherche de listings par mot-clé
+  POST /search          — recherche de listings (avec déduplication par boutique)
   POST /shop-info       — nom + images d'une boutique
   POST /shop-listings   — listings actifs d'une boutique
   POST /listing-detail  — détail d'un listing
@@ -12,76 +18,38 @@ Endpoints :
 """
 
 import re
-import json
 import time
 import random
 import logging
 from urllib.parse import urlencode, quote_plus
 
 from flask import Flask, request, jsonify
-from curl_cffi import requests as curl_requests
+from scrapling.fetchers import Fetcher, FetcherSession
 
-# ── Logging ──────────────────────────────────────────────────────────────────
+# ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="[scrapling] %(message)s")
 log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# ── Session globale réutilisable (cookies persistants) ────────────────────────
-_session = None
+# ── Session globale réutilisable (cookies persistants + TLS fingerprint) ──────
+_session: FetcherSession | None = None
 
-def get_session():
+def get_session() -> FetcherSession:
     global _session
     if _session is None:
-        _session = curl_requests.Session(impersonate="chrome124")
+        _session = FetcherSession(impersonate="chrome124", stealthy_headers=True)
+        log.info("FetcherSession créée (chrome124)")
     return _session
 
 
-# ── Headers réalistes ─────────────────────────────────────────────────────────
+# ── Utilitaires ───────────────────────────────────────────────────────────────
 
-BROWSER_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Cache-Control": "max-age=0",
-    "DNT": "1",
-}
-
-JSON_HEADERS = {
-    "Accept": "application/json, text/javascript, */*; q=0.01",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "X-Requested-With": "XMLHttpRequest",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-origin",
-    "Referer": "https://www.etsy.com/",
-}
-
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-]
-
-
-def random_ua():
-    return random.choice(USER_AGENTS)
-
-
-def random_delay(min_s=0.3, max_s=0.9):
+def random_delay(min_s: float = 0.3, max_s: float = 0.9):
     time.sleep(random.uniform(min_s, max_s))
 
 
-def clean_image(url):
+def clean_image(url: str | None) -> str | None:
     if not url:
         return None
     return url.split("?")[0]
@@ -93,8 +61,7 @@ def warmup():
     """Visite Etsy une fois pour récupérer les cookies de session."""
     try:
         session = get_session()
-        headers = {**BROWSER_HEADERS, "User-Agent": random_ua()}
-        session.get("https://www.etsy.com/", headers=headers, timeout=15)
+        session.get("https://www.etsy.com/", timeout=15)
         log.info("Warm-up Etsy OK — cookies récupérés")
     except Exception as e:
         log.warning(f"Warm-up failed (non-bloquant): {e}")
@@ -102,10 +69,10 @@ def warmup():
 
 # ── Méthode 1 : endpoint JSON interne Etsy (/api/v3/ajax) ────────────────────
 
-def _search_via_json_api(keyword: str, offset: int = 0, limit: int = 100):
+def _search_via_json_api(keyword: str, offset: int = 0, limit: int = 100) -> list[dict]:
     """
     Utilise l'endpoint JSON interne d'Etsy pour la recherche.
-    Beaucoup moins protégé que les pages HTML.
+    Moins protégé que les pages HTML — Scrapling gère le TLS fingerprint.
     """
     session = get_session()
 
@@ -118,25 +85,27 @@ def _search_via_json_api(keyword: str, offset: int = 0, limit: int = 100):
     }
 
     url = f"https://www.etsy.com/api/v3/ajax/bespoke/public/listings/search?{urlencode(params)}"
-    headers = {**JSON_HEADERS, "User-Agent": random_ua()}
-
     log.info(f"JSON API GET: {url}")
-    r = session.get(url, headers=headers, timeout=25)
 
-    if r.status_code == 403:
-        raise RuntimeError(f"Etsy JSON API returned HTTP 403")
-    if r.status_code != 200:
-        raise RuntimeError(f"Etsy JSON API returned HTTP {r.status_code}")
+    r = session.get(url, timeout=25, headers={
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": "https://www.etsy.com/",
+    })
+
+    if r.status == 403:
+        raise RuntimeError("Etsy JSON API returned HTTP 403")
+    if r.status != 200:
+        raise RuntimeError(f"Etsy JSON API returned HTTP {r.status}")
 
     data = r.json()
     return _parse_json_api_results(data)
 
 
-def _parse_json_api_results(data):
+def _parse_json_api_results(data: dict) -> list[dict]:
     """Parse la réponse JSON de l'API interne Etsy."""
     results = []
 
-    # Structure typique : data.results[] ou data.listings[]
     listings = (
         data.get("results") or
         data.get("listings") or
@@ -174,14 +143,11 @@ def _parse_json_api_results(data):
                 img.get("url")
             )
 
-        title = item.get("title")
-        link = f"https://www.etsy.com/listing/{lid}"
-
         results.append({
             "listingId": str(lid),
             "shopId": str(shop_id),
-            "title": title,
-            "link": link,
+            "title": item.get("title"),
+            "link": f"https://www.etsy.com/listing/{lid}",
             "image": image,
             "shopName": shop_name,
         })
@@ -189,13 +155,12 @@ def _parse_json_api_results(data):
     return results
 
 
-# ── Méthode 2 : parsing HTML avec curl_cffi (fallback) ───────────────────────
+# ── Méthode 2 : parsing HTML avec Scrapling (fallback) ───────────────────────
 
-def _search_via_html(keyword: str, offset: int = 0, limit: int = 100):
-    """
-    Fallback : scrape la page HTML de recherche Etsy.
-    """
+def _search_via_html(keyword: str, offset: int = 0, limit: int = 100) -> list[dict]:
+    """Fallback : scrape la page HTML de recherche Etsy."""
     session = get_session()
+
     params = urlencode({
         "q": keyword,
         "explicit": "1",
@@ -203,23 +168,20 @@ def _search_via_html(keyword: str, offset: int = 0, limit: int = 100):
         "page": str(offset // 48 + 1),
     })
     url = f"https://www.etsy.com/search?{params}"
-    headers = {**BROWSER_HEADERS, "User-Agent": random_ua()}
 
     log.info(f"HTML GET: {url}")
-    r = session.get(url, headers=headers, timeout=30)
+    r = session.get(url, timeout=30)
 
-    if r.status_code != 200:
-        raise RuntimeError(f"Etsy returned HTTP {r.status_code} for search")
+    if r.status != 200:
+        raise RuntimeError(f"Etsy returned HTTP {r.status} for search")
 
-    return _parse_html_listings(r.text, limit)
+    return _parse_html_listings(r.html, limit)
 
 
-def _parse_html_listings(html: str, limit: int = 100):
+def _parse_html_listings(html: str, limit: int = 100) -> list[dict]:
     """Parse les listings depuis le HTML brut d'Etsy via regex."""
     results = []
 
-    # Etsy injecte les données listing dans des balises JSON
-    # On cherche les listing_id + shop_id dans le JSON embarqué
     pattern = re.compile(
         r'"listing_id"\s*:\s*(\d+).*?"shop_id"\s*:\s*(\d+)',
         re.DOTALL
@@ -227,8 +189,7 @@ def _parse_html_listings(html: str, limit: int = 100):
 
     seen = set()
     for m in pattern.finditer(html):
-        lid = m.group(1)
-        sid = m.group(2)
+        lid, sid = m.group(1), m.group(2)
         if lid in seen:
             continue
         seen.add(lid)
@@ -243,7 +204,6 @@ def _parse_html_listings(html: str, limit: int = 100):
         if len(results) >= limit:
             break
 
-    # Si rien trouvé avec listing_id, on tente une regex plus large
     if not results:
         pattern2 = re.compile(r'data-listing-id="(\d+)"[^>]*data-shop-id="(\d+)"')
         for m in pattern2.finditer(html):
@@ -268,10 +228,8 @@ def _parse_html_listings(html: str, limit: int = 100):
 
 # ── Search principal avec fallback ────────────────────────────────────────────
 
-def _search_page(keyword: str, offset: int = 0, limit: int = 100):
-    """
-    Tente d'abord l'API JSON interne, puis fallback HTML si 403.
-    """
+def _search_page(keyword: str, offset: int = 0, limit: int = 100) -> list[dict]:
+    """Tente d'abord l'API JSON interne, puis fallback HTML si 403."""
     try:
         results = _search_via_json_api(keyword, offset, limit)
         if results:
@@ -285,68 +243,161 @@ def _search_page(keyword: str, offset: int = 0, limit: int = 100):
     return _search_via_html(keyword, offset, limit)
 
 
+# ── Recherche avec déduplication par boutique + 2 images ──────────────────────
+
+def _search_with_shop_dedup(
+    keyword: str,
+    limit: int = 100,
+    offset: int = 0,
+    used_shops: set | None = None,
+) -> list[dict]:
+    """
+    Recherche Etsy avec logique de déduplication par boutique.
+
+    Pour chaque boutique unique :
+      - On collecte jusqu'à 2 listings distincts (image1, image2)
+      - Si la boutique est dans `used_shops`, elle est ignorée
+      - Retourne des objets compatibles avec ce qu'attend scrape.js :
+        { listingId, shopId, shopName, title, link, image, image2 }
+
+    Scanne plusieurs pages si nécessaire pour atteindre `limit` boutiques uniques.
+    """
+    if used_shops is None:
+        used_shops = set()
+
+    MAX_PAGES = 7
+    per_page = 48
+
+    # shop_id → { listingId, listingId2, image, image2, shopName, link, title }
+    shop_map: dict[str, dict] = {}
+    current_offset = offset
+    page = 0
+
+    while len(shop_map) < limit and page < MAX_PAGES:
+        raw = _search_page(keyword, offset=current_offset, limit=per_page)
+        if not raw:
+            break
+
+        for item in raw:
+            shop_id = item.get("shopId") or ""
+            shop_name = item.get("shopName") or shop_id
+
+            # Ignore les boutiques déjà analysées
+            key = shop_name if shop_name else shop_id
+            if not key:
+                continue
+            if key in used_shops:
+                continue
+
+            listing_id = item.get("listingId")
+            image = item.get("image")
+
+            if shop_id not in shop_map:
+                shop_map[shop_id] = {
+                    "listingId":  listing_id,
+                    "listingId2": None,
+                    "image":      image,
+                    "image2":     None,
+                    "shopId":     shop_id,
+                    "shopName":   shop_name,
+                    "title":      item.get("title"),
+                    "link":       item.get("link"),
+                }
+            else:
+                # On complète avec un 2ème listing si on n'en a pas encore
+                existing = shop_map[shop_id]
+                if (
+                    not existing["listingId2"]
+                    and listing_id != existing["listingId"]
+                ):
+                    existing["listingId2"] = listing_id
+                    existing["image2"] = image
+
+            if len(shop_map) >= limit:
+                break
+
+        page += 1
+        current_offset += per_page
+        log.info(f"Scan page {page}/{MAX_PAGES}: {len(shop_map)} boutiques uniques")
+
+        if len(raw) < per_page:
+            break  # Etsy n'a plus de résultats
+
+    # Convertit en liste plate pour la réponse JSON
+    results = []
+    for entry in shop_map.values():
+        results.append({
+            "listingId":  entry["listingId"],
+            "listingId2": entry["listingId2"],
+            "shopId":     entry["shopId"],
+            "shopName":   entry["shopName"],
+            "title":      entry["title"],
+            "link":       entry["link"],
+            "image":      entry["image"],
+            "image2":     entry["image2"],
+        })
+
+    log.info(f"_search_with_shop_dedup: {len(results)} boutiques uniques retournées")
+    return results
+
+
 # ── Shop info ─────────────────────────────────────────────────────────────────
 
-def _get_shop_info(shop_name: str):
+def _get_shop_info(shop_name: str) -> dict:
     session = get_session()
     url = f"https://www.etsy.com/shop/{quote_plus(shop_name)}"
-    headers = {**BROWSER_HEADERS, "User-Agent": random_ua()}
 
     log.info(f"GET shop: {url}")
-    r = session.get(url, headers=headers, timeout=25)
+    r = session.get(url, timeout=25)
 
-    if r.status_code != 200:
-        raise RuntimeError(f"Etsy shop page returned HTTP {r.status_code}")
+    if r.status != 200:
+        raise RuntimeError(f"Etsy shop page returned HTTP {r.status}")
 
-    html = r.text
+    html = r.html
 
-    # Nom de la boutique
     name_match = re.search(r'<h1[^>]*>\s*([^<]+)\s*</h1>', html)
     resolved_name = name_match.group(1).strip() if name_match else shop_name
     shop_url = f"https://www.etsy.com/shop/{resolved_name}"
 
-    # Images et listing IDs via regex
     listing_ids = re.findall(r'data-listing-id="(\d+)"', html)
     img_urls = re.findall(r'src="(https://i\.etsystatic\.com/[^"?]+)', html)
 
-    # Déduplique
-    seen_ids = []
+    seen_ids: list[str] = []
     for lid in listing_ids:
         if lid not in seen_ids:
             seen_ids.append(lid)
 
-    seen_imgs = []
+    seen_imgs: list[str] = []
     for img in img_urls:
         if img not in seen_imgs:
             seen_imgs.append(img)
 
     log.info(f"Shop {resolved_name}: {len(seen_ids)} listings, {len(seen_imgs)} images")
     return {
-        "shopName": resolved_name,
-        "shopUrl": shop_url,
-        "images": seen_imgs[:4],
+        "shopName":   resolved_name,
+        "shopUrl":    shop_url,
+        "images":     seen_imgs[:4],
         "listingIds": seen_ids[:20],
     }
 
 
 # ── Listing detail ─────────────────────────────────────────────────────────────
 
-def _get_listing_images(listing_id: str):
+def _get_listing_images(listing_id: str) -> tuple[list[str] | None, str | None]:
     session = get_session()
     url = f"https://www.etsy.com/listing/{listing_id}"
-    headers = {**BROWSER_HEADERS, "User-Agent": random_ua()}
 
     log.info(f"GET listing: {url}")
-    r = session.get(url, headers=headers, timeout=25)
-    if r.status_code != 200:
+    r = session.get(url, timeout=25)
+    if r.status != 200:
         return None, None
 
-    html = r.text
+    html = r.html
     images = re.findall(r'"url_fullxfull"\s*:\s*"([^"]+)"', html)
     if not images:
         images = re.findall(r'src="(https://i\.etsystatic\.com/[^"?]+)', html)
 
-    seen = []
+    seen: list[str] = []
     for img in images:
         clean = clean_image(img)
         if clean and clean not in seen:
@@ -369,16 +420,24 @@ def health():
 
 @app.route("/search", methods=["POST"])
 def search():
+    """
+    Corps JSON attendu :
+      { "keyword": "...", "limit": 100, "offset": 0, "usedShops": ["Shop1", "Shop2"] }
+
+    Retourne une liste de boutiques uniques avec 2 images chacune :
+      [{ listingId, listingId2, shopId, shopName, title, link, image, image2 }, ...]
+    """
     body = request.get_json(force=True)
     keyword = (body.get("keyword") or "").strip()
     limit = int(body.get("limit") or 100)
     offset = int(body.get("offset") or 0)
+    used_shops = set(body.get("usedShops") or [])
 
     if not keyword:
         return jsonify({"error": "keyword required"}), 400
 
     try:
-        results = _search_page(keyword, offset=offset, limit=limit)
+        results = _search_with_shop_dedup(keyword, limit=limit, offset=offset, used_shops=used_shops)
         return jsonify(results)
     except Exception as e:
         log.exception("search error")
@@ -401,11 +460,11 @@ def shop_info():
 
         return jsonify({
             "shopName": info["shopName"],
-            "shopUrl": info["shopUrl"],
-            "image": images[0],
-            "image2": images[1],
-            "image3": images[2],
-            "image4": images[3],
+            "shopUrl":  info["shopUrl"],
+            "image":    images[0],
+            "image2":   images[1],
+            "image3":   images[2],
+            "image4":   images[3],
         })
     except Exception as e:
         log.exception("shop-info error")
@@ -428,11 +487,11 @@ def shop_listings():
         for lid in listing_ids:
             results.append({
                 "listingId": lid,
-                "title": None,
-                "link": f"https://www.etsy.com/listing/{lid}",
-                "image": None,
-                "shopName": info["shopName"],
-                "shopUrl": info["shopUrl"],
+                "title":     None,
+                "link":      f"https://www.etsy.com/listing/{lid}",
+                "image":     None,
+                "shopName":  info["shopName"],
+                "shopUrl":   info["shopUrl"],
             })
         return jsonify(results)
     except Exception as e:
@@ -451,11 +510,11 @@ def listing_detail():
     try:
         images, price = _get_listing_images(listing_id)
         return jsonify({
-            "title": None,
-            "price": price,
-            "images": images or [],
+            "title":    None,
+            "price":    price,
+            "images":   images or [],
             "shopName": None,
-            "shopId": None,
+            "shopId":   None,
         })
     except Exception as e:
         log.exception("listing-detail error")
