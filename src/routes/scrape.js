@@ -433,7 +433,7 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     // 3 workers max — au-delà, Serper retourne 429 (rate limit)
-    await Promise.all(Array.from({ length: 3 }, worker));
+    await Promise.all(Array.from({ length: 6 }, worker));
     activeSearches.delete(sid);
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
