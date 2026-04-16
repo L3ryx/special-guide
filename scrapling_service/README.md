@@ -33,9 +33,17 @@ gunicorn -w 2 -b 0.0.0.0:5001 app:app
 | POST | `/shop-listings` | `etsyApi.getShopListings()` |
 | POST | `/listing-detail` | `etsyApi.getListingDetail()` |
 
-## Variable d'environnement
+## Variables d'environnement
 
 Ajouter dans le `.env` du projet Node.js :
 ```
 SCRAPLING_SERVICE_URL=http://localhost:5001
 ```
+
+Pour activer la rotation de proxies (optionnel), ajouter dans le `.env` du service Python :
+```
+SCRAPLING_PROXIES=http://user:pass@proxy1:8080,http://user:pass@proxy2:8080
+```
+
+Si `SCRAPLING_PROXIES` est absent ou vide, le service fonctionne sans proxy (comportement par défaut).
+Les proxies sont rotés automatiquement à chaque nouvelle session via le `ProxyRotator` de Scrapling.
