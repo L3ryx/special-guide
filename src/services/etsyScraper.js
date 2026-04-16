@@ -1,26 +1,17 @@
 /**
  * etsyScraper.js
- * Recherche de listings Etsy via l'API officielle (remplace le scraping HTML).
+ * Recherche de listings Etsy via le microservice Scrapling (Python).
+ * Conserve la même interface publique qu'avant.
  */
 
 const { searchListings, handleEtsyError } = require('./etsyApi');
 
-/**
- * Recherche des listings Etsy pour un mot-clé donné.
- * Remplace l'ancien scraping ScraperAPI page par page.
- *
- * @param {string} keyword
- * @param {number} maxCount — nombre max de listings à retourner
- * @returns {Promise<Array>} — tableau de { title, link, image, source, shopName, shopUrl, price }
- */
 async function scrapeEtsy(keyword, maxCount = 10) {
-  if (!process.env.ETSY_CLIENT_ID) throw new Error('ETSY_CLIENT_ID missing');
-
-  console.log(`scrapeEtsy (API): "${keyword}" (max ${maxCount})`);
+  console.log(`scrapeEtsy (scrapling): "${keyword}" (max ${maxCount})`);
 
   const allListings = [];
   const seen        = new Set();
-  const perPage     = 100; // max autorisé par l'API Etsy
+  const perPage     = 48; // Etsy affiche ~48 résultats par page
   let   offset      = 0;
 
   while (allListings.length < maxCount) {
@@ -48,7 +39,7 @@ async function scrapeEtsy(keyword, maxCount = 10) {
 
     console.log(`After offset ${offset}: ${allListings.length}/${maxCount}`);
 
-    if (results.length < limit) break; // dernière page
+    if (results.length < limit) break;
     offset += limit;
   }
 
@@ -61,4 +52,3 @@ async function scrapeEtsy(keyword, maxCount = 10) {
 }
 
 module.exports = { scrapeEtsy };
-
