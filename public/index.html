@@ -1167,11 +1167,10 @@
     ];
 
     function initProgress(keyword) {
-      const c = document.getElementById('progress-steps');
-      c.innerHTML = '';
-
       resetProgress();
       document.getElementById('progress-msg').textContent = '';
+      var kl = document.getElementById('progress-keyword-label');
+      if (kl) kl.textContent = keyword || '';
     }
 
     var _progressCurrent = 0;
@@ -1231,13 +1230,6 @@
     }
 
     function advanceStep(k, msg) {
-      const idx = STEPS.findIndex(function(s) { return s.key === k; });
-      STEPS.forEach(function(s, i) {
-        const el = document.getElementById('step-' + s.key); if (!el) return;
-        if (idx >= 0 && i < idx) el.className = 'step-dot done';
-        else if (i === idx) el.className = 'step-dot active';
-        else el.className = 'step-dot';
-      });
       if (msg) document.getElementById('progress-msg').textContent = msg;
       if (k === 'scraping') {
         setProgress(10);
@@ -1250,7 +1242,6 @@
     }
 
     function completeAllSteps() {
-      STEPS.forEach(function(s) { const el = document.getElementById('step-' + s.key); if (el) el.className = 'step-dot done'; });
       _progressTarget = 100;
       _progressCurrent = Math.min(99, _progressCurrent);
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
