@@ -269,14 +269,6 @@
     .progress-fill.burning::after { display:block; }
     @keyframes flicker { 0%{transform:translateY(-55%)scale(1)rotate(-3deg)} 100%{transform:translateY(-60%)scale(1.08)rotate(3deg)} }
     .progress-msg { text-align:center; font-size:0.78rem; color:var(--muted); min-height:1.2em; }
-    /* ── STEP LOG (real-time steps below progress bar) ── */
-    #step-log { width:100%; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; margin-top:2px; }
-    #step-log:empty { display:none; }
-    .step-log-entry { font-size:0.72rem; color:rgba(255,255,255,0.55); font-family:'Courier New',Courier,monospace; padding:2px 6px; border-left:2px solid rgba(249,115,22,0.3); animation:stepFadeIn 0.25s ease; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .step-log-entry.latest { color:rgba(255,255,255,0.9); border-left-color:#f97316; }
-    .step-log-entry.done { color:rgba(34,197,94,0.8); border-left-color:#22c55e; }
-    .step-log-entry.error { color:rgba(239,68,68,0.9); border-left-color:#ef4444; }
-    @keyframes stepFadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
 
     /* ── RESULTS ── */
     #results-section { position:relative; z-index:10; padding:0 12px 80px; display:none; }
@@ -607,7 +599,6 @@
         <div class="progress-keyword-label" id="progress-keyword-label"></div>
         <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
         <div class="progress-msg" id="progress-msg"></div>
-        <div id="step-log"></div>
       </div>
     </div>
 
@@ -1325,30 +1316,8 @@
     function initProgress(keyword) {
       resetProgress();
       document.getElementById('progress-msg').textContent = '';
-      // Clear step log on new search
-      var sl = document.getElementById('step-log');
-      if (sl) sl.innerHTML = '';
       var kl = document.getElementById('progress-keyword-label');
       if (kl) kl.textContent = keyword || '';
-    }
-
-    // ── STEP LOG ──
-    var _stepLogMax = 20; // keep last N entries
-    function logStep(msg, type) {
-      // type: '' | 'done' | 'error'
-      var sl = document.getElementById('step-log');
-      if (!sl || !msg) return;
-      // Remove 'latest' class from previous entry
-      var prev = sl.querySelector('.step-log-entry.latest');
-      if (prev) prev.classList.remove('latest');
-      // Trim old entries
-      while (sl.children.length >= _stepLogMax) sl.removeChild(sl.firstChild);
-      var entry = document.createElement('div');
-      entry.className = 'step-log-entry latest' + (type ? ' ' + type : '');
-      // Strip leading emoji/icon from message for cleaner log
-      entry.textContent = msg;
-      sl.appendChild(entry);
-      sl.scrollTop = sl.scrollHeight;
     }
 
     var _progressCurrent = 0;
@@ -1408,10 +1377,7 @@
     }
 
     function advanceStep(k, msg) {
-      if (msg) {
-        document.getElementById('progress-msg').textContent = msg;
-        logStep(msg);
-      }
+      if (msg) document.getElementById('progress-msg').textContent = msg;
       if (k === 'scraping') {
         setProgress(10);
       } else if (k === 'analyzing') {
@@ -1474,8 +1440,6 @@
       if (input) { input.style.opacity = '1'; input.style.visibility = 'visible'; input.disabled = false; }
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
-      var sl = document.getElementById('step-log');
-      if (sl) sl.innerHTML = '';
 
       if (_restoreTimer) clearTimeout(_restoreTimer);
       _restoreTimer = null;
@@ -1592,7 +1556,6 @@
 
         try {
           document.getElementById('progress-msg').textContent = '⏳ Connecting...';
-          logStep('⏳ Connecting to server...');
           const response = await fetch('/api/search-dropship', {
             method: 'POST',
             headers: {
@@ -1630,7 +1593,6 @@
                 if (_stopRequested) { reader.cancel(); break; }
                 if (ev.step === 'complete') {
                   completeAllSteps();
-                  logStep('✅ Search complete — ' + (ev.total || '?') + ' shops analyzed', 'done');
                   if (tag) tag.className = 'keyword-tag done';
                 } else if (ev.step === 'match') {
                   if (ev.shop) {
@@ -1646,22 +1608,18 @@
                       if (ev.shop.shopName) saveUsedShops([ev.shop.shopName]);
                     }
                   }
-                  logStep('✅ Dropshipper found: ' + (ev.shop?.shopName || ''), 'done');
                   advanceStep('match', ev.message);
                 } else if (ev.step === 'analyzing' && ev.total && ev.done !== undefined) {
                   syncProgressFromAnalyzing(ev.total, ev.done);
-                  logStep('🔎 Analyzing shop ' + ev.done + '/' + ev.total + (ev.message ? ' — ' + ev.message.replace(/^[^\w]*/, '') : ''));
                   advanceStep('analyzing', ev.message);
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
-                  logStep('❌ ' + ev.message, 'error');
                   showErrorPopup(ev.message);
                   if (tag) tag.className = 'keyword-tag error';
                   hasError = true;
                   setRetryMode();
                 } else {
                   const msg = (ev.step === 'scraping') ? null : ev.message;
-                  if (ev.message) logStep(ev.message);
                   advanceStep(ev.step, msg);
                 }
               } catch(e) {
