@@ -21,7 +21,7 @@ function requireAuth(req, res, next) {
 }
 
 // ── POST /api/stripe/create-payment-intent ──
-// Creates a Stripe PaymentIntent for $24.99 (10 searches)
+// Creates a Stripe PaymentIntent for $19.99 (20 searches)
 router.post('/create-payment-intent', requireAuth, async (req, res) => {
   if (!STRIPE_SECRET_KEY) {
     return res.status(500).json({ error: 'STRIPE_SECRET_KEY is not configured on the server.' });
@@ -29,10 +29,10 @@ router.post('/create-payment-intent', requireAuth, async (req, res) => {
 
   try {
     const params = new URLSearchParams({
-      amount: '2499',          // in cents → $24.99
+      amount: '1999',          // in cents → $19.99
       currency: 'usd',
       'metadata[userId]': req.user.id,
-      'metadata[credits]': '10',
+      'metadata[credits]': '20',
       'automatic_payment_methods[enabled]': 'true',
       'automatic_payment_methods[allow_redirects]': 'never',
     });
@@ -85,7 +85,7 @@ router.post('/confirm-payment', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Payment not associated with this account.' });
     }
 
-    const creditsToAdd = parseInt(pi.metadata?.credits || '10', 10);
+    const creditsToAdd = parseInt(pi.metadata?.credits || '20', 10);
 
     // Credit the account (atomic with $inc)
     const user = await User.findByIdAndUpdate(
