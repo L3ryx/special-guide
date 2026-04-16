@@ -1426,7 +1426,7 @@
             showErrorPopup(errMsg);
             if (tag) tag.className = 'keyword-tag error';
             hasError = true;
-            setRetryMode(btn);
+            setRetryMode();
             continue;
           }
 
@@ -1470,7 +1470,7 @@
                   showErrorPopup(ev.message);
                   if (tag) tag.className = 'keyword-tag error';
                   hasError = true;
-                  setRetryMode(btn);
+                  setRetryMode();
                 } else {
                   advanceStep(ev.step, ev.message);
                 }
@@ -1489,7 +1489,7 @@
           showErrorPopup(err.message);
           if (tag) tag.className = 'keyword-tag error';
           hasError = true;
-          setRetryMode(btn);
+          setRetryMode();
         }
 
         if (totalMatches > 0) {
