@@ -85,7 +85,8 @@ const HEALTH_TIMEOUT_MS = 8000;
 async function isClipAvailable() {
   try {
     const r = await axios.get(`${CLIP_BASE}/health`, { timeout: HEALTH_TIMEOUT_MS });
-    return r.data?.status === 'ready';
+    const status = r.data?.status;
+    return status === "ready" || status === "loading";
   } catch {
     return false;
   }
@@ -278,3 +279,16 @@ module.exports = {
  * Tout le reste (noms de fonctions, structure de réponse, logs) est identique.
  * ───────────────────────────────────────────────────────────────────────────
  */
+
+// Exported separately: returns true only when status === 'ready' (model fully loaded)
+async function isDinoReady() {
+  try {
+    const r = await axios.get(`${CLIP_BASE}/health`, { timeout: HEALTH_TIMEOUT_MS });
+    return r.data?.status === 'ready';
+  } catch {
+    return false;
+  }
+}
+
+// Add to exports (patch)
+module.exports.isDinoReady = isDinoReady;
