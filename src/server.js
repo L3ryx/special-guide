@@ -83,7 +83,7 @@ server.listen(PORT, () => {
 });
 
 // ── Keep-alive CLIP : ping toutes les 4 minutes pour éviter le cold start HuggingFace ──
-const { isClipAvailable } = require('./services/clipCompare');
+const { isClipAvailable } = require('./services/dinoCompare');
 setInterval(async () => {
   const alive = await isClipAvailable().catch(() => false);
   console.log(`[clip-keepalive] ${alive ? '✅ CLIP actif' : '⚠️ CLIP indisponible (cold start en cours)'}`);
