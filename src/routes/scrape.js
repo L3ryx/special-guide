@@ -73,22 +73,23 @@ router.post('/niche-keyword', async (req, res) => {
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 8;
-  const perPage    = 100;
-  const shopsSeen  = new Set(usedShops);
+  const MAX_PAGES   = 8;
+  const perPage     = 100;
+  const shopsSeen   = new Set(usedShops);
   const shopIdToRaw = new Map();
   let offset = 0;
   let page   = 0;
 
+  // ── Scan séquentiel des pages Etsy (sans délai) ──
   while (page < MAX_PAGES) {
     if (isAborted()) return [];
     let results;
     try {
       results = await searchListingIds(keyword, perPage, offset);
     } catch (e) {
-      handleEtsyError(e);
+      console.warn('[fetchListings] page error:', e.message);
+      break;
     }
-
     if (!results || results.length === 0) break;
 
     for (const r of results) {
@@ -106,18 +107,17 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     }
 
     page++;
-    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique new shopIds`);
+    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique shopIds`);
     if (onBatch) onBatch(page, shopIdToRaw.size);
-
     if (results.length < perPage) break;
     offset += perPage;
-    await new Promise(r => setTimeout(r, 100));
   }
 
   console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
 
-  const BATCH = 12;
-  const listings = [];
+  // ── Résoudre les shops en parallèle (batch de 20, sans délai) ──
+  const BATCH     = 20;
+  const listings  = [];
   const shopIdList = [...shopIdToRaw.entries()];
 
   for (let i = 0; i < shopIdList.length; i += BATCH) {
@@ -155,7 +155,6 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         source:    'etsy',
       });
     }
-    await new Promise(r => setTimeout(r, 100));
   }
 
   console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
@@ -262,7 +261,18 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
       return res.end();
     }
-    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse CLIP...' });
+    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Pré-chargement images...' });
+
+    // ── Pré-uploader toutes les images ImgBB en parallèle avant l'analyse ──
+    const allImageUrls = listings.flatMap(l => [l.image, l.image2]).filter(Boolean);
+    const UPLOAD_CONCURRENCY = 10;
+    for (let i = 0; i < allImageUrls.length; i += UPLOAD_CONCURRENCY) {
+      if (isAborted()) break;
+      const batch = allImageUrls.slice(i, i + UPLOAD_CONCURRENCY);
+      await Promise.allSettled(batch.map(url => uploadCached(url)));
+    }
+
+    send({ step: 'analyzing', message: '✅ Images prêtes. Analyse CLIP...' });
 
     // ── STEP 4 : Google Lens + CLIP obligatoire ──
     async function uploadCached(url) {
@@ -392,7 +402,7 @@ router.post('/search-dropship', async (req, res) => {
       }
     }
 
-    await Promise.all(Array.from({ length: 6 }, worker));
+    await Promise.all(Array.from({ length: 10 }, worker));
     activeSearches.delete(sid);
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
