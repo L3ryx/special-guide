@@ -48,7 +48,7 @@ router.post('/niche-keyword', async (req, res) => {
       ? `\nDo NOT include any of these already-used keywords: ${usedKeywords.join(', ')}.`
       : '';
 
-    const prompt = `It is ${month} ${year}. Generate a list of exactly 50 unique English product keywords suitable for AliExpress searches.\n\nRules:\n- Each keyword must be 2-4 words\n- ALL must be PHYSICAL products only (no digital, no printables, no SVG, no downloads, no templates)\n- All 50 must be DIFFERENT product types — no variations of the same product\n- Mix categories: home decor, jewelry, clothing, accessories, electronics, toys, beauty, kitchen, garden, sports, pets, baby, outdoor, gadgets, etc.\n- Each must be specific and searchable (not generic like \"handmade gift\")\n- Prioritize products trending in ${month} ${year}${excludeList}\n\nRespond with ONLY a JSON array of 50 strings, no explanation, no markdown, no numbering.\nExample format: [\"keyword one\",\"keyword two\",\"keyword three\"]`;
+    const prompt = `It is ${month} ${year}. Generate a list of exactly 50 unique English niche keywords for Etsy product searches.\n\nRules:\n- Each keyword must be 2-4 words\n- ALL must be PHYSICAL products only (no digital, no printables, no SVG, no downloads, no templates)\n- All 50 must be DIFFERENT product types — no variations of the same product\n- Mix categories: home decor, jewelry, clothing, accessories, ceramics, candles, toys, stationery, wellness, outdoors, pets, baby, kitchen, garden, etc.\n- Each must be specific and searchable (not generic like \"handmade gift\")\n- Prioritize products trending in ${month} ${year}${excludeList}\n\nRespond with ONLY a JSON array of 50 strings, no explanation, no markdown, no numbering.\nExample format: [\"keyword one\",\"keyword two\",\"keyword three\"]`;
 
     const r = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
@@ -99,15 +99,11 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       const sid = String(r.shopId);
       if (shopsSeen.has(sid)) continue;
       if (!shopIdToRaw.has(sid)) {
-        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, listingId3: null, listingId4: null, link: r.link, title: r.title });
+        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
       } else {
         const existing = shopIdToRaw.get(sid);
         if (!existing.listingId2 && r.listingId !== existing.listingId) {
           existing.listingId2 = r.listingId;
-        } else if (!existing.listingId3 && r.listingId !== existing.listingId && r.listingId !== existing.listingId2) {
-          existing.listingId3 = r.listingId;
-        } else if (!existing.listingId4 && r.listingId !== existing.listingId && r.listingId !== existing.listingId2 && r.listingId !== existing.listingId3) {
-          existing.listingId4 = r.listingId;
         }
       }
     }
@@ -135,22 +131,19 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(async ([shopId, raw]) => {
-        // Récupérer jusqu'à 4 listings différents dans la boutique
-        let listingId2 = null, listingId3 = null, listingId4 = null;
+        // Toujours aller chercher un 2ème listing directement dans la boutique,
+        // indépendamment de ce qu'on a trouvé dans les résultats de recherche.
+        let listingId2 = null;
         try {
-          const shopListings = await getShopListings(shopId, 8);
-          const others = shopListings
-            .filter(l => l.listingId && String(l.listingId) !== String(raw.listingId))
-            .map(l => l.listingId);
-          if (others[0]) listingId2 = others[0];
-          if (others[1]) listingId3 = others[1];
-          if (others[2]) listingId4 = others[2];
+          const shopListings = await getShopListings(shopId, 5);
+          const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
+          if (other) listingId2 = other.listingId;
         } catch (e) {
           console.warn('[fetchListings] getShopListings failed for shop', shopId, ':', e.message);
         }
 
-        const { shopName, shopUrl, image, image2, image3, image4 } = await getShopNameAndImage(shopId, raw.listingId, listingId2, listingId3, listingId4);
-        return { shopId, shopName, shopUrl, image, image2, image3, image4, listingId: raw.listingId, link: raw.link, title: raw.title };
+        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId, listingId2);
+        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
       })
     );
 
@@ -169,8 +162,6 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         title:     l.title,
         image:     l.image,
         image2:    l.image2,
-        image3:    l.image3 || null,
-        image4:    l.image4 || null,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
@@ -416,44 +407,31 @@ router.post('/search-dropship', async (req, res) => {
         try {
           const img1 = listing.image;
           const img2 = listing.image2;
-          const img3 = listing.image3 || null;
-          const img4 = listing.image4 || null;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
           if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
-          // Toutes les images disponibles (2 minimum, 4 si disponibles)
-          const imgCandidates = [img1, img2, img3, img4].filter(Boolean);
-          console.log('[worker] running lensMatch+CLIP pour', listing.shopName,
-            '| imgs disponibles:', imgCandidates.length);
-
-          const matchResults = await Promise.all(imgCandidates.map(img => lensMatchWithClip(img)));
+          console.log('[worker] running lensMatch+CLIP pour', listing.shopName);
+          const [m1, m2] = await Promise.all([lensMatchWithClip(img1), lensMatchWithClip(img2)]);
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
-          const matchCount   = matchResults.filter(Boolean).length;
-          const totalChecked = imgCandidates.length;
-          console.log('[worker]', listing.shopName,
-            '| matches:', matchCount + '/' + totalChecked,
-            matchResults.map((m, i) => `img${i+1}:${m ? (m.clipSimilarity?.toFixed(2) || '?') : 'x'}`).join(' '));
+          console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
 
-          // Toutes les images disponibles doivent être confirmées par CLIP
-          if (matchCount === totalChecked) {
+          // Les deux images doivent être confirmées par CLIP pour valider le dropshipper
+          if (m1 && m2) {
             dropshippers.push({
               shopName:        listing.shopName,
               shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
               shopAvatar:      null,
               shopImage:       img1,
               listingUrl:      listing.link,
-              clipSimilarity1: matchResults[0]?.clipSimilarity || null,
-              clipSimilarity2: matchResults[1]?.clipSimilarity || null,
-              clipSimilarity3: matchResults[2]?.clipSimilarity || null,
-              clipSimilarity4: matchResults[3]?.clipSimilarity || null,
-              imagesChecked:   totalChecked,
+              clipSimilarity1: m1.clipSimilarity || null,
+              clipSimilarity2: m2.clipSimilarity || null,
             });
             send({
               step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | ' + matchCount + '/' + totalChecked + ' imgs | CLIP: ' + (matchResults[0]?.clipSimilarity?.toFixed(2) || '?'),
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | CLIP: ' + m1.clipSimilarity,
               shop: dropshippers[dropshippers.length - 1],
             });
           }
