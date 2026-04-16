@@ -1154,6 +1154,12 @@
       });
     });
 
+    // ── CLIP WAKE-UP ──
+    // Ping CLIP dès le chargement de la page pour éviter le cold start HuggingFace
+    (function wakeUpClip() {
+      fetch('/api/clip-warmup').catch(() => {});
+    })();
+
     window.addEventListener('beforeunload', function() {
       _stopRequested = true;
       _searching = false;
