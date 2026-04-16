@@ -3,8 +3,6 @@ const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
-// ScraperAPI conservé UNIQUEMENT pour AliExpress
-const { scraperApiFetch } = require('../services/scrapingFetch');
 // CLIP : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
 const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable } = require('../services/clipCompare');
 
@@ -444,7 +442,6 @@ router.get('/health', (req, res) => {
   const keys = {
     ETSY_CLIENT_ID: !!process.env.ETSY_CLIENT_ID,
     SERPER_API_KEY: !!process.env.SERPER_API_KEY,
-    SCRAPEAPI_KEY:  !!process.env.SCRAPEAPI_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
