@@ -50,6 +50,16 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// ── DELETE ALL SHOPS ──
+router.delete('/', requireAuth, async (req, res) => {
+  try {
+    await SavedShop.deleteMany({ userId: req.user.id });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── DELETE SHOP ──
 router.delete('/:id', requireAuth, async (req, res) => {
   await SavedShop.deleteOne({ _id: req.params.id, userId: req.user.id });
