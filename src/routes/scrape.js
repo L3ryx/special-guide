@@ -114,14 +114,21 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     if (isAborted()) return listings;
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
-      batch.map(([shopId, raw]) =>
-        getShopNameAndImage(shopId, raw.listingId, raw.listingId2).then(({ shopName, shopUrl, image, image2 }) => ({
-          shopId, shopName, shopUrl, image, image2,
-          listingId: raw.listingId,
-          link:      raw.link,
-          title:     raw.title,
-        }))
-      )
+      batch.map(async ([shopId, raw]) => {
+        // Toujours aller chercher un 2ème listing directement dans la boutique,
+        // indépendamment de ce qu'on a trouvé dans les résultats de recherche.
+        let listingId2 = null;
+        try {
+          const shopListings = await getShopListings(shopId, 5);
+          const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
+          if (other) listingId2 = other.listingId;
+        } catch (e) {
+          console.warn('[fetchListings] getShopListings failed for shop', shopId, ':', e.message);
+        }
+
+        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId, listingId2);
+        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
+      })
     );
 
     for (const r of resolved) {
