@@ -178,7 +178,6 @@ router.post('/search-dropship', async (req, res) => {
   const { keyword, sessionId } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
-  if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
   if (!SERPER_KEYS.length) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
 
 
@@ -474,7 +473,7 @@ router.get('/dino-warmup', async (req, res) => {
 
 router.get('/health', (req, res) => {
   const keys = {
-    ETSY_CLIENT_ID: !!process.env.ETSY_CLIENT_ID,
+    SCRAPLING_SERVICE_URL: !!(process.env.SCRAPLING_SERVICE_URL || 'http://localhost:5001'),
     SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
     SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
   };
