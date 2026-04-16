@@ -66,7 +66,11 @@
     #user-badge.hidden { opacity:0; pointer-events:none; }
 
     /* ── USER BADGE (top right) ── */
-    #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; }
+    #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; align-items:center; gap:8px; }
+    #online-indicator { display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:4px 10px 4px 7px; }
+    #online-dot { width:9px; height:9px; border-radius:50%; background:#22c55e; box-shadow:0 0 6px rgba(34,197,94,0.8); flex-shrink:0; animation:pulse-dot 2s ease-in-out infinite; }
+    #online-count { font-size:0.75rem; font-weight:700; color:rgba(255,255,255,0.85); font-family:'Croissant One',cursive; }
+    @keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
     #user-avatar-btn { background:none; border:none; cursor:pointer; font-size:1.7rem; line-height:1; padding:4px; display:flex; align-items:center; justify-content:center; transition:transform 0.15s; }
     #user-avatar-btn:hover { transform:scale(1.25); }
     .user-dropdown { position:absolute; top:calc(100% + 10px); right:0; background:rgba(10,10,10,0.97); border:1px solid rgba(255,255,255,0.13); border-radius:16px; padding:8px; min-width:220px; box-shadow:0 16px 48px rgba(0,0,0,0.7); backdrop-filter:blur(20px); display:none; flex-direction:column; gap:2px; z-index:600; animation:menuPop 0.15s ease; }
@@ -391,7 +395,7 @@
 
   <!-- PAY BUTTON -->
   <div id="pay-btn-wrap">
-    <button id="pay-btn" onclick="openStripeModal()">💳 Pay</button>
+    <button id="pay-btn" onclick="openStripeModal()">💳 Buy</button>
   </div>
 
   <!-- STRIPE MODAL -->
@@ -415,6 +419,10 @@
   </div>
 
   <div id="user-badge">
+    <div id="online-indicator">
+      <span id="online-dot"></span>
+      <span id="online-count">1</span>
+    </div>
     <button id="user-avatar-btn" onclick="toggleUserDropdown()">👤</button>
     <div class="user-dropdown" id="user-dropdown">
       <div class="user-dropdown-email" id="user-email-display">—</div>
@@ -1676,6 +1684,26 @@
     // ── MILKY WAY ──
     (function(){const canvas=document.getElementById('milkyway-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H,cx,cy;const bandAngle=Math.PI/5,bandW=600,rand=function(a,b){return Math.random()*(b-a)+a;};let nebulae=[];function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;cx=W/2;cy=H/2;buildNebulae();}window.addEventListener('resize',resize);resize();function buildNebulae(){nebulae=[];const colors=[[180,100,200],[100,120,255],[255,120,80],[80,200,255],[200,80,255]];for(var i=0;i<5;i++){const col=colors[i],along=rand(-bandW*0.4,bandW*0.4),spread=rand(-60,60);nebulae.push({x:cx+Math.cos(bandAngle)*along-Math.sin(bandAngle)*spread,y:cy+Math.sin(bandAngle)*along+Math.cos(bandAngle)*spread,rx:rand(80,220),ry:rand(40,120),angle:bandAngle+rand(-0.3,0.3),r:col[0],g:col[1],b:col[2],alpha:rand(0.04,0.1),pulse:rand(0.001,0.003),pulseDir:1});}}var driftAngle=0;function draw(){ctx.clearRect(0,0,W,H);driftAngle+=0.00008;ctx.save();ctx.translate(W/2,H/2);ctx.rotate(driftAngle);ctx.translate(-W/2,-H/2);nebulae.forEach(function(n){n.alpha+=n.pulse*n.pulseDir;if(n.alpha>0.12||n.alpha<0.03)n.pulseDir*=-1;ctx.save();ctx.translate(n.x,n.y);ctx.rotate(n.angle);const g=ctx.createRadialGradient(0,0,0,0,0,n.rx);g.addColorStop(0,'rgba('+n.r+','+n.g+','+n.b+','+n.alpha+')');g.addColorStop(0.5,'rgba('+n.r+','+n.g+','+n.b+','+(n.alpha*0.4)+')');g.addColorStop(1,'rgba('+n.r+','+n.g+','+n.b+',0)');ctx.scale(1,n.ry/n.rx);ctx.beginPath();ctx.arc(0,0,n.rx,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();ctx.restore();});ctx.restore();requestAnimationFrame(draw);}draw();})();
 
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    (function() {
+      try {
+        var _socket = io();
+        _socket.on('online_count', function(n) {
+          var el = document.getElementById('online-count');
+          if (el) el.textContent = n;
+        });
+      } catch(e) {
+        // socket.io not available, fallback to polling
+        setInterval(function() {
+          fetch('/api/online-count').then(function(r){ return r.json(); }).then(function(d){
+            var el = document.getElementById('online-count');
+            if (el) el.textContent = d.count || 1;
+          }).catch(function(){});
+        }, 10000);
+      }
+    })();
   </script>
 </body>
 </html>
