@@ -106,7 +106,7 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
 
   if (!etsyUrl || !aliUrl) {
-    return { similarity: 0, match: false, scales: [], error: 'URLs manquantes', fallback: false };
+    return { similarity: 0, match: false, scales: [], error: 'Missing URLs', fallback: false };
   }
 
   try {
@@ -127,12 +127,12 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
   } catch (e) {
     const isConnRefused = e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND';
     if (isConnRefused) {
-      console.warn('[clipCompare] Service CLIP indisponible — fallback sans comparaison CLIP');
+      console.warn('[clipCompare] CLIP service unavailable — fallback without CLIP comparison');
       return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
     }
 
     const msg = e.response?.data?.error || e.message;
-    console.warn('[clipCompare] Erreur:', msg);
+    console.warn('[clipCompare] Error:', msg);
     return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
   }
 }
