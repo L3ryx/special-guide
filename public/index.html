@@ -1263,7 +1263,7 @@
       resetProgress();
     }
 
-    function setStopMode(btn) {
+    function setStopMode() {
       document.getElementById('start-btn').style.display = 'none';
       document.getElementById('stop-btn').style.display = 'flex';
     }
@@ -1302,7 +1302,10 @@
       document.getElementById('keyword-input').disabled = false;
     }
 
-    function setRetryMode(btn) {
+    function setRetryMode() {
+      const btn = document.getElementById('start-btn');
+      btn.style.display = 'flex';
+      document.getElementById('stop-btn').style.display = 'none';
       btn.classList.remove('loading');
       btn.classList.add('retry');
       btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Retry</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
