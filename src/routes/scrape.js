@@ -73,53 +73,51 @@ router.post('/niche-keyword', async (req, res) => {
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES = 8;
-  const perPage   = 100;
-  const shopsSeen = new Set(usedShops);
-
-  // ── Scan toutes les pages Etsy en parallèle (4 à la fois) ──
-  const PAGE_CONCURRENCY = 4;
-  const allResults = [];
-  const pageNums = Array.from({ length: MAX_PAGES }, (_, i) => i);
-
-  for (let i = 0; i < pageNums.length; i += PAGE_CONCURRENCY) {
-    if (isAborted()) return [];
-    const batch = pageNums.slice(i, i + PAGE_CONCURRENCY);
-    const fetched = await Promise.allSettled(
-      batch.map(p => searchListingIds(keyword, perPage, p * perPage).catch(() => []))
-    );
-    let shouldStop = false;
-    for (let j = 0; j < fetched.length; j++) {
-      if (fetched[j].status !== 'fulfilled') continue;
-      const res = fetched[j].value || [];
-      if (res.length < perPage) shouldStop = true;
-      allResults.push(...res);
-    }
-    if (onBatch) onBatch(Math.min(i + PAGE_CONCURRENCY, MAX_PAGES), allResults.length);
-    if (shouldStop) break;
-  }
-
-  // ── Dédupliquer les shops ──
+  const MAX_PAGES   = 8;
+  const perPage     = 100;
+  const shopsSeen   = new Set(usedShops);
   const shopIdToRaw = new Map();
-  for (const r of allResults) {
-    if (!r.shopId) continue;
-    const sid = String(r.shopId);
-    if (shopsSeen.has(sid)) continue;
-    if (!shopIdToRaw.has(sid)) {
-      shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
-    } else {
-      const existing = shopIdToRaw.get(sid);
-      if (!existing.listingId2 && r.listingId !== existing.listingId) {
-        existing.listingId2 = r.listingId;
+  let offset = 0;
+  let page   = 0;
+
+  // ── Scan séquentiel des pages Etsy (sans délai) ──
+  while (page < MAX_PAGES) {
+    if (isAborted()) return [];
+    let results;
+    try {
+      results = await searchListingIds(keyword, perPage, offset);
+    } catch (e) {
+      console.warn('[fetchListings] page error:', e.message);
+      break;
+    }
+    if (!results || results.length === 0) break;
+
+    for (const r of results) {
+      if (!r.shopId) continue;
+      const sid = String(r.shopId);
+      if (shopsSeen.has(sid)) continue;
+      if (!shopIdToRaw.has(sid)) {
+        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
+      } else {
+        const existing = shopIdToRaw.get(sid);
+        if (!existing.listingId2 && r.listingId !== existing.listingId) {
+          existing.listingId2 = r.listingId;
+        }
       }
     }
+
+    page++;
+    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique shopIds`);
+    if (onBatch) onBatch(page, shopIdToRaw.size);
+    if (results.length < perPage) break;
+    offset += perPage;
   }
 
   console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
 
   // ── Résoudre les shops en parallèle (batch de 20, sans délai) ──
-  const BATCH = 20;
-  const listings = [];
+  const BATCH     = 20;
+  const listings  = [];
   const shopIdList = [...shopIdToRaw.entries()];
 
   for (let i = 0; i < shopIdList.length; i += BATCH) {
