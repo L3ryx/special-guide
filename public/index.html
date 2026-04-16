@@ -223,7 +223,7 @@
     /* ── PROGRESS ── */
     #loading-spinner { display:none !important; }
     /* Progress inline sous le bouton search */
-    #progress-wrap { width:100%; display:none; flex-direction:column; align-items:center; gap:16px; margin-top:12px; }
+    #progress-wrap { width:65%; align-self:center; display:none; flex-direction:column; align-items:center; gap:16px; margin-top:12px; }
     #stop-btn { margin-top:4px; padding:14px 0; border-radius:14px; border:none; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:1rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; letter-spacing:0.1em; box-shadow:0 6px 32px rgba(220,38,38,0.55); width:65%; }
     #stop-btn:hover { background:#b91c1c; transform:scale(1.03); box-shadow:0 10px 40px rgba(220,38,38,0.7); }
     #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
@@ -482,7 +482,7 @@
 </button>
           <button id="stop-btn" onclick="stopSearch()" style="display:none;">Stop</button>
       </div>
-      <div id="progress-wrap" style="width:100%;">
+      <div id="progress-wrap">
         <div class="progress-keyword-label" id="progress-keyword-label"></div>
         <div class="progress-steps" id="progress-steps"></div>
         <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
@@ -1534,17 +1534,7 @@
 
       if (_autoSearch) {
         _totalAutoMatches += totalMatches;
-        if (_totalAutoMatches > 0) {
-          const badge = document.createElement('div');
-          badge.textContent = _totalAutoMatches + ' result(s) total';
-          badge.style.color = 'var(--muted)';
-          countBar.appendChild(badge);
-        }
       } else if (totalMatches > 0) {
-        const badge = document.createElement('div');
-        badge.textContent = totalMatches + ' result(s)';
-        badge.style.color = 'var(--muted)';
-        countBar.appendChild(badge);
         setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
       }
 
