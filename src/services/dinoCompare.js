@@ -208,7 +208,7 @@ async function findBestAliMatch(etsyUrl, aliUrls, options = {}) {
 
   const compareFn = options.hybrid ? compareImagesHybrid : compareImages;
 
-  const CONCURRENT = 5;
+  const CONCURRENT = 3;
   let bestSimilarity = -1;
   let bestUrl        = null;
   let anyFallback    = false;
