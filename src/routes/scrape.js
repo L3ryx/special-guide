@@ -2,7 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
-const { searchListingsWithShopDedup, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
+const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 // DINOv2 : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
 const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable, isDinoReady } = require('../services/dinoCompare');
 
@@ -70,33 +70,103 @@ router.post('/niche-keyword', async (req, res) => {
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES = 7;
-  const perPage   = 100;
+  const MAX_PAGES  = 7;
+  const perPage    = 100;
+  const shopsSeen  = new Set(usedShops);
+  const shopIdToRaw = new Map();
+  let offset = 0;
+  let page   = 0;
+  const pageTimes = [];
+  let lastPageStart = Date.now();
 
-  // On passe usedShops directement au microservice Python qui fait la déduplication
-  let results = [];
-  try {
-    results = await searchListingsWithShopDedup(keyword, perPage * MAX_PAGES, 0, usedShops);
-  } catch (e) {
-    handleEtsyError(e);
+  while (page < MAX_PAGES) {
+    if (isAborted()) return [];
+    lastPageStart = Date.now();
+    let results;
+    try {
+      results = await searchListingIds(keyword, perPage, offset);
+    } catch (e) {
+      handleEtsyError(e);
+    }
+
+    if (!results || results.length === 0) break;
+
+    for (const r of results) {
+      if (!r.shopId) continue;
+      const sid = String(r.shopId);
+      if (shopsSeen.has(sid)) continue;
+      if (!shopIdToRaw.has(sid)) {
+        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
+      } else {
+        const existing = shopIdToRaw.get(sid);
+        if (!existing.listingId2 && r.listingId !== existing.listingId) {
+          existing.listingId2 = r.listingId;
+        }
+      }
+    }
+
+    const pageElapsed = Date.now() - lastPageStart;
+    pageTimes.push(pageElapsed);
+    const avgPageMs = pageTimes.reduce((a, b) => a + b, 0) / pageTimes.length;
+
+    page++;
+    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique new shopIds`);
+    if (onBatch) onBatch(page, shopIdToRaw.size, avgPageMs, MAX_PAGES);
+
+    if (results.length < perPage) break;
+    offset += perPage;
   }
 
-  if (onBatch) onBatch(MAX_PAGES, results.length, 0, MAX_PAGES);
+  console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
 
-  // Filtre les boutiques sans nom ou sans les 2 images
-  const listings = results
-    .filter(r => r.shopName && r.image && r.image2)
-    .map(r => ({
-      listingId: r.listingId,
-      link:      r.link,
-      title:     r.title,
-      image:     r.image,
-      image2:    r.image2,
-      shopName:  r.shopName,
-      shopUrl:   r.shopUrl || 'https://www.etsy.com/shop/' + r.shopName,
-      shopId:    r.shopId,
-      source:    'etsy',
-    }));
+  const BATCH = 12;
+  const listings = [];
+  const shopIdList = [...shopIdToRaw.entries()];
+
+  for (let i = 0; i < shopIdList.length; i += BATCH) {
+    if (isAborted()) return listings;
+    const batch = shopIdList.slice(i, i + BATCH);
+    const resolved = await Promise.allSettled(
+      batch.map(async ([shopId, raw]) => {
+        // Toujours aller chercher un 2ème listing directement dans la boutique,
+        // indépendamment de ce qu'on a trouvé dans les résultats de recherche.
+        let listingId2 = null;
+        try {
+          const shopListings = await getShopListings(shopId, 5);
+          const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
+          if (other) listingId2 = other.listingId;
+        } catch (e) {
+          console.warn('[fetchListings] getShopListings failed for shop', shopId, ':', e.message);
+        }
+
+        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId, listingId2);
+        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
+      })
+    );
+
+    for (const r of resolved) {
+      if (r.status !== 'fulfilled') {
+        console.warn('[fetchListings] resolve failed:', r.reason?.message);
+        continue;
+      }
+      const l = r.value;
+      if (!l.shopName || !l.image || !l.image2) continue;
+      if (shopsSeen.has(l.shopName)) continue;
+      shopsSeen.add(l.shopName);
+      listings.push({
+        listingId: l.listingId,
+        link:      l.link,
+        title:     l.title,
+        image:     l.image,
+        image2:    l.image2,
+        shopName:  l.shopName,
+        shopUrl:   l.shopUrl,
+        shopId:    l.shopId,
+        source:    'etsy',
+      });
+    }
+    await new Promise(r => setTimeout(r, 50));
+  }
 
   console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
   return listings;
@@ -108,6 +178,7 @@ router.post('/search-dropship', async (req, res) => {
   const { keyword, sessionId } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
+  if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
   if (!SERPER_KEYS.length) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
 
 
@@ -181,7 +252,7 @@ router.post('/search-dropship', async (req, res) => {
         ),
       ]);
     } catch(e) {
-      send({ step: 'error', message: '❌ Scrapling service failed: ' + e.message }); return res.end();
+      send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
     }
 
     if (!dinoReady) {
@@ -403,7 +474,7 @@ router.get('/dino-warmup', async (req, res) => {
 
 router.get('/health', (req, res) => {
   const keys = {
-    SCRAPLING_SERVICE_URL: !!(process.env.SCRAPLING_SERVICE_URL || 'http://localhost:5001'),
+    ETSY_CLIENT_ID: !!process.env.ETSY_CLIENT_ID,
     SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
     SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
   };
