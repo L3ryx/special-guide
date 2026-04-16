@@ -1,4 +1,0 @@
-curl_cffi>=0.7.0
-flask>=3.0.0
-gunicorn>=21.0.0
-scrapling>=0.2.9
