@@ -460,6 +460,17 @@ router.post('/search-dropship', async (req, res) => {
 });
 
 
+// ── CLIP WAKE-UP ──
+// Appelé au chargement de la page pour réveiller HuggingFace avant la recherche
+router.get('/clip-warmup', async (req, res) => {
+  try {
+    const ready = await isClipAvailable();
+    res.json({ ready });
+  } catch {
+    res.json({ ready: false });
+  }
+});
+
 router.get('/health', (req, res) => {
   const keys = {
     ETSY_CLIENT_ID: !!process.env.ETSY_CLIENT_ID,
