@@ -242,7 +242,6 @@
     .progress-fill.burning::after { display:block; }
     @keyframes flicker { 0%{transform:translateY(-55%)scale(1)rotate(-3deg)} 100%{transform:translateY(-60%)scale(1.08)rotate(3deg)} }
     .progress-msg { text-align:center; font-size:0.78rem; color:var(--muted); min-height:1.2em; }
-    .progress-timer { text-align:center; font-size:0.75rem; color:#f97316; min-height:1.2em; font-variant-numeric:tabular-nums; letter-spacing:0.03em; margin-top:2px; }
 
     /* ── RESULTS ── */
     #results-section { position:relative; z-index:10; padding:0 12px 80px; display:none; }
@@ -486,7 +485,6 @@
         <div class="progress-keyword-label" id="progress-keyword-label"></div>
         <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
         <div class="progress-msg" id="progress-msg"></div>
-        <div class="progress-timer" id="progress-timer"></div>
       </div>
     </div>
 
@@ -1183,58 +1181,6 @@
     var _estimated    = false;
     var _estimatedMs  = 0;
 
-    // ── TIMER ──
-    var _timerRaf       = null;
-    var _shopTimes      = [];   // ms par boutique
-    var _pagesRemaining = 0;
-    var _avgPageMs      = 0;
-    var _shopsTotal     = 0;
-    var _shopsDone      = 0;
-    var _scanDone       = false;
-
-    function formatTime(ms) {
-      if (ms <= 0 || !isFinite(ms)) return '';
-      var s = Math.round(ms / 1000);
-      if (s < 60) return s + 's restante' + (s > 1 ? 's' : '');
-      var m = Math.floor(s / 60); var sec = s % 60;
-      return m + 'min ' + (sec > 0 ? sec + 's ' : '') + 'restante' + (m > 1 ? 's' : '');
-    }
-
-    function updateTimer() {
-      var el = document.getElementById('progress-timer');
-      if (!el) return;
-      var remaining = 0;
-      if (!_scanDone && _avgPageMs > 0 && _pagesRemaining > 0) {
-        remaining += _pagesRemaining * _avgPageMs;
-      }
-      if (_shopsTotal > 0 && _shopsDone < _shopsTotal) {
-        var avgShop = _shopTimes.length >= 2
-          ? _shopTimes.reduce((a,b)=>a+b,0) / _shopTimes.length
-          : (_shopTimes.length === 1 ? _shopTimes[0] : 0);
-        if (avgShop > 0) {
-          var shopsLeft = (_shopsTotal - _shopsDone);
-          // 6 workers en parallèle
-          remaining += Math.ceil(shopsLeft / 6) * avgShop;
-        }
-      }
-      el.textContent = remaining > 1000 ? '⏱ ' + formatTime(remaining) : '';
-    }
-
-    function _timerLoop() {
-      updateTimer();
-      _timerRaf = requestAnimationFrame(_timerLoop);
-    }
-
-    function startTimer() {
-      if (!_timerRaf) _timerRaf = requestAnimationFrame(_timerLoop);
-    }
-
-    function stopTimer() {
-      if (_timerRaf) { cancelAnimationFrame(_timerRaf); _timerRaf = null; }
-      var el = document.getElementById('progress-timer');
-      if (el) el.textContent = '';
-    }
-
     function _animateProgress() {
       var el = document.getElementById('progress-fill');
       if (!el) return;
@@ -1267,8 +1213,6 @@
       if (_progressRaf) { cancelAnimationFrame(_progressRaf); _progressRaf = null; }
       _progressCurrent = 0; _progressTarget = 0;
       _totalShops = 0; _startTime = 0; _estimated = false; _estimatedMs = 0;
-      _shopTimes = []; _pagesRemaining = 0; _avgPageMs = 0; _shopsTotal = 0; _shopsDone = 0; _scanDone = false;
-      stopTimer();
       var el = document.getElementById('progress-fill');
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
     }
@@ -1289,7 +1233,6 @@
       if (msg) document.getElementById('progress-msg').textContent = msg;
       if (k === 'scraping') {
         setProgress(10);
-        startTimer();
       } else if (k === 'analyzing') {
         if (!_startTime) { _startTime = Date.now(); setProgress(12); }
       } else if (k === 'match') {
@@ -1301,7 +1244,6 @@
     function completeAllSteps() {
       _progressTarget = 100;
       _progressCurrent = Math.min(99, _progressCurrent);
-      stopTimer();
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
 
@@ -1520,14 +1462,7 @@
                     }
                   }
                   advanceStep('match', ev.message);
-                } else if (ev.step === 'shop_done') {
-                  if (ev.elapsedMs > 0) _shopTimes.push(ev.elapsedMs);
-                  _shopsDone = ev.done;
-                  _shopsTotal = ev.total;
-                  _scanDone = true;
                 } else if (ev.step === 'analyzing' && ev.total && ev.done !== undefined) {
-                  _shopsTotal = ev.total;
-                  _shopsDone = ev.done;
                   syncProgressFromAnalyzing(ev.total, ev.done);
                   advanceStep('analyzing', ev.message);
                 } else if (ev.step === 'error') {
@@ -1536,10 +1471,6 @@
                   if (tag) tag.className = 'keyword-tag error';
                   hasError = true;
                   setRetryMode();
-                } else if (ev.step === 'scraping') {
-                  if (ev.avgPageMs) _avgPageMs = ev.avgPageMs;
-                  if (ev.maxPages && ev.page) _pagesRemaining = ev.maxPages - ev.page;
-                  advanceStep('scraping', ev.message);
                 } else {
                   advanceStep(ev.step, ev.message);
                 }
