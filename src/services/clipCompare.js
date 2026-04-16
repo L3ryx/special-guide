@@ -110,8 +110,8 @@ async function findBestAliMatch(etsyUrl, aliUrls, options = {}) {
     return { bestUrl: null, similarity: 0, match: false, fallback: false };
   }
 
-  // Tester en parallèle (max 3 à la fois pour ne pas surcharger le service)
-  const CONCURRENT = 3;
+  // Tester en parallèle (max 5 à la fois)
+  const CONCURRENT = 5;
   let bestSimilarity = -1;
   let bestUrl        = null;
   let anyFallback    = false;
