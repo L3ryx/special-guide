@@ -245,19 +245,20 @@ router.post('/search-dropship', async (req, res) => {
       return r;
     }
 
-    // ── Vérification CLIP obligatoire au démarrage ──
-    const clipReady = await isClipAvailable().catch(() => false);
-    if (!clipReady) {
-      send({ step: 'error', message: '❌ Service CLIP indisponible — vérifiez CLIP_SERVICE_URL et HF_SECRET_TOKEN' });
-      return res.end();
+    // ── Vérification disponibilité CLIP au démarrage du scan ──
+    const clipEnabled = await isClipAvailable().catch(() => false);
+    if (clipEnabled) {
+      console.log('[search-dropship] ✅ CLIP disponible — comparaison visuelle activée');
+      send({ step: 'analyzing', message: '🤖 CLIP activé — comparaison visuelle objet activée' });
+    } else {
+      console.log('[search-dropship] ⚠️ CLIP non disponible — mode Serper seul');
     }
-    console.log('[search-dropship] ✅ CLIP disponible sur HF Spaces');
-    send({ step: 'analyzing', message: '🤖 CLIP activé — comparaison visuelle obligatoire' });
 
     /**
      * Vérifie si une image Etsy trouve son objet sur AliExpress :
      *  1. Google Lens (Serper) → trouve l'URL AliExpress + son image
-     *  2. CLIP (OBLIGATOIRE) → vérifie que l'OBJET Etsy = l'OBJET AliExpress
+     *  2. CLIP → vérifie que l'OBJET Etsy est bien l'OBJET AliExpress
+     *            (résistant aux différences de fond, angle, lumière)
      */
     async function lensMatchWithClip(etsyImageUrl) {
       if (isAborted()) return null;
@@ -281,28 +282,31 @@ router.post('/search-dropship', async (req, res) => {
 
         if (!aliMatches.length) return null;
 
-        // Étape 2 : CLIP obligatoire — pas de fallback
-        const aliUrls = aliMatches
-          .slice(0, 3)
-          .flatMap(m => extractAliImageUrls(m))
-          .filter(Boolean);
+        // Étape 2 : CLIP — vérification visuelle objet
+        if (clipEnabled) {
+          const aliUrls = aliMatches
+            .slice(0, 3)
+            .flatMap(m => extractAliImageUrls(m))
+            .filter(Boolean);
 
-        if (!aliUrls.length) return null;
+          if (aliUrls.length > 0) {
+            const clipResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
+              threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
+            });
 
-        const clipResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
-          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
-        });
+            console.log(`[CLIP] sim=${clipResult.similarity} match=${clipResult.match} fallback=${clipResult.fallback}`);
 
-        console.log(`[CLIP] sim=${clipResult.similarity} match=${clipResult.match}`);
+            if (clipResult.fallback) return aliMatches[0]; // service down → fallback Serper
+            if (clipResult.match)    return { ...aliMatches[0], clipSimilarity: clipResult.similarity };
+            console.log(`[CLIP] ❌ Objet non confirmé`);
+            return null;
+          }
+        }
 
-        if (clipResult.match) return { ...aliMatches[0], clipSimilarity: clipResult.similarity };
-        console.log(`[CLIP] ❌ Objet non confirmé (sim=${clipResult.similarity})`);
-        return null;
+        return aliMatches[0]; // Pas de CLIP → confiance Serper
 
       } catch (e) {
         if (e.response?.status === 401) throw new Error('serper_401');
-        // Erreur CLIP → propager pour stopper le scan
-        if (e.message?.includes('[clipCompare]')) throw e;
         return null;
       }
     }
