@@ -365,6 +365,78 @@
     .ep-close { align-self:flex-end; padding:10px 24px; border-radius:10px; border:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; font-family:'Croissant One',cursive; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s; }
     .ep-close:hover { background:rgba(239,68,68,0.28); color:#fff; }
 
+    /* ── CREDIT NUDGE POPUP ── */
+    #credit-nudge-popup {
+      position: fixed;
+      inset: 0;
+      z-index: 99998;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(4px);
+      padding: 20px;
+    }
+    #credit-nudge-popup.open { display: flex; animation: epFade 0.2s ease; }
+    #credit-nudge-box {
+      position: relative;
+      background: #0f0f14;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 32px 28px 24px;
+      max-width: 320px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.85);
+      animation: epSlide 0.22s ease;
+      text-align: center;
+    }
+    #credit-nudge-close {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      background: rgba(255,255,255,0.07);
+      border: none;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: rgba(255,255,255,0.5);
+      font-size: 1rem;
+      line-height: 1;
+      transition: background 0.2s, color 0.2s;
+    }
+    #credit-nudge-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    #credit-nudge-icon { font-size: 2rem; }
+    #credit-nudge-text {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.45;
+    }
+    #credit-nudge-buy-btn {
+      width: 100%;
+      padding: 14px;
+      background: #22c55e;
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-family: 'Croissant One', cursive;
+      font-weight: 700;
+      font-size: 1.05rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      letter-spacing: 0.04em;
+    }
+    #credit-nudge-buy-btn:hover { background: #16a34a; transform: translateY(-1px); }
+    #credit-nudge-buy-btn:active { transform: translateY(0); }
+
   </style>
 </head>
 <body>
@@ -380,6 +452,16 @@
       <div class="ep-message" id="ep-message">An error occurred.</div>
       <div class="ep-hint" id="ep-hint"></div>
       <button class="ep-close" onclick="closeErrorPopupBtn()">Close</button>
+    </div>
+  </div>
+
+  <!-- ── CREDIT NUDGE POPUP ── -->
+  <div id="credit-nudge-popup" onclick="creditNudgeOverlayClick(event)">
+    <div id="credit-nudge-box">
+      <button id="credit-nudge-close" onclick="closeCreditNudge()" aria-label="Close">✕</button>
+      <div id="credit-nudge-icon">🔍</div>
+      <div id="credit-nudge-text">Credit your account to continue researching.</div>
+      <button id="credit-nudge-buy-btn" onclick="creditNudgeBuy()">Buy</button>
     </div>
   </div>
 
@@ -418,7 +500,7 @@
 
   <!-- PAY BUTTON -->
   <div id="pay-btn-wrap">
-    <button id="pay-btn" onclick="openStripeModal()">💳 Pay</button>
+    <button id="pay-btn" onclick="openCreditNudge()">💳 Buy</button>
   </div>
 
   <!-- STRIPE MODAL -->
@@ -712,6 +794,21 @@
         renderCredits();
         return true;
       } catch(e) { return false; }
+    }
+
+    // ── CREDIT NUDGE POPUP ──
+    function openCreditNudge() {
+      document.getElementById('credit-nudge-popup').classList.add('open');
+    }
+    function closeCreditNudge() {
+      document.getElementById('credit-nudge-popup').classList.remove('open');
+    }
+    function creditNudgeOverlayClick(e) {
+      if (e.target === document.getElementById('credit-nudge-popup')) closeCreditNudge();
+    }
+    function creditNudgeBuy() {
+      closeCreditNudge();
+      openStripeModal();
     }
 
     async function openStripeModal() {
@@ -1370,7 +1467,7 @@
       // ── CHECK CREDITS ──
       if (!_unlimited && _searchCredits <= 0) {
         showToast('⚠️ No searches left — buy more to continue!', '#facc15');
-        openStripeModal();
+        openCreditNudge();
         return;
       }
 
@@ -1402,7 +1499,7 @@
       const credited = await consumeCredit();
       if (!credited) {
         showToast('⚠️ No searches left — buy more to continue!', '#facc15');
-        openStripeModal();
+        openCreditNudge();
         return;
       }
 
