@@ -4,13 +4,14 @@ const bcrypt   = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   resetPasswordToken:   { type: String },
   resetPasswordExpires: { type: Date },
-  email:           { type: String, required: true, unique: true, lowercase: true, trim: true },
-  password:        { type: String, required: true },
-  etsyUserId:      { type: String, default: null, sparse: true, index: true },
-  etsyAccessToken: { type: String, default: null },
-  searchCredits:   { type: Number, default: 0 },
-  unlimited:       { type: Boolean, default: false },
-  createdAt:       { type: Date, default: Date.now },
+  email:            { type: String, required: true, unique: true, lowercase: true, trim: true },
+  password:         { type: String, required: true },
+  etsyUserId:       { type: String, default: null, sparse: true, index: true },
+  etsyAccessToken:  { type: String, default: null },
+  searchCredits:    { type: Number, default: 0 },
+  unlimited:        { type: Boolean, default: false },
+  registrationIp:   { type: String, default: null, index: true },
+  createdAt:        { type: Date, default: Date.now },
 });
 
 userSchema.pre('save', async function(next) {
