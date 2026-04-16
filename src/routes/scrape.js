@@ -177,7 +177,7 @@ router.post('/search-dropship', async (req, res) => {
 
   try {
 
- : Récupérer les boutiques déjà analysées ──
+    // ── STEP 1 : Récupérer les boutiques déjà analysées ──
     const AutoSearchState = require('../models/autoSearchModel');
     let usedShops = [];
     try {
