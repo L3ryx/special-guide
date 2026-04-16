@@ -3,7 +3,7 @@ const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
-// CLIP : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
+// DINOv2 : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
 const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable } = require('../services/dinoCompare');
 
 // ── MongoDB connection ──
@@ -221,16 +221,16 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 & 3 : Warm-up CLIP + Scraping Etsy en parallèle ──
-    send({ step: 'analyzing', message: '🤖 Vérification du service CLIP...' });
+    // ── STEP 2 & 3 : Warm-up DINOv2 + Scraping Etsy en parallèle ──
+    send({ step: 'analyzing', message: '🤖 Vérification du service DINOv2...' });
     send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
 
-    async function waitForClip(maxAttempts = 5, delayMs = 15000) {
+    async function waitForDino(maxAttempts = 5, delayMs = 15000) {
       for (let i = 0; i < maxAttempts; i++) {
         const ready = await isClipAvailable().catch(() => false);
         if (ready) return true;
         if (i < maxAttempts - 1) {
-          send({ step: 'analyzing', message: `⏳ CLIP en démarrage... (${i + 1}/${maxAttempts}) — nouvelle tentative dans ${delayMs / 1000}s` });
+          send({ step: 'analyzing', message: `⏳ DINOv2 en démarrage... (${i + 1}/${maxAttempts}) — nouvelle tentative dans ${delayMs / 1000}s` });
           await new Promise(r => setTimeout(r, delayMs));
         }
       }
@@ -238,11 +238,11 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     let listings = [];
-    let clipReady = false;
+    let dinoReady = false;
 
     try {
-      [clipReady, listings] = await Promise.all([
-        waitForClip(),
+      [dinoReady, listings] = await Promise.all([
+        waitForDino(),
         fetchListingsForDropship(
           keyword,
           (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
@@ -254,17 +254,17 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
     }
 
-    if (!clipReady) {
+    if (!dinoReady) {
       send({
         step: 'error',
-        message: '❌ Le service CLIP est indisponible après plusieurs tentatives. Veuillez réessayer dans 1-2 minutes (cold start HuggingFace ~60-90s).',
+        message: '❌ Le service DINOv2 est indisponible après plusieurs tentatives. Veuillez réessayer dans 1-2 minutes (cold start HuggingFace ~60-90s).',
       });
       activeSearches.delete(sid);
       return res.end();
     }
 
-    send({ step: 'analyzing', message: '✅ CLIP prêt — comparaison visuelle obligatoire activée' });
-    console.log('[search-dropship] ✅ CLIP disponible — comparaison visuelle obligatoire');
+    send({ step: 'analyzing', message: '✅ DINOv2 prêt — comparaison visuelle obligatoire activée' });
+    console.log('[search-dropship] ✅ DINOv2 disponible — comparaison visuelle obligatoire');
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
     listings = listings.filter(l => l.shopName);
@@ -274,7 +274,7 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
       return res.end();
     }
-    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse CLIP...' });
+    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse DINOv2...' });
 
     // ── STEP 4 : Google Lens + CLIP obligatoire ──
 
@@ -351,7 +351,7 @@ router.post('/search-dropship', async (req, res) => {
         // Pas de candidat AliExpress trouvé par Serper → pas de match
         if (!aliMatches.length) return null;
 
-        // Étape 2 : CLIP — vérification visuelle OBLIGATOIRE
+        // Étape 2 : DINOv2 — vérification visuelle OBLIGATOIRE
         const aliUrls = aliMatches
           .slice(0, 2) // plan gratuit Serper : on limite à 2 candidats
           .flatMap(m => extractAliImageUrls(m))
@@ -359,29 +359,29 @@ router.post('/search-dropship', async (req, res) => {
 
         if (!aliUrls.length) {
           // Serper n'a retourné aucune image AliExpress utilisable → refus
-          console.log(`[CLIP] ❌ Aucune image AliExpress exploitable pour CLIP`);
+          console.log(`[DINO] ❌ Aucune image AliExpress exploitable pour DINOv2`);
           return null;
         }
 
-        const clipResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
+        const dinoResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
           threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
         });
 
-        console.log(`[CLIP] sim=${clipResult.similarity} match=${clipResult.match} fallback=${clipResult.fallback}`);
+        console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
 
-        // Si le service CLIP a planté pendant la requête → refus (pas de fallback)
-        if (clipResult.fallback) {
-          console.log(`[CLIP] ⚠️ Service CLIP down en cours de requête — résultat ignoré`);
+        // Si le service DINOv2 a planté pendant la requête → refus (pas de fallback)
+        if (dinoResult.fallback) {
+          console.log(`[DINO] ⚠️ Service DINOv2 down en cours de requête — résultat ignoré`);
           return null;
         }
 
-        // CLIP confirme l'objet → match validé
-        if (clipResult.match) {
-          return { ...aliMatches[0], clipSimilarity: clipResult.similarity };
+        // DINOv2 confirme l'objet → match validé
+        if (dinoResult.match) {
+          return { ...aliMatches[0], clipSimilarity: dinoResult.similarity };
         }
 
-        // CLIP rejette l'objet → pas de match même si Serper avait trouvé quelque chose
-        console.log(`[CLIP] ❌ Objet non confirmé (sim=${clipResult.similarity} < seuil)`);
+        // DINOv2 rejette l'objet → pas de match même si Serper avait trouvé quelque chose
+        console.log(`[DINO] ❌ Objet non confirmé (sim=${dinoResult.similarity} < seuil)`);
         return null;
 
       } catch (e) {
@@ -431,7 +431,7 @@ router.post('/search-dropship', async (req, res) => {
             });
             send({
               step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | CLIP: ' + m1.clipSimilarity,
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + m1.clipSimilarity,
               shop: dropshippers[dropshippers.length - 1],
             });
           }
