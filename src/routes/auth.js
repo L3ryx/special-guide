@@ -175,9 +175,19 @@ router.post('/register', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
   if (password.length < 6)  return res.status(400).json({ error: 'Mot de passe trop court (6 chars min)' });
   try {
-    const user  = await new User({ email, password }).save();
+    // ── Récupérer l'IP réelle (proxy/Nginx inclus) ──
+    const ip =
+      (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+      req.socket?.remoteAddress ||
+      null;
+
+    // ── Vérifier si cette IP a déjà un compte ──
+    const ipAlreadyUsed = ip ? await User.findOne({ registrationIp: ip }) : null;
+    const freeCredits   = ipAlreadyUsed ? 0 : 2;
+
+    const user  = await new User({ email, password, registrationIp: ip, searchCredits: freeCredits }).save();
     const token = makeToken(user._id);
-    res.json({ token, email: user.email });
+    res.json({ token, email: user.email, searchCredits: user.searchCredits });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Email déjà utilisé' });
     res.status(500).json({ error: err.message });
