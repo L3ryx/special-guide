@@ -5,7 +5,7 @@ const crypto  = require('crypto');
 const axios   = require('axios');
 const User    = require('../models/userModel');
 
-const JWT_SECRET  = process.env.JWT_SECRET || 'Bretignydu91';
+const JWT_SECRET  = process.env.JWT_SECRET;
 const JWT_EXPIRES = '30d';
 
 const ETSY_CLIENT_ID     = process.env.ETSY_CLIENT_ID;
