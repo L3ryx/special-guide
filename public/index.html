@@ -423,6 +423,7 @@
       <button class="user-dropdown-item" onclick="openAcctModal('password')">🔑 Change password</button>
       <hr class="user-dropdown-sep"/>
       <button class="user-dropdown-item" onclick="logout()">🚪 Log out</button>
+      <button class="user-dropdown-item danger" onclick="clearData()">🧹 Clear data</button>
       <button class="user-dropdown-item danger" onclick="deleteAccount()">🗑 Delete account</button>
     </div>
   </div>
@@ -858,6 +859,19 @@
       document.getElementById('niche-list-btn').style.display = 'none';
       document.getElementById('user-dropdown').classList.remove('open');
       showAuthModal();
+    }
+
+    async function clearData() {
+      if (!confirm('⚠️ Clear all saved shops and search history? This cannot be undone.')) return;
+      try {
+        await Promise.all([
+          fetch('/api/shops', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } }),
+          fetch('/api/shops/auto-state', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } }),
+        ]);
+        _usedShops = []; _usedKeywords = [];
+        document.getElementById('user-dropdown').classList.remove('open');
+        showToast('✅ All data cleared', '#22c55e');
+      } catch(e) { showToast('Error: ' + e.message, '#ef4444'); }
     }
 
     async function deleteAccount() {
