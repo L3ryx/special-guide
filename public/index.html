@@ -1720,7 +1720,7 @@
         const socket = io({ transports: ['websocket', 'polling'] });
 
         socket.on('online_count', function (n) {
-          countEl.textContent = n + ' utilisateur' + (n > 1 ? 's' : '');
+          countEl.textContent = n;
         });
 
         socket.on('connect_error', function () {
@@ -1736,7 +1736,7 @@
           .then(function (r) { return r.json(); })
           .then(function (d) {
             const n = d.count || 0;
-            countEl.textContent = n + ' utilisateur' + (n > 1 ? 's' : '');
+            countEl.textContent = n;
           })
           .catch(function () {});
         setTimeout(pollCount, 10000);
