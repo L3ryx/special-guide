@@ -201,13 +201,27 @@ router.post('/search-dropship', async (req, res) => {
 
     // ── STEP 2 : Vérification CLIP OBLIGATOIRE avant de démarrer ──
     send({ step: 'analyzing', message: '🤖 Vérification du service CLIP...' });
-    const clipReady = await isClipAvailable().catch(() => false);
+
+    // Retry jusqu'à 5 fois (toutes les 15s) pour laisser le temps au cold start HuggingFace (~60-90s)
+    async function waitForClip(maxAttempts = 5, delayMs = 15000) {
+      for (let i = 0; i < maxAttempts; i++) {
+        const ready = await isClipAvailable().catch(() => false);
+        if (ready) return true;
+        if (i < maxAttempts - 1) {
+          send({ step: 'analyzing', message: `⏳ CLIP en démarrage... (${i + 1}/${maxAttempts}) — nouvelle tentative dans ${delayMs / 1000}s` });
+          await new Promise(r => setTimeout(r, delayMs));
+        }
+      }
+      return false;
+    }
+
+    const clipReady = await waitForClip();
 
     if (!clipReady) {
-      // CLIP indisponible → on bloque la recherche et on informe l'utilisateur
+      // CLIP indisponible après toutes les tentatives → on bloque la recherche
       send({
         step: 'error',
-        message: '❌ Le service CLIP est indisponible. La comparaison d\'image est obligatoire. Veuillez réessayer dans quelques secondes (cold start HuggingFace ~60s).',
+        message: '❌ Le service CLIP est indisponible après plusieurs tentatives. Veuillez réessayer dans 1-2 minutes (cold start HuggingFace ~60-90s).',
       });
       activeSearches.delete(sid);
       return res.end();
