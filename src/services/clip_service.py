@@ -233,16 +233,9 @@ def multi_scale_similarity(img_etsy: Image.Image, img_ali: Image.Image):
 
     # ── Détection flip horizontal ──
     # Certains vendeurs AliExpress retournent les photos en miroir
-    # On teste le flip des DEUX côtés (Etsy miroir ↔ Ali normal, et Ali miroir ↔ Etsy normal)
     e_flip = preprocess_image(img_etsy.copy().transpose(Image.FLIP_LEFT_RIGHT))
     a_norm = preprocess_image(img_ali.copy())
-    flip_score_etsy = cosine_similarity(get_clip_embedding(e_flip), get_clip_embedding(a_norm))
-
-    e_norm = preprocess_image(img_etsy.copy())
-    a_flip = preprocess_image(img_ali.copy().transpose(Image.FLIP_LEFT_RIGHT))
-    flip_score_ali = cosine_similarity(get_clip_embedding(e_norm), get_clip_embedding(a_flip))
-
-    flip_score = max(flip_score_etsy, flip_score_ali)
+    flip_score = cosine_similarity(get_clip_embedding(e_flip), get_clip_embedding(a_norm))
 
     if flip_score > scores[0]:
         logger.info(f"🪞 Flip détecté : {flip_score:.4f} > {scores[0]:.4f} — intégration du score miroir")
