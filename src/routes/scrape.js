@@ -14,6 +14,18 @@ if (mongoose.connection.readyState === 0) {
 }
 
 
+// ── Rotation des clés Serper ──
+const SERPER_KEYS = [
+  process.env.SERPER_API_KEY,
+  process.env.SERPER_API_KEY_2,
+].filter(Boolean);
+let _serperKeyIndex = 0;
+function getSerperKey() {
+  const key = SERPER_KEYS[_serperKeyIndex % SERPER_KEYS.length];
+  _serperKeyIndex++;
+  return key;
+}
+
 const activeSearches = new Map();
 
 router.post('/stop-search', (req, res) => {
@@ -163,7 +175,7 @@ router.post('/search-dropship', async (req, res) => {
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
-  if (!process.env.SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
+  if (!SERPER_KEYS.length) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
 
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -226,7 +238,7 @@ router.post('/search-dropship', async (req, res) => {
         waitForClip(),
         fetchListingsForDropship(
           keyword,
-          (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' boutiques...' }),
+          (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
           usedShops,
           isAborted
         ),
@@ -290,7 +302,7 @@ router.post('/search-dropship', async (req, res) => {
           try {
             r = await axios.post('https://google.serper.dev/lens',
               { url: pub, gl: 'us', hl: 'en' },
-              { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
+              { headers: { 'X-API-KEY': getSerperKey() }, timeout: 25000 }
             );
             break; // succès → sort du loop
           } catch (serperErr) {
@@ -441,7 +453,8 @@ router.post('/search-dropship', async (req, res) => {
 router.get('/health', (req, res) => {
   const keys = {
     ETSY_CLIENT_ID: !!process.env.ETSY_CLIENT_ID,
-    SERPER_API_KEY: !!process.env.SERPER_API_KEY,
+    SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
+    SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
