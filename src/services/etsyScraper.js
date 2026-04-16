@@ -2,7 +2,7 @@
  * etsyScraper.js
  * Remplace l'API officielle Etsy par un scraping via le microservice botasaurus (Python).
  *
- * Le microservice Python tourne sur SCRAPER_PORT (défaut 5001).
+ * Le microservice Python est appelé via SCRAPER_URL (Render) ou localhost:5001 (local).
  * Endpoints disponibles :
  *   POST /search              → liste de listings
  *   POST /shop-info           → info boutique
@@ -14,7 +14,7 @@
 
 const axios = require('axios');
 
-const SCRAPER_BASE = `http://localhost:${process.env.SCRAPER_PORT || 5001}`;
+const SCRAPER_BASE = process.env.SCRAPER_URL || `http://localhost:${process.env.SCRAPER_PORT || 5001}`;
 
 /**
  * Appel générique vers le microservice Python.
