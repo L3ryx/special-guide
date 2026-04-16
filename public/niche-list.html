@@ -89,6 +89,22 @@
     }
     .btn-delete:hover { background:rgba(255,80,80,0.3); border-color:rgba(255,80,80,0.7); color:#fff; }
 
+    .keyword-group { display:flex; flex-direction:column; gap:14px; }
+    .keyword-group-header {
+      display:flex; align-items:center; gap:10px;
+      padding:8px 4px 6px;
+      border-bottom:1px solid rgba(241,100,30,0.25);
+      margin-bottom:2px;
+    }
+    .keyword-group-label {
+      font-family:'Croissant One',cursive; font-size:0.85rem;
+      color:#f97316; letter-spacing:0.06em; text-transform:uppercase;
+    }
+    .keyword-group-count {
+      font-size:0.72rem; font-weight:700; color:rgba(255,255,255,0.35);
+      background:rgba(241,100,30,0.1); border:1px solid rgba(241,100,30,0.2);
+      border-radius:20px; padding:2px 8px;
+    }
     .empty-state { text-align:center; padding:60px 20px; color:var(--muted); display:flex; flex-direction:column; align-items:center; gap:12px; }
     .empty-state .emoji { font-size:2.5rem; }
 
@@ -271,7 +287,25 @@
           return;
         }
         list.innerHTML = '';
-        shops.forEach(shop => list.appendChild(buildShopRow(shop)));
+        // Grouper par keyword
+        const groups = {};
+        shops.forEach(shop => {
+          const key = shop.keyword || '—';
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(shop);
+        });
+        Object.entries(groups).forEach(([kw, group]) => {
+          const groupEl = document.createElement('div');
+          groupEl.className = 'keyword-group';
+          const header = document.createElement('div');
+          header.className = 'keyword-group-header';
+          header.innerHTML =
+            '<span class="keyword-group-label">🔍 ' + kw + '</span>' +
+            '<span class="keyword-group-count">' + group.length + ' shop' + (group.length > 1 ? 's' : '') + '</span>';
+          groupEl.appendChild(header);
+          group.forEach(shop => groupEl.appendChild(buildShopRow(shop)));
+          list.appendChild(groupEl);
+        });
       } catch(e) {
         list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>Erreur : ' + (e.message || 'inconnue') + '</div>';
       }
