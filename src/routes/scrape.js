@@ -265,22 +265,69 @@ router.post('/search-dropship', async (req, res) => {
      *
      * @returns {object|null} Le match AliExpress confirmé par CLIP, ou null
      */
+    // Taille maximale autorisée par Serper Lens (~700 KB en bytes décodés)
+    // Au-delà, Serper retourne 400. On essaie d'abord l'URL 570px d'Etsy,
+    // sinon on tronque à 700 KB en dernier recours.
+    const SERPER_MAX_BYTES = 700_000;
+
+    // Etsy expose plusieurs résolutions via le suffixe de l'URL :
+    //   _fullxfull → original (peut dépasser 2 Mo)
+    //   _1588xN    → ~1588px
+    //   _794xN     → ~794px  (bonne qualité, ~200-400 KB)
+    //   _570xN     → ~570px  (légère, ~80-180 KB) ← cible idéale pour Serper
+    //   _340xN     → ~340px
+    function downsizeEtsyUrl(url) {
+      if (!url) return url;
+      // Remplace n'importe quelle résolution connue par _570x
+      return url.replace(/_(fullxfull|\d{3,4}x[^.]*)\./i, '_570x.');
+    }
+
     async function lensMatchWithClip(etsyImageUrl) {
       if (isAborted()) return null;
       try {
         if (!etsyImageUrl || isAborted()) return null;
 
-        // Télécharger l'image Etsy en mémoire et l'envoyer en base64 à Serper
-        // (les URLs i.etsystatic.com sont rejetées directement par Serper Lens)
-        const imgRes = await axios.get(etsyImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
-        const base64 = Buffer.from(imgRes.data).toString('base64');
-        const mimeType = imgRes.headers['content-type'] || 'image/jpeg';
+        // ── Étape 0 : téléchargement de l'image Etsy ──
+        // On essaie d'abord la version 570px (légère), puis l'originale en fallback.
+        // Serper Lens rejette les URLs i.etsystatic.com directement → on envoie en base64.
+        const smallUrl = downsizeEtsyUrl(etsyImageUrl);
+        let imgBuffer;
+        let mimeType = 'image/jpeg';
 
-        // Étape 1 : Google Lens pour trouver des candidats AliExpress
-        const r = await axios.post('https://google.serper.dev/lens',
-          { image: `data:${mimeType};base64,${base64}`, gl: 'us', hl: 'en' },
-          { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
-        );
+        try {
+          const imgRes = await axios.get(smallUrl, { responseType: 'arraybuffer', timeout: 15000 });
+          imgBuffer = Buffer.from(imgRes.data);
+          // Nettoie le content-type : "image/jpeg; charset=utf-8" → "image/jpeg"
+          mimeType = (imgRes.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
+        } catch {
+          // URL 570px inexistante → retente avec l'URL originale
+          const imgRes = await axios.get(etsyImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
+          imgBuffer = Buffer.from(imgRes.data);
+          mimeType  = (imgRes.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
+        }
+
+        // Sécurité : si l'image dépasse encore la limite Serper, on la tronque
+        // (rare avec la version 570px, mais peut arriver avec des PNG non compressés)
+        if (imgBuffer.length > SERPER_MAX_BYTES) {
+          console.warn(`[lensMatchWithClip] image trop lourde (${imgBuffer.length} bytes) — troncature à ${SERPER_MAX_BYTES} bytes`);
+          imgBuffer = imgBuffer.slice(0, SERPER_MAX_BYTES);
+        }
+
+        const base64 = imgBuffer.toString('base64');
+
+        // ── Étape 1 : Google Lens pour trouver des candidats AliExpress ──
+        let r;
+        try {
+          r = await axios.post('https://google.serper.dev/lens',
+            { image: `data:${mimeType};base64,${base64}`, gl: 'us', hl: 'en' },
+            { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
+          );
+        } catch (serperErr) {
+          if (serperErr.response?.status === 400) {
+            console.warn('[lensMatchWithClip] Serper 400 — détail:', JSON.stringify(serperErr.response.data));
+          }
+          throw serperErr;
+        }
         if (isAborted()) return null;
 
         const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
