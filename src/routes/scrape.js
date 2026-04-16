@@ -251,7 +251,7 @@ router.post('/search-dropship', async (req, res) => {
         ),
       ]);
     } catch(e) {
-      send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
+      send({ step: 'error', message: '❌ Scrapling service failed: ' + e.message }); return res.end();
     }
 
     if (!dinoReady) {
