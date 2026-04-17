@@ -117,6 +117,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
           link: r.link,
           title: r.title,
           image: r.image || null,
+          hasRealShopName: !!r.hasRealShopName,
         });
       } else {
         const existing = shopIdToRaw.get(uniqueKey);
@@ -158,7 +159,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
 
         // Chercher un 2ème listing dans la boutique pour avoir une 2ème image
         let listingId2 = raw.listingId2;
-        if (!listingId2 && shopName && !String(shopName).startsWith('listing-')) {
+        if (!listingId2 && shopName && raw.hasRealShopName && raw.shopUrl && raw.shopUrl.includes('/shop/')) {
           try {
             const shopListings = await getShopListings(shopName, 5);
             const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
@@ -206,6 +207,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
           shopImage: image,
           shopAvatar: image,
           shopId: raw.shopId,
+          hasRealShopName: raw.hasRealShopName,
           source: 'etsy',
         };
       })
@@ -329,7 +331,7 @@ router.post('/search-dropship', async (req, res) => {
     console.log('[search-dropship] ✅ DINOv2 disponible — comparaison visuelle obligatoire');
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
-    listings = listings.filter(l => l.shopName);
+    listings = listings.filter(l => l.shopName && l.image).slice(0, Number(process.env.MAX_ANALYZE_LISTINGS || 24));
     console.log('[search-dropship] listings found:', listings.length);
 
     if (!listings.length) {
@@ -420,9 +422,12 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'progress', current: idx + 1, total, shopName: listing.shopName });
 
       try {
-        const match1 = await lensMatchWithClip(listing.image);
-        const match2 = listing.image2 ? await lensMatchWithClip(listing.image2) : null;
-        const bestMatch = match1 || match2;
+        const imagesToCheck = [listing.image, listing.image2].filter((url, pos, arr) => url && arr.indexOf(url) === pos);
+        let bestMatch = null;
+        for (const imageUrl of imagesToCheck) {
+          bestMatch = await lensMatchWithClip(imageUrl);
+          if (bestMatch) break;
+        }
 
         if (bestMatch) {
           found++;
@@ -432,14 +437,6 @@ router.post('/search-dropship', async (req, res) => {
               ...listing,
               aliMatch: bestMatch,
             },
-          });
-          send({
-            step: 'match',
-            shop: {
-              ...listing,
-              aliMatch: bestMatch,
-            },
-            message: 'Match AliExpress trouvé pour ' + listing.shopName,
           });
         } else {
           skipped++;
