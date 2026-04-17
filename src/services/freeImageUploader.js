@@ -34,12 +34,14 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── Service 1 : freeimage.host (clé API publique, sans compte) ──
+// ── Service 1 : freeimage.host (clé API optionnelle) ──
 async function uploadToFreeImageHost(buffer, mimeType) {
+  const apiKey = process.env.FREEIMAGE_HOST_KEY;
+  if (!apiKey) return null;
   try {
     const base64 = buffer.toString('base64');
     const params = new URLSearchParams();
-    params.append('key', '6d207e02198a847aa98d0a2a901485a5');
+    params.append('key', apiKey);
     params.append('source', base64);
     params.append('format', 'json');
 
@@ -114,7 +116,7 @@ async function uploadToLitterbox(buffer, mimeType) {
 
 /**
  * Télécharge une image Etsy et l'héberge sur un service public gratuit.
- * Ordre : freeimage.host → Imgur → litterbox
+ * Ordre : Imgur → litterbox → freeimage.host avec clé optionnelle
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -132,9 +134,9 @@ async function uploadImageFree(etsyUrl) {
   }
 
   const services = [
-    () => uploadToFreeImageHost(img.buffer, img.mimeType),
     () => uploadToImgur(img.buffer, img.mimeType),
     () => uploadToLitterbox(img.buffer, img.mimeType),
+    () => uploadToFreeImageHost(img.buffer, img.mimeType),
   ];
 
   for (const service of services) {
