@@ -88,7 +88,7 @@ async function searchListingIds(keyword, limit = 100, offset = 0) {
   await rateWait(400);
 
   const r = await axios.get(`${BASE}/etsy/search`, {
-    params:  { query: keyword, page },
+    params:  { keyword, page },
     headers: headers(),
     timeout: 30000,
   });
@@ -199,7 +199,7 @@ async function getShopListings(shopIdOrName, limit = 5) {
   await rateWait(400);
   // Chercher les listings de cette boutique via keyword = shop name
   const r = await axios.get(`${BASE}/etsy/search`, {
-    params:  { query: String(shopIdOrName), page: 1 },
+    params:  { keyword: String(shopIdOrName), page: 1 },
     headers: headers(),
     timeout: 20000,
   });
@@ -276,11 +276,20 @@ async function getListingDetail(listingId) {
 // ── handleEtsyError ───────────────────────────────────────────────────────────
 function handleEtsyError(e) {
   const status = e.response?.status;
-  if (status === 401) throw new Error('OMKAR_API_KEY invalide (401)');
-  if (status === 403) throw new Error("Accès refusé par omkar.cloud (403)");
+  // Extrait le vrai message retourné par omkar.cloud dans le body
+  const body = e.response?.data;
+  const detail = typeof body === 'string'
+    ? body.slice(0, 300)
+    : body ? JSON.stringify(body).slice(0, 300) : e.message;
+
+  console.error(`[omkarApi] HTTP ${status} — body: ${detail}`);
+
+  if (status === 401) throw new Error(`OMKAR_API_KEY invalide (401) — ${detail}`);
+  if (status === 403) throw new Error(`Accès refusé par omkar.cloud (403) — ${detail}`);
   if (status === 429) throw new Error('Quota omkar.cloud dépassé (429) — 5 000 req/mois');
   if (status === 404) throw new Error(`Ressource introuvable (404): ${e.config?.url}`);
-  throw new Error(`omkar.cloud API error [${status || e.code}]: ${e.message}`);
+  if (status === 400) throw new Error(`omkar.cloud requête invalide (400) — ${detail}`);
+  throw new Error(`omkar.cloud API error [${status || e.code}]: ${detail}`);
 }
 
 module.exports = {
