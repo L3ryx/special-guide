@@ -1,28 +1,16 @@
 /**
  * etsyScraper.js
- * Scraper Etsy — Puppeteer Stealth + secours gratuit via résultats indexés.
+ * Scraper Etsy — source gratuite via résultats indexés.
  *
- * Le scraping direct Etsy est conservé quand Chrome/Puppeteer fonctionne.
- * Si Etsy bloque la requête ou si Chrome n'est pas disponible, le scraper
- * bascule vers une source gratuite basée sur les résultats images indexés.
+ * Le scraping direct avec navigateur a été retiré pour fonctionner proprement
+ * sur Render gratuit, sans dépendance navigateur.
  *
- * Dépendances : puppeteer-extra, puppeteer-extra-plugin-stealth, cheerio
+ * Dépendances : cheerio
  */
 
 const cheerio = require('cheerio');
 
-let puppeteer;
-let StealthPlugin;
-try {
-  puppeteer    = require('puppeteer-extra');
-  StealthPlugin = require('puppeteer-extra-plugin-stealth');
-  puppeteer.use(StealthPlugin());
-} catch (_) {
-  puppeteer    = null;
-  StealthPlugin = null;
-}
-
-// ── Pool user-agents / viewports (issus de etsy-scraper-main) ─────────────────
+// ── Pool user-agents ──────────────────────────────────────────────────────────
 
 const USER_AGENTS = [
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
@@ -33,14 +21,6 @@ const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-];
-
-const VIEWPORTS = [
-  { width: 1920, height: 1080 },
-  { width: 1366, height: 768 },
-  { width: 1440, height: 900 },
-  { width: 1280, height: 720 },
-  { width: 1600, height: 900 },
 ];
 
 function pick(arr) {
@@ -55,97 +35,6 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// ── Gestion du navigateur (singleton réutilisé) ───────────────────────────────
-
-let _browser = null;
-
-const { execSync } = require('child_process');
-
-function findChromiumExecutable() {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
-  try { return execSync('which chromium', { encoding: 'utf8' }).trim(); } catch (_) {}
-  try { return execSync('which chromium-browser', { encoding: 'utf8' }).trim(); } catch (_) {}
-  try { return execSync('which google-chrome', { encoding: 'utf8' }).trim(); } catch (_) {}
-  return null;
-}
-
-async function getBrowser() {
-  if (!puppeteer) throw new Error('puppeteer-extra non installé. Lancer: npm install puppeteer-extra puppeteer-extra-plugin-stealth dans special-guide/');
-
-  if (_browser) {
-    try {
-      const pages = await _browser.pages();
-      if (pages !== null) return _browser;
-    } catch (_) {
-      _browser = null;
-    }
-  }
-
-  const executablePath = findChromiumExecutable();
-  const proxyUrl = process.env.PROXY_URL || null;
-
-  const launchArgs = [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-blink-features=AutomationControlled',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--single-process',
-  ];
-  if (proxyUrl) {
-    launchArgs.push(`--proxy-server=${proxyUrl}`);
-    console.log('[etsyScraper] Proxy résidentiel configuré');
-  }
-
-  const launchOpts = { headless: 'new', args: launchArgs };
-  if (executablePath) {
-    launchOpts.executablePath = executablePath;
-    console.log(`[etsyScraper] Chromium système: ${executablePath}`);
-  }
-
-  console.log('[etsyScraper] Lancement navigateur Puppeteer Stealth…');
-  _browser = await puppeteer.launch(launchOpts);
-
-  _browser.on('disconnected', () => { _browser = null; });
-  return _browser;
-}
-
-async function closeBrowser() {
-  if (_browser) {
-    try { await _browser.close(); } catch (_) {}
-    _browser = null;
-  }
-}
-
-// ── Simulation mouvement souris (anti-bot) ────────────────────────────────────
-
-async function simulateMouse(page) {
-  try {
-    const vp = page.viewport() || { width: 1366, height: 768 };
-    const steps = 2 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < steps; i++) {
-      const x = Math.floor(Math.random() * (vp.width  - 100)) + 50;
-      const y = Math.floor(Math.random() * (vp.height - 100)) + 50;
-      await page.mouse.move(x, y, { steps: 5 + Math.floor(Math.random() * 5) });
-      await sleep(80 + Math.random() * 150);
-    }
-  } catch (_) {}
-}
-
-// ── Détection blocage ──────────────────────────────────────────────────────────
-
-function isBlocked(status, html) {
-  if (status === 403 || status === 429 || status === 503) return true;
-  const lower = (html || '').toLowerCase();
-  return (
-    lower.includes('access denied') ||
-    lower.includes('captcha') ||
-    lower.includes('just a moment') ||
-    lower.includes('rate limit') ||
-    (lower.includes('please verify') && lower.includes('human'))
-  );
-}
-
 // ── Statistiques ──────────────────────────────────────────────────────────────
 
 const _stats = {
@@ -155,88 +44,6 @@ const _stats = {
   blocked:      0,
   fallbackPages: 0,
 };
-
-// ── fetchHtml : Puppeteer Stealth (remplace axios) ───────────────────────────
-
-const MAX_RETRIES = 3;
-
-async function fetchHtml(url, _referer = null) {
-  let lastError;
-
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    let page;
-    try {
-      const browser = await getBrowser();
-      page = await browser.newPage();
-
-      const ua = pick(USER_AGENTS);
-      const vp = pick(VIEWPORTS);
-      await page.setUserAgent(ua);
-      await page.setViewport(vp);
-      await page.setExtraHTTPHeaders({
-        'Accept-Language':           'en-US,en;q=0.9',
-        'Accept-Encoding':           'gzip, deflate, br',
-        'Accept':                    'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Sec-Fetch-Dest':            'document',
-        'Sec-Fetch-Mode':            'navigate',
-        'Sec-Fetch-Site':            'none',
-        'Sec-Fetch-User':            '?1',
-        'Upgrade-Insecure-Requests': '1',
-      });
-      await page.evaluateOnNewDocument(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-      });
-
-      if (attempt > 0) await sleep(randomInt(2000, 5000) * attempt);
-      await simulateMouse(page);
-
-      const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      const status   = response ? response.status() : 0;
-
-      await sleep(500 + Math.random() * 1000);
-
-      const html = await page.content();
-      await page.close();
-
-      if (status === 404) throw new Error(`HTTP 404 — URL introuvable: ${url}`);
-
-      if (isBlocked(status, html)) {
-        console.warn(`[etsyScraper] Blocage détecté (${status}) sur ${url} — tentative ${attempt + 1}/${MAX_RETRIES}`);
-        _stats.blocked++;
-        await closeBrowser();
-        if (attempt < MAX_RETRIES - 1) {
-          await sleep(randomInt(5000, 15000));
-          continue;
-        }
-        throw new Error(`IP/session bloquée par Etsy (DataDome) après ${MAX_RETRIES} tentatives. Réessayez dans quelques minutes.`);
-      }
-
-      _stats.pagesScraped++;
-      return html;
-
-    } catch (e) {
-      try { if (page && !page.isClosed()) await page.close(); } catch (_) {}
-      lastError = e;
-      if (e.message.includes('404')) throw e;
-      if (
-        e.message.includes('Could not find Chrome') ||
-        e.message.includes('Browser was not found') ||
-        e.message.includes('Failed to launch the browser process')
-      ) {
-        _stats.errors++;
-        throw e;
-      }
-      console.warn(`[etsyScraper] Tentative ${attempt + 1}/${MAX_RETRIES} échouée: ${e.message}`);
-      _stats.errors++;
-      if (attempt < MAX_RETRIES - 1) {
-        await closeBrowser();
-        await sleep(randomInt(3000, 8000));
-      }
-    }
-  }
-
-  throw lastError || new Error(`Échec après ${MAX_RETRIES} tentatives: ${url}`);
-}
 
 // ── Rate limiter ──────────────────────────────────────────────────────────────
 
@@ -292,6 +99,10 @@ function extractShopNameFromTitle(title) {
   return null;
 }
 
+function isLikelyDigitalProduct(title) {
+  return /\b(digital|download|printable|svg|template|pdf|excel|spreadsheet|tracker|planner|pattern|cricut|sublimation|clipart|png|jpg|canva|stl|editable|certificate|plans?|cnc)\b/i.test(title);
+}
+
 function decodeHtmlAttr(value) {
   return String(value || '')
     .replace(/&quot;/g, '"')
@@ -314,10 +125,14 @@ function buildFallbackProduct(item) {
   if (!listingId || !/etsy\.com\/listing\//i.test(link)) return null;
 
   const title = cleanText(item.t || item.title || item.desc || '');
+  if (isLikelyDigitalProduct(title)) return null;
   const image = normalizeEtsyImage(item.murl || item.mediaUrl || item.turl);
   if (!image) return null;
 
-  const shopName = extractShopName(link) || extractShopNameFromTitle(title) || `listing-${listingId}`;
+  const extractedShopName = extractShopName(link) || extractShopNameFromTitle(title);
+  const fallbackName = cleanText(title.replace(/\s*[-|]\s*Etsy\s*$/i, '').replace(/\s*\.\.\.\s*$/g, '')).slice(0, 70) || `Etsy listing ${listingId}`;
+  const shopName = extractedShopName || fallbackName;
+  const hasRealShopName = !!extractedShopName;
 
   return {
     listingId,
@@ -326,14 +141,15 @@ function buildFallbackProduct(item) {
     link,
     image,
     shopName,
-    shopUrl: shopName && !shopName.startsWith('listing-') ? `https://www.etsy.com/shop/${shopName}` : link,
+    shopUrl: hasRealShopName ? `https://www.etsy.com/shop/${shopName}` : link,
+    hasRealShopName,
     price: null,
     salePrice: null,
     originalPrice: null,
     discountPercentage: null,
     isOnSale: false,
     isAdvertisement: false,
-    isDigitalDownload: /\b(download|printable|svg|template|digital)\b/i.test(title),
+    isDigitalDownload: isLikelyDigitalProduct(title),
     isBestseller: false,
     isStarSeller: false,
     freeShipping: false,
@@ -627,17 +443,9 @@ function parsePagination(html) {
 
 async function searchListingIds(keyword, limit = 48, offset = 0) {
   const page = Math.floor(offset / limit) + 1;
-  const url  = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&ref=search_bar&page=${page}`;
 
   await _rateLimiter.wait();
-  let results = [];
-  try {
-    const html = await fetchHtml(url);
-    results = parseSearchPage(html);
-  } catch (e) {
-    console.warn(`[etsyScraper] Scraping direct indisponible, bascule vers source gratuite: ${e.message}`);
-    results = await fetchBingImageResults(keyword, limit, offset);
-  }
+  const results = await fetchBingImageResults(keyword, limit, offset);
 
   _stats.itemsFound += results.length;
   console.log(`[etsyScraper] searchListingIds: ${results.length} résultats | keyword="${keyword}" page=${page}`);
@@ -649,69 +457,23 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 }
 
 async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
-  try {
-    await _rateLimiter.wait();
-    const html   = await fetchHtml(`https://www.etsy.com/listing/${listingId}`);
-    const detail = parseListingPage(html);
-
-    let image2 = null;
-    if (listingId2) {
-      try {
-        await _rateLimiter.wait();
-        const html2   = await fetchHtml(`https://www.etsy.com/listing/${listingId2}`);
-        const detail2 = parseListingPage(html2);
-        image2 = detail2.images?.[0] || null;
-      } catch (_) {}
-    }
-
-    return {
-      shopName: detail.shopName || null,
-      shopUrl:  detail.shopName ? `https://www.etsy.com/shop/${detail.shopName}` : null,
-      image:    detail.images?.[0] || null,
-      image2,
-      image3:   null,
-      image4:   null,
-    };
-  } catch (e) {
-    console.warn('[etsyScraper] getShopNameAndImage error:', e.message);
-    const fallback = await fetchBingImageResults(String(listingId), 2, 0).catch(() => []);
-    return {
-      shopName: fallback[0]?.shopName || null,
-      shopUrl: fallback[0]?.shopUrl || null,
-      image: fallback[0]?.image || null,
-      image2: fallback[1]?.image || null,
-      image3: null,
-      image4: null,
-    };
-  }
+  const fallback = await fetchBingImageResults(String(listingId), listingId2 ? 2 : 1, 0).catch(() => []);
+  return {
+    shopName: fallback[0]?.shopName || null,
+    shopUrl: fallback[0]?.shopUrl || null,
+    image: fallback[0]?.image || null,
+    image2: fallback[1]?.image || null,
+    image3: null,
+    image4: null,
+  };
 }
 
 async function getShopListings(shopIdOrName, limit = 20) {
-  try {
-    await _rateLimiter.wait();
-    const html = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
-    return parseShopPage(html, shopIdOrName, limit);
-  } catch (e) {
-    console.warn('[etsyScraper] getShopListings fallback:', e.message);
-    return fetchBingImageResults(String(shopIdOrName), limit, 0);
-  }
+  return fetchBingImageResults(String(shopIdOrName), limit, 0).catch(() => []);
 }
 
 async function getShopInfo(shopIdOrName) {
-  let html = null;
-  try {
-    await _rateLimiter.wait();
-    html = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
-  } catch (e) {
-    console.warn('[etsyScraper] getShopInfo fallback:', e.message);
-  }
-
-  const $        = cheerio.load(html || '');
-  const name     = $('h1').first().text().trim() || String(shopIdOrName);
-  const bodyText = $.text();
-
-  const salesM = bodyText.match(/(\d[\d,]*)\s+Sales/i);
-  const admM   = bodyText.match(/(\d[\d,]*)\s+Admirers/i);
+  const name = String(shopIdOrName);
 
   return {
     shopId:     null,
@@ -719,57 +481,41 @@ async function getShopInfo(shopIdOrName) {
     title:      name,
     shopUrl:    `https://www.etsy.com/shop/${shopIdOrName}`,
     shopAvatar: null,
-    numSales:   salesM ? parseInt(salesM[1].replace(/,/g, ''), 10) : 0,
-    admirers:   admM   ? parseInt(admM[1].replace(/,/g, ''), 10)   : 0,
+    numSales:   0,
+    admirers:   0,
   };
 }
 
 async function getListingDetail(listingId) {
-  try {
-    await _rateLimiter.wait();
-    const html = await fetchHtml(`https://www.etsy.com/listing/${listingId}`);
-    return parseListingPage(html);
-  } catch (e) {
-    console.warn('[etsyScraper] getListingDetail fallback:', e.message);
-    const fallback = await fetchBingImageResults(String(listingId), 1, 0).catch(() => []);
-    return {
-      title: fallback[0]?.title || null,
-      price: null,
-      images: fallback[0]?.image ? [fallback[0].image] : [],
-      shopName: fallback[0]?.shopName || null,
-      shopId: null,
-      totalSales: null,
-      admirers: null,
-    };
-  }
+  const fallback = await fetchBingImageResults(String(listingId), 1, 0).catch(() => []);
+  return {
+    title: fallback[0]?.title || null,
+    price: null,
+    images: fallback[0]?.image ? [fallback[0].image] : [],
+    shopName: fallback[0]?.shopName || null,
+    shopId: null,
+    totalSales: null,
+    admirers: null,
+  };
 }
 
 async function scrapeProducts({ maxPages, startPage = 1, baseUrl, onPage } = {}) {
   const url     = baseUrl || 'https://www.etsy.com/c/paper-and-party-supplies/paper/stationery/design-and-templates/templates/personal-finance-templates?explicit=1';
+  const keyword = (() => {
+    try {
+      const parsed = new URL(url);
+      return parsed.searchParams.get('q') || parsed.pathname.split('/').filter(Boolean).pop()?.replace(/-/g, ' ') || 'etsy product';
+    } catch (_) {
+      return 'etsy product';
+    }
+  })();
   const results = [];
   let   page    = startPage;
 
   while (true) {
     if (maxPages && (page - startPage) >= maxPages) break;
-
-    const pageUrl = page === 1 ? url : (() => {
-      const u = new URL(url);
-      u.searchParams.set('page', String(page));
-      u.searchParams.set('ref', `pagination_${page}`);
-      return u.toString();
-    })();
-
     if (page > startPage) await _rateLimiter.wait();
-
-    let html;
-    try {
-      html = await fetchHtml(pageUrl);
-    } catch (e) {
-      console.warn(`[etsyScraper] Erreur page ${page}: ${e.message}`);
-      break;
-    }
-
-    const products = parseSearchPage(html);
+    const products = await fetchBingImageResults(keyword, 48, (page - 1) * 48).catch(() => []);
     console.log(`[etsyScraper] scrapeProducts: page ${page} → ${products.length} produits`);
 
     if (products.length === 0) break;
@@ -778,9 +524,7 @@ async function scrapeProducts({ maxPages, startPage = 1, baseUrl, onPage } = {})
 
     if (onPage) onPage(page, products);
 
-    const pagination = parsePagination(html);
-    if (!pagination.hasNext) break;
-
+    if (products.length < 48) break;
     page++;
   }
 
@@ -789,18 +533,11 @@ async function scrapeProducts({ maxPages, startPage = 1, baseUrl, onPage } = {})
 }
 
 async function getShopMetrics(shopIdOrName) {
-  await _rateLimiter.wait();
-  const html     = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
-  const bodyText = cheerio.load(html).text();
-
-  const salesM = bodyText.match(/(\d[\d,]*)\s+Sales/i);
-  const admM   = bodyText.match(/(\d[\d,]*)\s+Admirers/i);
-
   return {
     shopName:   String(shopIdOrName),
     shopUrl:    `https://www.etsy.com/shop/${shopIdOrName}`,
-    numSales:   salesM ? parseInt(salesM[1].replace(/,/g, ''), 10) : 0,
-    admirers:   admM   ? parseInt(admM[1].replace(/,/g, ''), 10)   : 0,
+    numSales:   0,
+    admirers:   0,
   };
 }
 
@@ -817,14 +554,7 @@ function handleEtsyError(e) {
 }
 
 async function isScraperAvailable() {
-  if (process.env.DISABLE_SEARCH_INDEX_FALLBACK !== '1') return true;
-  if (!puppeteer) return false;
-  try {
-    const browser = await getBrowser();
-    return !!browser;
-  } catch (_) {
-    return false;
-  }
+  return true;
 }
 
 module.exports = {
