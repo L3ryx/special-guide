@@ -67,88 +67,72 @@ router.post('/niche-keyword', async (req, res) => {
 
 
 /**
- * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
+ * Récupère les listings Etsy (5 pages) pour la détection de dropship.
+ *
+ * Flux :
+ *  1. searchListingIds fait 5 appels /etsy/search page=1..5 → ~50 listings uniques
+ *     Chaque listing est déjà résolu (shop_id, shop_name, image1) via /etsy/listing
+ *  2. On garde 1 listing par boutique (image1 = image du listing trouvé)
+ *  3. Pour chaque boutique, getShopListings cherche un 2ème listing différent → image2
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const shopsSeen   = new Set(usedShops);
-  // shopIdToRaw : shopId → { listingId, image, listingId2, image2, link, title }
-  // On stocke jusqu'à 2 listings par boutique pour avoir image + image2 sans appels extra.
-  const shopIdToRaw = new Map();
+  const shopsSeen  = new Set(usedShops);
+  // shopMap : shopName → { listingId, image, link, title, shopId, shopUrl }
+  const shopMap    = new Map();
 
   if (isAborted()) return [];
 
-  // Un seul appel avec le keyword exact tel que saisi par l'utilisateur
   const searchStart = Date.now();
   let results;
   try {
-    results = await searchListingIds(keyword, 70, 0);
+    results = await searchListingIds(keyword, 200, 0);
   } catch (e) {
     handleEtsyError(e);
   }
 
-  if (results && results.length > 0) {
-    for (const r of results) {
-      if (!r.shopId) continue;
-      const sid = String(r.shopId);
-      if (shopsSeen.has(sid)) continue;
-
-      if (!shopIdToRaw.has(sid)) {
-        // Premier listing de cette boutique
-        shopIdToRaw.set(sid, {
-          listingId:  r.listingId,
-          image:      r.image || null,
-          listingId2: null,
-          image2:     null,
-          link:       r.link,
-          title:      r.title,
-          shopName:   r.shopName || null,
-        });
-      } else {
-        // Deuxième listing de la même boutique → on l'utilise comme image2
-        const existing = shopIdToRaw.get(sid);
-        if (!existing.listingId2 && r.listingId !== existing.listingId && r.image) {
-          existing.listingId2 = r.listingId;
-          existing.image2     = r.image;
-        }
-      }
-    }
+  // Déduplique par boutique — on garde le premier listing de chaque boutique
+  for (const r of (results || [])) {
+    if (!r.shopName || !r.image) continue;
+    if (shopsSeen.has(r.shopName)) continue;
+    if (shopMap.has(r.shopName)) continue;
+    shopMap.set(r.shopName, {
+      listingId: r.listingId,
+      image:     r.image,
+      link:      r.link,
+      title:     r.title,
+      shopId:    r.shopId ? String(r.shopId) : null,
+      shopUrl:   `https://www.etsy.com/shop/${r.shopName}`,
+    });
   }
 
   const elapsed = Date.now() - searchStart;
-  console.log(`fetchListingsForDropship scan: ${shopIdToRaw.size} unique shopIds (kw: "${keyword}")`);
-  if (onBatch) onBatch(1, shopIdToRaw.size, elapsed, 1);
+  console.log(`fetchListingsForDropship scan: ${shopMap.size} boutiques uniques (kw: "${keyword}")`);
+  if (onBatch) onBatch(1, shopMap.size, elapsed, 1);
+  console.log('[fetchListings] Résolution image2 pour', shopMap.size, 'boutiques...');
 
-  console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
-
-  // Pour les boutiques sans image2 : on fetch un 2ème listing via getShopNameAndImage
-  // uniquement si nécessaire (évite les appels inutiles pour les boutiques qui en ont déjà 2).
-  const BATCH = 12;
+  // Pour chaque boutique, chercher un 2ème listing différent via getShopListings
+  const BATCH = 8;
   const listings = [];
-  const shopIdList = [...shopIdToRaw.entries()];
+  const shopEntries = [...shopMap.entries()];
 
-  for (let i = 0; i < shopIdList.length; i += BATCH) {
+  for (let i = 0; i < shopEntries.length; i += BATCH) {
     if (isAborted()) return listings;
-    const batch = shopIdList.slice(i, i + BATCH);
+    const batch = shopEntries.slice(i, i + BATCH);
+
     const resolved = await Promise.allSettled(
-      batch.map(async ([shopId, raw]) => {
-        let image  = raw.image;
-        let image2 = raw.image2;
-        let shopName = raw.shopName || null;
-        let shopUrl  = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
-
-        // Si on manque encore d'image2, on fait un appel getShopNameAndImage
-        if (!image2) {
-          try {
-            const res = await getShopNameAndImage(shopId, raw.listingId, raw.listingId2);
-            if (!shopName) { shopName = res.shopName; shopUrl = res.shopUrl; }
-            if (!image)  image  = res.image;
-            if (!image2) image2 = res.image2;
-          } catch (e) {
-            console.warn('[fetchListings] getShopNameAndImage failed for shop', shopId, ':', e.message);
-          }
+      batch.map(async ([shopName, raw]) => {
+        let image2 = null;
+        try {
+          const shopListings = await getShopListings(shopName, 6);
+          const second = shopListings.find(l =>
+            l.listingId !== raw.listingId && l.image
+          );
+          if (second) image2 = second.image;
+        } catch (e) {
+          console.warn('[fetchListings] getShopListings failed for', shopName, ':', e.message);
         }
-
-        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
+        console.log(`[fetchListings] ${shopName} — image1:true image2:${!!image2}`);
+        return { shopName, ...raw, image2 };
       })
     );
 
@@ -158,8 +142,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         continue;
       }
       const l = r.value;
-      if (!l.shopName || !l.image || !l.image2) {
-        console.log(`[fetchListings] skip ${l.shopName || l.shopId} — image:${!!l.image} image2:${!!l.image2}`);
+      if (!l.image2) {
+        console.log(`[fetchListings] skip ${l.shopName} — image2 introuvable`);
         continue;
       }
       if (shopsSeen.has(l.shopName)) continue;
@@ -176,10 +160,10 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         source:    'etsy',
       });
     }
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 80));
   }
 
-  console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
+  console.log('fetchListingsForDropship done:', listings.length, 'boutiques avec image1+image2');
   return listings;
 }
 
