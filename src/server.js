@@ -79,7 +79,7 @@ app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, '../p
 
 server.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`ℹ️  Scraping Etsy via ScrapeOps | clé configurée: ${process.env.SCRAPEOPS_API_KEY ? '✅' : '❌ SCRAPEOPS_API_KEY manquant'}`);
+  console.log(`ℹ️  Scraping Etsy via scraper direct`);
 });
 
 // ── Keep-alive CLIP
