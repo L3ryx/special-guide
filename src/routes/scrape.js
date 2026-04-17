@@ -249,10 +249,11 @@ router.post('/search-dropship', async (req, res) => {
 
   try {
 
-    // ── STEP 0 : Vérifier que la clé ScrapeOps est configurée ──
+    // ── STEP 0 : Vérifier que le scraper est disponible ──
+    // Le nouveau scraper fonctionne sans clé API (requêtes directes avec headers Chrome)
     const scraperOk = await isScraperAvailable();
     if (!scraperOk) {
-      send({ step: 'error', message: '❌ SCRAPEOPS_API_KEY manquant. Ajoutez cette variable sur Render (service Node.js).' });
+      send({ step: 'error', message: '❌ Scraper Etsy indisponible.' });
       return res.end();
     }
 
