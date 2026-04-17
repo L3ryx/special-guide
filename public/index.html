@@ -1472,21 +1472,22 @@
               try {
                 const ev = JSON.parse(line.slice(6));
                 if (_stopRequested) { reader.cancel(); break; }
-                if (ev.step === 'complete') {
+                if (ev.step === 'complete' || ev.step === 'done') {
                   completeAllSteps();
                   if (tag) tag.className = 'keyword-tag done';
-                } else if (ev.step === 'match') {
-                  if (ev.shop) {
-                    if (_autoSearch && ev.shop.shopName && _usedShops.includes(ev.shop.shopName)) {
+                } else if (ev.step === 'match' || ev.step === 'result') {
+                  const resultShop = ev.shop || ev.listing;
+                  if (resultShop) {
+                    if (_autoSearch && resultShop.shopName && _usedShops.includes(resultShop.shopName)) {
                       // skip
                     } else {
-                      renderShopResult(ev.shop, keyword);
+                      renderShopResult(resultShop, keyword);
                       totalMatches++;
                       document.getElementById('results-section').style.display = 'block';
                       document.documentElement.classList.add('unlocked');
                       document.documentElement.style.overflowY = 'auto';
                       document.body.style.overflowY = 'auto';
-                      if (ev.shop.shopName) saveUsedShops([ev.shop.shopName]);
+                      if (resultShop.shopName) saveUsedShops([resultShop.shopName]);
                     }
                   }
                   advanceStep('match', ev.message);
@@ -1578,13 +1579,13 @@
     function renderShopResult(shop, keyword) {
       const productUrl = shop.listingUrl || shop.shopUrl || '#';
       const idx = Object.keys(window._shopDataMap).length;
-      const shopUrl = shop.shopName ? 'https://www.etsy.com/shop/' + shop.shopName : (shop.shopUrl || '#');
+      const shopUrl = shop.shopUrl || productUrl || '#';
       window._shopDataMap[idx] = {
         shopName:     shop.shopName || null,
         shopUrl:      shopUrl,
         shopAvatar:   shop.shopAvatar || shop.shopImage || null,
         productImage: shop.shopImage || null,
-        productUrl:   shopUrl,
+        productUrl:   productUrl,
         keyword:      keyword || null,
       };
 
@@ -1621,8 +1622,8 @@
       inner.appendChild(info);
 
       const visitBtn = document.createElement('a');
-      visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
-      visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop ↗';
+      visitBtn.href = productUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      visitBtn.className = 'shop-result-btn'; visitBtn.textContent = shopUrl === productUrl ? 'Visit listing ↗' : 'Visit shop ↗';
       inner.appendChild(visitBtn);
 
       card.appendChild(inner);
