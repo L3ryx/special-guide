@@ -20,9 +20,9 @@ function cleanImage(url) {
 }
 
 function normalizeListing(item, shopName = null, shopUrl = null) {
-  const resolvedShop = shopName || item.shop_name || null;
+  const resolvedShop = shopName || item.shop?.name || item.shop_name || null;
   const resolvedUrl  = shopUrl  || (resolvedShop ? `https://www.etsy.com/shop/${resolvedShop}` : null);
-  const image = cleanImage(item.full_image_url || item.thumbnail_url || null);
+  const image = cleanImage(item.images?.full || item.full_image_url || item.thumbnail_url || null);
   const price = item.price_usd != null
     ? `USD ${Number(item.price_usd).toFixed(2)}`
     : null;
@@ -35,7 +35,7 @@ function normalizeListing(item, shopName = null, shopUrl = null) {
     shopUrl:   resolvedUrl,
     price,
     listingId: item.listing_id,
-    shopId:    item.shop_id || null,
+    shopId:    item.shop?.shop_id || item.shop_id || null,
   };
 }
 
@@ -47,42 +47,8 @@ async function rateWait(minMs = 300) {
   _lastCall = Date.now();
 }
 
-// ── searchListingIds ──────────────────────────────────────────────────────────
-// omkar /etsy/search retourne directement shop_id et shop_name dans chaque listing.
-// On n'a PAS besoin de fetch /etsy/listing pour obtenir le shop_id.
-// L'API n'accepte pas de paramètre "page".
-async function searchListingIds(keyword, limit = 100, offset = 0) {
-  await rateWait(400);
-
-  const r = await axios.get(`${BASE}/etsy/search`, {
-    params:  { keyword },
-    headers: headers(),
-    timeout: 30000,
-  });
-
-  const listings = r.data.listings || [];
-  console.log('[omkarApi] searchListingIds:', listings.length,
-    'results | keyword:', keyword);
-
-  // Les résultats de /etsy/search contiennent déjà listing_id, name,
-  // shop_id et shop_name — pas besoin d'appels supplémentaires.
-  const results = listings.slice(0, limit).map(l => ({
-    listingId: l.listing_id,
-    shopId:    l.shop_id   || null,
-    shopName:  l.shop_name || null,
-    title:     l.name      || null,
-    link:      l.url       || `https://www.etsy.com/listing/${l.listing_id}`,
-  }));
-
-  console.log('[omkarApi] shopIds non-nuls:', results.filter(r => r.shopId).length);
-  return results;
-}
-
-async function searchListings(keyword, limit = 25, offset = 0) {
-  return searchListingIds(keyword, limit, offset);
-}
-
 // ── fetchListingDetail (interne) ──────────────────────────────────────────────
+// /etsy/listing retourne les champs complets : shop.shop_id, shop.name, images.full, etc.
 async function fetchListingDetail(listingId) {
   await rateWait(250);
   const r = await axios.get(`${BASE}/etsy/listing`, {
@@ -93,8 +59,62 @@ async function fetchListingDetail(listingId) {
   return r.data || null;
 }
 
+// ── searchListingIds ──────────────────────────────────────────────────────────
+// CORRECTIF : /etsy/search retourne UNIQUEMENT listing_id + name (pas shop_id ni shop_name).
+// On fetch /etsy/listing en parallèle (par batch) pour résoudre shop_id, shop_name et images.
+// Paramètres : limit = 70 listings par appel, 5 pages max dans fetchListingsForDropship.
+async function searchListingIds(keyword, limit = 70, offset = 0) {
+  await rateWait(400);
+
+  const r = await axios.get(`${BASE}/etsy/search`, {
+    params:  { keyword },
+    headers: headers(),
+    timeout: 30000,
+  });
+
+  const listings = r.data.listings || [];
+  console.log('[omkarApi] searchListingIds raw:', listings.length, 'results | keyword:', keyword);
+
+  const subset = listings.slice(0, limit);
+
+  // Résolution des détails en parallèle par batch de 10 pour éviter le rate limit
+  const BATCH = 10;
+  const results = [];
+
+  for (let i = 0; i < subset.length; i += BATCH) {
+    const batch = subset.slice(i, i + BATCH);
+    const resolved = await Promise.allSettled(
+      batch.map(async (l) => {
+        const detail = await fetchListingDetail(l.listing_id);
+        return {
+          listingId: l.listing_id,
+          shopId:    detail?.shop?.shop_id  || null,
+          shopName:  detail?.shop?.name     || null,
+          title:     detail?.name           || l.name || null,
+          link:      detail?.url            || `https://www.etsy.com/listing/${l.listing_id}`,
+          // On stocke aussi les images pour éviter des appels redondants plus tard
+          image:     cleanImage(detail?.images?.full || detail?.images?.thumbnail || null),
+        };
+      })
+    );
+
+    for (const res of resolved) {
+      if (res.status === 'fulfilled') results.push(res.value);
+      else console.warn('[omkarApi] fetchListingDetail failed:', res.reason?.message);
+    }
+  }
+
+  console.log('[omkarApi] shopIds non-nuls:', results.filter(r => r.shopId).length, '/', results.length);
+  return results;
+}
+
+async function searchListings(keyword, limit = 25, offset = 0) {
+  return searchListingIds(keyword, limit, offset);
+}
+
 // ── getShopNameAndImage ───────────────────────────────────────────────────────
-// Récupère shopName + 2 images via /etsy/listing pour chaque listing fourni.
+// Récupère shopName + images via /etsy/listing.
+// Utilise les champs shop.name et images.full retournés par l'API.
 async function getShopNameAndImage(shopId, listingId, listingId2 = null, listingId3 = null, listingId4 = null) {
   const ids = [listingId, listingId2, listingId3, listingId4];
 
@@ -105,13 +125,18 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null, listing
   const data = fetched.map(r => r.status === 'fulfilled' ? r.value : null);
   const [d1, d2, d3, d4] = data;
 
-  const shopName = d1?.shop_name || d2?.shop_name || d3?.shop_name || d4?.shop_name || null;
-  const shopUrl  = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
+  // shop_name est dans shop.name selon la doc Omkar
+  const shopName =
+    d1?.shop?.name || d2?.shop?.name || d3?.shop?.name || d4?.shop?.name ||
+    d1?.shop_name  || d2?.shop_name  || d3?.shop_name  || d4?.shop_name  || null;
 
-  const image  = d1 ? cleanImage(d1.full_image_url || d1.thumbnail_url || null) : null;
-  const image2 = d2 ? cleanImage(d2.full_image_url || d2.thumbnail_url || null) : null;
-  const image3 = d3 ? cleanImage(d3.full_image_url || d3.thumbnail_url || null) : null;
-  const image4 = d4 ? cleanImage(d4.full_image_url || d4.thumbnail_url || null) : null;
+  const shopUrl = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
+
+  // images sont dans images.full ou images.thumbnail selon la doc Omkar
+  const image  = d1 ? cleanImage(d1.images?.full || d1.images?.thumbnail || d1.full_image_url || d1.thumbnail_url || null) : null;
+  const image2 = d2 ? cleanImage(d2.images?.full || d2.images?.thumbnail || d2.full_image_url || d2.thumbnail_url || null) : null;
+  const image3 = d3 ? cleanImage(d3.images?.full || d3.images?.thumbnail || d3.full_image_url || d3.thumbnail_url || null) : null;
+  const image4 = d4 ? cleanImage(d4.images?.full || d4.images?.thumbnail || d4.full_image_url || d4.thumbnail_url || null) : null;
 
   console.log('[omkarApi] getShopNameAndImage:', shopName,
     '| image1:', !!image, '| image2:', !!image2);
@@ -140,9 +165,12 @@ async function getShopListings(shopIdOrName, limit = 5) {
     const d = details[i];
     if (d.status !== 'fulfilled' || !d.value) continue;
     const item = d.value;
-    if (item.shop_name &&
-        String(shopIdOrName).toLowerCase() !== String(item.shop_name).toLowerCase() &&
-        String(shopIdOrName) !== String(item.shop_id)) continue;
+    // Compatibilité ancienne structure (shop_name) et nouvelle (shop.name)
+    const itemShopName = item.shop?.name || item.shop_name || null;
+    const itemShopId   = item.shop?.shop_id || item.shop_id || null;
+    if (itemShopName &&
+        String(shopIdOrName).toLowerCase() !== String(itemShopName).toLowerCase() &&
+        String(shopIdOrName) !== String(itemShopId)) continue;
     results.push(normalizeListing(item));
   }
 
@@ -166,20 +194,24 @@ async function getListingDetail(listingId) {
   const item = await fetchListingDetail(listingId);
   if (!item) return { title: null, price: null, images: [], shopName: null, shopId: null };
 
-  const images = [item.full_image_url, item.thumbnail_url]
-    .map(cleanImage)
-    .filter(Boolean);
+  // Compatibilité ancienne structure et nouvelle structure Omkar
+  const images = [
+    item.images?.full,
+    item.images?.thumbnail,
+    item.full_image_url,
+    item.thumbnail_url,
+  ].map(cleanImage).filter(Boolean);
 
   const price = item.price_usd != null
     ? `USD ${Number(item.price_usd).toFixed(2)}`
     : null;
 
   return {
-    title:    item.name      || null,
+    title:    item.name                               || null,
     price,
     images,
-    shopName: item.shop_name || null,
-    shopId:   item.shop_id   || null,
+    shopName: item.shop?.name     || item.shop_name  || null,
+    shopId:   item.shop?.shop_id  || item.shop_id    || null,
   };
 }
 
