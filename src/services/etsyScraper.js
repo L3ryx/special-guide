@@ -12,10 +12,6 @@ const SCRAPEOPS_ENDPOINT = 'https://proxy.scrapeops.io/v1/';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function scrapeopsUrl(targetUrl) {
-  return `${SCRAPEOPS_ENDPOINT}?api_key=${SCRAPEOPS_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false&country=us`;
-}
-
 function cleanImage(url) {
   if (!url) return null;
   if (url.startsWith('//')) url = 'https:' + url;
@@ -37,23 +33,62 @@ function innerText(html, tag) {
   return m[1].replace(/<[^>]+>/g, '').trim() || null;
 }
 
+function scrapeopsUrlWith(targetUrl, opts = {}) {
+  const { residential = false, country = 'us' } = opts;
+  let u = `${SCRAPEOPS_ENDPOINT}?api_key=${SCRAPEOPS_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false`;
+  if (country) u += `&country=${country}`;
+  if (residential) u += `&residential=true`;
+  return u;
+}
+
 async function fetchHtml(url, timeout = 40000) {
   if (!SCRAPEOPS_KEY) throw new Error('SCRAPEOPS_API_KEY manquant dans les variables d\'environnement Render');
-  const proxied = scrapeopsUrl(url);
-  for (let attempt = 0; attempt < 3; attempt++) {
+
+  // Stratégies successives : sans country → avec country us → residential
+  const strategies = [
+    { residential: false, country: '' },
+    { residential: false, country: 'us' },
+    { residential: true,  country: 'us' },
+  ];
+
+  for (let attempt = 0; attempt < strategies.length; attempt++) {
+    const proxied = scrapeopsUrlWith(url, strategies[attempt]);
     try {
-      const resp = await axios.get(proxied, { timeout });
+      const resp = await axios.get(proxied, {
+        timeout,
+        validateStatus: () => true,   // ne pas lever d'exception sur 4xx/5xx
+      });
+
+      if (resp.status === 200) return resp.data;
+
+      if (resp.status === 403) {
+        // Vérifie si c'est ScrapeOps qui rejette la clé
+        const body = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+        if (body.includes('invalid') || body.includes('Invalid') || body.includes('key')) {
+          throw new Error('SCRAPEOPS_API_KEY invalide ou expirée — vérifiez la variable sur Render');
+        }
+        // Sinon c'est Etsy qui bloque cette IP — on essaie la prochaine stratégie
+        console.warn(`[fetchHtml] 403 stratégie ${attempt + 1}, tentative suivante...`);
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+
       if (resp.status === 429) {
         await new Promise(r => setTimeout(r, 4000 + attempt * 3000));
         continue;
       }
-      return resp.data;
+
+      throw new Error(`HTTP ${resp.status} pour ${url}`);
     } catch (e) {
-      if (attempt < 2) await new Promise(r => setTimeout(r, 2000));
-      else throw e;
+      if (e.message.includes('SCRAPEOPS_API_KEY')) throw e;
+      if (attempt < strategies.length - 1) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      throw e;
     }
   }
-  throw new Error('ScrapeOps : pas de réponse après 3 tentatives');
+  throw new Error('Etsy bloque toutes les IPs ScrapeOps (plan gratuit = IPs datacenter). Passez au plan ScrapeOps Hobby pour des IPs résidentielles.');
 }
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
