@@ -102,7 +102,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     if (!results || results.length === 0) break;
 
     for (const r of results) {
-      // Le scraper peut retourner shopId null — on utilise shopName comme clé de déduplication
+      // Le scraper peut retourner shopId null — on utilise shopName/listingId comme clé de déduplication
       const uniqueKey = r.shopId ? String(r.shopId) : (r.shopName || r.listingId);
       if (!uniqueKey) continue;
       if (shopsSeen.has(uniqueKey)) continue;
@@ -154,11 +154,11 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         let shopName = raw.shopName;
         let shopUrl  = raw.shopUrl;
         let image    = raw.image;
-        let image2   = null;
+        let image2   = raw.image2 || null;
 
         // Chercher un 2ème listing dans la boutique pour avoir une 2ème image
         let listingId2 = raw.listingId2;
-        if (!listingId2 && shopName) {
+        if (!listingId2 && shopName && !String(shopName).startsWith('listing-')) {
           try {
             const shopListings = await getShopListings(shopName, 5);
             const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
@@ -196,12 +196,15 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
 
         return {
           listingId: raw.listingId,
+          listingUrl: raw.link,
           link:      raw.link,
           title:     raw.title,
           image,
-          image2,
+          image2: image2 || image,
           shopName,
-          shopUrl,
+          shopUrl: shopUrl || raw.link,
+          shopImage: image,
+          shopAvatar: image,
           shopId: raw.shopId,
           source: 'etsy',
         };
@@ -214,7 +217,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         continue;
       }
       const l = r.value;
-      if (!l.shopName || !l.image || !l.image2) continue;
+      if (!l.shopName || !l.image) continue;
       if (shopsSeen.has(l.shopName)) continue;
       shopsSeen.add(l.shopName);
       listings.push(l);
@@ -250,10 +253,10 @@ router.post('/search-dropship', async (req, res) => {
   try {
 
     // ── STEP 0 : Vérifier que le scraper est disponible ──
-    // Le nouveau scraper fonctionne sans clé API (requêtes directes avec headers Chrome)
+    // Le scraper utilise Etsy direct si possible, puis une source gratuite indexée en secours.
     const scraperOk = await isScraperAvailable();
     if (!scraperOk) {
-      send({ step: 'error', message: '❌ Scraper Etsy indisponible.' });
+      send({ step: 'error', message: '❌ Recherche Etsy temporairement indisponible. Réessayez dans quelques minutes.' });
       return res.end();
     }
 
@@ -280,7 +283,7 @@ router.post('/search-dropship', async (req, res) => {
 
     // ── STEP 2 & 3 : Warm-up DINOv2 + Scraping Etsy en parallèle ──
     send({ step: 'analyzing', message: '🤖 Vérification du service DINOv2...' });
-    send({ step: 'scraping', message: '🔍 Scraping Etsy pour "' + keyword + '" (sans API officielle)...' });
+    send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
 
     async function waitForDino(maxAttempts = 8, delayMs = 20000) {
       for (let i = 0; i < maxAttempts; i++) {
@@ -330,7 +333,7 @@ router.post('/search-dropship', async (req, res) => {
     console.log('[search-dropship] listings found:', listings.length);
 
     if (!listings.length) {
-      send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
+      send({ step: 'error', message: '❌ Aucun résultat Etsy exploitable trouvé pour ce mot-clé' });
       return res.end();
     }
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse DINOv2...' });
@@ -430,6 +433,14 @@ router.post('/search-dropship', async (req, res) => {
               aliMatch: bestMatch,
             },
           });
+          send({
+            step: 'match',
+            shop: {
+              ...listing,
+              aliMatch: bestMatch,
+            },
+            message: 'Match AliExpress trouvé pour ' + listing.shopName,
+          });
         } else {
           skipped++;
         }
@@ -446,6 +457,7 @@ router.post('/search-dropship', async (req, res) => {
 
     activeSearches.delete(sid);
     send({ step: 'done', found, skipped, total });
+    send({ step: 'complete', found, skipped, total });
     res.end();
 
   } catch (e) {
@@ -488,8 +500,8 @@ router.get('/scraper-health', async (req, res) => {
   res.json({
     ok,
     message: ok
-      ? (proxyConfigured ? 'Puppeteer Stealth ✅ + Proxy résidentiel ✅' : 'Puppeteer Stealth ✅ (utiliser depuis une IP résidentielle ou configurer PROXY_URL)')
-      : 'Puppeteer non disponible ❌',
+      ? (proxyConfigured ? 'Recherche Etsy ✅ + proxy configuré' : 'Recherche Etsy ✅ + secours gratuit actif')
+      : 'Recherche Etsy indisponible ❌',
   });
 });
 
