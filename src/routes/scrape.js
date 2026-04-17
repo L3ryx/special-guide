@@ -70,42 +70,23 @@ router.post('/niche-keyword', async (req, res) => {
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  // L'API Omkar /etsy/search retourne ~10 résultats fixes par appel (pas de pagination).
-  // On fait MAX_PAGES appels avec des variantes du keyword pour élargir les résultats.
-  const MAX_PAGES   = 5;
   const shopsSeen   = new Set(usedShops);
   // shopIdToRaw : shopId → { listingId, image, listingId2, image2, link, title }
   // On stocke jusqu'à 2 listings par boutique pour avoir image + image2 sans appels extra.
   const shopIdToRaw = new Map();
-  let page = 0;
-  const pageTimes = [];
 
-  // Variantes de keyword pour maximiser la couverture sur plusieurs appels
-  const keywordVariants = [
-    keyword,
-    `${keyword} handmade`,
-    `${keyword} shop`,
-    `buy ${keyword}`,
-    `${keyword} gift`,
-  ];
+  if (isAborted()) return [];
 
-  while (page < MAX_PAGES) {
-    if (isAborted()) return [];
-    const lastPageStart = Date.now();
-    const kw = keywordVariants[page] || keyword;
+  // Un seul appel avec le keyword exact tel que saisi par l'utilisateur
+  const searchStart = Date.now();
+  let results;
+  try {
+    results = await searchListingIds(keyword, 70, 0);
+  } catch (e) {
+    handleEtsyError(e);
+  }
 
-    let results;
-    try {
-      results = await searchListingIds(kw, 70, 0);
-    } catch (e) {
-      handleEtsyError(e);
-    }
-
-    if (!results || results.length === 0) {
-      page++;
-      continue;
-    }
-
+  if (results && results.length > 0) {
     for (const r of results) {
       if (!r.shopId) continue;
       const sid = String(r.shopId);
@@ -131,15 +112,11 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         }
       }
     }
-
-    const pageElapsed = Date.now() - lastPageStart;
-    pageTimes.push(pageElapsed);
-    const avgPageMs = pageTimes.reduce((a, b) => a + b, 0) / pageTimes.length;
-
-    page++;
-    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique new shopIds (kw: "${kw}")`);
-    if (onBatch) onBatch(page, shopIdToRaw.size, avgPageMs, MAX_PAGES);
   }
+
+  const elapsed = Date.now() - searchStart;
+  console.log(`fetchListingsForDropship scan: ${shopIdToRaw.size} unique shopIds (kw: "${keyword}")`);
+  if (onBatch) onBatch(1, shopIdToRaw.size, elapsed, 1);
 
   console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
 
@@ -280,7 +257,7 @@ router.post('/search-dropship', async (req, res) => {
         waitForDino(),
         fetchListingsForDropship(
           keyword,
-          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
+          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 ' + count + ' boutiques trouvées...' }),
           usedShops,
           isAborted
         ),
