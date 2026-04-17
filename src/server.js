@@ -1,90 +1,152 @@
-require('dotenv').config();
-const express = require('express');
-const axios   = require('axios');
-const cors    = require('cors');
-const path    = require('path');
-const http    = require('http');
-const { Server } = require('socket.io');
+const axios    = require('axios');
+const FormData = require('form-data');
 
-const scrapeRoutes = require('./routes/scrape');
-const { router: authRouter } = require('./routes/auth');
-const shopRoutes   = require('./routes/shopRoutes');
-const stripeRoutes = require('./routes/stripeRoutes');
+// ── Cache en mémoire avec TTL 1h pour éviter les re-uploads ──
+const uploadCache = new Map();
+const CACHE_TTL   = 60 * 60 * 1000; // 1 heure
 
-const app    = express();
-const server = http.createServer(app);
-const io     = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] }
-});
-const PORT   = process.env.PORT || 3000;
-
-// ── Online users tracking ──
-let onlineCount = 0;
-
-io.on('connection', (socket) => {
-  onlineCount++;
-  io.emit('online_count', onlineCount);
-
-  socket.on('disconnect', () => {
-    onlineCount = Math.max(0, onlineCount - 1);
-    io.emit('online_count', onlineCount);
-  });
-});
-
-app.get('/api/online-count', (req, res) => {
-  res.json({ count: onlineCount });
-});
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public'), { index: false }));
-
-// ── Proxy image
-app.get('/proxy-image', async (req, res) => {
-  const url = req.query.url;
-  if (!url) return res.status(400).send('Missing url');
-  try {
-    const response = await axios.get(url, {
-      responseType: 'arraybuffer',
-      timeout: 15000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://www.aliexpress.com/',
-        'Accept': 'image/webp,image/jpeg,image/*'
-      }
-    });
-    const ct = response.headers['content-type'] || 'image/jpeg';
-    res.setHeader('Content-Type', ct);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.send(Buffer.from(response.data));
-  } catch {
-    res.status(502).send('Image fetch failed');
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of uploadCache.entries()) {
+    if (now - entry.ts > CACHE_TTL) uploadCache.delete(key);
   }
-});
+}, 10 * 60 * 1000);
 
-// ── Health check
-app.get('/api/health', (req, res) => res.json({ ok: true }));
+// ── Télécharger l'image depuis Etsy ──
+async function downloadEtsyImage(etsyUrl) {
+  const smallUrl = etsyUrl.replace(/_(fullxfull|\d{3,4}x[^.]*)\\.(?=\w+$)/i, '_570x.');
+  for (const url of smallUrl !== etsyUrl ? [smallUrl, etsyUrl] : [etsyUrl]) {
+    try {
+      const res = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.etsy.com/' },
+      });
+      const buf = Buffer.from(res.data);
+      if (buf.length > 100 && (buf[0] === 0xFF || buf[0] === 0x89)) {
+        return {
+          buffer:   buf,
+          mimeType: (res.headers['content-type'] || 'image/jpeg').split(';')[0].trim(),
+        };
+      }
+    } catch { /* essai suivant */ }
+  }
+  return null;
+}
 
-// ── Routes API
-app.use('/api', scrapeRoutes);
-app.use('/api/auth', authRouter);
-app.use('/api/shops', shopRoutes);
-app.use('/api/stripe', stripeRoutes);
+// ── Service 1 : freeimage.host (clé API publique, sans compte) ──
+async function uploadToFreeImageHost(buffer, mimeType) {
+  try {
+    const base64 = buffer.toString('base64');
+    const params = new URLSearchParams();
+    params.append('key', '6d207e02198a847aa98d0a2a901485a5');
+    params.append('source', base64);
+    params.append('format', 'json');
 
-// ── Pages
-app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
-app.get('/finder',         (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
-app.get('/niche-list',     (req, res) => res.sendFile(path.join(__dirname, '../public/niche-list.html')));
-app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, '../public/reset-password.html')));
+    const res = await axios.post('https://freeimage.host/api/1/upload', params, {
+      timeout: 20000,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
 
-server.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`ℹ️  Scraping Etsy via scraper direct`);
-});
+    const url = res.data?.image?.url;
+    if (url && url.startsWith('https://')) {
+      console.log('[freeUploader] freeimage.host OK', url);
+      return url;
+    }
+  } catch (e) {
+    console.warn('[freeUploader] freeimage.host failed:', e.message);
+  }
+  return null;
+}
 
-// ── Keep-alive CLIP
-const { isClipAvailable } = require('./services/dinoCompare');
-setInterval(async () => {
-  const alive = await isClipAvailable().catch(() => false);
-  console.log(`[clip-keepalive] ${alive ? '✅ CLIP actif' : '⚠️ CLIP indisponible (cold start en cours)'}`);
-}, 4 * 60 * 1000);
+// ── Service 2 : Imgur (anonyme via Client-ID) ──
+// Recommandé par SerpApi pour Google Lens (pas de blocage d'URLs)
+// Ajoute IMGUR_CLIENT_ID dans les env vars Render pour utiliser ta propre app Imgur gratuite
+async function uploadToImgur(buffer, mimeType) {
+  const rawId  = process.env.IMGUR_CLIENT_ID || '546c25a59c58ad7';
+  const authHdr = rawId.startsWith('Client-ID') ? rawId : `Client-ID ${rawId}`;
+  try {
+    const form = new FormData();
+    form.append('image', buffer, { filename: 'image.jpg', contentType: mimeType });
+    form.append('type', 'file');
+
+    const res = await axios.post('https://api.imgur.com/3/image', form, {
+      headers: { ...form.getHeaders(), Authorization: authHdr },
+      timeout: 20000,
+      maxContentLength: Infinity,
+    });
+
+    const url = res.data?.data?.link;
+    if (url && url.startsWith('https://')) {
+      console.log('[freeUploader] imgur OK', url);
+      return url;
+    }
+  } catch (e) {
+    console.warn('[freeUploader] imgur failed:', e.message);
+  }
+  return null;
+}
+
+// ── Service 3 : litterbox (dernier recours) ──
+async function uploadToLitterbox(buffer, mimeType) {
+  try {
+    const form = new FormData();
+    form.append('reqtype', 'fileupload');
+    form.append('time',    '1h');
+    form.append('fileToUpload', buffer, { filename: 'image.jpg', contentType: mimeType });
+
+    const res = await axios.post('https://litterbox.catbox.moe/resources/internals/api.php', form, {
+      headers: form.getHeaders(),
+      timeout: 20000,
+      maxContentLength: Infinity,
+    });
+
+    const url = res.data?.trim();
+    if (url && url.startsWith('https://')) {
+      console.log('[freeUploader] litterbox OK', url);
+      return url;
+    }
+  } catch (e) {
+    console.warn('[freeUploader] litterbox failed:', e.message);
+  }
+  return null;
+}
+
+/**
+ * Télécharge une image Etsy et l'héberge sur un service public gratuit.
+ * Ordre : freeimage.host → Imgur → litterbox
+ *
+ * @param {string} etsyUrl
+ * @returns {string|null}
+ */
+async function uploadImageFree(etsyUrl) {
+  if (!etsyUrl) return null;
+
+  const cached = uploadCache.get(etsyUrl);
+  if (cached) return cached.value;
+
+  const img = await downloadEtsyImage(etsyUrl);
+  if (!img) {
+    console.warn('[freeUploader] impossible de télécharger:', etsyUrl);
+    return null;
+  }
+
+  const services = [
+    () => uploadToFreeImageHost(img.buffer, img.mimeType),
+    () => uploadToImgur(img.buffer, img.mimeType),
+    () => uploadToLitterbox(img.buffer, img.mimeType),
+  ];
+
+  for (const service of services) {
+    const url = await service();
+    if (url) {
+      uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
+      return url;
+    }
+  }
+
+  console.error('[freeUploader] tous les services ont échoué pour', etsyUrl);
+  return null;
+}
+
+module.exports = { uploadImageFree };
