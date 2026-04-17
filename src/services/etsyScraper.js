@@ -31,10 +31,8 @@ async function fetchHtml(targetUrl) {
 
   // Format officiel selon la documentation ScrapeOps
   const params = new URLSearchParams({
-    api_key:     SCRAPEOPS_KEY,
-    url:         targetUrl,
-    residential: 'true',  // IPs résidentielles — contourne le blocage Etsy
-    country:     'us',
+    api_key: SCRAPEOPS_KEY,
+    url:     targetUrl,
   });
   const proxyUrl = `${SCRAPEOPS_ENDPOINT}?${params.toString()}`;
 
@@ -50,7 +48,12 @@ async function fetchHtml(targetUrl) {
       }
 
       if (resp.status === 401) {
-        throw new Error('ScrapeOps : crédits épuisés (401) — rechargez votre compte sur scrapeops.io');
+        throw new Error(
+          'ScrapeOps : crédits épuisés (401)\n' +
+          '→ Vérifiez votre solde sur scrapeops.io/app\n' +
+          '→ Le plan gratuit donne 1000 crédits/mois (reset mensuel)\n' +
+          '→ Ou créez un nouveau compte gratuit pour avoir 1000 crédits frais'
+        );
       }
 
       if (resp.status === 403) {
