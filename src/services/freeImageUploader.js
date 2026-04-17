@@ -14,7 +14,7 @@ setInterval(() => {
 
 // ── Télécharger l'image depuis Etsy ──
 async function downloadEtsyImage(etsyUrl) {
-  const smallUrl = etsyUrl.replace(/_(fullxfull|\d{3,4}x[^.]*)\\.(?=\w+$)/i, '_570x.');
+  const smallUrl = etsyUrl.replace(/_(fullxfull|\d{3,4}x[^.]*)\.(?=\w+$)/i, '_570xN.');
   for (const url of smallUrl !== etsyUrl ? [smallUrl, etsyUrl] : [etsyUrl]) {
     try {
       const res = await axios.get(url, {
