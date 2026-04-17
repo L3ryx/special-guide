@@ -3,8 +3,10 @@ const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
 
-// ── Scraper botasaurus (remplace l'API officielle Etsy) ──
+// ── Scraper Etsy direct ──
 const {
+  searchEtsyPages,
+  getSecondShopImage,
   searchListingIds,
   getShopNameAndImage,
   getShopListings,
@@ -77,138 +79,107 @@ router.post('/niche-keyword', async (req, res) => {
 
 
 /**
- * Récupère les listings Etsy via le scraper botasaurus pour la détection de dropship.
+ * Récupère les listings Etsy en scrapant directement les pages de résultats Etsy.
+ *
+ * ÉTAPE 1 — Scrape des 7 pages Etsy pour le keyword.
+ *   → 1 listing représentatif par boutique (déduplication par shopName).
+ *   → Chaque listing a déjà : listingId, image, shopName, shopUrl.
+ *
+ * ÉTAPE 2 — Pour chaque boutique unique :
+ *   → Visite la page boutique pour récupérer une 2ème image (listing différent).
+ *   → Les boutiques déjà analysées (usedShops) sont ignorées.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 7;
-  const perPage    = 48;
-  const shopsSeen  = new Set(usedShops);
-  const shopIdToRaw = new Map();
-  let offset = 0;
-  let page   = 0;
+  const MAX_PAGES = 7;
+  const shopsSeen = new Set(usedShops);
   const pageTimes = [];
-  let lastPageStart = Date.now();
 
-  while (page < MAX_PAGES) {
+  // ── ÉTAPE 1 : Scrape des pages de résultats Etsy ──────────────────────────
+  const rawListings = [];
+  const seenShopKeys = new Set(usedShops);
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
     if (isAborted()) return [];
-    lastPageStart = Date.now();
-    let results;
+
+    const pageStart = Date.now();
+
+    // Pause entre pages (respecte le rate limiter d'Etsy)
+    if (page > 1) await new Promise(r => setTimeout(r, 1200 + Math.floor(Math.random() * 1800)));
+
+    const url = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&page=${page}&explicit=1`;
+    console.log(`[fetchListings] Scrape page ${page}/${MAX_PAGES}: ${url}`);
+
+    let pageResults;
     try {
-      results = await searchListingIds(keyword, perPage, offset);
+      pageResults = await searchListingIds(keyword, 64, (page - 1) * 64);
     } catch (e) {
-      handleEtsyError(e);
+      console.error(`[fetchListings] page ${page} échouée: ${e.message}`);
+      if (e.message.includes('captcha')) break;
+      continue;
     }
 
-    if (!results || results.length === 0) break;
-
-    for (const r of results) {
-      // Le scraper peut retourner shopId null — on utilise shopName/listingId comme clé de déduplication
-      const uniqueKey = r.shopId ? String(r.shopId) : (r.shopName || r.listingId);
-      if (!uniqueKey) continue;
-      if (shopsSeen.has(uniqueKey)) continue;
-
-      if (!shopIdToRaw.has(uniqueKey)) {
-        shopIdToRaw.set(uniqueKey, {
-          shopId: r.shopId || null,
-          shopName: r.shopName || null,
-          shopUrl: r.shopUrl || null,
-          listingId: r.listingId,
-          listingId2: null,
-          link: r.link,
-          title: r.title,
-          image: r.image || null,
-          hasRealShopName: !!r.hasRealShopName,
-        });
-      } else {
-        const existing = shopIdToRaw.get(uniqueKey);
-        if (!existing.listingId2 && r.listingId !== existing.listingId) {
-          existing.listingId2 = r.listingId;
-        }
-      }
+    let newThisPage = 0;
+    for (const r of (pageResults || [])) {
+      if (!r.listingId || !r.image) continue;
+      const shopKey = r.shopName || r.listingId;
+      if (seenShopKeys.has(shopKey)) continue;
+      seenShopKeys.add(shopKey);
+      rawListings.push({
+        listingId:       r.listingId,
+        shopName:        r.shopName || null,
+        shopUrl:         r.shopUrl  || null,
+        link:            r.link,
+        title:           r.title,
+        image:           r.image,
+        hasRealShopName: !!r.shopName,
+      });
+      newThisPage++;
     }
 
-    const pageElapsed = Date.now() - lastPageStart;
-    pageTimes.push(pageElapsed);
+    const elapsed = Date.now() - pageStart;
+    pageTimes.push(elapsed);
     const avgPageMs = pageTimes.reduce((a, b) => a + b, 0) / pageTimes.length;
 
-    page++;
-    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique boutiques`);
-    if (onBatch) onBatch(page, shopIdToRaw.size, avgPageMs, MAX_PAGES);
+    console.log(`[fetchListings] page ${page}: +${newThisPage} boutiques | total: ${rawListings.length}`);
+    if (onBatch) onBatch(page, rawListings.length, avgPageMs, MAX_PAGES);
 
-    if (results.length < perPage) break;
-    offset += perPage;
+    if (!pageResults || pageResults.length === 0) break;
   }
 
-  console.log('[fetchListings] Total unique boutiques à résoudre:', shopIdToRaw.size);
+  console.log(`[fetchListings] Scraping terminé: ${rawListings.length} boutiques uniques`);
+  if (isAborted()) return [];
 
-  const BATCH = 8;
+  // ── ÉTAPE 2 : Récupérer une 2ème image depuis la page de chaque boutique ──
+  // On traite par lots de 5 pour ne pas surcharger Etsy
+  const BATCH = 5;
   const listings = [];
-  const shopList = [...shopIdToRaw.entries()];
 
-  for (let i = 0; i < shopList.length; i += BATCH) {
+  for (let i = 0; i < rawListings.length; i += BATCH) {
     if (isAborted()) return listings;
-    const batch = shopList.slice(i, i + BATCH);
+
+    const batch = rawListings.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
-      batch.map(async ([uniqueKey, raw]) => {
-        // Si on a déjà les infos boutique depuis le scraping de la page de résultats,
-        // on peut parfois éviter des requêtes supplémentaires.
-        let shopName = raw.shopName;
-        let shopUrl  = raw.shopUrl;
-        let image    = raw.image;
-        let image2   = raw.image2 || null;
-
-        // Chercher un 2ème listing dans la boutique pour avoir une 2ème image
-        let listingId2 = raw.listingId2;
-        if (!listingId2 && shopName && raw.hasRealShopName && raw.shopUrl && raw.shopUrl.includes('/shop/')) {
-          try {
-            const shopListings = await getShopListings(shopName, 5);
-            const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
-            if (other) {
-              listingId2 = other.listingId;
-              if (!image && other.image) image = other.image;
-            }
-          } catch (e) {
-            console.warn('[fetchListings] getShopListings failed for', shopName, ':', e.message);
-          }
-        }
-
-        // Si on a un shopId numérique et pas encore d'images, utiliser shop-name-and-image
-        if (raw.shopId && (!image || !image2)) {
-          try {
-            const info = await getShopNameAndImage(raw.shopId, raw.listingId, listingId2);
-            if (!shopName && info.shopName) shopName = info.shopName;
-            if (!shopUrl  && info.shopUrl)  shopUrl  = info.shopUrl;
-            if (!image    && info.image)    image    = info.image;
-            if (!image2   && info.image2)   image2   = info.image2;
-          } catch (e) {
-            console.warn('[fetchListings] getShopNameAndImage failed for shopId', raw.shopId, ':', e.message);
-          }
-        }
-
-        // Récupérer image2 depuis le 2ème listing si pas encore disponible
-        if (!image2 && listingId2) {
-          try {
-            const detail = await getListingDetail(listingId2);
-            if (detail.images?.[0]) image2 = detail.images[0];
-          } catch (e) {
-            console.warn('[fetchListings] getListingDetail failed for listing2:', e.message);
-          }
+      batch.map(async (raw) => {
+        // Récupère la 2ème image depuis la page boutique
+        let image2 = null;
+        if (raw.shopUrl && raw.hasRealShopName) {
+          image2 = await getSecondShopImage(raw.shopUrl, raw.listingId);
         }
 
         return {
-          listingId: raw.listingId,
-          listingUrl: raw.link,
-          link:      raw.link,
-          title:     raw.title,
-          image,
-          image2: image2 || image,
-          shopName,
-          shopUrl: shopUrl || raw.link,
-          shopImage: image,
-          shopAvatar: image,
-          shopId: raw.shopId,
+          listingId:      raw.listingId,
+          listingUrl:     raw.link,
+          link:           raw.link,
+          title:          raw.title,
+          image:          raw.image,
+          image2:         image2 || raw.image, // fallback sur image1 si pas de 2ème
+          shopName:       raw.shopName,
+          shopUrl:        raw.shopUrl || raw.link,
+          shopImage:      raw.image,
+          shopAvatar:     raw.image,
+          shopId:         null,
           hasRealShopName: raw.hasRealShopName,
-          source: 'etsy',
+          source:         'etsy',
         };
       })
     );
@@ -219,15 +190,15 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         continue;
       }
       const l = r.value;
-      if (!l.shopName || !l.image) continue;
-      if (shopsSeen.has(l.shopName)) continue;
-      shopsSeen.add(l.shopName);
+      // On garde même sans shopName — l'image est suffisante pour DINOv2
+      if (!l.image) continue;
+      if (l.shopName && shopsSeen.has(l.shopName)) continue;
+      if (l.shopName) shopsSeen.add(l.shopName);
       listings.push(l);
     }
-    await new Promise(r => setTimeout(r, 100));
   }
 
-  console.log('fetchListingsForDropship done:', listings.length, 'boutiques uniques avec images');
+  console.log(`fetchListingsForDropship done: ${listings.length} boutiques avec images`);
   return listings;
 }
 
