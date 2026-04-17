@@ -1,11 +1,11 @@
 /**
  * etsyScraper.js
  * Scraping Etsy via ScrapeOps Proxy — directement depuis Node.js, sans microservice Python.
+ * Aucune dépendance supplémentaire : utilise uniquement axios (déjà installé).
  * Variable d'environnement requise : SCRAPEOPS_API_KEY
  */
 
-const axios   = require('axios');
-const cheerio = require('cheerio');
+const axios = require('axios');
 
 const SCRAPEOPS_KEY      = process.env.SCRAPEOPS_API_KEY || '';
 const SCRAPEOPS_ENDPOINT = 'https://proxy.scrapeops.io/v1/';
@@ -20,6 +20,21 @@ function cleanImage(url) {
   if (!url) return null;
   if (url.startsWith('//')) url = 'https:' + url;
   return url.split('?')[0] || null;
+}
+
+/** Extrait la valeur d'un attribut HTML depuis une balise brute. */
+function attr(tag, name) {
+  const rx = new RegExp(`${name}=["']([^"']+)["']`, 'i');
+  const m = tag.match(rx);
+  return m ? m[1] : null;
+}
+
+/** Extrait le texte brut entre deux balises (très simple). */
+function innerText(html, tag) {
+  const rx = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
+  const m = html.match(rx);
+  if (!m) return null;
+  return m[1].replace(/<[^>]+>/g, '').trim() || null;
 }
 
 async function fetchHtml(url, timeout = 40000) {
@@ -46,21 +61,21 @@ async function fetchHtml(url, timeout = 40000) {
 function parseSearchPage(html) {
   const listings = [];
 
-  // 1. JSON-LD (le plus fiable)
+  // 1. JSON-LD embarqué (le plus fiable — pas besoin de parser le HTML)
   const jldRegex = /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
   let match;
   while ((match = jldRegex.exec(html)) !== null) {
     try {
-      const data = JSON.parse(match[1]);
+      const data  = JSON.parse(match[1]);
       const items = Array.isArray(data) ? data : [data];
       for (const item of items) {
         if (item['@type'] !== 'Product') continue;
         const link = item.url || '';
-        const idMatch = link.match(/\/listing\/(\d+)/);
-        if (!idMatch) continue;
-        const listingId = idMatch[1];
+        const idM  = link.match(/\/listing\/(\d+)/);
+        if (!idM) continue;
+        const listingId = idM[1];
         const rawImg = item.image;
-        const image = cleanImage(
+        const image  = cleanImage(
           typeof rawImg === 'string' ? rawImg
             : (Array.isArray(rawImg) && rawImg.length ? rawImg[0] : null)
         );
@@ -82,59 +97,75 @@ function parseSearchPage(html) {
   }
   if (listings.length) return listings;
 
-  // 2. Fallback Cheerio
-  const $ = cheerio.load(html);
-  $('li[data-palette-listing-id], [data-listing-id]').each((_, card) => {
-    const listingId = $(card).attr('data-palette-listing-id') || $(card).attr('data-listing-id');
-    if (!listingId) return;
-    const linkEl  = $(card).find('a[href*="/listing/"]').first();
-    let link = linkEl.attr('href') || `https://www.etsy.com/listing/${listingId}`;
-    if (link && !link.startsWith('http')) link = 'https://www.etsy.com' + link;
-    const title  = $(card).find('h3, .v2-listing-card__title').first().text().trim() || null;
-    const imgEl  = $(card).find('img').first();
-    const image  = cleanImage(imgEl.attr('data-src') || imgEl.attr('src') || null);
-    let shopName = null;
-    const shopMatch = link.match(/etsy\.com\/shop\/([^/?#&]+)/);
-    if (shopMatch) shopName = shopMatch[1];
-    const price  = $(card).find('.currency-value').first().text().trim() || null;
-    listings.push({ listingId, shopId: null, title, link, image, shopName,
-      shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null, price, source: 'etsy' });
-  });
+  // 2. Fallback regex HTML : cartes listing
+  const cardRx = /<li[^>]+data-palette-listing-id="(\d+)"[^>]*>([\s\S]*?)<\/li>/gi;
+  while ((match = cardRx.exec(html)) !== null) {
+    const listingId = match[1];
+    const block     = match[2];
+    // Lien
+    const linkM = block.match(/href="(https?:\/\/www\.etsy\.com\/listing\/[^"]+)"/i);
+    const link  = linkM ? linkM[1] : `https://www.etsy.com/listing/${listingId}`;
+    // Image
+    const imgM  = block.match(/<img[^>]+(?:data-src|src)="([^"]+etsystatic[^"]+)"/i);
+    const image = imgM ? cleanImage(imgM[1]) : null;
+    // Shop dans le lien
+    const shopM = link.match(/etsy\.com\/shop\/([^/?#&]+)/);
+    const shopName = shopM ? shopM[1] : null;
+    // Titre
+    const titleM = block.match(/<h3[^>]*>([^<]+)<\/h3>/i);
+    const title  = titleM ? titleM[1].trim() : null;
+    listings.push({
+      listingId, shopId: null, title, link, image, shopName,
+      shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null,
+      price: null, source: 'etsy',
+    });
+  }
   return listings;
 }
 
-function parseListingPage(html, listingId) {
-  const $ = cheerio.load(html);
-  const title = $('h1').first().text().trim() || null;
+function parseListingPage(html) {
+  // Titre
+  const title = innerText(html, 'h1');
+
+  // Images etsystatic
   const images = [];
-  $('img').each((_, el) => {
-    const src = cleanImage($(el).attr('src') || $(el).attr('data-src') || '');
-    if (src && (src.includes('etsystatic') || src.includes('il_')) && !images.includes(src)) {
+  const imgRx  = /<img[^>]+(?:src|data-src)="([^"]+(?:etsystatic|il_)[^"]+)"/gi;
+  let m;
+  while ((m = imgRx.exec(html)) !== null) {
+    const src = cleanImage(m[1]);
+    if (src && !images.includes(src)) {
       images.push(src);
-      if (images.length >= 5) return false;
+      if (images.length >= 5) break;
     }
-  });
+  }
+
+  // Nom boutique
   let shopName = null;
-  const shopLink = $('a[href*="etsy.com/shop/"]').first().attr('href') || '';
-  const shopMatch = shopLink.match(/etsy\.com\/shop\/([^/?#&]+)/);
-  if (shopMatch) shopName = shopMatch[1];
+  const shopM = html.match(/href="https?:\/\/www\.etsy\.com\/shop\/([^/?#"&]+)/i);
+  if (shopM) shopName = shopM[1];
+
   return { title, price: null, images, shopName, shopId: null };
 }
 
 function parseShopPage(html, shopIdOrName, limit = 20) {
-  const $ = cheerio.load(html);
   const listings = [];
-  $('li[data-palette-listing-id], [data-listing-id]').slice(0, limit).each((_, card) => {
-    const lid   = $(card).attr('data-palette-listing-id') || $(card).attr('data-listing-id');
-    const linkEl = $(card).find('a[href*="/listing/"]').first();
-    let link = linkEl.attr('href') || null;
-    if (link && !link.startsWith('http')) link = 'https://www.etsy.com' + link;
-    const imgEl = $(card).find('img').first();
-    const image = cleanImage(imgEl.attr('data-src') || imgEl.attr('src') || null);
-    const title = $(card).find('h3, .v2-listing-card__title').first().text().trim() || null;
-    listings.push({ listingId: lid, title, link, image, source: 'etsy',
-      shopName: String(shopIdOrName), shopUrl: `https://www.etsy.com/shop/${shopIdOrName}` });
-  });
+  const cardRx = /<li[^>]+data-palette-listing-id="(\d+)"[^>]*>([\s\S]*?)<\/li>/gi;
+  let match;
+  while ((match = cardRx.exec(html)) !== null && listings.length < limit) {
+    const lid   = match[1];
+    const block = match[2];
+    const linkM = block.match(/href="(https?:\/\/www\.etsy\.com\/listing\/[^"]+)"/i);
+    let link = linkM ? linkM[1] : null;
+    const imgM  = block.match(/<img[^>]+(?:data-src|src)="([^"]+etsystatic[^"]+)"/i);
+    const image = imgM ? cleanImage(imgM[1]) : null;
+    const titleM = block.match(/<h3[^>]*>([^<]+)<\/h3>/i);
+    const title  = titleM ? titleM[1].trim() : null;
+    listings.push({
+      listingId: lid, title, link, image, source: 'etsy',
+      shopName: String(shopIdOrName),
+      shopUrl: `https://www.etsy.com/shop/${shopIdOrName}`,
+    });
+  }
   return listings;
 }
 
@@ -155,13 +186,13 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 
 async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
   try {
-    const html = await fetchHtml(`https://www.etsy.com/listing/${listingId}`);
-    const detail = parseListingPage(html, listingId);
-    let image2 = null;
+    const html   = await fetchHtml(`https://www.etsy.com/listing/${listingId}`);
+    const detail = parseListingPage(html);
+    let image2   = null;
     if (listingId2) {
       try {
-        const html2  = await fetchHtml(`https://www.etsy.com/listing/${listingId2}`);
-        const detail2 = parseListingPage(html2, listingId2);
+        const html2   = await fetchHtml(`https://www.etsy.com/listing/${listingId2}`);
+        const detail2 = parseListingPage(html2);
         image2 = detail2.images?.[0] || null;
       } catch (_) {}
     }
@@ -186,31 +217,24 @@ async function getShopListings(shopIdOrName, limit = 20) {
 }
 
 async function getShopInfo(shopIdOrName) {
-  const html = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
-  const $ = cheerio.load(html);
-  const shopName = $('h1').first().text().trim() || String(shopIdOrName);
+  const html  = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
+  const title = innerText(html, 'h1') || String(shopIdOrName);
   return {
-    shopId:     null,
-    shopName,
+    shopId: null, shopName: title, title,
     shopUrl:    `https://www.etsy.com/shop/${shopIdOrName}`,
-    shopAvatar: null,
-    title:      shopName,
-    numSales:   0,
+    shopAvatar: null, numSales: 0,
   };
 }
 
 async function getListingDetail(listingId) {
   const html = await fetchHtml(`https://www.etsy.com/listing/${listingId}`);
-  return parseListingPage(html, listingId);
+  return parseListingPage(html);
 }
 
 function handleEtsyError(e) {
   throw new Error(`Etsy Scraper error: ${e.message}`);
 }
 
-/**
- * Vérifie que la clé ScrapeOps est bien configurée (pas de requête réseau).
- */
 async function isScraperAvailable() {
   return !!SCRAPEOPS_KEY;
 }
