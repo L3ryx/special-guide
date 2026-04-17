@@ -249,10 +249,10 @@ router.post('/search-dropship', async (req, res) => {
 
   try {
 
-    // ── STEP 0 : Vérifier que le scraper botasaurus est disponible ──
+    // ── STEP 0 : Vérifier que la clé ScrapeOps est configurée ──
     const scraperOk = await isScraperAvailable();
     if (!scraperOk) {
-      send({ step: 'error', message: '❌ Le microservice scraper (botasaurus) est indisponible. Vérifiez que etsy_scraper_service/etsy_scraper.py est démarré.' });
+      send({ step: 'error', message: '❌ SCRAPEOPS_API_KEY manquant. Ajoutez cette variable sur Render (service Node.js).' });
       return res.end();
     }
 
@@ -483,7 +483,7 @@ router.post('/listing-detail', async (req, res) => {
 // ── SCRAPER HEALTH ──
 router.get('/scraper-health', async (req, res) => {
   const ok = await isScraperAvailable();
-  res.json({ ok, message: ok ? 'Scraper botasaurus disponible' : 'Scraper botasaurus indisponible' });
+  res.json({ ok, message: ok ? 'ScrapeOps configuré ✅' : 'SCRAPEOPS_API_KEY manquant ❌' });
 });
 
 module.exports = router;
