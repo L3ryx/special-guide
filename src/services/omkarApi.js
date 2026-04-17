@@ -60,28 +60,40 @@ async function fetchListingDetail(listingId) {
 }
 
 // ── searchListingIds ──────────────────────────────────────────────────────────
-// CORRECTIF : /etsy/search retourne UNIQUEMENT listing_id + name (pas shop_id ni shop_name).
-// On fetch /etsy/listing en parallèle (par batch de 10) pour résoudre shop_id, shop_name et image.
-// L'image est stockée dans le résultat pour que scrape.js puisse l'utiliser comme image2
-// sans faire d'appels supplémentaires (2ème listing d'une même boutique = image2).
-// Note : l'API Omkar retourne ~10 résultats fixes par /etsy/search quel que soit limit/offset.
-// La pagination simulée dans fetchListingsForDropship n'a donc aucun effet — on fait
-// plusieurs appels avec des keywords variés côté scrape.js pour compenser.
+// Fait MAX_PAGES appels /etsy/search avec page=1..MAX_PAGES pour maximiser les résultats.
+// L'API Omkar retourne ~10 listings par appel. On résout les détails (shop, image) via
+// /etsy/listing en parallèle. Les doublons de listing_id entre pages sont dédupliqués.
 async function searchListingIds(keyword, limit = 70, offset = 0) {
-  await rateWait(400);
+  const MAX_PAGES = 5;
+  const seenListingIds = new Set();
+  const allListings = [];
 
-  const r = await axios.get(`${BASE}/etsy/search`, {
-    params:  { keyword },
-    headers: headers(),
-    timeout: 30000,
-  });
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    await rateWait(400);
+    try {
+      const r = await axios.get(`${BASE}/etsy/search`, {
+        params:  { keyword, page },
+        headers: headers(),
+        timeout: 30000,
+      });
+      const listings = r.data.listings || [];
+      console.log(`[omkarApi] searchListingIds page ${page}/${MAX_PAGES}: ${listings.length} results | keyword: ${keyword}`);
+      for (const l of listings) {
+        if (!seenListingIds.has(l.listing_id)) {
+          seenListingIds.add(l.listing_id);
+          allListings.push(l);
+        }
+      }
+    } catch (e) {
+      console.warn(`[omkarApi] searchListingIds page ${page} failed:`, e.message);
+    }
+  }
 
-  const listings = r.data.listings || [];
-  console.log('[omkarApi] searchListingIds raw:', listings.length, 'results | keyword:', keyword);
-
-  const subset = listings.slice(0, limit);
+  console.log(`[omkarApi] searchListingIds total unique listings: ${allListings.length}`);
+  const subset = allListings.slice(0, limit);
 
   // Résolution des détails en parallèle par batch de 10 pour éviter le rate limit
+  // image1 = images.full du listing (récupérée ici une fois pour toutes)
   const BATCH = 10;
   const results = [];
 
@@ -96,7 +108,6 @@ async function searchListingIds(keyword, limit = 70, offset = 0) {
           shopName:  detail?.shop?.name     || null,
           title:     detail?.name           || l.name || null,
           link:      detail?.url            || `https://www.etsy.com/listing/${l.listing_id}`,
-          // image stockée ici — utilisée comme image2 pour la 2ème occurrence d'une boutique
           image:     cleanImage(detail?.images?.full || detail?.images?.thumbnail || null),
         };
       })
