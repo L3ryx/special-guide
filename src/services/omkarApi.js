@@ -61,8 +61,12 @@ async function fetchListingDetail(listingId) {
 
 // ── searchListingIds ──────────────────────────────────────────────────────────
 // CORRECTIF : /etsy/search retourne UNIQUEMENT listing_id + name (pas shop_id ni shop_name).
-// On fetch /etsy/listing en parallèle (par batch) pour résoudre shop_id, shop_name et images.
-// Paramètres : limit = 70 listings par appel, 5 pages max dans fetchListingsForDropship.
+// On fetch /etsy/listing en parallèle (par batch de 10) pour résoudre shop_id, shop_name et image.
+// L'image est stockée dans le résultat pour que scrape.js puisse l'utiliser comme image2
+// sans faire d'appels supplémentaires (2ème listing d'une même boutique = image2).
+// Note : l'API Omkar retourne ~10 résultats fixes par /etsy/search quel que soit limit/offset.
+// La pagination simulée dans fetchListingsForDropship n'a donc aucun effet — on fait
+// plusieurs appels avec des keywords variés côté scrape.js pour compenser.
 async function searchListingIds(keyword, limit = 70, offset = 0) {
   await rateWait(400);
 
@@ -92,7 +96,7 @@ async function searchListingIds(keyword, limit = 70, offset = 0) {
           shopName:  detail?.shop?.name     || null,
           title:     detail?.name           || l.name || null,
           link:      detail?.url            || `https://www.etsy.com/listing/${l.listing_id}`,
-          // On stocke aussi les images pour éviter des appels redondants plus tard
+          // image stockée ici — utilisée comme image2 pour la 2ème occurrence d'une boutique
           image:     cleanImage(detail?.images?.full || detail?.images?.thumbnail || null),
         };
       })
