@@ -1,10 +1,10 @@
 /**
  * etsyScraper.js
- * Scraper Etsy — Puppeteer Stealth (vrai Chrome headless, anti-DataDome).
+ * Scraper Etsy — Puppeteer Stealth + secours gratuit via résultats indexés.
  *
- * Approche tirée de etsy-scraper-main : puppeteer-extra + plugin stealth pour
- * imiter un vrai navigateur Chrome et contourner la détection bot d'Etsy.
- * Toute la logique de parsing (cheerio) est conservée intacte.
+ * Le scraping direct Etsy est conservé quand Chrome/Puppeteer fonctionne.
+ * Si Etsy bloque la requête ou si Chrome n'est pas disponible, le scraper
+ * bascule vers une source gratuite basée sur les résultats images indexés.
  *
  * Dépendances : puppeteer-extra, puppeteer-extra-plugin-stealth, cheerio
  */
@@ -153,6 +153,7 @@ const _stats = {
   itemsFound:   0,
   errors:       0,
   blocked:      0,
+  fallbackPages: 0,
 };
 
 // ── fetchHtml : Puppeteer Stealth (remplace axios) ───────────────────────────
@@ -217,6 +218,14 @@ async function fetchHtml(url, _referer = null) {
       try { if (page && !page.isClosed()) await page.close(); } catch (_) {}
       lastError = e;
       if (e.message.includes('404')) throw e;
+      if (
+        e.message.includes('Could not find Chrome') ||
+        e.message.includes('Browser was not found') ||
+        e.message.includes('Failed to launch the browser process')
+      ) {
+        _stats.errors++;
+        throw e;
+      }
       console.warn(`[etsyScraper] Tentative ${attempt + 1}/${MAX_RETRIES} échouée: ${e.message}`);
       _stats.errors++;
       if (attempt < MAX_RETRIES - 1) {
@@ -259,6 +268,13 @@ function cleanImage(url) {
   return url.split('?')[0] || null;
 }
 
+function cleanText(text) {
+  return String(text || '')
+    .replace(/[\uE000-\uF8FF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function extractListingId(url) {
   const m = url && url.match(/\/listing\/(\d+)/);
   return m ? m[1] : null;
@@ -267,6 +283,103 @@ function extractListingId(url) {
 function extractShopName(url) {
   const m = url && url.match(/etsy\.com\/shop\/([^/?#&]+)/);
   return m ? m[1] : null;
+}
+
+function extractShopNameFromTitle(title) {
+  const cleaned = cleanText(title);
+  const byMatch = cleaned.match(/\bby\s+([A-Za-z0-9_-]{3,})\b/i);
+  if (byMatch) return byMatch[1];
+  return null;
+}
+
+function decodeHtmlAttr(value) {
+  return String(value || '')
+    .replace(/&quot;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function normalizeEtsyImage(url) {
+  const cleaned = cleanImage(url);
+  if (!cleaned) return null;
+  return cleaned.replace(/\/il_(\d+x\d+|fullxfull)\./, '/il_570xN.');
+}
+
+function buildFallbackProduct(item) {
+  const link = (item.purl || item.pageUrl || '').split('?')[0];
+  const listingId = extractListingId(link);
+  if (!listingId || !/etsy\.com\/listing\//i.test(link)) return null;
+
+  const title = cleanText(item.t || item.title || item.desc || '');
+  const image = normalizeEtsyImage(item.murl || item.mediaUrl || item.turl);
+  if (!image) return null;
+
+  const shopName = extractShopName(link) || extractShopNameFromTitle(title) || `listing-${listingId}`;
+
+  return {
+    listingId,
+    shopId: null,
+    title: title || null,
+    link,
+    image,
+    shopName,
+    shopUrl: shopName && !shopName.startsWith('listing-') ? `https://www.etsy.com/shop/${shopName}` : link,
+    price: null,
+    salePrice: null,
+    originalPrice: null,
+    discountPercentage: null,
+    isOnSale: false,
+    isAdvertisement: false,
+    isDigitalDownload: /\b(download|printable|svg|template|digital)\b/i.test(title),
+    isBestseller: false,
+    isStarSeller: false,
+    freeShipping: false,
+    source: 'etsy-indexed',
+  };
+}
+
+async function fetchBingImageResults(keyword, limit = 48, offset = 0) {
+  const first = Math.max(1, offset + 1);
+  const query = `site:etsy.com/listing ${keyword} -digital -download -printable -svg -template`;
+  const url = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&first=${first}&count=${Math.min(limit, 50)}&safeSearch=moderate`;
+
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': pick(USER_AGENTS),
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cache-Control': 'no-cache',
+    },
+  });
+
+  const html = await response.text();
+  if (!response.ok) throw new Error(`Bing images HTTP ${response.status}`);
+
+  const results = [];
+  const seen = new Set();
+  const re = /<a[^>]+class="iusc"[^>]+m="([^"]+)"/g;
+  let match;
+
+  while ((match = re.exec(html)) && results.length < limit) {
+    try {
+      const item = JSON.parse(decodeHtmlAttr(match[1]));
+      const product = buildFallbackProduct(item);
+      if (!product || seen.has(product.listingId)) continue;
+      seen.add(product.listingId);
+      results.push(product);
+    } catch (_) {}
+  }
+
+  if (!results.length && /captcha|verify|unusual traffic/i.test(html)) {
+    throw new Error('Source de secours temporairement limitée');
+  }
+
+  _stats.fallbackPages++;
+  console.log(`[etsyScraper] fallback Bing Images: ${results.length} résultats | keyword="${keyword}"`);
+  return results;
 }
 
 // ── Extraction produit depuis une card ────────────────────────────────────────
@@ -517,8 +630,14 @@ async function searchListingIds(keyword, limit = 48, offset = 0) {
   const url  = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&ref=search_bar&page=${page}`;
 
   await _rateLimiter.wait();
-  const html    = await fetchHtml(url);
-  const results = parseSearchPage(html);
+  let results = [];
+  try {
+    const html = await fetchHtml(url);
+    results = parseSearchPage(html);
+  } catch (e) {
+    console.warn(`[etsyScraper] Scraping direct indisponible, bascule vers source gratuite: ${e.message}`);
+    results = await fetchBingImageResults(keyword, limit, offset);
+  }
 
   _stats.itemsFound += results.length;
   console.log(`[etsyScraper] searchListingIds: ${results.length} résultats | keyword="${keyword}" page=${page}`);
@@ -555,20 +674,39 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
     };
   } catch (e) {
     console.warn('[etsyScraper] getShopNameAndImage error:', e.message);
-    return { shopName: null, shopUrl: null, image: null, image2: null, image3: null, image4: null };
+    const fallback = await fetchBingImageResults(String(listingId), 2, 0).catch(() => []);
+    return {
+      shopName: fallback[0]?.shopName || null,
+      shopUrl: fallback[0]?.shopUrl || null,
+      image: fallback[0]?.image || null,
+      image2: fallback[1]?.image || null,
+      image3: null,
+      image4: null,
+    };
   }
 }
 
 async function getShopListings(shopIdOrName, limit = 20) {
-  await _rateLimiter.wait();
-  const html = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
-  return parseShopPage(html, shopIdOrName, limit);
+  try {
+    await _rateLimiter.wait();
+    const html = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
+    return parseShopPage(html, shopIdOrName, limit);
+  } catch (e) {
+    console.warn('[etsyScraper] getShopListings fallback:', e.message);
+    return fetchBingImageResults(String(shopIdOrName), limit, 0);
+  }
 }
 
 async function getShopInfo(shopIdOrName) {
-  await _rateLimiter.wait();
-  const html     = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
-  const $        = cheerio.load(html);
+  let html = null;
+  try {
+    await _rateLimiter.wait();
+    html = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
+  } catch (e) {
+    console.warn('[etsyScraper] getShopInfo fallback:', e.message);
+  }
+
+  const $        = cheerio.load(html || '');
   const name     = $('h1').first().text().trim() || String(shopIdOrName);
   const bodyText = $.text();
 
@@ -587,9 +725,23 @@ async function getShopInfo(shopIdOrName) {
 }
 
 async function getListingDetail(listingId) {
-  await _rateLimiter.wait();
-  const html = await fetchHtml(`https://www.etsy.com/listing/${listingId}`);
-  return parseListingPage(html);
+  try {
+    await _rateLimiter.wait();
+    const html = await fetchHtml(`https://www.etsy.com/listing/${listingId}`);
+    return parseListingPage(html);
+  } catch (e) {
+    console.warn('[etsyScraper] getListingDetail fallback:', e.message);
+    const fallback = await fetchBingImageResults(String(listingId), 1, 0).catch(() => []);
+    return {
+      title: fallback[0]?.title || null,
+      price: null,
+      images: fallback[0]?.image ? [fallback[0].image] : [],
+      shopName: fallback[0]?.shopName || null,
+      shopId: null,
+      totalSales: null,
+      admirers: null,
+    };
+  }
 }
 
 async function scrapeProducts({ maxPages, startPage = 1, baseUrl, onPage } = {}) {
@@ -665,6 +817,7 @@ function handleEtsyError(e) {
 }
 
 async function isScraperAvailable() {
+  if (process.env.DISABLE_SEARCH_INDEX_FALLBACK !== '1') return true;
   if (!puppeteer) return false;
   try {
     const browser = await getBrowser();
