@@ -1,6 +1,6 @@
 /**
  * etsyScraper.js
- * Scraping Etsy via ScrapeOps Proxy — directement depuis Node.js, sans microservice Python.
+ * Scraping Etsy via ScrapeOps — intégration officielle (optimize_request=true).
  * Aucune dépendance supplémentaire : utilise uniquement axios (déjà installé).
  * Variable d'environnement requise : SCRAPEOPS_API_KEY
  */
@@ -9,6 +9,74 @@ const axios = require('axios');
 
 const SCRAPEOPS_KEY      = process.env.SCRAPEOPS_API_KEY || '';
 const SCRAPEOPS_ENDPOINT = 'https://proxy.scrapeops.io/v1/';
+const TIMEOUT            = 35000;
+const MAX_RETRIES        = 3;
+
+// ── ScrapeOps fetch ───────────────────────────────────────────────────────────
+
+function buildScrapeOpsUrl(targetUrl) {
+  // Format officiel ScrapeOps avec optimize_request=true
+  const params = new URLSearchParams({
+    api_key:          SCRAPEOPS_KEY,
+    url:              targetUrl,
+    optimize_request: 'true',
+  });
+  return `${SCRAPEOPS_ENDPOINT}?${params.toString()}`;
+}
+
+async function fetchHtml(targetUrl) {
+  if (!SCRAPEOPS_KEY) {
+    throw new Error('SCRAPEOPS_API_KEY manquant dans les variables d\'environnement Render');
+  }
+
+  const proxyUrl = buildScrapeOpsUrl(targetUrl);
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const resp = await axios.get(proxyUrl, {
+        timeout:        TIMEOUT,
+        validateStatus: () => true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
+      });
+
+      if (resp.status === 200) {
+        return typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+      }
+
+      if (resp.status === 429) {
+        const wait = Math.pow(2, attempt) * 2000;
+        console.warn(`[fetchHtml] 429 rate-limit, retry dans ${wait}ms`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+
+      if (resp.status === 403) {
+        const body = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+        if (body.toLowerCase().includes('invalid') || body.toLowerCase().includes('api key')) {
+          throw new Error('SCRAPEOPS_API_KEY invalide — vérifiez la variable sur Render');
+        }
+        if (attempt < MAX_RETRIES - 1) {
+          console.warn(`[fetchHtml] 403 attempt ${attempt + 1}, retry...`);
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        throw new Error(`ScrapeOps 403 — Etsy bloque encore après ${MAX_RETRIES} tentatives`);
+      }
+
+      throw new Error(`HTTP ${resp.status} de ScrapeOps pour ${targetUrl}`);
+    } catch (e) {
+      if (e.message.includes('SCRAPEOPS_API_KEY') || e.message.includes('ScrapeOps 403')) throw e;
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error('ScrapeOps : échec après toutes les tentatives');
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -18,77 +86,10 @@ function cleanImage(url) {
   return url.split('?')[0] || null;
 }
 
-/** Extrait la valeur d'un attribut HTML depuis une balise brute. */
-function attr(tag, name) {
-  const rx = new RegExp(`${name}=["']([^"']+)["']`, 'i');
-  const m = tag.match(rx);
-  return m ? m[1] : null;
-}
-
-/** Extrait le texte brut entre deux balises (très simple). */
 function innerText(html, tag) {
   const rx = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
-  const m = html.match(rx);
-  if (!m) return null;
-  return m[1].replace(/<[^>]+>/g, '').trim() || null;
-}
-
-function scrapeopsUrlWith(targetUrl, opts = {}) {
-  const { residential = false, country = 'us' } = opts;
-  let u = `${SCRAPEOPS_ENDPOINT}?api_key=${SCRAPEOPS_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false`;
-  if (country) u += `&country=${country}`;
-  if (residential) u += `&residential=true`;
-  return u;
-}
-
-async function fetchHtml(url, timeout = 40000) {
-  if (!SCRAPEOPS_KEY) throw new Error('SCRAPEOPS_API_KEY manquant dans les variables d\'environnement Render');
-
-  // Stratégies successives : sans country → avec country us → residential
-  const strategies = [
-    { residential: false, country: '' },
-    { residential: false, country: 'us' },
-    { residential: true,  country: 'us' },
-  ];
-
-  for (let attempt = 0; attempt < strategies.length; attempt++) {
-    const proxied = scrapeopsUrlWith(url, strategies[attempt]);
-    try {
-      const resp = await axios.get(proxied, {
-        timeout,
-        validateStatus: () => true,   // ne pas lever d'exception sur 4xx/5xx
-      });
-
-      if (resp.status === 200) return resp.data;
-
-      if (resp.status === 403) {
-        // Vérifie si c'est ScrapeOps qui rejette la clé
-        const body = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
-        if (body.includes('invalid') || body.includes('Invalid') || body.includes('key')) {
-          throw new Error('SCRAPEOPS_API_KEY invalide ou expirée — vérifiez la variable sur Render');
-        }
-        // Sinon c'est Etsy qui bloque cette IP — on essaie la prochaine stratégie
-        console.warn(`[fetchHtml] 403 stratégie ${attempt + 1}, tentative suivante...`);
-        await new Promise(r => setTimeout(r, 1500));
-        continue;
-      }
-
-      if (resp.status === 429) {
-        await new Promise(r => setTimeout(r, 4000 + attempt * 3000));
-        continue;
-      }
-
-      throw new Error(`HTTP ${resp.status} pour ${url}`);
-    } catch (e) {
-      if (e.message.includes('SCRAPEOPS_API_KEY')) throw e;
-      if (attempt < strategies.length - 1) {
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      throw e;
-    }
-  }
-  throw new Error('Etsy bloque toutes les IPs ScrapeOps (plan gratuit = IPs datacenter). Passez au plan ScrapeOps Hobby pour des IPs résidentielles.');
+  const m  = html.match(rx);
+  return m ? m[1].replace(/<[^>]+>/g, '').trim() || null : null;
 }
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
@@ -96,10 +97,10 @@ async function fetchHtml(url, timeout = 40000) {
 function parseSearchPage(html) {
   const listings = [];
 
-  // 1. JSON-LD embarqué (le plus fiable — pas besoin de parser le HTML)
-  const jldRegex = /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
+  // 1. JSON-LD (le plus fiable)
+  const jldRx = /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
   let match;
-  while ((match = jldRegex.exec(html)) !== null) {
+  while ((match = jldRx.exec(html)) !== null) {
     try {
       const data  = JSON.parse(match[1]);
       const items = Array.isArray(data) ? data : [data];
@@ -109,21 +110,20 @@ function parseSearchPage(html) {
         const idM  = link.match(/\/listing\/(\d+)/);
         if (!idM) continue;
         const listingId = idM[1];
-        const rawImg = item.image;
-        const image  = cleanImage(
+        const rawImg    = item.image;
+        const image     = cleanImage(
           typeof rawImg === 'string' ? rawImg
             : (Array.isArray(rawImg) && rawImg.length ? rawImg[0] : null)
         );
         const brand    = item.brand || {};
         const shopName = typeof brand === 'object' ? (brand.name || null) : null;
         const offers   = item.offers || {};
-        let price = null;
+        let price      = null;
         if (offers.price) price = `${offers.priceCurrency || ''} ${offers.price}`.trim();
         listings.push({
           listingId, shopId: null,
           title: item.name || null,
-          link, image,
-          shopName,
+          link, image, shopName,
           shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null,
           price, source: 'etsy',
         });
@@ -132,23 +132,20 @@ function parseSearchPage(html) {
   }
   if (listings.length) return listings;
 
-  // 2. Fallback regex HTML : cartes listing
-  const cardRx = /<li[^>]+data-palette-listing-id="(\d+)"[^>]*>([\s\S]*?)<\/li>/gi;
+  // 2. Fallback regex HTML
+  const cardRx = /data-listing-id="(\d+)"[^>]*>([\s\S]*?)(?=data-listing-id="|<\/ul>)/gi;
   while ((match = cardRx.exec(html)) !== null) {
     const listingId = match[1];
     const block     = match[2];
-    // Lien
-    const linkM = block.match(/href="(https?:\/\/www\.etsy\.com\/listing\/[^"]+)"/i);
-    const link  = linkM ? linkM[1] : `https://www.etsy.com/listing/${listingId}`;
-    // Image
-    const imgM  = block.match(/<img[^>]+(?:data-src|src)="([^"]+etsystatic[^"]+)"/i);
-    const image = imgM ? cleanImage(imgM[1]) : null;
-    // Shop dans le lien
-    const shopM = link.match(/etsy\.com\/shop\/([^/?#&]+)/);
+    const linkM  = block.match(/href="(https?:\/\/www\.etsy\.com\/listing\/[^"]+)"/i);
+    const link   = linkM ? linkM[1].split('?')[0] : `https://www.etsy.com/listing/${listingId}`;
+    const imgM   = block.match(/(?:data-src|src)="([^"]+(?:etsystatic|il_)[^"]+)"/i);
+    const image  = imgM ? cleanImage(imgM[1]) : null;
+    const shopM  = link.match(/etsy\.com\/shop\/([^/?#&]+)/);
     const shopName = shopM ? shopM[1] : null;
-    // Titre
     const titleM = block.match(/<h3[^>]*>([^<]+)<\/h3>/i);
     const title  = titleM ? titleM[1].trim() : null;
+    if (!listingId) continue;
     listings.push({
       listingId, shopId: null, title, link, image, shopName,
       shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null,
@@ -159,12 +156,9 @@ function parseSearchPage(html) {
 }
 
 function parseListingPage(html) {
-  // Titre
   const title = innerText(html, 'h1');
-
-  // Images etsystatic
   const images = [];
-  const imgRx  = /<img[^>]+(?:src|data-src)="([^"]+(?:etsystatic|il_)[^"]+)"/gi;
+  const imgRx  = /(?:src|data-src)="([^"]+(?:etsystatic|il_)[^"]+)"/gi;
   let m;
   while ((m = imgRx.exec(html)) !== null) {
     const src = cleanImage(m[1]);
@@ -173,32 +167,29 @@ function parseListingPage(html) {
       if (images.length >= 5) break;
     }
   }
-
-  // Nom boutique
   let shopName = null;
   const shopM = html.match(/href="https?:\/\/www\.etsy\.com\/shop\/([^/?#"&]+)/i);
   if (shopM) shopName = shopM[1];
-
   return { title, price: null, images, shopName, shopId: null };
 }
 
 function parseShopPage(html, shopIdOrName, limit = 20) {
   const listings = [];
-  const cardRx = /<li[^>]+data-palette-listing-id="(\d+)"[^>]*>([\s\S]*?)<\/li>/gi;
+  const cardRx = /data-listing-id="(\d+)"[^>]*>([\s\S]*?)(?=data-listing-id="|<\/ul>)/gi;
   let match;
   while ((match = cardRx.exec(html)) !== null && listings.length < limit) {
-    const lid   = match[1];
-    const block = match[2];
-    const linkM = block.match(/href="(https?:\/\/www\.etsy\.com\/listing\/[^"]+)"/i);
-    let link = linkM ? linkM[1] : null;
-    const imgM  = block.match(/<img[^>]+(?:data-src|src)="([^"]+etsystatic[^"]+)"/i);
-    const image = imgM ? cleanImage(imgM[1]) : null;
+    const lid    = match[1];
+    const block  = match[2];
+    const linkM  = block.match(/href="(https?:\/\/www\.etsy\.com\/listing\/[^"]+)"/i);
+    const link   = linkM ? linkM[1].split('?')[0] : null;
+    const imgM   = block.match(/(?:data-src|src)="([^"]+(?:etsystatic|il_)[^"]+)"/i);
+    const image  = imgM ? cleanImage(imgM[1]) : null;
     const titleM = block.match(/<h3[^>]*>([^<]+)<\/h3>/i);
     const title  = titleM ? titleM[1].trim() : null;
     listings.push({
       listingId: lid, title, link, image, source: 'etsy',
-      shopName: String(shopIdOrName),
-      shopUrl: `https://www.etsy.com/shop/${shopIdOrName}`,
+      shopName:  String(shopIdOrName),
+      shopUrl:   `https://www.etsy.com/shop/${shopIdOrName}`,
     });
   }
   return listings;
@@ -236,9 +227,7 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
       shopName: detail.shopName || null,
       shopUrl:  detail.shopName ? `https://www.etsy.com/shop/${detail.shopName}` : null,
       image:    detail.images?.[0] || null,
-      image2,
-      image3: null,
-      image4: null,
+      image2, image3: null, image4: null,
     };
   } catch (e) {
     console.warn('[etsyScraper] getShopNameAndImage error:', e.message);
@@ -256,7 +245,7 @@ async function getShopInfo(shopIdOrName) {
   const title = innerText(html, 'h1') || String(shopIdOrName);
   return {
     shopId: null, shopName: title, title,
-    shopUrl:    `https://www.etsy.com/shop/${shopIdOrName}`,
+    shopUrl: `https://www.etsy.com/shop/${shopIdOrName}`,
     shopAvatar: null, numSales: 0,
   };
 }
