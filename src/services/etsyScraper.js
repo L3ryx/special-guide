@@ -1,136 +1,218 @@
 /**
  * etsyScraper.js
- * Remplace l'API officielle Etsy par un scraping via le microservice botasaurus (Python).
- *
- * Le microservice Python est appelé via SCRAPER_URL (Render) ou localhost:5001 (local).
- * Endpoints disponibles :
- *   POST /search              → liste de listings
- *   POST /shop-info           → info boutique
- *   POST /shop-listings       → listings d'une boutique
- *   POST /listing-detail      → détail d'un listing
- *   POST /shop-name-and-image → shopName + images depuis un shopId
- *   GET  /health              → health check
+ * Scraping Etsy via ScrapeOps Proxy — directement depuis Node.js, sans microservice Python.
+ * Variable d'environnement requise : SCRAPEOPS_API_KEY
  */
 
-const axios = require('axios');
+const axios   = require('axios');
+const cheerio = require('cheerio');
 
-const SCRAPER_BASE = process.env.SCRAPER_URL || `http://localhost:${process.env.SCRAPER_PORT || 5001}`;
+const SCRAPEOPS_KEY      = process.env.SCRAPEOPS_API_KEY || '';
+const SCRAPEOPS_ENDPOINT = 'https://proxy.scrapeops.io/v1/';
 
-/**
- * Appel générique vers le microservice Python.
- */
-async function scraperCall(endpoint, body = {}) {
-  try {
-    const r = await axios.post(`${SCRAPER_BASE}${endpoint}`, body, {
-      timeout: 60000,
-      headers: { 'Content-Type': 'application/json' },
-    });
-    return r.data;
-  } catch (e) {
-    const status = e.response?.status;
-    const msg    = e.response?.data?.error || e.message;
-    if (status === 400) throw new Error(`Scraper 400: ${msg}`);
-    if (status === 503) throw new Error('Scraper indisponible (503) — le service Python est-il démarré ?');
-    throw new Error(`Scraper error [${status || e.code}]: ${msg}`);
-  }
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function scrapeopsUrl(targetUrl) {
+  return `${SCRAPEOPS_ENDPOINT}?api_key=${SCRAPEOPS_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false&country=us`;
 }
 
-/**
- * Recherche des listings Etsy pour un mot-clé donné.
- * Remplace l'appel à l'API officielle Etsy (searchListingIds).
- *
- * @param {string} keyword
- * @param {number} limit — max de listings par page (défaut 48)
- * @param {number} offset — offset de pagination
- * @returns {Promise<Array>} tableau de { listingId, shopId, title, link, image, shopName, shopUrl, price }
- */
+function cleanImage(url) {
+  if (!url) return null;
+  if (url.startsWith('//')) url = 'https:' + url;
+  return url.split('?')[0] || null;
+}
+
+async function fetchHtml(url, timeout = 40000) {
+  if (!SCRAPEOPS_KEY) throw new Error('SCRAPEOPS_API_KEY manquant dans les variables d\'environnement Render');
+  const proxied = scrapeopsUrl(url);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const resp = await axios.get(proxied, { timeout });
+      if (resp.status === 429) {
+        await new Promise(r => setTimeout(r, 4000 + attempt * 3000));
+        continue;
+      }
+      return resp.data;
+    } catch (e) {
+      if (attempt < 2) await new Promise(r => setTimeout(r, 2000));
+      else throw e;
+    }
+  }
+  throw new Error('ScrapeOps : pas de réponse après 3 tentatives');
+}
+
+// ── Parsers ───────────────────────────────────────────────────────────────────
+
+function parseSearchPage(html) {
+  const listings = [];
+
+  // 1. JSON-LD (le plus fiable)
+  const jldRegex = /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
+  let match;
+  while ((match = jldRegex.exec(html)) !== null) {
+    try {
+      const data = JSON.parse(match[1]);
+      const items = Array.isArray(data) ? data : [data];
+      for (const item of items) {
+        if (item['@type'] !== 'Product') continue;
+        const link = item.url || '';
+        const idMatch = link.match(/\/listing\/(\d+)/);
+        if (!idMatch) continue;
+        const listingId = idMatch[1];
+        const rawImg = item.image;
+        const image = cleanImage(
+          typeof rawImg === 'string' ? rawImg
+            : (Array.isArray(rawImg) && rawImg.length ? rawImg[0] : null)
+        );
+        const brand    = item.brand || {};
+        const shopName = typeof brand === 'object' ? (brand.name || null) : null;
+        const offers   = item.offers || {};
+        let price = null;
+        if (offers.price) price = `${offers.priceCurrency || ''} ${offers.price}`.trim();
+        listings.push({
+          listingId, shopId: null,
+          title: item.name || null,
+          link, image,
+          shopName,
+          shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null,
+          price, source: 'etsy',
+        });
+      }
+    } catch (_) {}
+  }
+  if (listings.length) return listings;
+
+  // 2. Fallback Cheerio
+  const $ = cheerio.load(html);
+  $('li[data-palette-listing-id], [data-listing-id]').each((_, card) => {
+    const listingId = $(card).attr('data-palette-listing-id') || $(card).attr('data-listing-id');
+    if (!listingId) return;
+    const linkEl  = $(card).find('a[href*="/listing/"]').first();
+    let link = linkEl.attr('href') || `https://www.etsy.com/listing/${listingId}`;
+    if (link && !link.startsWith('http')) link = 'https://www.etsy.com' + link;
+    const title  = $(card).find('h3, .v2-listing-card__title').first().text().trim() || null;
+    const imgEl  = $(card).find('img').first();
+    const image  = cleanImage(imgEl.attr('data-src') || imgEl.attr('src') || null);
+    let shopName = null;
+    const shopMatch = link.match(/etsy\.com\/shop\/([^/?#&]+)/);
+    if (shopMatch) shopName = shopMatch[1];
+    const price  = $(card).find('.currency-value').first().text().trim() || null;
+    listings.push({ listingId, shopId: null, title, link, image, shopName,
+      shopUrl: shopName ? `https://www.etsy.com/shop/${shopName}` : null, price, source: 'etsy' });
+  });
+  return listings;
+}
+
+function parseListingPage(html, listingId) {
+  const $ = cheerio.load(html);
+  const title = $('h1').first().text().trim() || null;
+  const images = [];
+  $('img').each((_, el) => {
+    const src = cleanImage($(el).attr('src') || $(el).attr('data-src') || '');
+    if (src && (src.includes('etsystatic') || src.includes('il_')) && !images.includes(src)) {
+      images.push(src);
+      if (images.length >= 5) return false;
+    }
+  });
+  let shopName = null;
+  const shopLink = $('a[href*="etsy.com/shop/"]').first().attr('href') || '';
+  const shopMatch = shopLink.match(/etsy\.com\/shop\/([^/?#&]+)/);
+  if (shopMatch) shopName = shopMatch[1];
+  return { title, price: null, images, shopName, shopId: null };
+}
+
+function parseShopPage(html, shopIdOrName, limit = 20) {
+  const $ = cheerio.load(html);
+  const listings = [];
+  $('li[data-palette-listing-id], [data-listing-id]').slice(0, limit).each((_, card) => {
+    const lid   = $(card).attr('data-palette-listing-id') || $(card).attr('data-listing-id');
+    const linkEl = $(card).find('a[href*="/listing/"]').first();
+    let link = linkEl.attr('href') || null;
+    if (link && !link.startsWith('http')) link = 'https://www.etsy.com' + link;
+    const imgEl = $(card).find('img').first();
+    const image = cleanImage(imgEl.attr('data-src') || imgEl.attr('src') || null);
+    const title = $(card).find('h3, .v2-listing-card__title').first().text().trim() || null;
+    listings.push({ listingId: lid, title, link, image, source: 'etsy',
+      shopName: String(shopIdOrName), shopUrl: `https://www.etsy.com/shop/${shopIdOrName}` });
+  });
+  return listings;
+}
+
+// ── Fonctions exportées ───────────────────────────────────────────────────────
+
 async function searchListingIds(keyword, limit = 48, offset = 0) {
-  const data = await scraperCall('/search', { keyword, limit, offset });
-  const results = data.results || [];
-  console.log(`[etsyScraper] searchListingIds: ${results.length} résultats | keyword: "${keyword}" | offset: ${offset}`);
+  const page = Math.floor(offset / limit) + 1;
+  const url  = `https://www.etsy.com/search?q=${encodeURIComponent(keyword)}&ref=search_bar&page=${page}`;
+  const html = await fetchHtml(url);
+  const results = parseSearchPage(html);
+  console.log(`[etsyScraper] searchListingIds: ${results.length} résultats | keyword="${keyword}" page=${page}`);
   return results;
 }
 
-/**
- * Alias pour compatibilité avec l'ancien code.
- */
 async function searchListings(keyword, limit = 25, offset = 0) {
   return searchListingIds(keyword, limit, offset);
 }
 
-/**
- * Récupère le nom de boutique + images depuis un shopId numérique et des listing IDs.
- */
-async function getShopNameAndImage(shopId, listingId, listingId2 = null, listingId3 = null, listingId4 = null) {
-  const data = await scraperCall('/shop-name-and-image', { shopId, listingId, listingId2, listingId3, listingId4 });
-  console.log(`[etsyScraper] getShopNameAndImage: shopId=${shopId} | shopName=${data.shopName} | image=${!!data.image} | image2=${!!data.image2}`);
-  return {
-    shopName: data.shopName || null,
-    shopUrl:  data.shopUrl  || null,
-    image:    data.image    || null,
-    image2:   data.image2   || null,
-    image3:   data.image3   || null,
-    image4:   data.image4   || null,
-  };
+async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
+  try {
+    const html = await fetchHtml(`https://www.etsy.com/listing/${listingId}`);
+    const detail = parseListingPage(html, listingId);
+    let image2 = null;
+    if (listingId2) {
+      try {
+        const html2  = await fetchHtml(`https://www.etsy.com/listing/${listingId2}`);
+        const detail2 = parseListingPage(html2, listingId2);
+        image2 = detail2.images?.[0] || null;
+      } catch (_) {}
+    }
+    console.log(`[etsyScraper] getShopNameAndImage: shopName=${detail.shopName} | image=${!!detail.images?.[0]}`);
+    return {
+      shopName: detail.shopName || null,
+      shopUrl:  detail.shopName ? `https://www.etsy.com/shop/${detail.shopName}` : null,
+      image:    detail.images?.[0] || null,
+      image2,
+      image3: null,
+      image4: null,
+    };
+  } catch (e) {
+    console.warn('[etsyScraper] getShopNameAndImage error:', e.message);
+    return { shopName: null, shopUrl: null, image: null, image2: null, image3: null, image4: null };
+  }
 }
 
-/**
- * Récupère les listings d'une boutique (par nom ou ID).
- */
 async function getShopListings(shopIdOrName, limit = 20) {
-  const data = await scraperCall('/shop-listings', { shopIdOrName, limit });
-  const results = data.results || [];
-  return results;
+  const html = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
+  return parseShopPage(html, shopIdOrName, limit);
 }
 
-/**
- * Récupère les informations d'une boutique.
- */
 async function getShopInfo(shopIdOrName) {
-  const data = await scraperCall('/shop-info', { shopIdOrName });
+  const html = await fetchHtml(`https://www.etsy.com/shop/${shopIdOrName}`);
+  const $ = cheerio.load(html);
+  const shopName = $('h1').first().text().trim() || String(shopIdOrName);
   return {
-    shopId:     data.shopId     || null,
-    shopName:   data.shopName   || null,
-    shopUrl:    data.shopUrl    || null,
-    shopAvatar: data.shopAvatar || null,
-    title:      data.title      || null,
-    numSales:   data.numSales   || 0,
+    shopId:     null,
+    shopName,
+    shopUrl:    `https://www.etsy.com/shop/${shopIdOrName}`,
+    shopAvatar: null,
+    title:      shopName,
+    numSales:   0,
   };
 }
 
-/**
- * Récupère le détail d'un listing (images, prix, titre, boutique).
- */
 async function getListingDetail(listingId) {
-  const data = await scraperCall('/listing-detail', { listingId });
-  return {
-    title:    data.title    || null,
-    price:    data.price    || null,
-    images:   data.images   || [],
-    shopName: data.shopName || null,
-    shopId:   data.shopId   || null,
-  };
+  const html = await fetchHtml(`https://www.etsy.com/listing/${listingId}`);
+  return parseListingPage(html, listingId);
 }
 
-/**
- * Gestion d'erreur compatible avec l'ancien code.
- */
 function handleEtsyError(e) {
-  if (e.message.includes('400')) throw new Error(`Scraper: requête invalide — ${e.message}`);
-  if (e.message.includes('503')) throw new Error('Le microservice scraper botasaurus est indisponible.');
   throw new Error(`Etsy Scraper error: ${e.message}`);
 }
 
 /**
- * Health check du microservice scraper.
+ * Vérifie que la clé ScrapeOps est bien configurée (pas de requête réseau).
  */
 async function isScraperAvailable() {
-  try {
-    const r = await axios.get(`${SCRAPER_BASE}/health`, { timeout: 5000 });
-    return r.data?.ok === true;
-  } catch {
-    return false;
-  }
+  return !!SCRAPEOPS_KEY;
 }
 
 module.exports = {
