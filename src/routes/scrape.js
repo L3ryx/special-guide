@@ -484,7 +484,13 @@ router.post('/listing-detail', async (req, res) => {
 // ── SCRAPER HEALTH ──
 router.get('/scraper-health', async (req, res) => {
   const ok = await isScraperAvailable();
-  res.json({ ok, message: ok ? 'ScrapeOps configuré ✅' : 'SCRAPEOPS_API_KEY manquant ❌' });
+  const proxyConfigured = !!process.env.PROXY_URL;
+  res.json({
+    ok,
+    message: ok
+      ? (proxyConfigured ? 'Puppeteer Stealth ✅ + Proxy résidentiel ✅' : 'Puppeteer Stealth ✅ (utiliser depuis une IP résidentielle ou configurer PROXY_URL)')
+      : 'Puppeteer non disponible ❌',
+  });
 });
 
 module.exports = router;
