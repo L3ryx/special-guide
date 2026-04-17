@@ -88,7 +88,7 @@ async function searchListingIds(keyword, limit = 100, offset = 0) {
   await rateWait(400);
 
   const r = await axios.get(`${BASE}/etsy/search`, {
-    params:  { keyword, page },
+    params:  { keyword },
     headers: headers(),
     timeout: 30000,
   });
@@ -199,7 +199,7 @@ async function getShopListings(shopIdOrName, limit = 5) {
   await rateWait(400);
   // Chercher les listings de cette boutique via keyword = shop name
   const r = await axios.get(`${BASE}/etsy/search`, {
-    params:  { keyword: String(shopIdOrName), page: 1 },
+    params:  { keyword: String(shopIdOrName) },
     headers: headers(),
     timeout: 20000,
   });
