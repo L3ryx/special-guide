@@ -79,8 +79,7 @@ app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, '../p
 
 server.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`ℹ️  Le microservice scraper botasaurus doit tourner sur http://localhost:${process.env.SCRAPER_PORT || 5001}`);
-  console.log(`   Démarrez-le avec : cd etsy_scraper_service && python etsy_scraper.py`);
+  console.log(`ℹ️  Scraping Etsy via ScrapeOps | clé configurée: ${process.env.SCRAPEOPS_API_KEY ? '✅' : '❌ SCRAPEOPS_API_KEY manquant'}`);
 });
 
 // ── Keep-alive CLIP
