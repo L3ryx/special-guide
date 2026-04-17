@@ -395,8 +395,8 @@ function buildHeaders(url, extraReferer) {
 async function fetchWithPlaywright(url) {
   const page = await _context.newPage();
   try {
-    const isShop   = url.includes('/shop/');
-    const referer  = isShop ? 'https://www.etsy.com/search' : 'https://www.etsy.com/';
+    const isShop  = url.includes('/shop/');
+    const referer = isShop ? 'https://www.etsy.com/search' : 'https://www.etsy.com/';
 
     await page.setExtraHTTPHeaders({
       'Referer':        referer,
@@ -404,11 +404,26 @@ async function fetchWithPlaywright(url) {
       'Sec-Fetch-User': '?1',
     });
 
-    await page.goto(url, { timeout: 35000, waitUntil: 'domcontentloaded' });
-    await humanBehavior(page);
+    await page.goto(url, { timeout: 40000, waitUntil: 'domcontentloaded' });
 
-    // Lecture réaliste
-    await humanDelay(1000, 2800);
+    // Attendre que React rende les listing cards (Etsy est une SPA)
+    // On attend le premier sélecteur qui se matérialise, avec un timeout généreux.
+    const CARD_SELECTORS = [
+      'div[data-listing-id]',
+      'div.v2-listing-card',
+      'li[data-palette-listing-id]',
+      "script[type='application/ld+json']",
+    ].join(', ');
+
+    try {
+      await page.waitForSelector(CARD_SELECTORS, { timeout: 12000 });
+    } catch {
+      // Pas grave : on lit quand même le HTML disponible
+      console.warn('[etsyScraper] waitForSelector timeout sur ' + url.slice(0, 60));
+    }
+
+    await humanBehavior(page);
+    await humanDelay(800, 2000);
 
     const html = await page.content();
 
@@ -510,16 +525,43 @@ function isLikelyDigitalProduct(title) {
   return /\b(digital|download|printable|svg|template|pdf|excel|spreadsheet|tracker|planner|pattern|cricut|sublimation|clipart|png|jpg|canva|stl|editable|certificate|plans?|cnc)\b/i.test(title);
 }
 
+function extractShopNameFromJsonLd(item) {
+  // Etsy met le shop name dans brand.name, seller.name ou offers.seller.name
+  const sources = [
+    item.brand,
+    item.seller,
+    item.offers && item.offers.seller,
+    item.offers && Array.isArray(item.offers) && item.offers[0] && item.offers[0].seller,
+  ];
+  for (const src of sources) {
+    if (!src) continue;
+    const name = typeof src === 'string' ? src : (src.name || src['@name'] || null);
+    if (name && typeof name === 'string' && name.trim().length > 0) return name.trim();
+  }
+  return null;
+}
+
+function extractImageFromJsonLd(rawImg) {
+  if (!rawImg) return null;
+  if (typeof rawImg === 'string') return rawImg;
+  if (Array.isArray(rawImg) && rawImg.length) {
+    const first = rawImg[0];
+    return typeof first === 'string' ? first : (first.contentURL || first.url || null);
+  }
+  if (typeof rawImg === 'object') return rawImg.contentURL || rawImg.url || null;
+  return null;
+}
+
 function parseEtsySearchPage(html) {
   const $       = cheerio.load(html);
   const results = [];
   const seenIds = new Set();
 
-  // Méthode 1 : JSON-LD (données structurées Google)
+  // ── Méthode 1 : JSON-LD ─────────────────────────────────────────────────
   $("script[type='application/ld+json']").each(function(_, el) {
     try {
       const data  = JSON.parse($(el).text());
-      const items = Array.isArray(data) ? data : [data];
+      const items = Array.isArray(data) ? data : (data['@graph'] ? data['@graph'] : [data]);
       for (const item of items) {
         if (item['@type'] !== 'Product') continue;
         const link = (item.url || '').split('?')[0];
@@ -527,28 +569,53 @@ function parseEtsySearchPage(html) {
         if (!id || seenIds.has(id)) continue;
         const title = cleanText(item.name || '');
         if (isLikelyDigitalProduct(title)) continue;
-        const rawImg = item.image;
-        const image  = cleanImage(
-          typeof rawImg === 'string' ? rawImg
-          : (Array.isArray(rawImg) && rawImg.length
-            ? (rawImg[0] && rawImg[0].contentURL ? rawImg[0].contentURL : rawImg[0])
-            : null)
-        );
+        const image = cleanImage(extractImageFromJsonLd(item.image));
         if (!image) continue;
-        const brand    = item.brand || {};
-        const shopName = typeof brand === 'object' ? (brand.name || null) : String(brand || '');
+        const shopName = extractShopNameFromJsonLd(item);
         seenIds.add(id);
         results.push({
           listingId: id, title, link, image,
-          shopName: shopName || null,
-          shopUrl: shopName ? 'https://www.etsy.com/shop/' + shopName : null,
-          source: 'etsy-search',
+          shopName:  shopName || null,
+          shopUrl:   shopName ? 'https://www.etsy.com/shop/' + shopName : null,
+          source:    'etsy-jsonld',
         });
       }
     } catch (_) {}
   });
 
-  // Méthode 2 : cartes HTML (fallback)
+  // ── Méthode 2 : données __NEXT_DATA__ (Next.js / Etsy interne) ──────────
+  if (results.length < 3) {
+    $('script#__NEXT_DATA__').each(function(_, el) {
+      try {
+        const data     = JSON.parse($(el).text());
+        const listings = (data.props?.pageProps?.listingSearchQuery?.hits) ||
+                         (data.props?.pageProps?.results)                   ||
+                         [];
+        for (const hit of listings) {
+          const id = String(hit.listing_id || hit.listingId || '');
+          if (!id || seenIds.has(id)) continue;
+          const title = cleanText(hit.title || '');
+          if (isLikelyDigitalProduct(title)) continue;
+          const image = cleanImage(
+            hit.main_image?.url_570xN || hit.images?.[0]?.url_570xN ||
+            hit.main_image?.url       || hit.images?.[0]?.url
+          );
+          if (!image) continue;
+          const shopName = hit.shop?.shop_name || hit.shop_name || hit.sellerName || null;
+          const link     = 'https://www.etsy.com/listing/' + id;
+          seenIds.add(id);
+          results.push({
+            listingId: id, title, link, image,
+            shopName:  shopName || null,
+            shopUrl:   shopName ? 'https://www.etsy.com/shop/' + shopName : null,
+            source:    'etsy-nextdata',
+          });
+        }
+      } catch (_) {}
+    });
+  }
+
+  // ── Méthode 3 : cartes HTML ──────────────────────────────────────────────
   if (results.length < 5) {
     const cardSelectors = [
       'div.v2-listing-card[data-listing-id]',
@@ -561,27 +628,41 @@ function parseEtsySearchPage(html) {
       const $card     = $(card);
       const listingId = $card.attr('data-listing-id') || $card.attr('data-palette-listing-id') || null;
       if (!listingId || seenIds.has(listingId)) return;
+
       const linkEl  = $card.find('a[href*="/listing/"]').first();
       const rawHref = linkEl.attr('href') || '';
       const link    = rawHref ? makeAbsoluteURL(rawHref).split('?')[0] : '';
       if (!link) return;
-      const title = cleanText($card.find('.v2-listing-card__title, h3, h2').first().text());
+
+      const title = cleanText($card.find('.v2-listing-card__title, [data-testid="listing-title"], h3, h2').first().text());
       if (isLikelyDigitalProduct(title)) return;
+
       const imgEl = $card.find('img[data-src], img[src]').first();
       const image = cleanImage(imgEl.attr('data-src') || imgEl.attr('src') || null);
-      if (!image || image.indexOf('placeholder') !== -1 || image.indexOf('data:') !== -1) return;
-      let shopName = null;
-      const shopHref = $card.find('a[href*="/shop/"]').first().attr('href') || '';
-      if (shopHref) shopName = extractShopName(makeAbsoluteURL(shopHref));
+      if (!image || image.includes('placeholder') || image.startsWith('data:')) return;
+
+      // Shop name : data-shop-name attr, puis lien /shop/, puis data-listing-shop-name
+      let shopName = $card.attr('data-shop-name') ||
+                     $card.attr('data-listing-shop-name') ||
+                     null;
+      if (!shopName) {
+        const shopHref = $card.find('a[href*="/shop/"]').first().attr('href') || '';
+        if (shopHref) shopName = extractShopName(makeAbsoluteURL(shopHref));
+      }
+
       seenIds.add(listingId);
       results.push({
         listingId, title, link, image,
-        shopName: shopName || null,
-        shopUrl: shopName ? 'https://www.etsy.com/shop/' + shopName : null,
-        source: 'etsy-search-html',
+        shopName:  shopName || null,
+        shopUrl:   shopName ? 'https://www.etsy.com/shop/' + shopName : null,
+        source:    'etsy-html',
       });
     });
   }
+
+  const withShop    = results.filter(r => r.shopName).length;
+  const withoutShop = results.length - withShop;
+  console.log(`[parseEtsySearchPage] ${results.length} listings | ${withShop} avec shopName | ${withoutShop} sans shopName`);
 
   return results;
 }
