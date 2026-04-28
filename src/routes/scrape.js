@@ -354,7 +354,7 @@ router.post('/search-dropship', async (req, res) => {
 
         // Étape 2 : DINOv2 — vérification visuelle OBLIGATOIRE
         const aliUrls = aliMatches
-          .slice(0, 2) // plan gratuit Serper : on limite à 2 candidats
+          .slice(0, 4) // augmenté à 4 candidats pour plus de chances de match
           .flatMap(m => extractAliImageUrls(m))
           .filter(Boolean);
 
@@ -365,7 +365,8 @@ router.post('/search-dropship', async (req, res) => {
         }
 
         const dinoResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
-          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
+          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.65'),
+          hybrid: true,
         });
 
         console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
@@ -419,20 +420,22 @@ router.post('/search-dropship', async (req, res) => {
 
           console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
 
-          // Les deux images doivent être confirmées par CLIP pour valider le dropshipper
-          if (m1 && m2) {
+          // Au moins une image confirmée par DINOv2 suffit pour valider le dropshipper
+          if (m1 || m2) {
+            const sim1 = m1?.clipSimilarity || null;
+            const sim2 = m2?.clipSimilarity || null;
             dropshippers.push({
               shopName:        listing.shopName,
               shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
               shopAvatar:      null,
               shopImage:       img1,
               listingUrl:      listing.link,
-              clipSimilarity1: m1.clipSimilarity || null,
-              clipSimilarity2: m2.clipSimilarity || null,
+              clipSimilarity1: sim1,
+              clipSimilarity2: sim2,
             });
             send({
               step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + m1.clipSimilarity,
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + (sim1 || sim2),
               shop: dropshippers[dropshippers.length - 1],
             });
           }
