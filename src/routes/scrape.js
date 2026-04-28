@@ -2,11 +2,9 @@ const express  = require('express');
 const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
+const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 // DINOv2 : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
 const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable, isDinoReady } = require('../services/dinoCompare');
-
-// URL du microservice Scrapy Python (doit tourner en parallèle — voir scraper/start.sh)
-const SCRAPER_URL = process.env.SCRAPER_SERVICE_URL || 'http://localhost:5001';
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -69,70 +67,108 @@ router.post('/niche-keyword', async (req, res) => {
 
 
 /**
- * Récupère les listings Etsy via le microservice Scrapy Python.
- *
- * Le spider Scrapy :
- *  1. Scrape 5 pages de résultats Etsy (rotation proxy + headers complets)
- *  2. Récupère image1 (première image de chaque annonce)
- *  3. Visite chaque boutique → image2 + avatar
- *  4. Déduplique par boutique
+ * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  if (isAborted()) return [];
+  const MAX_PAGES  = 7;
+  const perPage    = 100;
+  const shopsSeen  = new Set(usedShops);
+  const shopIdToRaw = new Map();
+  let offset = 0;
+  let page   = 0;
+  const pageTimes = [];
+  let lastPageStart = Date.now();
 
-  const shopsSeen = new Set(usedShops);
-  const searchStart = Date.now();
-
-  if (onBatch) onBatch(1, 0, 0, 5);
-  console.log(`[fetchListings] Appel Scrapy pour "${keyword}"...`);
-
-  let scraperData;
-  try {
-    const resp = await axios.post(
-      `${SCRAPER_URL}/scrape-etsy`,
-      { keyword, max_pages: 5 },
-      { timeout: 310000 } // 5 min + marge
-    );
-    scraperData = resp.data;
-  } catch (e) {
-    const msg = e.response?.data?.error || e.message;
-    throw new Error('Scrapy service indisponible : ' + msg +
-      ' — Vérifiez que le microservice Python tourne (bash scraper/start.sh)');
-  }
-
-  if (!scraperData.ok || !Array.isArray(scraperData.listings)) {
-    throw new Error(scraperData.error || 'Scrapy : aucun résultat');
-  }
-
-  const raw = scraperData.listings;
-  const elapsed = Date.now() - searchStart;
-  console.log(`[fetchListings] Scrapy terminé : ${raw.length} boutiques en ${elapsed}ms`);
-  if (onBatch) onBatch(1, raw.length, elapsed, 5);
-
-  const listings = [];
-  for (const l of raw) {
-    if (!l.shop_name || !l.image1) continue;
-    if (shopsSeen.has(l.shop_name)) continue;
-    if (!l.image2) {
-      console.log(`[fetchListings] skip ${l.shop_name} — image2 introuvable`);
-      continue;
+  while (page < MAX_PAGES) {
+    if (isAborted()) return [];
+    lastPageStart = Date.now();
+    let results;
+    try {
+      results = await searchListingIds(keyword, perPage, offset);
+    } catch (e) {
+      handleEtsyError(e);
     }
-    shopsSeen.add(l.shop_name);
-    listings.push({
-      listingId:  l.listing_id  || null,
-      link:       l.listing_url || `https://www.etsy.com/shop/${l.shop_name}`,
-      title:      l.title       || null,
-      image:      l.image1,
-      image2:     l.image2,
-      shopName:   l.shop_name,
-      shopUrl:    l.shop_url    || `https://www.etsy.com/shop/${l.shop_name}`,
-      shopAvatar: l.shop_avatar || null,
-      shopId:     null,
-      source:     'etsy',
-    });
+
+    if (!results || results.length === 0) break;
+
+    for (const r of results) {
+      if (!r.shopId) continue;
+      const sid = String(r.shopId);
+      if (shopsSeen.has(sid)) continue;
+      if (!shopIdToRaw.has(sid)) {
+        shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
+      } else {
+        const existing = shopIdToRaw.get(sid);
+        if (!existing.listingId2 && r.listingId !== existing.listingId) {
+          existing.listingId2 = r.listingId;
+        }
+      }
+    }
+
+    const pageElapsed = Date.now() - lastPageStart;
+    pageTimes.push(pageElapsed);
+    const avgPageMs = pageTimes.reduce((a, b) => a + b, 0) / pageTimes.length;
+
+    page++;
+    console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique new shopIds`);
+    if (onBatch) onBatch(page, shopIdToRaw.size, avgPageMs, MAX_PAGES);
+
+    if (results.length < perPage) break;
+    offset += perPage;
   }
 
-  console.log(`[fetchListings] ${listings.length} boutiques avec image1+image2`);
+  console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
+
+  const BATCH = 12;
+  const listings = [];
+  const shopIdList = [...shopIdToRaw.entries()];
+
+  for (let i = 0; i < shopIdList.length; i += BATCH) {
+    if (isAborted()) return listings;
+    const batch = shopIdList.slice(i, i + BATCH);
+    const resolved = await Promise.allSettled(
+      batch.map(async ([shopId, raw]) => {
+        // Toujours aller chercher un 2ème listing directement dans la boutique,
+        // indépendamment de ce qu'on a trouvé dans les résultats de recherche.
+        let listingId2 = null;
+        try {
+          const shopListings = await getShopListings(shopId, 5);
+          const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
+          if (other) listingId2 = other.listingId;
+        } catch (e) {
+          console.warn('[fetchListings] getShopListings failed for shop', shopId, ':', e.message);
+        }
+
+        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId, listingId2);
+        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
+      })
+    );
+
+    for (const r of resolved) {
+      if (r.status !== 'fulfilled') {
+        console.warn('[fetchListings] resolve failed:', r.reason?.message);
+        continue;
+      }
+      const l = r.value;
+      if (!l.shopName || !l.image || !l.image2) continue;
+      if (shopsSeen.has(l.shopName)) continue;
+      shopsSeen.add(l.shopName);
+      listings.push({
+        listingId: l.listingId,
+        link:      l.link,
+        title:     l.title,
+        image:     l.image,
+        image2:    l.image2,
+        shopName:  l.shopName,
+        shopUrl:   l.shopUrl,
+        shopId:    l.shopId,
+        source:    'etsy',
+      });
+    }
+    await new Promise(r => setTimeout(r, 50));
+  }
+
+  console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
   return listings;
 }
 
@@ -142,6 +178,7 @@ router.post('/search-dropship', async (req, res) => {
   const { keyword, sessionId } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
+  if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
   if (!SERPER_KEYS.length) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
 
 
@@ -209,7 +246,7 @@ router.post('/search-dropship', async (req, res) => {
         waitForDino(),
         fetchListingsForDropship(
           keyword,
-          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 ' + count + ' boutiques trouvées...' }),
+          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
           usedShops,
           isAborted
         ),
@@ -437,7 +474,7 @@ router.get('/dino-warmup', async (req, res) => {
 
 router.get('/health', (req, res) => {
   const keys = {
-    OMKAR_API_KEY:    !!process.env.OMKAR_API_KEY,
+    ETSY_CLIENT_ID: !!process.env.ETSY_CLIENT_ID,
     SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
     SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
   };
