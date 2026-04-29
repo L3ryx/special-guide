@@ -15,7 +15,10 @@ if (mongoose.connection.readyState === 0) {
 
 
 // ── Clé Serper unique ──
-const SERPER_KEYS = [process.env.SERPER_API_KEY].filter(Boolean);
+const SERPER_KEYS = [
+  process.env.SERPER_API_KEY,
+  process.env.SERPER_API_KEY_2,
+].filter(Boolean); // FIX : support 2ème clé de backup (SERPER_API_KEY_2)
 let _serperKeyIndex = 0;
 function getSerperKey() {
   const key = SERPER_KEYS[_serperKeyIndex % SERPER_KEYS.length];
