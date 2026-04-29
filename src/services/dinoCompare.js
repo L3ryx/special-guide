@@ -153,6 +153,11 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
 /**
  * Compare via /compare-hybrid (DINOv2 75% + structure 25%).
  *
+ * FIX : ajout d'un mécanisme de retry (MAX_RETRIES = 2) identique à compareImages.
+ * Avant ce fix, un HTTP 500 passager (cold start HuggingFace) déclenchait un
+ * fallback immédiat sans aucune tentative supplémentaire, causant l'ignorance
+ * silencieuse de nombreux shops dans les logs.
+ *
  * @param {string} etsyUrl
  * @param {string} aliUrl
  * @param {object} options
@@ -169,34 +174,46 @@ async function compareImagesHybrid(etsyUrl, aliUrl, options = {}) {
     return { similarity: 0, match: false, scales: [], error: 'URLs manquantes', fallback: false };
   }
 
-  try {
-    const r = await axios.post(
-      `${CLIP_BASE}/compare-hybrid`,
-      { etsy_url: etsyUrl, ali_url: aliUrl, threshold },
-      { timeout: TIMEOUT_MS }
-    );
+  const MAX_RETRIES = 2; // ← FIX : retry sur 500 avant de fallback (était absent)
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const r = await axios.post(
+        `${CLIP_BASE}/compare-hybrid`,
+        { etsy_url: etsyUrl, ali_url: aliUrl, threshold },
+        { timeout: TIMEOUT_MS }
+      );
 
-    return {
-      similarity:      r.data.similarity      ?? 0,
-      clip_score:      r.data.clip_score       ?? 0,  // = dino_score côté Python
-      structure_score: r.data.structure_score  ?? 0,
-      match:           r.data.match            ?? false,
-      scales:          r.data.scales           ?? [],
-      error:           r.data.error            ?? null,
-      fallback:        false,
-    };
+      return {
+        similarity:      r.data.similarity      ?? 0,
+        clip_score:      r.data.clip_score       ?? 0,  // = dino_score côté Python
+        structure_score: r.data.structure_score  ?? 0,
+        match:           r.data.match            ?? false,
+        scales:          r.data.scales           ?? [],
+        error:           r.data.error            ?? null,
+        fallback:        false,
+      };
 
-  } catch (e) {
-    const httpStatus = e.response?.status;
-    const isConnRefused = e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND';
-    const isServerError = httpStatus >= 500;
-    if (isConnRefused || isServerError) {
-      console.warn(`[dinoCompare] Service DINOv2 indisponible (hybrid) (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback`);
-      return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
+    } catch (e) {
+      const httpStatus = e.response?.status;
+      const isConnRefused = e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND';
+      const isServerError = httpStatus >= 500;
+
+      // ← FIX : retry sur 500 avec backoff exponentiel (2s, 4s)
+      if (isServerError && attempt < MAX_RETRIES) {
+        const wait = 2000 * (attempt + 1);
+        console.warn(`[dinoCompare] HTTP ${httpStatus} hybrid — retry ${attempt + 1}/${MAX_RETRIES} dans ${wait}ms`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+
+      if (isConnRefused || isServerError) {
+        console.warn(`[dinoCompare] Service DINOv2 indisponible (hybrid) (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback`);
+        return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
+      }
+      const msg = e.response?.data?.error || e.message;
+      console.warn('[dinoCompare] Erreur hybrid:', msg);
+      return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
     }
-    const msg = e.response?.data?.error || e.message;
-    console.warn('[dinoCompare] Erreur hybrid:', msg);
-    return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
   }
 }
 
