@@ -31,7 +31,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── API endpoint for online count (fallback SSE / polling) ──
 app.get('/api/online-count', (req, res) => {
   res.json({ count: onlineCount });
 });
@@ -40,7 +39,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public'), { index: false }));
 
-// ── Proxy image
+// ── Proxy image ──
 app.get('/proxy-image', async (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).send('Missing url');
@@ -63,16 +62,16 @@ app.get('/proxy-image', async (req, res) => {
   }
 });
 
-// ── Health check
+// ── Health check ──
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
-// ── Routes API
+// ── Routes API ──
 app.use('/api', scrapeRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
 app.use('/api/stripe', stripeRoutes);
 
-// ── Pages
+// ── Pages ──
 app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 app.get('/finder',         (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 app.get('/niche-list',     (req, res) => res.sendFile(path.join(__dirname, '../public/niche-list.html')));
@@ -82,9 +81,41 @@ server.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
 
-// ── Keep-alive CLIP : ping toutes les 4 minutes pour éviter le cold start HuggingFace ──
+// ── Keep-alive DINOv2 intelligent ──
+// FIX : distingue "ready" / "loading" / "down" et accélère le ping en cas de problème
 const { isClipAvailable } = require('./services/dinoCompare');
-setInterval(async () => {
-  const alive = await isClipAvailable().catch(() => false);
-  console.log(`[clip-keepalive] ${alive ? '✅ CLIP actif' : '⚠️ CLIP indisponible (cold start en cours)'}`);
-}, 4 * 60 * 1000); // toutes les 4 minutes
+
+const KEEPALIVE_NORMAL_MS  = 4 * 60 * 1000; // 4 min en fonctionnement normal
+const KEEPALIVE_URGENT_MS  = 20 * 1000;      // 20s quand le service est down/loading
+
+let keepaliveTimer = null;
+
+async function runKeepalive() {
+  try {
+    const { available, status } = await isClipAvailable();
+
+    if (!available || status === null) {
+      console.log('[clip-keepalive] ⚠️ Service DINOv2 indisponible — ping accéléré (20s)');
+      scheduleKeepalive(KEEPALIVE_URGENT_MS);
+    } else if (status === 'loading') {
+      console.log('[clip-keepalive] 🔄 DINOv2 en cours de chargement (cold start) — ping accéléré (20s)');
+      scheduleKeepalive(KEEPALIVE_URGENT_MS);
+    } else {
+      // status === 'ready'
+      console.log('[clip-keepalive] ✅ CLIP actif');
+      scheduleKeepalive(KEEPALIVE_NORMAL_MS);
+    }
+  } catch {
+    console.log('[clip-keepalive] ⚠️ Erreur keepalive — retry dans 20s');
+    scheduleKeepalive(KEEPALIVE_URGENT_MS);
+  }
+}
+
+function scheduleKeepalive(delayMs) {
+  if (keepaliveTimer) clearTimeout(keepaliveTimer);
+  keepaliveTimer = setTimeout(runKeepalive, delayMs);
+}
+
+// Démarrage immédiat
+runKeepalive();
+
