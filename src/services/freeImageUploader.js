@@ -34,30 +34,6 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── Service 1 : freeimage.host (clé API publique, sans compte) ──
-async function uploadToFreeImageHost(buffer, mimeType) {
-  try {
-    const base64 = buffer.toString('base64');
-    const params = new URLSearchParams();
-    params.append('key', '6d207e02198a847aa98d0a2a901485a5');
-    params.append('source', base64);
-    params.append('format', 'json');
-
-    const res = await axios.post('https://freeimage.host/api/1/upload', params, {
-      timeout: 20000,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
-
-    const url = res.data?.image?.url;
-    if (url && url.startsWith('https://')) {
-      console.log('[freeUploader] freeimage.host OK', url);
-      return url;
-    }
-  } catch (e) {
-    console.warn('[freeUploader] freeimage.host failed:', e.message);
-  }
-  return null;
-}
 
 // ── Service 2 : Imgur (anonyme via Client-ID) ──
 // Recommandé par SerpApi pour Google Lens (pas de blocage d'URLs)
@@ -114,7 +90,7 @@ async function uploadToLitterbox(buffer, mimeType) {
 
 /**
  * Télécharge une image Etsy et l'héberge sur un service public gratuit.
- * Ordre : freeimage.host → Imgur → litterbox
+ * Ordre : Imgur → litterbox
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -132,7 +108,6 @@ async function uploadImageFree(etsyUrl) {
   }
 
   const services = [
-    () => uploadToFreeImageHost(img.buffer, img.mimeType),
     () => uploadToImgur(img.buffer, img.mimeType),
     () => uploadToLitterbox(img.buffer, img.mimeType),
   ];
