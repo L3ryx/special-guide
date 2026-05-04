@@ -15,10 +15,7 @@ if (mongoose.connection.readyState === 0) {
 
 
 // ── Clé Serper unique ──
-const SERPER_KEYS = [
-  process.env.SERPER_API_KEY,
-  process.env.SERPER_API_KEY_2,
-].filter(Boolean); // FIX : support 2ème clé de backup (SERPER_API_KEY_2)
+const SERPER_KEYS = [process.env.SERPER_API_KEY].filter(Boolean);
 let _serperKeyIndex = 0;
 function getSerperKey() {
   const key = SERPER_KEYS[_serperKeyIndex % SERPER_KEYS.length];
@@ -72,8 +69,8 @@ router.post('/niche-keyword', async (req, res) => {
 /**
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
-async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false, maxPages = 5) {
-  const MAX_PAGES  = Math.min(Math.max(parseInt(maxPages) || 5, 1), 10);
+async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
+  const MAX_PAGES  = 7;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
   const shopIdToRaw = new Map();
@@ -131,8 +128,19 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(async ([shopId, raw]) => {
-        const { shopName, shopUrl, image, numSales } = await getShopNameAndImage(shopId, raw.listingId);
-        return { shopId, shopName, shopUrl, image, numSales, listingId: raw.listingId, link: raw.link, title: raw.title };
+        // Toujours aller chercher un 2ème listing directement dans la boutique,
+        // indépendamment de ce qu'on a trouvé dans les résultats de recherche.
+        let listingId2 = null;
+        try {
+          const shopListings = await getShopListings(shopId, 5);
+          const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
+          if (other) listingId2 = other.listingId;
+        } catch (e) {
+          console.warn('[fetchListings] getShopListings failed for shop', shopId, ':', e.message);
+        }
+
+        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId, listingId2);
+        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
       })
     );
 
@@ -142,7 +150,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         continue;
       }
       const l = r.value;
-      if (!l.shopName || !l.image) continue;
+      if (!l.shopName || !l.image || !l.image2) continue;
       if (shopsSeen.has(l.shopName)) continue;
       shopsSeen.add(l.shopName);
       listings.push({
@@ -150,10 +158,10 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         link:      l.link,
         title:     l.title,
         image:     l.image,
+        image2:    l.image2,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
-        numSales:  l.numSales || 0,
         source:    'etsy',
       });
     }
@@ -167,7 +175,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
 
 // ── SEARCH DROPSHIP ──
 router.post('/search-dropship', async (req, res) => {
-  const { keyword, sessionId, maxPages } = req.body;
+  const { keyword, sessionId } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
@@ -238,10 +246,9 @@ router.post('/search-dropship', async (req, res) => {
         waitForDino(),
         fetchListingsForDropship(
           keyword,
-          (page, count, avgPageMs, totalPages) => send({ step: 'scraping', page, maxPages: totalPages, avgPageMs, message: '📄 Page ' + page + '/' + totalPages + ' — ' + count + ' boutiques...' }),
+          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
           usedShops,
-          isAborted,
-          maxPages
+          isAborted
         ),
       ]);
     } catch(e) {
@@ -347,7 +354,7 @@ router.post('/search-dropship', async (req, res) => {
 
         // Étape 2 : DINOv2 — vérification visuelle OBLIGATOIRE
         const aliUrls = aliMatches
-          .slice(0, 2) // 2 candidats AliExpress pour la comparaison
+          .slice(0, 2) // plan gratuit Serper : on limite à 2 candidats
           .flatMap(m => extractAliImageUrls(m))
           .filter(Boolean);
 
@@ -358,8 +365,7 @@ router.post('/search-dropship', async (req, res) => {
         }
 
         const dinoResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
-          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.65'),
-          hybrid: true,
+          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
         });
 
         console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
@@ -401,31 +407,32 @@ router.post('/search-dropship', async (req, res) => {
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
           const img1 = listing.image;
+          const img2 = listing.image2;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
+          if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
           console.log('[worker] running lensMatch+CLIP pour', listing.shopName);
-          const m1 = await lensMatchWithClip(img1);
+          const [m1, m2] = await Promise.all([lensMatchWithClip(img1), lensMatchWithClip(img2)]);
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
-          console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '');
+          console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
 
-          // Une seule image suffit pour confirmer le dropshipper
-          if (m1) {
-            const sim1 = m1?.clipSimilarity || null;
+          // Les deux images doivent être confirmées par CLIP pour valider le dropshipper
+          if (m1 && m2) {
             dropshippers.push({
               shopName:        listing.shopName,
               shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
               shopAvatar:      null,
               shopImage:       img1,
               listingUrl:      listing.link,
-              numSales:        listing.numSales || 0,
-              clipSimilarity1: sim1,
+              clipSimilarity1: m1.clipSimilarity || null,
+              clipSimilarity2: m2.clipSimilarity || null,
             });
             send({
               step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + sim1,
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + m1.clipSimilarity,
               shop: dropshippers[dropshippers.length - 1],
             });
           }
