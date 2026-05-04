@@ -3,7 +3,7 @@ const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
-// DINOv2 : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
+// SigLIP : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
 const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable, isDinoReady } = require('../services/dinoCompare');
 
 // ── MongoDB connection ──
@@ -221,65 +221,26 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 & 3 : Warm-up DINOv2 (si Ultra activé) + Scraping Etsy en parallèle ──
+    // ── STEP 2 & 3 : Scraping Etsy (SigLIP non-bloquant — tenté shop par shop) ──
     send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
-
-    async function waitForDino(maxAttempts = 8, delayMs = 20000) {
-      for (let i = 0; i < maxAttempts; i++) {
-        const reachable = await isClipAvailable().catch(() => false);
-        if (!reachable) continue;
-        const ready = await isDinoReady().catch(() => false);
-        if (ready) return true;
-        if (i < maxAttempts - 1) {
-          send({ step: 'analyzing', message: `⏳ DINOv2 en démarrage... (${i + 1}/${maxAttempts}) — nouvelle tentative dans ${delayMs / 1000}s` });
-          await new Promise(r => setTimeout(r, delayMs));
-        }
-      }
-      return false;
+    if (useDino) {
+      send({ step: 'analyzing', message: '⚡ Mode Ultra activé — SigLIP appliqué après chaque match Lens' });
+      console.log('[search-dropship] ⚡ Mode Ultra — SigLIP activé');
+    } else {
+      send({ step: 'analyzing', message: '🔍 Mode Lens uniquement (Ultra désactivé)' });
+      console.log('[search-dropship] ℹ️ Mode Lens uniquement');
     }
 
     let listings = [];
-    let dinoReady = false;
-
     try {
-      if (useDino) {
-        send({ step: 'analyzing', message: '🤖 Vérification du service DINOv2...' });
-        [dinoReady, listings] = await Promise.all([
-          waitForDino(),
-          fetchListingsForDropship(
-            keyword,
-            (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
-            usedShops,
-            isAborted
-          ),
-        ]);
-      } else {
-        listings = await fetchListingsForDropship(
-          keyword,
-          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
-          usedShops,
-          isAborted
-        );
-      }
+      listings = await fetchListingsForDropship(
+        keyword,
+        (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
+        usedShops,
+        isAborted
+      );
     } catch(e) {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
-    }
-
-    if (useDino && !dinoReady) {
-      send({
-        step: 'error',
-        message: '❌ Le service DINOv2 est indisponible après plusieurs tentatives. Veuillez réessayer dans 1-2 minutes (cold start HuggingFace ~60-90s).',
-      });
-      activeSearches.delete(sid);
-      return res.end();
-    }
-
-    if (useDino) {
-      send({ step: 'analyzing', message: '✅ DINOv2 prêt — comparaison visuelle activée (mode Ultra)' });
-      console.log('[search-dropship] ✅ DINOv2 disponible — mode Ultra');
-    } else {
-      send({ step: 'analyzing', message: '🔍 Mode Lens uniquement (Ultra désactivé)' });
-      console.log('[search-dropship] ℹ️ Mode Lens uniquement — DINOv2 désactivé');
     }
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
@@ -290,7 +251,7 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
       return res.end();
     }
-    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse DINOv2...' });
+    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse SigLIP...' });
 
     // ── STEP 4 : Google Lens + CLIP obligatoire ──
 
@@ -367,10 +328,10 @@ router.post('/search-dropship', async (req, res) => {
         // Pas de candidat AliExpress trouvé par Serper → pas de match
         if (!aliMatches.length) return null;
 
-        // Étape 2 : DINOv2 — vérification visuelle (mode Ultra uniquement)
+        // Étape 2 : SigLIP — vérification visuelle (mode Ultra uniquement)
         if (!useDino) {
           // Ultra désactivé → on retourne le premier match Lens directement
-          console.log(`[Lens] ✅ Match Lens accepté sans vérification DINOv2`);
+          console.log(`[Lens] ✅ Match Lens accepté (Ultra désactivé)`);
           return { ...aliMatches[0], clipSimilarity: null };
         }
 
@@ -380,27 +341,27 @@ router.post('/search-dropship', async (req, res) => {
           .filter(Boolean);
 
         if (!aliUrls.length) {
-          console.log(`[DINO] ❌ Aucune image AliExpress exploitable pour DINOv2`);
+          console.log(`[SigLIP] ❌ Aucune image AliExpress exploitable pour SigLIP`);
           return null;
         }
 
-        const dinoResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
+        const siglipResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
           threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.65'),
           hybrid: true,
         });
 
-        console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
+        console.log(`[SigLIP] sim=${siglipResult.similarity} match=${siglipResult.match} fallback=${siglipResult.fallback}`);
 
-        if (dinoResult.fallback) {
-          console.warn(`[DINO] ⚠️ Service DINOv2 retourne 500/indisponible — shop ignoré (${etsyImageUrl?.slice(-30)})`);
+        if (siglipResult.fallback) {
+          console.warn(`[SigLIP] ⚠️ Service SigLIP retourne 500/indisponible — shop ignoré (${etsyImageUrl?.slice(-30)})`);
           return null;
         }
 
-        if (dinoResult.match) {
-          return { ...aliMatches[0], clipSimilarity: dinoResult.similarity };
+        if (siglipResult.match) {
+          return { ...aliMatches[0], clipSimilarity: siglipResult.similarity };
         }
 
-        console.log(`[DINO] ❌ Objet non confirmé (sim=${dinoResult.similarity} < seuil)`);
+        console.log(`[SigLIP] ❌ Objet non confirmé (sim=${siglipResult.similarity} < seuil)`);
         return null;
 
       } catch (e) {
@@ -437,7 +398,7 @@ router.post('/search-dropship', async (req, res) => {
 
           console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
 
-          // Au moins une image confirmée par DINOv2 suffit pour valider le dropshipper
+          // Au moins une image confirmée par SigLIP suffit pour valider le dropshipper
           if (m1 && m2) {
             const sim1 = m1?.clipSimilarity || null;
             const sim2 = m2?.clipSimilarity || null;
@@ -452,7 +413,7 @@ router.post('/search-dropship', async (req, res) => {
             });
             send({
               step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + (sim1 || sim2),
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | SigLIP: ' + (sim1 || sim2),
               shop: dropshippers[dropshippers.length - 1],
             });
           }
@@ -483,7 +444,7 @@ router.post('/search-dropship', async (req, res) => {
 
 // ── CLIP WAKE-UP ──
 // Appelé au chargement de la page pour réveiller HuggingFace avant la recherche
-router.get('/dino-warmup', async (req, res) => {
+router.get('/siglip-warmup', async (req, res) => {
   try {
     const ready = await isClipAvailable();
     res.json({ ready });
