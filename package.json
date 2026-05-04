@@ -1,13 +1,11 @@
 {
   "name": "etsy-reverse-image-scraper",
   "version": "1.0.0",
-  "description": "Etsy scraper with Scrapy, reverse image search and AliExpress comparison",
+  "description": "Etsy dropshipper finder with reverse image search and AliExpress comparison",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "scraper": "bash scraper/start.sh",
-    "start:all": "concurrently \"npm run start\" \"npm run scraper\""
+    "dev": "nodemon src/server.js"
   },
   "dependencies": {
     "resend": "^3.0.0",
@@ -19,12 +17,10 @@
     "form-data": "^4.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.2.0",
-    "multer": "^1.4.5-lts.1",
     "openai": "^4.20.0",
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2",
-    "concurrently": "^8.2.2"
+    "nodemon": "^3.0.2"
   }
 }
