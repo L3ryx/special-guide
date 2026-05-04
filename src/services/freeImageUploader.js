@@ -44,7 +44,37 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── 0x0.st ──
+// ── Litterbox (catbox.moe) — primaire, sans clé API, expiration 1h ──
+async function uploadToLitterbox(buffer, mimeType) {
+  console.log('[freeUploader] 🔄 Upload litterbox.catbox.moe...');
+  try {
+    const form = new FormData();
+    form.append('reqtype', 'fileupload');
+    form.append('time', '1h');
+    form.append('fileToUpload', buffer, { filename: 'image.jpg', contentType: mimeType });
+
+    const res = await axios.post(
+      'https://litterbox.catbox.moe/resources/internals/api.php',
+      form,
+      { headers: form.getHeaders(), timeout: 20000, responseType: 'text' }
+    );
+
+    const url = (typeof res.data === 'string' ? res.data : '').trim();
+    if (url.startsWith('https://')) {
+      console.log(`[freeUploader] ✅ Litterbox OK → ${url}`);
+      return url;
+    }
+    console.warn(`[freeUploader] ⚠️ Litterbox — réponse inattendue: ${url}`);
+  } catch (e) {
+    const status = e.response?.status;
+    const detail = e.response?.data ? String(e.response.data) : e.message;
+    const code   = e.code || '';
+    console.error(`[freeUploader] ❌ Litterbox FAILED — HTTP ${status || 'réseau'} code=${code}: ${detail}`);
+  }
+  return null;
+}
+
+// ── 0x0.st — fallback ──
 async function uploadTo0x0(buffer, mimeType) {
   console.log('[freeUploader] 🔄 Upload 0x0.st...');
   try {
@@ -66,11 +96,8 @@ async function uploadTo0x0(buffer, mimeType) {
   } catch (e) {
     const status = e.response?.status;
     const detail = e.response?.data ? String(e.response.data) : e.message;
-    if (status === 429) {
-      console.error('[freeUploader] ❌ 0x0.st 429 — rate limit atteint');
-    } else {
-      console.error(`[freeUploader] ❌ 0x0.st FAILED — HTTP ${status || 'réseau'}: ${detail}`);
-    }
+    const code   = e.code || '';
+    console.error(`[freeUploader] ❌ 0x0.st FAILED — HTTP ${status || 'réseau'} code=${code}: ${detail}`);
   }
   return null;
 }
@@ -98,13 +125,17 @@ async function uploadImageFree(etsyUrl) {
 
   console.log(`[freeUploader] 📤 Upload en cours (${img.buffer.length} bytes)...`);
 
-  const url = await uploadTo0x0(img.buffer, img.mimeType);
+  let url = await uploadToLitterbox(img.buffer, img.mimeType);
+  if (!url) {
+    console.warn('[freeUploader] ⚠️ Litterbox échoué, tentative 0x0.st...');
+    url = await uploadTo0x0(img.buffer, img.mimeType);
+  }
   if (url) {
     uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
     return url;
   }
 
-  console.error('[freeUploader] ❌ ÉCHEC upload 0x0.st. Ximilar ne sera PAS appelé.');
+  console.error('[freeUploader] ❌ ÉCHEC upload (Litterbox + 0x0.st). Ximilar ne sera PAS appelé.');
   return null;
 }
 
