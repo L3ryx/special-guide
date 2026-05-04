@@ -3,7 +3,6 @@ const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
-const { ximilarRankImages } = require('../services/ximilarCompare');
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -170,8 +169,6 @@ router.post('/search-dropship', async (req, res) => {
   if (!process.env.ETSY_CLIENT_ID) return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
   if (!SERPER_KEYS.length)         return res.status(500).json({ error: 'SERPER_API_KEY missing' });
 
-  // Ximilar est optionnel — si la clé manque, on skippe la vérification visuelle
-  const useXimilar = !!process.env.XIMILAR_API_KEY;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -232,8 +229,7 @@ router.post('/search-dropship', async (req, res) => {
       return res.end();
     }
 
-    const modeLabel = useXimilar ? 'Google Lens + Ximilar' : 'Google Lens';
-    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse ' + modeLabel + '...' });
+    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse Google Lens...' });
 
     // ── STEP 3 : Google Lens puis Ximilar ──
     const { uploadImageFree } = require('../services/freeImageUploader');
@@ -305,43 +301,11 @@ router.post('/search-dropship', async (req, res) => {
       try {
         const lensResult = await lensSearch(etsyImageUrl);
         if (!lensResult) return null;
-
-        const { pubUrl, aliMatches } = lensResult;
-
-        // Sans Ximilar → on accepte le premier match Lens directement
-        if (!useXimilar) {
-          return { aliMatch: aliMatches[0], ximilarDistance: null };
-        }
-
-        // Avec Ximilar → vérification visuelle sur les images AliExpress
-        const aliImageUrls = aliMatches
-          .slice(0, 10)
-          .map(m => m.imageUrl || m.thumbnailUrl)
-          .filter(Boolean);
-
-        if (!aliImageUrls.length) return null;
-
-        const xResult = await ximilarRankImages(pubUrl, aliImageUrls);
-
-        if (xResult.fallback) {
-          // Service indisponible → on accepte le match Lens sans confirmation
-          console.warn('[analyzeImage] Ximilar fallback — match Lens accepté sans confirmation visuelle');
-          return { aliMatch: aliMatches[0], ximilarDistance: null };
-        }
-
-        if (!xResult.match) {
-          console.log(`[analyzeImage] ❌ Ximilar rejette (distance=${xResult.distance})`);
-          return null;
-        }
-
-        console.log(`[analyzeImage] ✅ Ximilar confirme (distance=${xResult.distance})`);
-        return { aliMatch: aliMatches[0], ximilarDistance: xResult.distance };
-
+        console.log(`[analyzeImage] ✅ Match AliExpress trouvé via Google Lens`);
+        return { aliMatch: lensResult.aliMatches[0], ximilarDistance: null };
       } catch (e) {
         if (e.message === 'serper_401') throw e;
         if (e.message === 'serper_no_credits') throw e;
-        if (e.message === 'ximilar_401') throw e;
-        if (e.message === 'ximilar_no_credits') throw e;
         console.warn('[analyzeImage] erreur:', e.message);
         return null;
       }
@@ -397,8 +361,6 @@ router.post('/search-dropship', async (req, res) => {
         } catch (e) {
           if (e.message === 'serper_401')       { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
           if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge ton compte sur serper.dev' }); return; }
-          if (e.message === 'ximilar_401')       { send({ step: 'error', message: '❌ Ximilar API key invalide' }); return; }
-          if (e.message === 'ximilar_no_credits'){ send({ step: 'error', message: '❌ Crédits Ximilar épuisés — vérifie ton plan sur ximilar.com' }); return; }
         }
       }
     }
