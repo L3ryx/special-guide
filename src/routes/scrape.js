@@ -69,8 +69,8 @@ router.post('/niche-keyword', async (req, res) => {
 /**
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
-async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 5;
+async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false, maxPages = 5) {
+  const MAX_PAGES  = maxPages;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
   const shopIdToRaw = new Map();
@@ -163,7 +163,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
 
 // ── SEARCH DROPSHIP ──
 router.post('/search-dropship', async (req, res) => {
-  const { keyword, sessionId } = req.body;
+  const { keyword, sessionId, pages } = req.body;
+  const maxPages = Math.min(Math.max(parseInt(pages) || 5, 1), 10);
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID) return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
@@ -212,9 +213,10 @@ router.post('/search-dropship', async (req, res) => {
     try {
       listings = await fetchListingsForDropship(
         keyword,
-        (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
+        (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/' + maxPages + ' — ' + count + ' boutiques...' }),
         usedShops,
-        isAborted
+        isAborted,
+        maxPages
       );
     } catch(e) {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
