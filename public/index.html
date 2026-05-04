@@ -165,14 +165,7 @@
     #auto-search-toggle.active::before { background-color: #009068 !important; left: calc(100% - (1.1em/2 + .2em)) !important; }
     #auto-search-toggle::after { display: none !important; }
     #auto-status { font-size:1rem; transition:all 0.2s; }
-    #ultra-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:space-between; padding:0; background:none; border:none; border-radius:0; backdrop-filter:none; height:27px; margin-top:6px; }
-    #ultra-label { color:#a78bfa; font-size:17px; font-weight:600; display:flex; align-items:center; gap:6px; font-family:'Courier New',Courier,monospace; }
-    #ultra-toggle { appearance: none !important; height: 1.2rem !important; width: 2.2rem !important; background-color: #fff !important; position: relative !important; border-radius: .2em !important; cursor: pointer !important; border: none !important; flex-shrink: 0 !important; padding: 0 !important; }
-    #ultra-toggle::before { content: '' !important; display: block !important; height: 1.1em !important; width: 1.1em !important; transform: translate(-50%, -50%) !important; position: absolute !important; top: 50% !important; left: calc(1.1em/2 + .2em) !important; background-color: #E81B1B !important; border-radius: .2em !important; transition: .3s ease !important; }
-    #ultra-toggle.active::before { background-color: #7c3aed !important; left: calc(100% - (1.1em/2 + .2em)) !important; }
-    #ultra-toggle::after { display: none !important; }
-
-    #start-btn { box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:8px; }
+#start-btn { box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:8px; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
     #stop-btn { display:none; height:3.5rem; width:65%; align-self:center; margin-top:18px; padding:0; border:none; border-radius:5rem; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:1.2rem; font-weight:700; letter-spacing:0.15em; cursor:pointer; box-shadow:0 6px 32px rgba(220,38,38,0.55); transition:background 0.2s, transform 0.2s; }
     #stop-btn:hover { background:#b91c1c; transform:scale(1.03); }
@@ -424,11 +417,7 @@
             <span id="auto-search-label">🤖 Automated</span>
             <label class="switch"><input type="checkbox" id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></label>
           </div>
-          <div id="ultra-row">
-            <span id="ultra-label">⚡ Ultra</span>
-            <label class="switch"><input type="checkbox" id="ultra-toggle" onclick="toggleUltra()" title="Enable DINOv2 visual comparison"></label>
-          </div>
-          <button id="start-btn" class="sw-btn" onclick="startSearch()">
+<button id="start-btn" class="sw-btn" onclick="startSearch()">
   <div id="container-stars"><div id="stars"></div></div>
   <span>Search</span>
   <div id="glow"><div class="circle"></div><div class="circle"></div></div>
@@ -881,15 +870,7 @@
         });
       } catch(e) {}
     }
-
-    var _ultraMode = false;
-
-    function toggleUltra() {
-      _ultraMode = !_ultraMode;
-      var toggle = document.getElementById('ultra-toggle');
-      if (_ultraMode) {
-        toggle.classList.add('active');
-      } else {
+else {
         toggle.classList.remove('active');
       }
     }
@@ -976,14 +957,7 @@
         if (e.key === 'Enter') addKeyword();
       });
     });
-
-    // ── CLIP WAKE-UP ──
-    // Ping CLIP dès le chargement de la page pour éviter le cold start HuggingFace
-    (function wakeUpClip() {
-      fetch('/api/clip-warmup').catch(() => {});
-    })();
-
-    window.addEventListener('beforeunload', function() {
+window.addEventListener('beforeunload', function() {
       _stopRequested = true;
       _searching = false;
     });
@@ -1230,7 +1204,7 @@
               'Content-Type': 'application/json',
               ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {})
             },
-            body: JSON.stringify({ keyword, sessionId: _sessionId, useDino: _ultraMode })
+            body: JSON.stringify({ keyword, sessionId: _sessionId })
           });
 
           const ct = response.headers.get('content-type') || '';
