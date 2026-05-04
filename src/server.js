@@ -9,7 +9,6 @@ const { Server } = require('socket.io');
 const scrapeRoutes = require('./routes/scrape');
 const { router: authRouter } = require('./routes/auth');
 const shopRoutes   = require('./routes/shopRoutes');
-const stripeRoutes = require('./routes/stripeRoutes');
 
 const app    = express();
 const server = http.createServer(app);
@@ -69,7 +68,6 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api', scrapeRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
-app.use('/api/stripe', stripeRoutes);
 
 // ── Pages ──
 app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
@@ -82,11 +80,10 @@ server.listen(PORT, () => {
 });
 
 // ── Keep-alive DINOv2 intelligent ──
-// FIX : distingue "ready" / "loading" / "down" et accélère le ping en cas de problème
 const { isClipAvailable } = require('./services/dinoCompare');
 
-const KEEPALIVE_NORMAL_MS  = 4 * 60 * 1000; // 4 min en fonctionnement normal
-const KEEPALIVE_URGENT_MS  = 20 * 1000;      // 20s quand le service est down/loading
+const KEEPALIVE_NORMAL_MS  = 4 * 60 * 1000;
+const KEEPALIVE_URGENT_MS  = 20 * 1000;
 
 let keepaliveTimer = null;
 
@@ -101,7 +98,6 @@ async function runKeepalive() {
       console.log('[clip-keepalive] 🔄 DINOv2 en cours de chargement (cold start) — ping accéléré (20s)');
       scheduleKeepalive(KEEPALIVE_URGENT_MS);
     } else {
-      // status === 'ready'
       console.log('[clip-keepalive] ✅ CLIP actif');
       scheduleKeepalive(KEEPALIVE_NORMAL_MS);
     }
@@ -116,6 +112,4 @@ function scheduleKeepalive(delayMs) {
   keepaliveTimer = setTimeout(runKeepalive, delayMs);
 }
 
-// Démarrage immédiat
 runKeepalive();
-
