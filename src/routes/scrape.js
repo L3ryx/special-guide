@@ -170,7 +170,6 @@ router.post('/search-dropship', async (req, res) => {
   if (!process.env.ETSY_CLIENT_ID) return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
   if (!SERPER_KEYS.length)         return res.status(500).json({ error: 'SERPER_API_KEY missing' });
 
-
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -233,16 +232,19 @@ router.post('/search-dropship', async (req, res) => {
 
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse Google Lens...' });
 
-    // ── STEP 3 : Google Lens + LoFTR ──
+    // ── STEP 3 : Google Lens ──
     const { uploadImageFree } = require('../services/freeImageUploader');
 
     /**
-     * Étape Lens : retourne l'image Etsy uploadée (pubUrl) + les candidats AliExpress
-     * @returns {{ pubUrl: string, aliMatches: object[] }|null}
+     * Recherche Google Lens pour une image Etsy.
+     * Retourne les candidats AliExpress trouvés.
+     *
+     * @returns {{ aliMatch: object }|null}
      */
-    async function lensSearch(etsyImageUrl) {
+    async function analyzeImage(etsyImageUrl) {
       if (!etsyImageUrl || isAborted()) return null;
 
+      // Upload de l'image Etsy pour obtenir une URL publique
       const pubUrl = await uploadImageFree(etsyImageUrl);
       if (!pubUrl || isAborted()) return null;
 
@@ -260,18 +262,18 @@ router.post('/search-dropship', async (req, res) => {
           const detail = serperErr.response?.data;
 
           if (status === 400) {
-            console.warn('[lensSearch] Serper 400:', JSON.stringify(detail));
+            console.warn('[analyzeImage] Serper 400:', JSON.stringify(detail));
             if (detail?.message?.toLowerCase().includes('not enough credits')) throw new Error('serper_no_credits');
             throw serperErr;
           }
           if (status === 429) {
             if (attempt < SERPER_RETRIES - 1) {
               const wait = 1500 * Math.pow(2, attempt);
-              console.warn(`[lensSearch] Serper 429 — retry dans ${wait}ms`);
+              console.warn(`[analyzeImage] Serper 429 — retry dans ${wait}ms`);
               await new Promise(res => setTimeout(res, wait));
               continue;
             }
-            console.warn('[lensSearch] Serper 429 — skip');
+            console.warn('[analyzeImage] Serper 429 — skip');
             return null;
           }
           throw serperErr;
@@ -285,44 +287,15 @@ router.post('/search-dropship', async (req, res) => {
         return u.includes('aliexpress.com') && u.includes('/item/') && (x.imageUrl || x.thumbnailUrl);
       });
 
-      if (!aliMatches.length) return null;
-
-      console.log(`[Lens] ✅ ${aliMatches.length} candidats AliExpress`);
-      return { pubUrl, aliMatches };
-    }
-
-    /**
-     * Pipeline complet pour une image :
-     *  1. Lens → candidats AliExpress
-     *  2. LoFTR (Replicate) → confirmation par keypoint matching
-     *
-     * @returns {{ aliMatch: object, numMatches: number }|null}
-     */
-    async function analyzeImage(etsyImageUrl) {
-      if (isAborted()) return null;
-      try {
-        const lensResult = await lensSearch(etsyImageUrl);
-        if (!lensResult) return null;
-
-        const { findBestLoFTRMatch } = require('../services/loftrMatcher');
-        const { pubUrl, aliMatches } = lensResult;
-
-        const { best, numMatches } = await findBestLoFTRMatch(pubUrl, aliMatches);
-        if (!best) {
-          console.log(`[analyzeImage] ❌ LoFTR — aucun match confirmé (meilleur: ${numMatches} keypoints)`);
-          return null;
-        }
-
-        console.log(`[analyzeImage] ✅ Match confirmé par LoFTR — ${numMatches} keypoints`);
-        return { aliMatch: best, numMatches };
-      } catch (e) {
-        if (e.message === 'serper_401') throw e;
-        if (e.message === 'serper_no_credits') throw e;
-        if (e.message === 'replicate_401') throw e;
-        if (e.message === 'replicate_no_credits') throw e;
-        console.warn('[analyzeImage] erreur:', e.message);
+      if (!aliMatches.length) {
+        console.log(`[analyzeImage] ❌ Aucun candidat AliExpress trouvé via Lens`);
         return null;
       }
+
+      // On prend le premier candidat AliExpress trouvé par Lens
+      const aliMatch = aliMatches[0];
+      console.log(`[analyzeImage] ✅ Match Lens — ${aliMatches.length} candidats AliExpress, meilleur: ${(aliMatch.link || '').slice(0, 60)}`);
+      return { aliMatch };
     }
 
     const dropshippers = [];
@@ -336,7 +309,7 @@ router.post('/search-dropship', async (req, res) => {
         if (!listing) continue;
         analyzed++;
         const shopStart = Date.now();
-        send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
+        send({ step: 'analyzing', total: listings.length, done: analyzed, message: `🔎 ${analyzed}/${listings.length} — ${dropshippers.length} dropshippers` });
 
         try {
           const img1 = listing.image;
@@ -349,9 +322,7 @@ router.post('/search-dropship', async (req, res) => {
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
-          console.log('[worker]', listing.shopName,
-            '| img1:', r1 ? `✅ (LoFTR=${r1.numMatches} keypoints)` : '❌'
-          );
+          console.log('[worker]', listing.shopName, '| Lens:', r1 ? '✅' : '❌');
 
           if (r1) {
             dropshippers.push({
@@ -360,20 +331,19 @@ router.post('/search-dropship', async (req, res) => {
               shopAvatar: null,
               shopImage:  img1,
               listingUrl: listing.link,
-              numMatches: r1.numMatches,
+              aliUrl:     r1.aliMatch.link || r1.aliMatch.url || null,
+              aliImage:   r1.aliMatch.imageUrl || r1.aliMatch.thumbnailUrl || null,
             });
             send({
               step:    'match',
-              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | LoFTR: ${r1.numMatches} keypoints`,
+              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | Lens match`,
               shop:    dropshippers[dropshippers.length - 1],
             });
           }
 
         } catch (e) {
-          if (e.message === 'serper_401')          { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
-          if (e.message === 'serper_no_credits')   { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge sur serper.dev' }); return; }
-          if (e.message === 'replicate_401')       { send({ step: 'error', message: '❌ REPLICATE_API_TOKEN invalide' }); return; }
-          if (e.message === 'replicate_no_credits'){ send({ step: 'error', message: '❌ Crédits Replicate épuisés — recharge sur replicate.com' }); return; }
+          if (e.message === 'serper_401')        { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
+          if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge sur serper.dev' }); return; }
         }
       }
     }
@@ -398,10 +368,9 @@ router.post('/search-dropship', async (req, res) => {
 
 router.get('/health', (req, res) => {
   const keys = {
-    ETSY_CLIENT_ID:       !!process.env.ETSY_CLIENT_ID,
-    SERPER_API_KEY:       !!process.env.SERPER_API_KEY,
-    SERPER_API_KEY_2:     !!process.env.SERPER_API_KEY_2,
-    REPLICATE_API_TOKEN:  !!process.env.REPLICATE_API_TOKEN,
+    ETSY_CLIENT_ID:   !!process.env.ETSY_CLIENT_ID,
+    SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
+    SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
