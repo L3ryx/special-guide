@@ -34,63 +34,42 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-
-// ── Service 2 : Imgur (anonyme via Client-ID) ──
-// Recommandé par SerpApi pour Google Lens (pas de blocage d'URLs)
-// Ajoute IMGUR_CLIENT_ID dans les env vars Render pour utiliser ta propre app Imgur gratuite
-async function uploadToImgur(buffer, mimeType) {
-  const rawId  = process.env.IMGUR_CLIENT_ID || '546c25a59c58ad7';
-  const authHdr = rawId.startsWith('Client-ID') ? rawId : `Client-ID ${rawId}`;
-  try {
-    const form = new FormData();
-    form.append('image', buffer, { filename: 'image.jpg', contentType: mimeType });
-    form.append('type', 'file');
-
-    const res = await axios.post('https://api.imgur.com/3/image', form, {
-      headers: { ...form.getHeaders(), Authorization: authHdr },
-      timeout: 20000,
-      maxContentLength: Infinity,
-    });
-
-    const url = res.data?.data?.link;
-    if (url && url.startsWith('https://')) {
-      console.log('[freeUploader] imgur OK', url);
-      return url;
-    }
-  } catch (e) {
-    console.warn('[freeUploader] imgur failed:', e.message);
+// ── Uploadcare ──
+// Ajoutez UPLOADCARE_PUBLIC_KEY dans les env vars Render
+// Compte gratuit sur uploadcare.com (3GB/mois)
+async function uploadToUploadcare(buffer, mimeType) {
+  const publicKey = process.env.UPLOADCARE_PUBLIC_KEY;
+  if (!publicKey) {
+    console.error('[freeUploader] UPLOADCARE_PUBLIC_KEY manquant dans les env vars');
+    return null;
   }
-  return null;
-}
-
-// ── Service 3 : litterbox (dernier recours) ──
-async function uploadToLitterbox(buffer, mimeType) {
   try {
     const form = new FormData();
-    form.append('reqtype', 'fileupload');
-    form.append('time',    '1h');
-    form.append('fileToUpload', buffer, { filename: 'image.jpg', contentType: mimeType });
+    form.append('UPLOADCARE_PUB_KEY', publicKey);
+    form.append('UPLOADCARE_STORE',   '1'); // conserver le fichier (pas de TTL)
+    form.append('file', buffer, { filename: 'image.jpg', contentType: mimeType });
 
-    const res = await axios.post('https://litterbox.catbox.moe/resources/internals/api.php', form, {
+    const res = await axios.post('https://upload.uploadcare.com/base/', form, {
       headers: form.getHeaders(),
-      timeout: 20000,
+      timeout: 30000,
       maxContentLength: Infinity,
     });
 
-    const url = res.data?.trim();
-    if (url && url.startsWith('https://')) {
-      console.log('[freeUploader] litterbox OK', url);
+    const fileId = res.data?.file;
+    if (fileId) {
+      const url = `https://ucarecdn.com/${fileId}/`;
+      console.log('[freeUploader] uploadcare OK', url);
       return url;
     }
   } catch (e) {
-    console.warn('[freeUploader] litterbox failed:', e.message);
+    console.warn('[freeUploader] uploadcare failed:', e.message);
   }
   return null;
 }
 
 /**
- * Télécharge une image Etsy et l'héberge sur un service public gratuit.
- * Ordre : Imgur → litterbox
+ * Télécharge une image Etsy et l'héberge sur Uploadcare.
+ * Nécessite : UPLOADCARE_PUBLIC_KEY dans les env vars Render
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -107,20 +86,13 @@ async function uploadImageFree(etsyUrl) {
     return null;
   }
 
-  const services = [
-    () => uploadToImgur(img.buffer, img.mimeType),
-    () => uploadToLitterbox(img.buffer, img.mimeType),
-  ];
-
-  for (const service of services) {
-    const url = await service();
-    if (url) {
-      uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
-      return url;
-    }
+  const url = await uploadToUploadcare(img.buffer, img.mimeType);
+  if (url) {
+    uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
+    return url;
   }
 
-  console.error('[freeUploader] tous les services ont échoué pour', etsyUrl);
+  console.error('[freeUploader] uploadcare a échoué pour', etsyUrl);
   return null;
 }
 
