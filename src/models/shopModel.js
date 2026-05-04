@@ -8,6 +8,8 @@ const savedShopSchema = new mongoose.Schema({
   productImage: { type: String, default: null },
   productUrl:   { type: String, default: null },
   keyword:      { type: String, default: null },
+  numSales:     { type: Number, default: null },
+  salesPerYear: { type: Number, default: null },
   savedAt:      { type: Date, default: Date.now },
 });
 
