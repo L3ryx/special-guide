@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Croissant+One&family=Lobster&display=swap" rel="stylesheet" />
+  <script src="https://js.stripe.com/v3/"></script>
   <title>Finder Niche</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -286,6 +287,45 @@
     .empty { text-align:center; padding:40px 20px; color:var(--muted); }
     @media(max-width:640px){ #main-view{padding:60px 14px 20px} .input-row input{font-size:0.95rem;padding:14px 16px} #add-keyword-btn{width:46px;height:46px} }
 
+    /* ── PAY BUTTON (top center) ── */
+    #pay-btn-wrap { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:600; display:none; }
+    #pay-btn { background:#22c55e; color:#fff; border:none; border-radius:12px; padding:10px 24px; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; letter-spacing:0.06em; box-shadow:0 4px 20px rgba(34,197,94,0.5); transition:all 0.2s; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+    #pay-btn:hover { background:#16a34a; transform:scale(1.05); box-shadow:0 6px 28px rgba(34,197,94,0.65); }
+    #pay-btn:active { transform:scale(0.98); }
+
+    /* ── SEARCH COUNTER ── */
+    #search-counter { width:100%; text-align:center; margin-bottom:4px; display:none; }
+    .sc-inner { display:inline-flex; align-items:center; gap:10px; background:rgba(250,204,21,0.1); border:1px solid rgba(250,204,21,0.35); border-radius:12px; padding:8px 20px; }
+    .sc-label { font-size:0.8rem; color:rgba(255,255,255,0.6); font-family:'Courier New',monospace; letter-spacing:0.05em; }
+    .sc-count { font-size:1.1rem; font-weight:700; color:#facc15; font-family:'Croissant One',cursive; min-width:20px; text-align:center; }
+    .sc-count.low { color:#f87171; }
+
+    /* ── STRIPE MODAL ── */
+    #stripe-overlay { position:fixed; inset:0; z-index:99000; background:rgba(0,0,0,0.82); backdrop-filter:blur(10px); display:none; align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto; }
+    #stripe-overlay.open { display:flex; animation:epFade 0.2s ease; }
+    #stripe-box { position:relative; background:#0f0f14; border:1px solid rgba(250,204,21,0.25); border-radius:24px; padding:36px 32px; width:100%; max-width:420px; display:flex; flex-direction:column; gap:20px; box-shadow:0 24px 80px rgba(0,0,0,0.9); animation:epSlide 0.22s ease; margin:auto; }
+    #stripe-close-btn { position:absolute; top:14px; right:16px; background:rgba(255,255,255,0.07); border:none; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:rgba(255,255,255,0.6); font-size:1.1rem; line-height:1; transition:background 0.2s, color 0.2s; }
+    #stripe-close-btn:hover { background:rgba(255,255,255,0.15); color:#fff; }
+    .stripe-logo { text-align:center; font-size:1.5rem; }
+    .stripe-title { text-align:center; font-size:1.3rem; font-weight:700; color:#fff; }
+    .stripe-subtitle { text-align:center; font-size:0.85rem; color:rgba(255,255,255,0.5); line-height:1.5; }
+    .stripe-price-badge { text-align:center; background:rgba(250,204,21,0.1); border:1px solid rgba(250,204,21,0.3); border-radius:14px; padding:16px; }
+    .stripe-price { font-size:2.2rem; font-weight:700; color:#facc15; font-family:'Croissant One',cursive; }
+    .stripe-price-detail { font-size:0.78rem; color:rgba(255,255,255,0.45); margin-top:4px; }
+    .stripe-field-label { font-size:0.78rem; color:rgba(255,255,255,0.55); margin-bottom:6px; letter-spacing:0.05em; text-transform:uppercase; }
+    .stripe-input { width:100%; padding:13px 16px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:12px; color:#fff; font-family:'Courier New',monospace; font-size:1rem; outline:none; transition:border-color 0.2s; }
+    .stripe-input:focus { border-color:#facc15; box-shadow:0 0 0 3px rgba(250,204,21,0.12); }
+    .stripe-input::placeholder { color:rgba(255,255,255,0.25); }
+    .stripe-row { display:flex; gap:12px; }
+    .stripe-row .stripe-field { flex:1; }
+    .stripe-pay-btn { width:100%; padding:16px; background:#facc15; border:none; border-radius:14px; color:#1a1a1a; font-family:'Croissant One',cursive; font-weight:700; font-size:1.05rem; cursor:pointer; transition:all 0.2s; letter-spacing:0.05em; display:flex; align-items:center; justify-content:center; gap:8px; }
+    .stripe-pay-btn:hover { background:#fde047; }
+    .stripe-pay-btn:disabled { opacity:0.6; cursor:not-allowed; }
+    .stripe-cancel { text-align:center; font-size:0.8rem; color:rgba(255,255,255,0.35); cursor:pointer; transition:color 0.2s; }
+    .stripe-cancel:hover { color:rgba(255,255,255,0.7); }
+    .stripe-secure { text-align:center; font-size:0.72rem; color:rgba(255,255,255,0.28); display:flex; align-items:center; justify-content:center; gap:5px; }
+    .stripe-msg { text-align:center; font-size:0.82rem; min-height:1em; color:#f87171; }
+    #stripe-payment-element { min-height:60px; }
 
         /* ── ERROR POPUP ── */
     #error-popup { position:fixed; inset:0; z-index:99999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); backdrop-filter:blur(6px); padding:20px; }
@@ -353,7 +393,30 @@
 
   <a id="niche-list-btn" href="/niche-list">❤️<span class="nl-count" id="nl-count" style="position:absolute;top:-2px;right:-2px;">0</span></a>
 
+  <!-- PAY BUTTON -->
+  <div id="pay-btn-wrap">
+    <button id="pay-btn" onclick="openStripeModal()">💳 Buy</button>
+  </div>
 
+  <!-- STRIPE MODAL -->
+  <div id="stripe-overlay" onclick="stripeOverlayClick(event)">
+    <div id="stripe-box">
+      <button id="stripe-close-btn" onclick="closeStripeModal()" aria-label="Close">✕</button>
+      <div class="stripe-logo">💳</div>
+      <div class="stripe-title">Unlock Searches</div>
+      <div class="stripe-subtitle">Get 20 searches instantly. No subscription, pay once.</div>
+      <div class="stripe-price-badge">
+        <div class="stripe-price">$19.99</div>
+        <div class="stripe-price-detail">= 20 searches · $1.00 per search</div>
+      </div>
+      <!-- Stripe Elements injecte ici -->
+      <div id="stripe-payment-element"></div>
+      <div class="stripe-msg" id="stripe-msg"></div>
+      <button class="stripe-pay-btn" id="stripe-pay-btn" onclick="processPay()">🔒 Pay $19.99</button>
+      <div class="stripe-cancel" onclick="closeStripeModal()">Cancel</div>
+      <div class="stripe-secure">🔒 Secured by Stripe · SSL encrypted</div>
+    </div>
+  </div>
 
   <div id="user-badge">
     <div id="online-indicator">
@@ -408,6 +471,13 @@
 
     <div class="search-card">
       <div id="search-inputs" style="width:100%;display:flex;flex-direction:column;gap:8px;">
+          <!-- SEARCH COUNTER -->
+          <div id="search-counter">
+            <div class="sc-inner">
+              <span class="sc-label">Searches remaining</span>
+              <span class="sc-count" id="sc-count">0</span>
+            </div>
+          </div>
           <input type="text" id="keyword-input" placeholder="Enter keyword">
           <div id="auto-search-row">
             <span id="auto-search-label">🤖 Automated</span>
@@ -566,10 +636,165 @@
       document.getElementById('user-email-display').textContent = email || '—';
       document.getElementById('user-badge').style.display = 'flex';
       document.getElementById('niche-list-btn').style.display = 'flex';
+      document.getElementById('pay-btn-wrap').style.display = 'block';
       initSavedShops();
       loadAutoState();
+      initSearchCredits();
     }
 
+    // ── SEARCH CREDITS & STRIPE (REAL) ──
+    var STRIPE_PK = 'pk_live_51T7tExGaaKHR3H6cYk0dqaId2i0ByoKPAAt7gsiosHw7Jg0VoMazHvXFyYo1EmjxsVk8nQ4RWQgdUS7EPvC5UuG700S5aUHblq';
+    var _stripe = null;
+    var _stripeElements = null;
+    var _stripePaymentEl = null;
+    var _searchCredits = 0;
+    var _unlimited = false;
+
+    function initSearchCredits() {
+      // Load credits from server (stored in DB)
+      fetch('/api/stripe/credits', {
+        headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN }
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ _searchCredits = d.searchCredits || 0; _unlimited = d.unlimited || false; renderCredits(); })
+      .catch(function(){ _searchCredits = 0; _unlimited = false; renderCredits(); });
+    }
+
+    function renderCredits() {
+      var counter = document.getElementById('search-counter');
+      var countEl = document.getElementById('sc-count');
+      if (_unlimited) {
+        counter.style.display = 'block';
+        countEl.textContent = '∞';
+        countEl.className = 'sc-count';
+      } else if (_searchCredits > 0) {
+        counter.style.display = 'block';
+        countEl.textContent = _searchCredits;
+        countEl.className = 'sc-count' + (_searchCredits <= 2 ? ' low' : '');
+      } else {
+        counter.style.display = 'none';
+      }
+    }
+
+    async function consumeCredit() {
+      try {
+        var r = await fetch('/api/stripe/consume', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN, 'Content-Type': 'application/json' }
+        });
+        var d = await r.json();
+        if (!r.ok) return false;
+        _unlimited = d.unlimited || false;
+        _searchCredits = d.searchCredits;
+        renderCredits();
+        return true;
+      } catch(e) { return false; }
+    }
+
+    async function openStripeModal() {
+      document.getElementById('stripe-overlay').classList.add('open');
+      document.getElementById('stripe-msg').textContent = '';
+      document.getElementById('stripe-pay-btn').disabled = true;
+      document.getElementById('stripe-pay-btn').innerHTML = '<span class="btn-spinner"></span> Loading…';
+      document.getElementById('stripe-payment-element').innerHTML = '';
+
+      try {
+        // 1. Request a PaymentIntent from the backend
+        var r = await fetch('/api/stripe/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN, 'Content-Type': 'application/json' }
+        });
+        var d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Server error');
+
+        // 2. Init Stripe Elements
+        _stripe = Stripe(STRIPE_PK);
+        _stripeElements = _stripe.elements({
+          clientSecret: d.clientSecret,
+          locale: 'en',
+          appearance: {
+            theme: 'night',
+            variables: {
+              colorPrimary: '#facc15',
+              colorBackground: '#0f0f14',
+              colorText: '#ffffff',
+              colorDanger: '#f87171',
+              fontFamily: "'Croissant One', cursive",
+              borderRadius: '12px',
+            }
+          }
+        });
+
+        _stripePaymentEl = _stripeElements.create('payment', {
+          wallets: { amazonPay: 'never' }
+        });
+        _stripePaymentEl.mount('#stripe-payment-element');
+        _stripePaymentEl.on('ready', function() {
+          document.getElementById('stripe-pay-btn').disabled = false;
+          document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $19.99';
+        });
+      } catch(e) {
+        document.getElementById('stripe-msg').textContent = e.message;
+        document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $19.99';
+      }
+    }
+
+    function closeStripeModal() {
+      document.getElementById('stripe-overlay').classList.remove('open');
+    }
+
+    function stripeOverlayClick(e) {
+      if (e.target === document.getElementById('stripe-overlay')) closeStripeModal();
+    }
+
+    async function processPay() {
+      var btn = document.getElementById('stripe-pay-btn');
+      var msg = document.getElementById('stripe-msg');
+      if (!_stripe || !_stripeElements) return;
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="btn-spinner"></span> Processing…';
+      msg.textContent = '';
+
+      try {
+        // Confirm payment on Stripe side
+        var result = await _stripe.confirmPayment({
+          elements: _stripeElements,
+          redirect: 'if_required',
+        });
+
+        if (result.error) {
+          msg.textContent = result.error.message;
+          btn.disabled = false;
+          btn.innerHTML = '🔒 Pay $19.99';
+          return;
+        }
+
+        if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+          // Credit account server-side
+          var r2 = await fetch('/api/stripe/confirm-payment', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentIntentId: result.paymentIntent.id })
+          });
+          var d2 = await r2.json();
+          if (!r2.ok) throw new Error(d2.error || 'Confirmation error');
+
+          _searchCredits = d2.searchCredits;
+          renderCredits();
+          closeStripeModal();
+          showToast('✅ Payment successful! 20 searches unlocked.', '#22c55e');
+        } else {
+          msg.textContent = 'Payment not completed. Please try again.';
+          btn.disabled = false;
+          btn.innerHTML = '🔒 Pay $19.99';
+        }
+      } catch(e) {
+        msg.textContent = e.message;
+        btn.disabled = false;
+        btn.innerHTML = '🔒 Pay $19.99';
+      }
+    }
 
     // ── ERROR POPUP ──
     const API_HINTS = {
@@ -933,8 +1158,8 @@
       if (!label) return;
       if (_autoSearch) {
         const remaining = _keywordQueue.length;
-        
-        label.innerHTML = '🤖 Automated';
+        const suffix = remaining > 0 ? ' (' + remaining + ' left)' : '';
+        label.innerHTML = '🤖 Automated' + suffix;
       }
     }
 
@@ -1119,6 +1344,12 @@
     async function startSearch() {
       if (_searching) return;
 
+      // ── CHECK CREDITS ──
+      if (!_unlimited && _searchCredits <= 0) {
+        showToast('⚠️ No searches left — buy more to continue!', '#facc15');
+        openStripeModal();
+        return;
+      }
 
       // Mode auto : prendre le prochain keyword de la queue
       if (_autoSearch) {
@@ -1145,6 +1376,12 @@
         if (_keywords.length === 0) { document.getElementById('keyword-input').focus(); return; }
       }
 
+      const credited = await consumeCredit();
+      if (!credited) {
+        showToast('⚠️ No searches left — buy more to continue!', '#facc15');
+        openStripeModal();
+        return;
+      }
 
       _searching = true;
       _stopRequested = false;
