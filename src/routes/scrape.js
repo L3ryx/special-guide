@@ -151,8 +151,11 @@ async function fetchListingsForDropship(keyword, numPages, onBatch, usedShops = 
       if (shopsSeen.has(l.shopName)) continue;
 
       // ── FILTRE : ignorer les boutiques avec moins de MIN_SALES ventes ──
-      if ((l.numSales || 0) < MIN_SALES) {
-        console.log(`[fetchListings] Skipping ${l.shopName} — only ${l.numSales} sales (< ${MIN_SALES})`);
+      // numSales === 0 peut signifier "API masquée" → on les garde par prudence
+      // On filtre uniquement si la valeur est positive ET inférieure au seuil
+      const sales = l.numSales || 0;
+      if (sales > 0 && sales < MIN_SALES) {
+        console.log(`[fetchListings] Skipping ${l.shopName} — only ${sales} sales (< ${MIN_SALES})`);
         continue;
       }
 
