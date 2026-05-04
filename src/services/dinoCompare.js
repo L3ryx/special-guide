@@ -23,53 +23,10 @@ const axios = require('axios');
 
 // URL du microservice Python DINOv2 (HuggingFace Space)
 // ⚠️  IMPORTANT : le sous-domaine HuggingFace est ENTIÈREMENT en minuscules
-// Exemple correct   : https://monuser-special-dino-service.hf.space
-// Exemple incorrect : https://MonUser-Special-dino-service.hf.space  ← majuscules = erreur DNS
 const CLIP_BASE = process.env.CLIP_SERVICE_URL || 'http://localhost:7860';
 
 // Seuil de similarité cosinus par défaut
-// DINOv2 produit des embeddings visuels purs → les scores sont légèrement différents de CLIP
-// 0.75 est un bon point de départ (vs 0.78 pour CLIP)
 const DEFAULT_THRESHOLD = parseFloat(process.env.CLIP_THRESHOLD || '0.75');
-
-
-/**
- * Retourne un seuil de similarité adapté à la catégorie produit détectée dans le titre.
- * (Même logique que clipCompare.js — ajustée pour DINOv2 qui est légèrement plus sensible)
- *
- * @param {string} productTitle
- * @returns {number} Seuil cosinus entre 0.68 et 0.82
- */
-function getAdaptiveThreshold(productTitle = '') {
-  const title = productTitle.toLowerCase();
-
-  // Bijoux & accessoires : photos très variables → seuil plus bas
-  if (/ring|necklace|earring|bracelet|jewelry|pendant|charm|bangle|brooch/.test(title)) {
-    return 0.68;
-  }
-
-  // Maroquinerie & sacs : silhouettes proches → seuil modéré-haut
-  if (/bag|purse|wallet|handbag|tote|clutch|backpack|pouch/.test(title)) {
-    return 0.76;
-  }
-
-  // Vêtements : coupes similaires fréquentes entre marques → seuil haut
-  if (/dress|shirt|pants|jeans|hoodie|jacket|coat|skirt|blouse|sweater|legging/.test(title)) {
-    return 0.78;
-  }
-
-  // Électronique & accessoires tech : produits quasi-identiques → seuil élevé
-  if (/phone|case|charger|cable|led|lamp|keyboard|mouse|headphone|earphone/.test(title)) {
-    return 0.82;
-  }
-
-  // Décoration / art / home : créations uniques → seuil bas
-  if (/print|poster|art|painting|decor|candle|frame|pillow|cushion/.test(title)) {
-    return 0.70;
-  }
-
-  return DEFAULT_THRESHOLD; // 0.75 par défaut
-}
 
 // 90s max — HuggingFace Spaces peut avoir un cold start de 60-90s
 const TIMEOUT_MS = 90000;
@@ -77,19 +34,66 @@ const TIMEOUT_MS = 90000;
 // Timeout court pour le health check
 const HEALTH_TIMEOUT_MS = 8000;
 
+// FIX : 4 retries avec backoff long pour absorber les cold starts HuggingFace (60-90s)
+// Séquence d'attente : 15s → 30s → 45s → 60s = max 150s de tentatives
+const MAX_RETRIES = 4;
+const RETRY_DELAYS_MS = [15000, 30000, 45000, 60000];
+
+
+/**
+ * Retourne un seuil de similarité adapté à la catégorie produit détectée dans le titre.
+ *
+ * @param {string} productTitle
+ * @returns {number} Seuil cosinus entre 0.68 et 0.82
+ */
+function getAdaptiveThreshold(productTitle = '') {
+  const title = productTitle.toLowerCase();
+
+  if (/ring|necklace|earring|bracelet|jewelry|pendant|charm|bangle|brooch/.test(title)) {
+    return 0.68;
+  }
+  if (/bag|purse|wallet|handbag|tote|clutch|backpack|pouch/.test(title)) {
+    return 0.76;
+  }
+  if (/dress|shirt|pants|jeans|hoodie|jacket|coat|skirt|blouse|sweater|legging/.test(title)) {
+    return 0.78;
+  }
+  if (/phone|case|charger|cable|led|lamp|keyboard|mouse|headphone|earphone/.test(title)) {
+    return 0.82;
+  }
+  if (/print|poster|art|painting|decor|candle|frame|pillow|cushion/.test(title)) {
+    return 0.70;
+  }
+
+  return DEFAULT_THRESHOLD;
+}
+
 
 /**
  * Vérifie si le microservice DINOv2 est disponible.
- * @returns {Promise<boolean>}
+ * Retourne aussi le status brut pour que server.js puisse distinguer "loading" vs "ready".
+ * @returns {Promise<{ available: boolean, status: string|null }>}
  */
 async function isClipAvailable() {
   try {
     const r = await axios.get(`${CLIP_BASE}/health`, { timeout: HEALTH_TIMEOUT_MS });
     const status = r.data?.status;
-    return status === "ready" || status === "loading";
+    return {
+      available: status === 'ready' || status === 'loading',
+      status,
+    };
   } catch {
-    return false;
+    return { available: false, status: null };
   }
+}
+
+
+/**
+ * Helper interne : attend le délai du retry en cours.
+ */
+async function _retryDelay(attempt) {
+  const wait = RETRY_DELAYS_MS[attempt] ?? 60000;
+  await new Promise(r => setTimeout(r, wait));
 }
 
 
@@ -109,7 +113,6 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
     return { similarity: 0, match: false, scales: [], error: 'URLs manquantes', fallback: false };
   }
 
-  const MAX_RETRIES = 2;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const r = await axios.post(
@@ -132,9 +135,9 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
       const isServerError = httpStatus >= 500;
 
       if (isServerError && attempt < MAX_RETRIES) {
-        const wait = 2000 * (attempt + 1); // 2s, 4s
-        console.warn(`[dinoCompare] HTTP ${httpStatus} — retry ${attempt + 1}/${MAX_RETRIES} dans ${wait}ms`);
-        await new Promise(r => setTimeout(r, wait));
+        const wait = RETRY_DELAYS_MS[attempt] ?? 60000;
+        console.warn(`[dinoCompare] HTTP ${httpStatus} — retry ${attempt + 1}/${MAX_RETRIES} dans ${wait / 1000}s`);
+        await _retryDelay(attempt);
         continue;
       }
 
@@ -142,6 +145,7 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
         console.warn(`[dinoCompare] Service DINOv2 indisponible (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback sans comparaison visuelle`);
         return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
       }
+
       const msg = e.response?.data?.error || e.message;
       console.warn('[dinoCompare] Erreur:', msg);
       return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
@@ -152,6 +156,9 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
 
 /**
  * Compare via /compare-hybrid (DINOv2 75% + structure 25%).
+ *
+ * FIX : retry MAX_RETRIES=4 avec backoff long (15s/30s/45s/60s) pour absorber
+ * les cold starts HuggingFace qui peuvent durer jusqu'à 90s.
  *
  * @param {string} etsyUrl
  * @param {string} aliUrl
@@ -169,34 +176,45 @@ async function compareImagesHybrid(etsyUrl, aliUrl, options = {}) {
     return { similarity: 0, match: false, scales: [], error: 'URLs manquantes', fallback: false };
   }
 
-  try {
-    const r = await axios.post(
-      `${CLIP_BASE}/compare-hybrid`,
-      { etsy_url: etsyUrl, ali_url: aliUrl, threshold },
-      { timeout: TIMEOUT_MS }
-    );
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const r = await axios.post(
+        `${CLIP_BASE}/compare-hybrid`,
+        { etsy_url: etsyUrl, ali_url: aliUrl, threshold },
+        { timeout: TIMEOUT_MS }
+      );
 
-    return {
-      similarity:      r.data.similarity      ?? 0,
-      clip_score:      r.data.clip_score       ?? 0,  // = dino_score côté Python
-      structure_score: r.data.structure_score  ?? 0,
-      match:           r.data.match            ?? false,
-      scales:          r.data.scales           ?? [],
-      error:           r.data.error            ?? null,
-      fallback:        false,
-    };
+      return {
+        similarity:      r.data.similarity      ?? 0,
+        clip_score:      r.data.clip_score       ?? 0,
+        structure_score: r.data.structure_score  ?? 0,
+        match:           r.data.match            ?? false,
+        scales:          r.data.scales           ?? [],
+        error:           r.data.error            ?? null,
+        fallback:        false,
+      };
 
-  } catch (e) {
-    const httpStatus = e.response?.status;
-    const isConnRefused = e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND';
-    const isServerError = httpStatus >= 500;
-    if (isConnRefused || isServerError) {
-      console.warn(`[dinoCompare] Service DINOv2 indisponible (hybrid) (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback`);
-      return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
+    } catch (e) {
+      const httpStatus = e.response?.status;
+      const isConnRefused = e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND';
+      const isServerError = httpStatus >= 500;
+
+      if (isServerError && attempt < MAX_RETRIES) {
+        const wait = RETRY_DELAYS_MS[attempt] ?? 60000;
+        console.warn(`[dinoCompare] HTTP ${httpStatus} hybrid — retry ${attempt + 1}/${MAX_RETRIES} dans ${wait / 1000}s`);
+        await _retryDelay(attempt);
+        continue;
+      }
+
+      if (isConnRefused || isServerError) {
+        console.warn(`[dinoCompare] Service DINOv2 indisponible (hybrid) (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback`);
+        return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
+      }
+
+      const msg = e.response?.data?.error || e.message;
+      console.warn('[dinoCompare] Erreur hybrid:', msg);
+      return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
     }
-    const msg = e.response?.data?.error || e.message;
-    console.warn('[dinoCompare] Erreur hybrid:', msg);
-    return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
   }
 }
 
@@ -223,7 +241,7 @@ async function findBestAliMatch(etsyUrl, aliUrls, options = {}) {
 
   const compareFn = options.hybrid ? compareImagesHybrid : compareImages;
 
-  const CONCURRENT = 2; // réduit de 5 à 2 — HuggingFace Space gratuit (CPU) ne supporte pas 5 req parallèles
+  const CONCURRENT = 2;
   let bestSimilarity = -1;
   let bestUrl        = null;
   let anyFallback    = false;
@@ -255,7 +273,7 @@ async function findBestAliMatch(etsyUrl, aliUrls, options = {}) {
 
 
 /**
- * Extrait les URLs d'images depuis un résultat AliExpress (Serper Lens ou scraping).
+ * Extrait les URLs d'images depuis un résultat AliExpress.
  *
  * @param {object} serperMatch
  * @returns {string[]}
@@ -272,7 +290,7 @@ function extractAliImageUrls(serperMatch) {
 
 
 module.exports = {
-  isClipAvailable,      // conserve le nom pour compatibilité avec scrape.js
+  isClipAvailable,
   compareImages,
   compareImagesHybrid,
   findBestAliMatch,
@@ -288,14 +306,10 @@ module.exports = {
  *   AVANT : const { ... } = require('../services/clipCompare');
  *   APRÈS : const { ... } = require('../services/dinoCompare');
  *
- * Et renommez la variable d'env du service HuggingFace :
- *   CLIP_SERVICE_URL=https://monuser-special-dino-service.hf.space
- *
  * Tout le reste (noms de fonctions, structure de réponse, logs) est identique.
  * ───────────────────────────────────────────────────────────────────────────
  */
 
-// Exported separately: returns true only when status === 'ready' (model fully loaded)
 async function isDinoReady() {
   try {
     const r = await axios.get(`${CLIP_BASE}/health`, { timeout: HEALTH_TIMEOUT_MS });
@@ -305,5 +319,5 @@ async function isDinoReady() {
   }
 }
 
-// Add to exports (patch)
 module.exports.isDinoReady = isDinoReady;
+
