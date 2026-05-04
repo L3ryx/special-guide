@@ -283,6 +283,10 @@
     .btn-save-shop.saved { color:#22c55e; }
     .btn-save-shop.saving { opacity:0.5; cursor:not-allowed; }
     .shop-result-btn { flex-shrink:0; padding:8px 14px; border-radius:9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; font-family:'Croissant One',cursive; font-size:0.75rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:all 0.2s; }
+    .sales-gauge-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; flex-shrink:0; min-width:38px; }
+    .sales-gauge-bar { width:10px; border-radius:6px; background:rgba(255,255,255,0.08); overflow:hidden; height:44px; display:flex; flex-direction:column-reverse; }
+    .sales-gauge-fill { width:100%; border-radius:6px; transition:height 0.4s ease; }
+    .sales-gauge-label { font-size:0.52rem; color:rgba(255,255,255,0.45); text-align:center; white-space:nowrap; font-weight:600; }
     .shop-result-btn:hover { background:rgba(255,255,255,0.18); }
     .empty { text-align:center; padding:40px 20px; color:var(--muted); }
     @media(max-width:640px){ #main-view{padding:60px 14px 20px} .input-row input{font-size:0.95rem;padding:14px 16px} #add-keyword-btn{width:46px;height:46px} }
@@ -1606,6 +1610,38 @@
       visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
       visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop ↗';
       inner.appendChild(visitBtn);
+
+      // ── Jauge salesPerYear ──
+      if (shop.salesPerYear !== undefined && shop.salesPerYear !== null) {
+        const spYear = shop.salesPerYear;
+        // Seuils : < 500 faible, 500-2000 moyen, 2000-6000 bon, > 6000 excellent
+        let pct, color, label;
+        if (spYear < 500)       { pct = Math.round((spYear / 500) * 30);  color = '#ef4444'; label = 'Low'; }
+        else if (spYear < 2000) { pct = 30 + Math.round(((spYear - 500)  / 1500) * 25); color = '#f97316'; label = 'Mid'; }
+        else if (spYear < 6000) { pct = 55 + Math.round(((spYear - 2000) / 4000) * 30); color = '#22c55e'; label = 'Good'; }
+        else                    { pct = 85 + Math.min(Math.round(((spYear - 6000) / 4000) * 15), 15); color = '#a78bfa'; label = 'Top'; }
+        pct = Math.min(pct, 100);
+
+        const gaugeWrap = document.createElement('div');
+        gaugeWrap.className = 'sales-gauge-wrap';
+        gaugeWrap.title = (shop.numSales ? shop.numSales.toLocaleString() + ' total sales — ' : '') + spYear.toLocaleString() + ' sales/year';
+
+        const bar = document.createElement('div');
+        bar.className = 'sales-gauge-bar';
+        const fill = document.createElement('div');
+        fill.className = 'sales-gauge-fill';
+        fill.style.height = pct + '%';
+        fill.style.background = color;
+        bar.appendChild(fill);
+
+        const lbl = document.createElement('div');
+        lbl.className = 'sales-gauge-label';
+        lbl.textContent = label;
+
+        gaugeWrap.appendChild(bar);
+        gaugeWrap.appendChild(lbl);
+        inner.appendChild(gaugeWrap);
+      }
 
       card.appendChild(inner);
       document.getElementById('results-container').appendChild(card);
