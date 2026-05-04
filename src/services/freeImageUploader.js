@@ -28,66 +28,66 @@ async function downloadEtsyImage(etsyUrl) {
       });
       const buf = Buffer.from(res.data);
       if (buf.length > 100 && (buf[0] === 0xFF || buf[0] === 0x89)) {
-        console.log(`[freeUploader] ✅ Image Etsy téléchargée — ${buf.length} bytes, type: ${res.headers['content-type']}`);
+        console.log(`[freeUploader] ✅ Image Etsy téléchargée — ${buf.length} bytes`);
         return {
           buffer:   buf,
           mimeType: (res.headers['content-type'] || 'image/jpeg').split(';')[0].trim(),
         };
       } else {
-        console.warn(`[freeUploader] ⚠️ Image invalide depuis ${url.slice(0, 60)} — taille: ${buf.length}, magic: ${buf[0]?.toString(16)} ${buf[1]?.toString(16)}`);
+        console.warn(`[freeUploader] ⚠️ Image invalide — taille: ${buf.length}`);
       }
     } catch (e) {
-      console.warn(`[freeUploader] ❌ Échec téléchargement Etsy (${url.slice(0, 60)}): ${e.message}`);
+      console.warn(`[freeUploader] ❌ Échec téléchargement (${url.slice(0, 60)}): ${e.message}`);
     }
   }
-  console.error(`[freeUploader] ❌ ÉCHEC TOTAL téléchargement image Etsy: ${etsyUrl.slice(0, 80)}`);
+  console.error(`[freeUploader] ❌ ÉCHEC TOTAL téléchargement: ${etsyUrl.slice(0, 80)}`);
   return null;
 }
 
-// ── Uploadcare ──
-async function uploadToUploadcare(buffer, mimeType) {
-  const pubKey = process.env.UPLOADCARE_PUBLIC_KEY;
-  if (!pubKey) {
-    console.error('[freeUploader] ❌ UPLOADCARE_PUBLIC_KEY manquante dans les env vars');
+// ── imgbb ──
+async function uploadToImgbb(buffer, mimeType) {
+  const apiKey = process.env.IMGBB_API_KEY;
+  if (!apiKey) {
+    console.error('[freeUploader] ❌ IMGBB_API_KEY manquante dans les env vars');
     return null;
   }
 
-  console.log(`[freeUploader] 🔄 Upload Uploadcare (pubKey: ${pubKey.slice(0, 8)}...)...`);
+  console.log('[freeUploader] 🔄 Upload imgbb...');
   try {
-    const form = new FormData();
-    form.append('UPLOADCARE_PUB_KEY', pubKey);
-    form.append('UPLOADCARE_STORE', '0'); // pas de stockage permanent
-    form.append('file', buffer, { filename: 'image.jpg', contentType: mimeType });
+    const base64 = buffer.toString('base64');
+    const form   = new FormData();
+    form.append('image', base64);
+    // expiration 1h (3600 secondes) — suffisant pour Serper + Ximilar
+    form.append('expiration', '3600');
 
-    const res = await axios.post('https://upload.uploadcare.com/base/', form, {
-      headers: form.getHeaders(),
-      timeout: 20000,
-      maxContentLength: Infinity,
-    });
+    const res = await axios.post(
+      `https://api.imgbb.com/1/upload?key=${apiKey}`,
+      form,
+      { headers: form.getHeaders(), timeout: 20000 }
+    );
 
-    const uuid = res.data?.file;
-    if (uuid) {
-      const url = `https://ucarecdn.com/${uuid}/`;
-      console.log(`[freeUploader] ✅ Uploadcare OK → ${url}`);
+    const url = res.data?.data?.url;
+    if (url) {
+      console.log(`[freeUploader] ✅ imgbb OK → ${url}`);
       return url;
     }
-    console.warn(`[freeUploader] ⚠️ Uploadcare — pas de uuid dans la réponse: ${JSON.stringify(res.data)}`);
+    console.warn(`[freeUploader] ⚠️ imgbb — réponse inattendue: ${JSON.stringify(res.data)}`);
   } catch (e) {
     const status = e.response?.status;
     const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-    if (status === 403) {
-      console.error('[freeUploader] ❌ Uploadcare 403 — clé publique invalide ou quota dépassé');
+    if (status === 400) {
+      console.error(`[freeUploader] ❌ imgbb 400 — clé API invalide ou image corrompue: ${detail}`);
     } else if (status === 429) {
-      console.error('[freeUploader] ❌ Uploadcare 429 — rate limit atteint');
+      console.error('[freeUploader] ❌ imgbb 429 — rate limit atteint');
     } else {
-      console.error(`[freeUploader] ❌ Uploadcare FAILED — HTTP ${status || 'réseau'}: ${detail}`);
+      console.error(`[freeUploader] ❌ imgbb FAILED — HTTP ${status || 'réseau'}: ${detail}`);
     }
   }
   return null;
 }
 
 /**
- * Télécharge une image Etsy et l'héberge sur Uploadcare.
+ * Télécharge une image Etsy et l'héberge sur imgbb.
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -103,19 +103,19 @@ async function uploadImageFree(etsyUrl) {
 
   const img = await downloadEtsyImage(etsyUrl);
   if (!img) {
-    console.error('[freeUploader] ❌ BLOQUÉ — impossible de télécharger l\'image Etsy. Ximilar ne pourra pas comparer.');
+    console.error('[freeUploader] ❌ BLOQUÉ — impossible de télécharger l\'image Etsy.');
     return null;
   }
 
-  console.log(`[freeUploader] 📤 Upload en cours (${img.buffer.length} bytes, ${img.mimeType})...`);
+  console.log(`[freeUploader] 📤 Upload en cours (${img.buffer.length} bytes)...`);
 
-  const url = await uploadToUploadcare(img.buffer, img.mimeType);
+  const url = await uploadToImgbb(img.buffer, img.mimeType);
   if (url) {
     uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
     return url;
   }
 
-  console.error('[freeUploader] ❌ ÉCHEC — Upload Uploadcare échoué. Ximilar ne sera PAS appelé pour cette image.');
+  console.error('[freeUploader] ❌ ÉCHEC upload imgbb. Ximilar ne sera PAS appelé.');
   return null;
 }
 
