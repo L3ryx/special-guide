@@ -233,7 +233,7 @@ router.post('/search-dropship', async (req, res) => {
 
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse Google Lens...' });
 
-    // ── STEP 3 : Google Lens + pHash ──
+    // ── STEP 3 : Google Lens + LoFTR ──
     const { uploadImageFree } = require('../services/freeImageUploader');
 
     /**
@@ -294,9 +294,9 @@ router.post('/search-dropship', async (req, res) => {
     /**
      * Pipeline complet pour une image :
      *  1. Lens → candidats AliExpress
-     *  2. pHash → confirmation visuelle (100% gratuit, local)
+     *  2. LoFTR (Replicate) → confirmation par keypoint matching
      *
-     * @returns {{ aliMatch: object, pHashScore: number|null }|null}
+     * @returns {{ aliMatch: object, numMatches: number }|null}
      */
     async function analyzeImage(etsyImageUrl) {
       if (isAborted()) return null;
@@ -304,20 +304,22 @@ router.post('/search-dropship', async (req, res) => {
         const lensResult = await lensSearch(etsyImageUrl);
         if (!lensResult) return null;
 
-        const { findBestAliMatch } = require('../services/imageComparator');
+        const { findBestLoFTRMatch } = require('../services/loftrMatcher');
         const { pubUrl, aliMatches } = lensResult;
 
-        const { best, score } = await findBestAliMatch(pubUrl, aliMatches);
+        const { best, numMatches } = await findBestLoFTRMatch(pubUrl, aliMatches);
         if (!best) {
-          console.log(`[analyzeImage] ❌ pHash — aucun match visuel confirmé (meilleur score: ${score})`);
+          console.log(`[analyzeImage] ❌ LoFTR — aucun match confirmé (meilleur: ${numMatches} keypoints)`);
           return null;
         }
 
-        console.log(`[analyzeImage] ✅ Match confirmé par pHash — score: ${score}`);
-        return { aliMatch: best, pHashScore: score };
+        console.log(`[analyzeImage] ✅ Match confirmé par LoFTR — ${numMatches} keypoints`);
+        return { aliMatch: best, numMatches };
       } catch (e) {
         if (e.message === 'serper_401') throw e;
         if (e.message === 'serper_no_credits') throw e;
+        if (e.message === 'replicate_401') throw e;
+        if (e.message === 'replicate_no_credits') throw e;
         console.warn('[analyzeImage] erreur:', e.message);
         return null;
       }
@@ -348,7 +350,7 @@ router.post('/search-dropship', async (req, res) => {
           if (isAborted()) break;
 
           console.log('[worker]', listing.shopName,
-            '| img1:', r1 ? `✅ (pHash=${r1.pHashScore})` : '❌'
+            '| img1:', r1 ? `✅ (LoFTR=${r1.numMatches} keypoints)` : '❌'
           );
 
           if (r1) {
@@ -358,18 +360,20 @@ router.post('/search-dropship', async (req, res) => {
               shopAvatar: null,
               shopImage:  img1,
               listingUrl: listing.link,
-              pHashScore: r1.pHashScore,
+              numMatches: r1.numMatches,
             });
             send({
               step:    'match',
-              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | pHash: ${r1.pHashScore}`,
+              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | LoFTR: ${r1.numMatches} keypoints`,
               shop:    dropshippers[dropshippers.length - 1],
             });
           }
 
         } catch (e) {
-          if (e.message === 'serper_401')       { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
-          if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge ton compte sur serper.dev' }); return; }
+          if (e.message === 'serper_401')          { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
+          if (e.message === 'serper_no_credits')   { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge sur serper.dev' }); return; }
+          if (e.message === 'replicate_401')       { send({ step: 'error', message: '❌ REPLICATE_API_TOKEN invalide' }); return; }
+          if (e.message === 'replicate_no_credits'){ send({ step: 'error', message: '❌ Crédits Replicate épuisés — recharge sur replicate.com' }); return; }
         }
       }
     }
@@ -394,9 +398,10 @@ router.post('/search-dropship', async (req, res) => {
 
 router.get('/health', (req, res) => {
   const keys = {
-    ETSY_CLIENT_ID:   !!process.env.ETSY_CLIENT_ID,
-    SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
-    SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
+    ETSY_CLIENT_ID:       !!process.env.ETSY_CLIENT_ID,
+    SERPER_API_KEY:       !!process.env.SERPER_API_KEY,
+    SERPER_API_KEY_2:     !!process.env.SERPER_API_KEY_2,
+    REPLICATE_API_TOKEN:  !!process.env.REPLICATE_API_TOKEN,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
