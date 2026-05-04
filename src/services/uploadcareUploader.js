@@ -34,40 +34,34 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── Uploadcare (service principal) ──
-// Utilise l'API REST Uploadcare avec la clé publique via upload direct
-async function uploadToUploadcare(buffer, mimeType) {
-  const publicKey = process.env.UPLOADCARE_PUBLIC_KEY;
-  if (!publicKey) {
-    console.warn('[uploadcareUploader] UPLOADCARE_PUBLIC_KEY not set');
-    return null;
-  }
+// ── litterbox.catbox.moe (sans clé API, URLs valides 1h) ──
+async function uploadToLitterbox(buffer, mimeType) {
   try {
     const form = new FormData();
-    form.append('UPLOADCARE_PUB_KEY', publicKey);
-    form.append('UPLOADCARE_STORE', '1');
-    form.append('file', buffer, { filename: 'image.jpg', contentType: mimeType });
+    form.append('reqtype',      'fileupload');
+    form.append('time',         '1h');
+    form.append('fileToUpload', buffer, { filename: 'image.jpg', contentType: mimeType });
 
-    const res = await axios.post('https://upload.uploadcare.com/base/', form, {
-      headers: { ...form.getHeaders() },
-      timeout: 30000,
+    const res = await axios.post('https://litterbox.catbox.moe/resources/internals/api.php', form, {
+      headers: form.getHeaders(),
+      timeout: 20000,
       maxContentLength: Infinity,
     });
 
-    const uuid = res.data?.file;
-    if (uuid) {
-      const url = `https://ucarecdn.com/${uuid}/`;
-      console.log('[uploadcareUploader] Uploadcare OK', url);
+    const url = res.data?.trim();
+    if (url && url.startsWith('https://')) {
+      console.log('[uploader] litterbox OK', url);
       return url;
     }
   } catch (e) {
-    console.warn('[uploadcareUploader] Uploadcare failed:', e.message);
+    console.warn('[uploader] litterbox failed:', e.message);
   }
   return null;
 }
 
 /**
- * Télécharge une image Etsy et l'héberge sur Uploadcare.
+ * Télécharge une image Etsy et l'héberge sur litterbox.catbox.moe.
+ * URLs publiques valides 1h — suffisant pour Serper Google Lens.
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -80,17 +74,17 @@ async function uploadImageFree(etsyUrl) {
 
   const img = await downloadEtsyImage(etsyUrl);
   if (!img) {
-    console.warn('[uploadcareUploader] impossible de télécharger:', etsyUrl);
+    console.warn('[uploader] impossible de télécharger:', etsyUrl);
     return null;
   }
 
-  const url = await uploadToUploadcare(img.buffer, img.mimeType);
+  const url = await uploadToLitterbox(img.buffer, img.mimeType);
   if (url) {
     uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
     return url;
   }
 
-  console.error('[uploadcareUploader] upload Uploadcare échoué pour', etsyUrl);
+  console.error('[uploader] litterbox échoué pour', etsyUrl);
   return null;
 }
 
