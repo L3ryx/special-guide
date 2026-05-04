@@ -1,15 +1,10 @@
 /**
- * dinoCompare.js  (remplace clipCompare.js)
+ * dinoCompare.js — Client Node.js pour le microservice SigLIP (app.py)
  * ─────────────────────────────────────────────────────────────────────────────
- * Client Node.js pour appeler le microservice Python DINOv2 (dino_service.py).
- *
- * Interface IDENTIQUE à clipCompare.js — aucun changement requis dans scrape.js
- * sauf l'import (voir commentaire en bas du fichier).
- *
- * DINOv2 (facebook/dinov2-base) remplace CLIP (openai/clip-vit-large-patch14) :
- *   - Embeddings purement visuels → meilleure comparaison objet-à-objet
- *   - Plus robuste aux changements de fond / éclairage / recadrage
- *   - Même routes exposées : /compare-images, /compare-hybrid, /health
+ * Utilise google/siglip-base-patch16-224 à la place de DINOv2 :
+ *   - Sigmoid loss → embeddings plus discriminants que CLIP et DINOv2
+ *   - Meilleure précision objet-à-objet sur produits e-commerce
+ *   - Interface HTTP identique : /compare-images, /compare-hybrid, /health
  *
  * Ce module expose :
  *   - compareImages(etsyUrl, aliUrl, options)         → { similarity, match, scales }
@@ -23,7 +18,7 @@ const axios = require('axios');
 
 // URL du microservice Python DINOv2 (HuggingFace Space)
 // ⚠️  IMPORTANT : le sous-domaine HuggingFace est ENTIÈREMENT en minuscules
-const CLIP_BASE = process.env.CLIP_SERVICE_URL || 'http://localhost:7860';
+const CLIP_BASE = process.env.SIGLIP_SERVICE_URL || process.env.CLIP_SERVICE_URL || 'http://localhost:7860';
 
 // Seuil de similarité cosinus par défaut
 const DEFAULT_THRESHOLD = parseFloat(process.env.CLIP_THRESHOLD || '0.75');
@@ -136,18 +131,18 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
 
       if (isServerError && attempt < MAX_RETRIES) {
         const wait = RETRY_DELAYS_MS[attempt] ?? 60000;
-        console.warn(`[dinoCompare] HTTP ${httpStatus} — retry ${attempt + 1}/${MAX_RETRIES} dans ${wait / 1000}s`);
+        console.warn(`[siglipCompare] HTTP ${httpStatus} — retry ${attempt + 1}/${MAX_RETRIES} dans ${wait / 1000}s`);
         await _retryDelay(attempt);
         continue;
       }
 
       if (isConnRefused || isServerError) {
-        console.warn(`[dinoCompare] Service DINOv2 indisponible (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback sans comparaison visuelle`);
+        console.warn(`[siglipCompare] Service SigLIP indisponible (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback sans comparaison visuelle`);
         return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
       }
 
       const msg = e.response?.data?.error || e.message;
-      console.warn('[dinoCompare] Erreur:', msg);
+      console.warn('[siglipCompare] Erreur:', msg);
       return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
     }
   }
@@ -201,18 +196,18 @@ async function compareImagesHybrid(etsyUrl, aliUrl, options = {}) {
 
       if (isServerError && attempt < MAX_RETRIES) {
         const wait = RETRY_DELAYS_MS[attempt] ?? 60000;
-        console.warn(`[dinoCompare] HTTP ${httpStatus} hybrid — retry ${attempt + 1}/${MAX_RETRIES} dans ${wait / 1000}s`);
+        console.warn(`[siglipCompare] HTTP ${httpStatus} hybrid — retry ${attempt + 1}/${MAX_RETRIES} dans ${wait / 1000}s`);
         await _retryDelay(attempt);
         continue;
       }
 
       if (isConnRefused || isServerError) {
-        console.warn(`[dinoCompare] Service DINOv2 indisponible (hybrid) (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback`);
+        console.warn(`[siglipCompare] Service SigLIP indisponible (hybrid) (${isServerError ? 'HTTP ' + httpStatus : e.code}) — fallback`);
         return { similarity: 0, match: false, scales: [], error: 'service_unavailable', fallback: true };
       }
 
       const msg = e.response?.data?.error || e.message;
-      console.warn('[dinoCompare] Erreur hybrid:', msg);
+      console.warn('[siglipCompare] Erreur hybrid:', msg);
       return { similarity: 0, match: false, scales: [], error: msg, fallback: false };
     }
   }
@@ -320,4 +315,6 @@ async function isDinoReady() {
 }
 
 module.exports.isDinoReady = isDinoReady;
+// Alias pour clarté
+module.exports.isSigLIPReady = isDinoReady;
 
