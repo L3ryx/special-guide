@@ -88,10 +88,6 @@
       font-size:0.85rem; font-weight:700; transition:all 0.2s; flex-shrink:0; line-height:1;
     }
     .btn-delete:hover { background:rgba(255,80,80,0.3); border-color:rgba(255,80,80,0.7); color:#fff; }
-    .sales-gauge-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; flex-shrink:0; min-width:38px; margin-right:6px; }
-    .sales-gauge-bar { width:10px; border-radius:6px; background:rgba(255,255,255,0.08); overflow:hidden; height:44px; display:flex; flex-direction:column-reverse; }
-    .sales-gauge-fill { width:100%; border-radius:6px; transition:height 0.4s ease; }
-    .sales-gauge-label { font-size:0.52rem; color:rgba(255,255,255,0.45); text-align:center; white-space:nowrap; font-weight:600; }
 
     .keyword-group { display:flex; flex-direction:column; gap:14px; }
     .keyword-group-header {
@@ -360,32 +356,6 @@
 
       center.appendChild(actions);
       row.appendChild(center);
-
-      // ── Jauge salesPerYear ──
-      if (shop.salesPerYear != null) {
-        const spYear = shop.salesPerYear;
-        let pct, color, label;
-        if (spYear < 500)       { pct = Math.round((spYear / 500) * 30);  color = '#ef4444'; label = 'Low'; }
-        else if (spYear < 2000) { pct = 30 + Math.round(((spYear - 500)  / 1500) * 25); color = '#f97316'; label = 'Mid'; }
-        else if (spYear < 6000) { pct = 55 + Math.round(((spYear - 2000) / 4000) * 30); color = '#22c55e'; label = 'Good'; }
-        else                    { pct = 85 + Math.min(Math.round(((spYear - 6000) / 4000) * 15), 15); color = '#a78bfa'; label = 'Top'; }
-        pct = Math.min(pct, 100);
-
-        const gaugeWrap = document.createElement('div');
-        gaugeWrap.className = 'sales-gauge-wrap';
-        gaugeWrap.title = (shop.numSales ? shop.numSales.toLocaleString() + ' total sales — ' : '') + spYear.toLocaleString() + ' sales/year';
-
-        const bar = document.createElement('div'); bar.className = 'sales-gauge-bar';
-        const fill = document.createElement('div'); fill.className = 'sales-gauge-fill';
-        fill.style.height = pct + '%'; fill.style.background = color;
-        bar.appendChild(fill);
-
-        const lbl = document.createElement('div'); lbl.className = 'sales-gauge-label';
-        lbl.textContent = label;
-
-        gaugeWrap.appendChild(bar); gaugeWrap.appendChild(lbl);
-        row.appendChild(gaugeWrap);
-      }
 
       const delBtn = document.createElement('button');
       delBtn.className = 'btn-delete'; delBtn.innerHTML = '✕'; delBtn.title = 'Remove';
