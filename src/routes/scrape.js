@@ -3,22 +3,18 @@ const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
-// DINOv2 : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
 const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable, isDinoReady } = require('../services/dinoCompare');
 
-// ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
   mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/finder_niche')
     .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB:', err.message));
 }
 
-
-// ── Clé Serper unique ──
 const SERPER_KEYS = [
   process.env.SERPER_API_KEY,
   process.env.SERPER_API_KEY_2,
-].filter(Boolean); // FIX : support 2ème clé de backup (SERPER_API_KEY_2)
+].filter(Boolean);
 let _serperKeyIndex = 0;
 function getSerperKey() {
   const key = SERPER_KEYS[_serperKeyIndex % SERPER_KEYS.length];
@@ -69,11 +65,20 @@ router.post('/niche-keyword', async (req, res) => {
 });
 
 
+// ── MIN SALES FILTER ──
+const MIN_SALES = 100;
+
 /**
- * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
+ * QUEUE 1 — Fetch metadata (shop name, image, numSales) : rapide
+ * QUEUE 2 — lensMatch + DINO : lent
+ *
+ * Les deux queues tournent en parallèle :
+ * Queue 1 alimente Queue 2 en temps réel.
+ * Les images des boutiques en cours d'analyse Queue 2 sont pré-chargées
+ * pendant que le worker Queue 1 précédent tourne encore.
  */
-async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 5;
+async function fetchListingsForDropship(keyword, numPages, onBatch, usedShops = [], isAborted = () => false) {
+  const MAX_PAGES  = Math.min(Math.max(1, numPages || 5), 10);
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
   const shopIdToRaw = new Map();
@@ -144,6 +149,13 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       const l = r.value;
       if (!l.shopName || !l.image) continue;
       if (shopsSeen.has(l.shopName)) continue;
+
+      // ── FILTRE : ignorer les boutiques avec moins de MIN_SALES ventes ──
+      if ((l.numSales || 0) < MIN_SALES) {
+        console.log(`[fetchListings] Skipping ${l.shopName} — only ${l.numSales} sales (< ${MIN_SALES})`);
+        continue;
+      }
+
       shopsSeen.add(l.shopName);
       listings.push({
         listingId: l.listingId,
@@ -160,26 +172,24 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     await new Promise(r => setTimeout(r, 50));
   }
 
-  console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
+  console.log('fetchListingsForDropship done:', listings.length, 'unique shops (>= ' + MIN_SALES + ' sales) with image');
   return listings;
 }
 
 
 // ── SEARCH DROPSHIP ──
 router.post('/search-dropship', async (req, res) => {
-  const { keyword, sessionId } = req.body;
+  const { keyword, sessionId, numPages } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
   if (!SERPER_KEYS.length) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
-
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   const send = d => { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch {} };
 
-  // ── Abort detection ──
   for (const [key, val] of activeSearches.entries()) {
     if (val === true) activeSearches.delete(key);
   }
@@ -188,12 +198,9 @@ router.post('/search-dropship', async (req, res) => {
   const isAborted = () => activeSearches.get(sid) === true;
 
   try {
-
-    // ── STEP 1 : Récupérer les boutiques déjà analysées ──
     const AutoSearchState = require('../models/autoSearchModel');
     let usedShops = [];
     try {
-      const { requireAuth } = require('./auth');
       const jwt = require('jsonwebtoken');
       const JWT_SECRET = process.env.JWT_SECRET;
       const header = req.headers.authorization || '';
@@ -210,16 +217,13 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 & 3 : Warm-up DINOv2 + Scraping Etsy en parallèle ──
     send({ step: 'analyzing', message: '🤖 Vérification du service DINOv2...' });
     send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
 
     async function waitForDino(maxAttempts = 8, delayMs = 20000) {
       for (let i = 0; i < maxAttempts; i++) {
-        // First check: is the service reachable at all (ready OR loading)?
         const reachable = await isClipAvailable().catch(() => false);
         if (!reachable) continue;
-        // Second check: is the model fully loaded?
         const ready = await isDinoReady().catch(() => false);
         if (ready) return true;
         if (i < maxAttempts - 1) {
@@ -238,7 +242,8 @@ router.post('/search-dropship', async (req, res) => {
         waitForDino(),
         fetchListingsForDropship(
           keyword,
-          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
+          numPages || 5,
+          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/' + maxPages + ' — ' + count + ' boutiques (≥' + MIN_SALES + ' ventes)...' }),
           usedShops,
           isAborted
         ),
@@ -257,30 +262,17 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     send({ step: 'analyzing', message: '✅ DINOv2 prêt — comparaison visuelle obligatoire activée' });
-    console.log('[search-dropship] ✅ DINOv2 disponible — comparaison visuelle obligatoire');
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
     listings = listings.filter(l => l.shopName);
     console.log('[search-dropship] listings found:', listings.length);
 
     if (!listings.length) {
-      send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
+      send({ step: 'error', message: '❌ Aucune boutique trouvée (toutes < ' + MIN_SALES + ' ventes ou déjà analysées)' });
       return res.end();
     }
-    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse DINOv2...' });
+    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques (≥' + MIN_SALES + ' ventes). Analyse DINOv2...' });
 
-    // ── STEP 4 : Google Lens + CLIP obligatoire ──
-
-    /**
-     * Vérifie si une image Etsy trouve son objet sur AliExpress.
-     *
-     * CLIP est OBLIGATOIRE :
-     *  - Si CLIP rejette l'objet → null (pas de match)
-     *  - Si CLIP est en erreur   → null (pas de match, on ne fait pas confiance à Serper seul)
-     *  - Aucun fallback pHash, aucun fallback Serper seul
-     *
-     * @returns {object|null} Le match AliExpress confirmé par CLIP, ou null
-     */
     const { uploadImageFree } = require('../services/freeImageUploader');
 
     async function lensMatchWithClip(etsyImageUrl) {
@@ -288,14 +280,9 @@ router.post('/search-dropship', async (req, res) => {
       try {
         if (!etsyImageUrl || isAborted()) return null;
 
-        // ── Étape 0 : upload vers un hébergeur public gratuit ──
-        // Serper Lens nécessite une URL publique (les URLs i.etsystatic.com sont rejetées).
-        // On utilise 0x0.st avec fallback sur litterbox — sans clé API.
         const pub = await uploadImageFree(etsyImageUrl);
         if (!pub || isAborted()) return null;
 
-        // ── Étape 1 : Google Lens pour trouver des candidats AliExpress ──
-        // Retry automatique sur 429 (rate limit Serper) avec backoff exponentiel
         let r;
         const SERPER_RETRIES = 3;
         for (let attempt = 0; attempt < SERPER_RETRIES; attempt++) {
@@ -304,32 +291,24 @@ router.post('/search-dropship', async (req, res) => {
               { url: pub, gl: 'us', hl: 'en' },
               { headers: { 'X-API-KEY': getSerperKey() }, timeout: 25000 }
             );
-            break; // succès → sort du loop
+            break;
           } catch (serperErr) {
             const status = serperErr.response?.status;
             const detail = serperErr.response?.data;
 
             if (status === 400) {
-              console.warn('[lensMatchWithClip] Serper 400 — détail:', JSON.stringify(detail));
-              if (detail?.message?.toLowerCase().includes('not enough credits')) {
-                throw new Error('serper_no_credits');
-              }
-              throw serperErr; // autre 400 non récupérable
+              if (detail?.message?.toLowerCase().includes('not enough credits')) throw new Error('serper_no_credits');
+              throw serperErr;
             }
-
             if (status === 429) {
               if (attempt < SERPER_RETRIES - 1) {
-                const wait = 1500 * Math.pow(2, attempt); // 1.5s, 3s
-                console.warn(`[lensMatchWithClip] Serper 429 — rate limit, retry dans ${wait}ms`);
+                const wait = 1500 * Math.pow(2, attempt);
                 await new Promise(res => setTimeout(res, wait));
                 continue;
               }
-              // Dernier essai épuisé → on skip silencieusement (pas un crash)
-              console.warn('[lensMatchWithClip] Serper 429 — skip après', SERPER_RETRIES, 'tentatives');
               return null;
             }
-
-            throw serperErr; // autre erreur (réseau, 5xx…)
+            throw serperErr;
           }
         }
         if (isAborted()) return null;
@@ -341,46 +320,27 @@ router.post('/search-dropship', async (req, res) => {
                  (x.imageUrl || x.thumbnailUrl);
         });
 
-        // Pas de candidat AliExpress trouvé par Serper → pas de match
         if (!aliMatches.length) return null;
 
-        // Étape 2 : DINOv2 — vérification visuelle OBLIGATOIRE
         const aliUrls = aliMatches
-          .slice(0, 4) // augmenté à 4 candidats pour plus de chances de match
+          .slice(0, 4)
           .flatMap(m => extractAliImageUrls(m))
           .filter(Boolean);
 
-        if (!aliUrls.length) {
-          // Serper n'a retourné aucune image AliExpress utilisable → refus
-          console.log(`[DINO] ❌ Aucune image AliExpress exploitable pour DINOv2`);
-          return null;
-        }
+        if (!aliUrls.length) return null;
 
         const dinoResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
           threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.65'),
           hybrid: true,
         });
 
-        console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
-
-        // Si le service DINOv2 est en 500 (fallback=true) → on skip ce shop et on log
-        if (dinoResult.fallback) {
-          console.warn(`[DINO] ⚠️ Service DINOv2 retourne 500/indisponible — shop ignoré (${etsyImageUrl?.slice(-30)})`);
-          return null;
-        }
-
-        // DINOv2 confirme l'objet → match validé
-        if (dinoResult.match) {
-          return { ...aliMatches[0], clipSimilarity: dinoResult.similarity };
-        }
-
-        // DINOv2 rejette l'objet → pas de match même si Serper avait trouvé quelque chose
-        console.log(`[DINO] ❌ Objet non confirmé (sim=${dinoResult.similarity} < seuil)`);
+        if (dinoResult.fallback) return null;
+        if (dinoResult.match) return { ...aliMatches[0], clipSimilarity: dinoResult.similarity };
         return null;
 
       } catch (e) {
         if (e.response?.status === 401) throw new Error('serper_401');
-        if (e.message === 'serper_no_credits') throw e; // remonte pour stopper la recherche
+        if (e.message === 'serper_no_credits') throw e;
         console.warn('[lensMatchWithClip] erreur:', e.message);
         return null;
       }
@@ -388,29 +348,58 @@ router.post('/search-dropship', async (req, res) => {
 
     const dropshippers = [];
     let analyzed = 0;
-    const queue = [...listings];
 
-    async function worker() {
-      while (queue.length > 0) {
+    // ── QUEUE 1 : Metadata (déjà récupérées) → alimente metaQueue ──
+    // ── QUEUE 2 : lensMatch+DINO (lente) ──
+    // Les deux queues tournent en parallèle via un canal partagé.
+    // On pré-charge les images de la prochaine boutique pendant que le worker DINO tourne.
+
+    const lensQueue = [];       // boutiques prêtes pour DINO
+    let metaDone = true;        // toutes les métadonnées sont déjà disponibles
+
+    // Pré-charger les images en avance (prefetch)
+    const prefetchCache = new Map(); // imageUrl → Promise<void>
+    function prefetchImage(url) {
+      if (!url || prefetchCache.has(url)) return;
+      prefetchCache.set(url, fetch ? undefined : undefined); // marque comme "en cours"
+      // On lance un HEAD/GET silencieux pour chauffer le cache réseau côté upload
+      uploadImageFree(url).then(pub => {
+        if (pub) prefetchCache.set(url, pub);
+      }).catch(() => {});
+    }
+
+    // Alimenter la lensQueue avec toutes les boutiques
+    // et pré-charger les images en avance
+    for (let i = 0; i < listings.length; i++) {
+      lensQueue.push(listings[i]);
+      // Pré-charger les 2 boutiques suivantes
+      if (i + 1 < listings.length) prefetchImage(listings[i + 1].image);
+      if (i + 2 < listings.length) prefetchImage(listings[i + 2].image);
+    }
+
+    // Worker DINO — 3 workers en parallèle (limite Serper 429)
+    async function dinoWorker() {
+      while (lensQueue.length > 0) {
         if (isAborted()) break;
-        const listing = queue.shift();
+        const listing = lensQueue.shift();
         if (!listing) continue;
         analyzed++;
         const shopStart = Date.now();
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
+
+        // Pré-charger les prochaines images pendant que DINO tourne
+        const nextIdx = analyzed + 2;
+        if (nextIdx < listings.length) prefetchImage(listings[nextIdx].image);
+
         try {
           const img1 = listing.image;
-          if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
+          if (!img1) { console.warn('[dinoWorker] no img1 for', listing.shopName); continue; }
 
-          console.log('[worker] running lensMatch+CLIP pour', listing.shopName);
           const m1 = await lensMatchWithClip(img1);
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
-          console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '');
-
-          // Une seule image suffit pour confirmer le dropshipper
           if (m1) {
             const sim1 = m1?.clipSimilarity || null;
             dropshippers.push({
@@ -435,8 +424,7 @@ router.post('/search-dropship', async (req, res) => {
       }
     }
 
-    // 3 workers max — au-delà, Serper retourne 429 (rate limit)
-    await Promise.all(Array.from({ length: 3 }, worker));
+    await Promise.all(Array.from({ length: 3 }, dinoWorker));
     activeSearches.delete(sid);
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
@@ -454,7 +442,6 @@ router.post('/search-dropship', async (req, res) => {
 
 
 // ── CLIP WAKE-UP ──
-// Appelé au chargement de la page pour réveiller HuggingFace avant la recherche
 router.get('/dino-warmup', async (req, res) => {
   try {
     const ready = await isClipAvailable();
