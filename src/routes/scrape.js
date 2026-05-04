@@ -15,10 +15,7 @@ if (mongoose.connection.readyState === 0) {
 
 
 // ── Clé Serper unique ──
-const SERPER_KEYS = [
-  process.env.SERPER_API_KEY,
-  process.env.SERPER_API_KEY_2,
-].filter(Boolean); // FIX : support 2ème clé de backup (SERPER_API_KEY_2)
+const SERPER_KEYS = [process.env.SERPER_API_KEY].filter(Boolean);
 let _serperKeyIndex = 0;
 function getSerperKey() {
   const key = SERPER_KEYS[_serperKeyIndex % SERPER_KEYS.length];
@@ -73,7 +70,7 @@ router.post('/niche-keyword', async (req, res) => {
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 5;
+  const MAX_PAGES  = 7;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
   const shopIdToRaw = new Map();
@@ -357,7 +354,7 @@ router.post('/search-dropship', async (req, res) => {
 
         // Étape 2 : DINOv2 — vérification visuelle OBLIGATOIRE
         const aliUrls = aliMatches
-          .slice(0, 4) // augmenté à 4 candidats pour plus de chances de match
+          .slice(0, 2) // plan gratuit Serper : on limite à 2 candidats
           .flatMap(m => extractAliImageUrls(m))
           .filter(Boolean);
 
@@ -368,8 +365,7 @@ router.post('/search-dropship', async (req, res) => {
         }
 
         const dinoResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
-          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.65'),
-          hybrid: true,
+          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
         });
 
         console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
@@ -423,22 +419,20 @@ router.post('/search-dropship', async (req, res) => {
 
           console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
 
-          // Au moins une image confirmée par DINOv2 suffit pour valider le dropshipper
+          // Les deux images doivent être confirmées par CLIP pour valider le dropshipper
           if (m1 && m2) {
-            const sim1 = m1?.clipSimilarity || null;
-            const sim2 = m2?.clipSimilarity || null;
             dropshippers.push({
               shopName:        listing.shopName,
               shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
               shopAvatar:      null,
               shopImage:       img1,
               listingUrl:      listing.link,
-              clipSimilarity1: sim1,
-              clipSimilarity2: sim2,
+              clipSimilarity1: m1.clipSimilarity || null,
+              clipSimilarity2: m2.clipSimilarity || null,
             });
             send({
               step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + (sim1 || sim2),
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + m1.clipSimilarity,
               shop: dropshippers[dropshippers.length - 1],
             });
           }
