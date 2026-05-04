@@ -1674,28 +1674,29 @@
       const gaugeWrap = document.createElement('div');
       gaugeWrap.className = 'sales-gauge-wrap';
 
-      // Palette par palier — la jauge est proportionnelle DANS chaque palier
-      // Plafond logarithmique : 100k ventes = 100%
       const GAUGE_MAX = 100000;
-      let gaugeColor, gaugeText;
+      let gaugeColor, gaugeText, logPct;
       if (numSales === 0) {
-        gaugeColor = 'rgba(255,255,255,0.2)'; gaugeText = 'N/A';
+        // 0 = valeur inconnue (API masquée) — on affiche quand même un indicateur
+        gaugeColor = 'rgba(255,255,255,0.35)';
+        gaugeText = '? sales';
+        logPct = 3;
       } else if (numSales < 500) {
         gaugeColor = '#64748b'; gaugeText = numSales.toLocaleString() + ' sales';
+        logPct = Math.min(100, Math.round((Math.log10(numSales + 1) / Math.log10(GAUGE_MAX + 1)) * 100));
       } else if (numSales < 2000) {
         gaugeColor = '#facc15'; gaugeText = numSales.toLocaleString() + ' sales';
+        logPct = Math.min(100, Math.round((Math.log10(numSales + 1) / Math.log10(GAUGE_MAX + 1)) * 100));
       } else if (numSales < 10000) {
         gaugeColor = '#f97316'; gaugeText = numSales.toLocaleString() + ' sales';
+        logPct = Math.min(100, Math.round((Math.log10(numSales + 1) / Math.log10(GAUGE_MAX + 1)) * 100));
       } else if (numSales < 50000) {
         gaugeColor = '#22c55e'; gaugeText = numSales.toLocaleString() + ' sales';
+        logPct = Math.min(100, Math.round((Math.log10(numSales + 1) / Math.log10(GAUGE_MAX + 1)) * 100));
       } else {
         gaugeColor = '#a855f7'; gaugeText = numSales.toLocaleString() + ' sales';
+        logPct = 100;
       }
-
-      // Largeur réelle en % (échelle log pour mieux visualiser les petites valeurs)
-      const logPct = numSales > 0
-        ? Math.min(100, Math.round((Math.log10(numSales + 1) / Math.log10(GAUGE_MAX + 1)) * 100))
-        : 2;
 
       const gaugeTrack = document.createElement('div');
       gaugeTrack.className = 'sales-gauge-track';
