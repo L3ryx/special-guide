@@ -6,7 +6,7 @@ const AutoSearchState = require('../models/autoSearchModel');
 
 // ── SAVE SHOP ──
 router.post('/save', requireAuth, async (req, res) => {
-  let { shopName, shopUrl, shopAvatar, productImage, productUrl, keyword } = req.body;
+  let { shopName, shopUrl, shopAvatar, productImage, productUrl, keyword, numSales, salesPerYear } = req.body;
 
   if (!shopName && shopUrl) {
     const m = shopUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
@@ -30,7 +30,7 @@ router.post('/save', requireAuth, async (req, res) => {
   try {
     const shop = await SavedShop.findOneAndUpdate(
       { userId: req.user.id, productUrl },
-      { $set: { shopName: shopName || null, shopUrl: shopUrl || null, shopAvatar: shopAvatar || null, productImage: productImage || null, keyword: keyword || null, savedAt: new Date() } },
+      { $set: { shopName: shopName || null, shopUrl: shopUrl || null, shopAvatar: shopAvatar || null, productImage: productImage || null, keyword: keyword || null, numSales: numSales ?? null, salesPerYear: salesPerYear ?? null, savedAt: new Date() } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ ok: true, shop });
