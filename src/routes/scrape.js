@@ -3,6 +3,7 @@ const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
+const { ximilarRankImages } = require('../services/ximilarCompare');
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -45,7 +46,7 @@ router.post('/niche-keyword', async (req, res) => {
       ? `\nDo NOT include any of these already-used keywords: ${usedKeywords.join(', ')}.`
       : '';
 
-    const prompt = `It is ${month} ${year}. Generate a list of exactly 50 unique English niche keywords for Etsy product searches.\n\nRules:\n- Each keyword must be 2-4 words\n- ALL must be PHYSICAL products only (no digital, no printables, no SVG, no downloads, no templates)\n- All 50 must be DIFFERENT product types — no variations of the same product\n- Mix categories: home decor, jewelry, clothing, accessories, ceramics, candles, toys, stationery, wellness, outdoors, pets, baby, kitchen, garden, etc.\n- Each must be specific and searchable (not generic like \"handmade gift\")\n- Prioritize products trending in ${month} ${year}${excludeList}\n\nRespond with ONLY a JSON array of 50 strings, no explanation, no markdown, no numbering.\nExample format: [\"keyword one\",\"keyword two\",\"keyword three\"]`;
+    const prompt = `It is ${month} ${year}. Generate a list of exactly 50 unique English niche keywords for Etsy product searches.\n\nRules:\n- Each keyword must be 2-4 words\n- ALL must be PHYSICAL products only (no digital, no printables, no SVG, no downloads, no templates)\n- All 50 must be DIFFERENT product types — no variations of the same product\n- Mix categories: home decor, jewelry, clothing, accessories, ceramics, candles, toys, stationery, wellness, outdoors, pets, baby, kitchen, garden, etc.\n- Each must be specific and searchable (not generic like "handmade gift")\n- Prioritize products trending in ${month} ${year}${excludeList}\n\nRespond with ONLY a JSON array of 50 strings, no explanation, no markdown, no numbering.\nExample format: ["keyword one","keyword two","keyword three"]`;
 
     const r = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
@@ -176,8 +177,11 @@ router.post('/search-dropship', async (req, res) => {
   const { keyword, sessionId } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
-  if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
-  if (!SERPER_KEYS.length) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
+  if (!process.env.ETSY_CLIENT_ID) return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
+  if (!SERPER_KEYS.length)         return res.status(500).json({ error: 'SERPER_API_KEY missing' });
+
+  // Ximilar est optionnel — si la clé manque, on skippe la vérification visuelle
+  const useXimilar = !!process.env.XIMILAR_API_KEY;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -237,74 +241,118 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
       return res.end();
     }
-    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse Google Lens...' });
 
-    // ── STEP 3 : Google Lens ──
+    const modeLabel = useXimilar ? 'Google Lens + Ximilar' : 'Google Lens';
+    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse ' + modeLabel + '...' });
+
+    // ── STEP 3 : Google Lens puis Ximilar ──
     const { uploadImageFree } = require('../services/freeImageUploader');
 
-    async function lensMatch(etsyImageUrl) {
-      if (isAborted()) return null;
-      try {
-        if (!etsyImageUrl || isAborted()) return null;
+    /**
+     * Étape Lens : retourne l'image Etsy uploadée (pubUrl) + les candidats AliExpress
+     * @returns {{ pubUrl: string, aliMatches: object[] }|null}
+     */
+    async function lensSearch(etsyImageUrl) {
+      if (!etsyImageUrl || isAborted()) return null;
 
-        // Upload vers un hébergeur public — Serper Lens rejette les URLs etsystatic.com
-        const pub = await uploadImageFree(etsyImageUrl);
-        if (!pub || isAborted()) return null;
+      const pubUrl = await uploadImageFree(etsyImageUrl);
+      if (!pubUrl || isAborted()) return null;
 
-        // Google Lens via Serper avec retry sur 429
-        let r;
-        const SERPER_RETRIES = 3;
-        for (let attempt = 0; attempt < SERPER_RETRIES; attempt++) {
-          try {
-            r = await axios.post('https://google.serper.dev/lens',
-              { url: pub, gl: 'us', hl: 'en' },
-              { headers: { 'X-API-KEY': getSerperKey() }, timeout: 25000 }
-            );
-            break;
-          } catch (serperErr) {
-            const status = serperErr.response?.status;
-            const detail = serperErr.response?.data;
+      let r;
+      const SERPER_RETRIES = 3;
+      for (let attempt = 0; attempt < SERPER_RETRIES; attempt++) {
+        try {
+          r = await axios.post('https://google.serper.dev/lens',
+            { url: pubUrl, gl: 'us', hl: 'en' },
+            { headers: { 'X-API-KEY': getSerperKey() }, timeout: 25000 }
+          );
+          break;
+        } catch (serperErr) {
+          const status = serperErr.response?.status;
+          const detail = serperErr.response?.data;
 
-            if (status === 400) {
-              console.warn('[lensMatch] Serper 400 — détail:', JSON.stringify(detail));
-              if (detail?.message?.toLowerCase().includes('not enough credits')) {
-                throw new Error('serper_no_credits');
-              }
-              throw serperErr;
-            }
-
-            if (status === 429) {
-              if (attempt < SERPER_RETRIES - 1) {
-                const wait = 1500 * Math.pow(2, attempt);
-                console.warn(`[lensMatch] Serper 429 — retry dans ${wait}ms`);
-                await new Promise(res => setTimeout(res, wait));
-                continue;
-              }
-              console.warn('[lensMatch] Serper 429 — skip après', SERPER_RETRIES, 'tentatives');
-              return null;
-            }
-
+          if (status === 400) {
+            console.warn('[lensSearch] Serper 400:', JSON.stringify(detail));
+            if (detail?.message?.toLowerCase().includes('not enough credits')) throw new Error('serper_no_credits');
             throw serperErr;
           }
+          if (status === 429) {
+            if (attempt < SERPER_RETRIES - 1) {
+              const wait = 1500 * Math.pow(2, attempt);
+              console.warn(`[lensSearch] Serper 429 — retry dans ${wait}ms`);
+              await new Promise(res => setTimeout(res, wait));
+              continue;
+            }
+            console.warn('[lensSearch] Serper 429 — skip');
+            return null;
+          }
+          throw serperErr;
         }
-        if (isAborted()) return null;
+      }
+      if (isAborted()) return null;
 
-        const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
-        const aliMatches = all.filter(x => {
-          const u = x.link || x.url || '';
-          return u.includes('aliexpress.com') && u.includes('/item/') &&
-                 (x.imageUrl || x.thumbnailUrl);
-        });
+      const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
+      const aliMatches = all.filter(x => {
+        const u = x.link || x.url || '';
+        return u.includes('aliexpress.com') && u.includes('/item/') && (x.imageUrl || x.thumbnailUrl);
+      });
 
-        if (!aliMatches.length) return null;
+      if (!aliMatches.length) return null;
 
-        console.log(`[Lens] ✅ Match trouvé`);
-        return aliMatches[0];
+      console.log(`[Lens] ✅ ${aliMatches.length} candidats AliExpress`);
+      return { pubUrl, aliMatches };
+    }
+
+    /**
+     * Pipeline complet pour une image :
+     *  1. Lens → candidats AliExpress
+     *  2. Ximilar rank_images → confirmation visuelle (si clé dispo)
+     *
+     * @returns {{ aliMatch: object, ximilarDistance: number|null }|null}
+     */
+    async function analyzeImage(etsyImageUrl) {
+      if (isAborted()) return null;
+      try {
+        const lensResult = await lensSearch(etsyImageUrl);
+        if (!lensResult) return null;
+
+        const { pubUrl, aliMatches } = lensResult;
+
+        // Sans Ximilar → on accepte le premier match Lens directement
+        if (!useXimilar) {
+          return { aliMatch: aliMatches[0], ximilarDistance: null };
+        }
+
+        // Avec Ximilar → vérification visuelle sur les images AliExpress
+        const aliImageUrls = aliMatches
+          .slice(0, 10)
+          .map(m => m.imageUrl || m.thumbnailUrl)
+          .filter(Boolean);
+
+        if (!aliImageUrls.length) return null;
+
+        const xResult = await ximilarRankImages(pubUrl, aliImageUrls);
+
+        if (xResult.fallback) {
+          // Service indisponible → on accepte le match Lens sans confirmation
+          console.warn('[analyzeImage] Ximilar fallback — match Lens accepté sans confirmation visuelle');
+          return { aliMatch: aliMatches[0], ximilarDistance: null };
+        }
+
+        if (!xResult.match) {
+          console.log(`[analyzeImage] ❌ Ximilar rejette (distance=${xResult.distance})`);
+          return null;
+        }
+
+        console.log(`[analyzeImage] ✅ Ximilar confirme (distance=${xResult.distance})`);
+        return { aliMatch: aliMatches[0], ximilarDistance: xResult.distance };
 
       } catch (e) {
-        if (e.response?.status === 401) throw new Error('serper_401');
+        if (e.message === 'serper_401') throw e;
         if (e.message === 'serper_no_credits') throw e;
-        console.warn('[lensMatch] erreur:', e.message);
+        if (e.message === 'ximilar_401') throw e;
+        if (e.message === 'ximilar_no_credits') throw e;
+        console.warn('[analyzeImage] erreur:', e.message);
         return null;
       }
     }
@@ -321,37 +369,51 @@ router.post('/search-dropship', async (req, res) => {
         analyzed++;
         const shopStart = Date.now();
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
+
         try {
           const img1 = listing.image;
           const img2 = listing.image2;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
           if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
-          console.log('[worker] running lensMatch pour', listing.shopName);
-          const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(img2)]);
+          console.log('[worker] analyse', listing.shopName);
+          const [r1, r2] = await Promise.all([analyzeImage(img1), analyzeImage(img2)]);
+
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
-          console.log('[worker]', listing.shopName, '| m1:', !!m1, '| m2:', !!m2);
+          console.log('[worker]', listing.shopName,
+            '| img1:', r1 ? `✅ (dist=${r1.ximilarDistance ?? 'lens'})` : '❌',
+            '| img2:', r2 ? `✅ (dist=${r2.ximilarDistance ?? 'lens'})` : '❌'
+          );
 
-          if (m1 && m2) {
+          // Les deux images doivent être confirmées
+          if (r1 && r2) {
             dropshippers.push({
-              shopName:   listing.shopName,
-              shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
-              shopAvatar: null,
-              shopImage:  img1,
-              listingUrl: listing.link,
+              shopName:         listing.shopName,
+              shopUrl:          listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
+              shopAvatar:       null,
+              shopImage:        img1,
+              listingUrl:       listing.link,
+              ximilarDistance1: r1.ximilarDistance,
+              ximilarDistance2: r2.ximilarDistance,
             });
+            const distLabel = r1.ximilarDistance !== null
+              ? ` | Ximilar: ${r1.ximilarDistance}`
+              : '';
             send({
-              step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)',
-              shop: dropshippers[dropshippers.length - 1],
+              step:    'match',
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)' + distLabel,
+              shop:    dropshippers[dropshippers.length - 1],
             });
           }
+
         } catch (e) {
-          if (e.message === 'serper_401') { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
+          if (e.message === 'serper_401')       { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
           if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge ton compte sur serper.dev' }); return; }
+          if (e.message === 'ximilar_401')       { send({ step: 'error', message: '❌ Ximilar API key invalide' }); return; }
+          if (e.message === 'ximilar_no_credits'){ send({ step: 'error', message: '❌ Crédits Ximilar épuisés — vérifie ton plan sur ximilar.com' }); return; }
         }
       }
     }
@@ -379,6 +441,7 @@ router.get('/health', (req, res) => {
     ETSY_CLIENT_ID:   !!process.env.ETSY_CLIENT_ID,
     SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
     SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
+    XIMILAR_API_KEY:  !!process.env.XIMILAR_API_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
