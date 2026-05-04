@@ -92,24 +92,13 @@ async function searchListings(keyword, limit = 25, offset = 0) {
  * Pour un shop_id : récupère shop_name + 4 images via 4 listing IDs distincts.
  */
 async function getShopNameAndImage(shopId, listingId, listingId2 = null, listingId3 = null, listingId4 = null) {
-  // 1. Nom de boutique + stats
+  // 1. Nom de boutique
   const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
     headers: headers(), timeout: 15000,
   });
   const shop     = shopRes.data;
   const shopName = shop.shop_name;
   const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
-
-  // Debug unique : loguer les champs disponibles pour comprendre la structure
-  if (!getShopNameAndImage._debugged) {
-    getShopNameAndImage._debugged = true;
-    const salesFields = {};
-    for (const k of Object.keys(shop)) {
-      if (/sale|Sale|count|transaction|review/i.test(k)) salesFields[k] = shop[k];
-    }
-    console.log('[etsyApi] DEBUG shop fields sales:', JSON.stringify(salesFields));
-    console.log('[etsyApi] DEBUG all shop keys:', Object.keys(shop).join(', '));
-  }
 
   // Helper : fetch 1 image pour un listingId donné
   async function fetchImage(lid, label) {
@@ -139,40 +128,7 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null, listing
     fetchImage(listingId4, 'image4'),
   ]);
 
-  // num_sales : masqué à 0 pour les clés API publiques (OAuth uniquement).
-  // Fallback 1 : via listings embedded
-  // Fallback 2 : scraping page HTML publique /shop/{name} → "X Sales"
-  let numSales = shop.num_sales || 0;
-
-  if (numSales === 0) {
-    try {
-      const statsRes = await axios.get(
-        `${BASE}/shops/${shopId}/listings/active?limit=1&includes=shop`,
-        { headers: headers(), timeout: 10000 }
-      );
-      const embedded = statsRes.data?.results?.[0]?.shop;
-      if (embedded?.num_sales > 0) numSales = embedded.num_sales;
-    } catch(e) { /* silencieux */ }
-  }
-
-  // Fallback 2 : scraping HTML public si toujours 0
-  if (numSales === 0 && shopName) {
-    try {
-      const html = await axios.get(`https://www.etsy.com/shop/${shopName}`, {
-        timeout: 8000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'en-US,en;q=0.9',
-        }
-      });
-      // Pattern Etsy : "12,345 Sales" ou "12345 Sales"
-      const match = html.data.match(/([\d,]+)\s*Sales?/i);
-      if (match) {
-        numSales = parseInt(match[1].replace(/,/g, ''), 10) || 0;
-        if (numSales > 0) console.log(`[etsyApi] numSales scrapped for ${shopName}: ${numSales}`);
-      }
-    } catch(e) { /* silencieux — ne pas bloquer si Etsy refuse */ }
-  }
+  const numSales = shop.num_sales || 0;
   console.log('[etsyApi] getShopNameAndImage:', shopName,
     '| image1:', !!image, '| image2:', !!image2,
     '| image3:', !!image3, '| image4:', !!image4,
