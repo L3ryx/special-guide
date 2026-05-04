@@ -89,9 +89,9 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 }
 
 /**
- * Pour un shop_id : récupère shop_name + 4 images via 4 listing IDs distincts.
+ * Pour un shop_id : récupère shop_name + 2 images via getListingDetail.
  */
-async function getShopNameAndImage(shopId, listingId, listingId2 = null, listingId3 = null, listingId4 = null) {
+async function getShopNameAndImage(shopId, listingId, listingId2 = null) {
   // 1. Nom de boutique
   const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
     headers: headers(), timeout: 15000,
@@ -100,38 +100,46 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null, listing
   const shopName = shop.shop_name;
   const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
 
-  // Helper : fetch 1 image pour un listingId donné
-  async function fetchImage(lid, label) {
-    if (!lid) return null;
+  // 2. Image 1 via /listings/{id}?includes=images
+  let image = null;
+  if (listingId) {
     try {
-      const r = await axios.get(`${BASE}/listings/${lid}?includes=images`, {
+      const r = await axios.get(`${BASE}/listings/${listingId}?includes=images`, {
         headers: headers(), timeout: 15000,
       });
       const item = r.data;
-      return cleanImage(
+      image = cleanImage(
         item.images?.[0]?.url_fullxfull ||
         item.images?.[0]?.url_570xN ||
         item.images?.[0]?.url_170x135 ||
         null
       );
     } catch(e) {
-      console.warn(`[etsyApi] ${label} failed for listing`, lid, ':', e.message);
-      return null;
+      console.warn('[etsyApi] image1 failed for listing', listingId, ':', e.message);
     }
   }
 
-  // 2. Récupérer les 4 images en parallèle
-  const [image, image2, image3, image4] = await Promise.all([
-    fetchImage(listingId,  'image1'),
-    fetchImage(listingId2, 'image2'),
-    fetchImage(listingId3, 'image3'),
-    fetchImage(listingId4, 'image4'),
-  ]);
+  // 3. Image 2 via second listing
+  let image2 = null;
+  if (listingId2) {
+    try {
+      const r = await axios.get(`${BASE}/listings/${listingId2}?includes=images`, {
+        headers: headers(), timeout: 15000,
+      });
+      const item = r.data;
+      image2 = cleanImage(
+        item.images?.[0]?.url_fullxfull ||
+        item.images?.[0]?.url_570xN ||
+        item.images?.[0]?.url_170x135 ||
+        null
+      );
+    } catch(e) {
+      console.warn('[etsyApi] image2 failed for listing', listingId2, ':', e.message);
+    }
+  }
 
-  console.log('[etsyApi] getShopNameAndImage:', shopName,
-    '| image1:', !!image, '| image2:', !!image2,
-    '| image3:', !!image3, '| image4:', !!image4);
-  return { shopName, shopUrl, image, image2, image3, image4 };
+  console.log('[etsyApi] getShopNameAndImage:', shopName, '| image1:', !!image, '| image2:', !!image2);
+  return { shopName, shopUrl, image, image2 };
 }
 
 /**
@@ -223,6 +231,5 @@ module.exports = {
   normalizeListing,
   handleEtsyError,
 };
-
 
 
