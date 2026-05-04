@@ -36,7 +36,7 @@ router.post('/stop-search', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── NICHE KEYWORD — génère 1 keyword tendance avant chaque recherche ──
+// ── NICHE KEYWORD (dice button) ──
 router.post('/niche-keyword', async (req, res) => {
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
   try {
@@ -45,37 +45,23 @@ router.post('/niche-keyword', async (req, res) => {
     const year = now.getFullYear();
     const usedKeywords = req.body?.usedKeywords || [];
     const excludeList = usedKeywords.length > 0
-      ? `\nDo NOT suggest any of these already-used keywords: ${usedKeywords.slice(-100).join(', ')}.`
+      ? `\nDo NOT include any of these already-used keywords: ${usedKeywords.join(', ')}.`
       : '';
 
-    const prompt = `It is ${month} ${year}. Suggest ONE trending Etsy search keyword for physical products.
-
-Rules:
-- Physical products only (no digital, no printables, no SVG, no downloads, no templates)
-- 2-4 words maximum
-- Specific and searchable on Etsy right now
-- Trending or seasonal for ${month} ${year}
-- Vary the category each time (home decor, jewelry, clothing, accessories, candles, toys, wellness, pets, kitchen, garden, etc.)${excludeList}
-
-Respond with ONLY the keyword, no explanation, no punctuation, no quotes.
-Example: resin ocean lamp`;
+    const prompt = `It is ${month} ${year}. Generate a list of exactly 50 unique English niche keywords for Etsy product searches.\n\nRules:\n- Each keyword must be 2-4 words\n- ALL must be PHYSICAL products only (no digital, no printables, no SVG, no downloads, no templates)\n- All 50 must be DIFFERENT product types — no variations of the same product\n- Mix categories: home decor, jewelry, clothing, accessories, ceramics, candles, toys, stationery, wellness, outdoors, pets, baby, kitchen, garden, etc.\n- Each must be specific and searchable (not generic like \"handmade gift\")\n- Prioritize products trending in ${month} ${year}${excludeList}\n\nRespond with ONLY a JSON array of 50 strings, no explanation, no markdown, no numbering.\nExample format: [\"keyword one\",\"keyword two\",\"keyword three\"]`;
 
     const r = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
       { contents: [{ parts: [{ text: prompt }] }] },
-      { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+      { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
     );
     const parts = r.data.candidates?.[0]?.content?.parts || [];
     const rawText = parts.map(p => p.text || '').join(' ').trim();
-    const keyword = rawText
-      .replace(/```.*?```/gs, '')
-      .replace(/[^a-z0-9 ]/gi, '')
-      .trim()
-      .toLowerCase()
-      .slice(0, 60);
-
-    if (!keyword || keyword.length < 2) throw new Error('Empty keyword returned');
-    res.json({ keyword });
+    const clean = rawText.replace(/```json|```/g, '').trim();
+    let keywords = JSON.parse(clean);
+    if (!Array.isArray(keywords)) throw new Error('Invalid response format');
+    keywords = [...new Set(keywords.map(k => k.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()))].filter(k => k.length > 2).slice(0, 50);
+    res.json({ keywords });
   } catch(e) {
     const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
     res.status(500).json({ error: detail });
@@ -429,60 +415,30 @@ router.post('/search-dropship', async (req, res) => {
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
           if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
-          console.log('[worker] running lensMatch+CLIP séquentiel pour', listing.shopName);
-          // ── Séquentiel : tester m1 d'abord, lancer m2 seulement si m1 valide ──
-          const m1 = await lensMatchWithClip(img1);
-          console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '');
-          let m2 = null;
-          if (m1) {
-            m2 = await lensMatchWithClip(img2);
-            console.log('[worker]', listing.shopName, '| m2:', !!m2, m2?.clipSimilarity || '');
-          }
+          console.log('[worker] running lensMatch+CLIP pour', listing.shopName);
+          const [m1, m2] = await Promise.all([lensMatchWithClip(img1), lensMatchWithClip(img2)]);
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
-          // Les 2 images doivent être confirmées par DINOv2 pour valider le dropshipper
+          console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
+
+          // Au moins une image confirmée par DINOv2 suffit pour valider le dropshipper
           if (m1 && m2) {
             const sim1 = m1?.clipSimilarity || null;
             const sim2 = m2?.clipSimilarity || null;
-
-            // ── Récupérer numSales + date création pour calculer salesPerYear ──
-            let numSales = null;
-            let salesPerYear = null;
-            let createdAt = null;
-            let shopAgeYears = null;
-            try {
-              const info = await getShopInfo(listing.shopId || listing.shopName);
-              numSales = info.numSales || 0;
-              createdAt = info.createdAt || null;
-              if (info.createdAt) {
-                const ageMs    = Date.now() - info.createdAt * 1000;
-                const ageYears = Math.max(ageMs / (1000 * 60 * 60 * 24 * 365.25), 0.083);
-                shopAgeYears   = Math.round(ageYears * 10) / 10;
-                salesPerYear   = Math.round(numSales / ageYears);
-              }
-            } catch(e) {
-              console.warn('[worker] getShopInfo failed for', listing.shopName, ':', e.message);
-            }
-
             dropshippers.push({
               shopName:        listing.shopName,
               shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
               shopAvatar:      null,
               shopImage:       img1,
-              shopImage2:      img2,
               listingUrl:      listing.link,
               clipSimilarity1: sim1,
               clipSimilarity2: sim2,
-              numSales,
-              salesPerYear,
-              createdAt,
-              shopAgeYears,
             });
             send({
               step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO1: ' + sim1 + ' DINO2: ' + sim2,
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + (sim1 || sim2),
               shop: dropshippers[dropshippers.length - 1],
             });
           }
