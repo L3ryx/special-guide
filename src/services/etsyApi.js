@@ -176,7 +176,6 @@ async function getShopInfo(shopIdOrName) {
     shopAvatar: cleanImage(s.icon_url_fullxfull || s.icon_url || null),
     title:      s.title || null,
     numSales:   s.num_sales || 0,
-    createdAt:  s.create_timestamp || null,
   };
 }
 
