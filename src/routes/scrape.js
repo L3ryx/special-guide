@@ -377,6 +377,9 @@ router.post('/search-dropship', async (req, res) => {
     const queue = [...listings];
 
     async function worker() {
+      // Timeout par image : 45s max pour ne pas bloquer la progression en mode Ultra
+      const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+
       while (queue.length > 0) {
         if (isAborted()) break;
         const listing = queue.shift();
@@ -391,7 +394,10 @@ router.post('/search-dropship', async (req, res) => {
           if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
           console.log('[worker] running lensMatch+CLIP pour', listing.shopName);
-          const [m1, m2] = await Promise.all([lensMatchWithClip(img1), lensMatchWithClip(img2)]);
+          const [m1, m2] = await Promise.all([
+            withTimeout(lensMatchWithClip(img1), 45000),
+            withTimeout(lensMatchWithClip(img2), 45000),
+          ]);
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
