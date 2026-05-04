@@ -1158,8 +1158,8 @@
       if (!label) return;
       if (_autoSearch) {
         const remaining = _keywordQueue.length;
-        const suffix = remaining > 0 ? ' (' + remaining + ' left)' : '';
-        label.innerHTML = '🤖 Automated' + suffix;
+        
+        label.innerHTML = '🤖 Automated';
       }
     }
 
