@@ -92,13 +92,24 @@ async function searchListings(keyword, limit = 25, offset = 0) {
  * Pour un shop_id : récupère shop_name + 4 images via 4 listing IDs distincts.
  */
 async function getShopNameAndImage(shopId, listingId, listingId2 = null, listingId3 = null, listingId4 = null) {
-  // 1. Nom de boutique
+  // 1. Nom de boutique + stats
   const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
     headers: headers(), timeout: 15000,
   });
   const shop     = shopRes.data;
   const shopName = shop.shop_name;
   const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+
+  // Debug unique : loguer les champs disponibles pour comprendre la structure
+  if (!getShopNameAndImage._debugged) {
+    getShopNameAndImage._debugged = true;
+    const salesFields = {};
+    for (const k of Object.keys(shop)) {
+      if (/sale|Sale|count|transaction|review/i.test(k)) salesFields[k] = shop[k];
+    }
+    console.log('[etsyApi] DEBUG shop fields sales:', JSON.stringify(salesFields));
+    console.log('[etsyApi] DEBUG all shop keys:', Object.keys(shop).join(', '));
+  }
 
   // Helper : fetch 1 image pour un listingId donné
   async function fetchImage(lid, label) {
@@ -128,7 +139,20 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null, listing
     fetchImage(listingId4, 'image4'),
   ]);
 
-  const numSales = shop.num_sales || 0;
+  // num_sales : masqué à 0 pour les clés API publiques (OAuth uniquement).
+  // Fallback : tenter via /shops/{shopId}/listings/active?includes=shop
+  // qui expose parfois shop.num_sales dans la réponse embedded.
+  let numSales = shop.num_sales || 0;
+  if (numSales === 0 && image) {
+    try {
+      const statsRes = await axios.get(
+        `${BASE}/shops/${shopId}/listings/active?limit=1&includes=shop`,
+        { headers: headers(), timeout: 10000 }
+      );
+      const embedded = statsRes.data?.results?.[0]?.shop;
+      if (embedded?.num_sales > 0) numSales = embedded.num_sales;
+    } catch(e) { /* silencieux */ }
+  }
   console.log('[etsyApi] getShopNameAndImage:', shopName,
     '| image1:', !!image, '| image2:', !!image2,
     '| image3:', !!image3, '| image4:', !!image4,
