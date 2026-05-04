@@ -47,24 +47,7 @@ async function uploadImageFree(etsyUrl) {
     return null;
   }
 
-  // ── Stratégie 2a : imgbb (gratuit, fiable, pas de rate limit agressif) ──
-  const imgbbKey = process.env.IMGBB_API_KEY;
-  if (imgbbKey) {
-    const url = await uploadToImgbb(img.buffer, imgbbKey);
-    if (url) {
-      uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
-      return url;
-    }
-  }
-
-  // ── Stratégie 2b : catbox.moe (sans compte, fiable) ──
-  const catboxUrl = await uploadToCatbox(img.buffer, img.mimeType);
-  if (catboxUrl) {
-    uploadCache.set(etsyUrl, { value: catboxUrl, ts: Date.now() });
-    return catboxUrl;
-  }
-
-  // ── Stratégie 2c : Imgur (avec IMGUR_CLIENT_ID) ──
+  // ── Stratégie 2 : Imgur (avec IMGUR_CLIENT_ID) ──
   const imgurUrl = await uploadToImgur(img.buffer, img.mimeType);
   if (imgurUrl) {
     uploadCache.set(etsyUrl, { value: imgurUrl, ts: Date.now() });
@@ -93,47 +76,6 @@ async function downloadEtsyImage(etsyUrl) {
         };
       }
     } catch { /* essai suivant */ }
-  }
-  return null;
-}
-
-// ── imgbb — gratuit, clé API sur imgbb.com ──
-async function uploadToImgbb(buffer, apiKey) {
-  try {
-    const base64 = buffer.toString('base64');
-    const params = new URLSearchParams();
-    params.append('key', apiKey);
-    params.append('image', base64);
-
-    const res = await axios.post('https://api.imgbb.com/1/upload', params, {
-      timeout: 20000,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
-    const url = res.data?.data?.url;
-    if (url) { console.log('[freeUploader] imgbb OK'); return url; }
-  } catch(e) {
-    console.warn('[freeUploader] imgbb failed:', e.message);
-  }
-  return null;
-}
-
-// ── catbox.moe — sans compte, pas de rate limit agressif ──
-async function uploadToCatbox(buffer, mimeType) {
-  try {
-    const FormData = require('form-data');
-    const form = new FormData();
-    form.append('reqtype', 'fileupload');
-    form.append('fileToUpload', buffer, { filename: 'img.jpg', contentType: mimeType });
-
-    const res = await axios.post('https://catbox.moe/user/api.php', form, {
-      headers: form.getHeaders(),
-      timeout: 20000,
-      maxContentLength: Infinity,
-    });
-    const url = (res.data || '').trim();
-    if (url.startsWith('https://')) { console.log('[freeUploader] catbox OK'); return url; }
-  } catch(e) {
-    console.warn('[freeUploader] catbox failed:', e.message);
   }
   return null;
 }
