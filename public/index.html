@@ -158,6 +158,10 @@
     #clear-keywords-btn:hover { background:rgba(239,68,68,0.25); border-color:rgba(239,68,68,0.6); }
     /* Auto search toggle */
     #auto-search-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:space-between; padding:0; background:none; border:none; border-radius:0; backdrop-filter:none; height:27px; margin-top:8px; }
+    #pages-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:space-between; padding:0; background:none; border:none; border-radius:0; backdrop-filter:none; height:27px; margin-top:6px; }
+    #pages-label { color:#ccc; font-size:13px; font-weight:500; }
+    #pages-select { background:#1a1a2e; color:#e0e0e0; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:2px 8px; font-size:13px; cursor:pointer; outline:none; }
+    #pages-select:focus { border-color:rgba(255,255,255,0.35); }
     #auto-search-label { color:#fff; font-size:17px; font-weight:600; display:flex; align-items:center; gap:6px; font-family:'Courier New',Courier,monospace; }
     .switch { --false: #E81B1B; --true: #009068; }
     #auto-search-toggle { appearance: none !important; height: 1.2rem !important; width: 2.2rem !important; background-color: #fff !important; position: relative !important; border-radius: .2em !important; cursor: pointer !important; border: none !important; flex-shrink: 0 !important; padding: 0 !important; }
@@ -416,6 +420,21 @@
           <div id="auto-search-row">
             <span id="auto-search-label">🤖 Automated</span>
             <label class="switch"><input type="checkbox" id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></label>
+          </div>
+          <div id="pages-row">
+            <span id="pages-label">Pages</span>
+            <select id="pages-select">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5" selected>5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+            </select>
           </div>
 <button id="start-btn" class="sw-btn" onclick="startSearch()">
   <div id="container-stars"><div id="stars"></div></div>
@@ -1201,7 +1220,7 @@
               'Content-Type': 'application/json',
               ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {})
             },
-            body: JSON.stringify({ keyword, sessionId: _sessionId })
+            body: JSON.stringify({ keyword, sessionId: _sessionId, pages: parseInt(document.getElementById('pages-select')?.value || '5', 10) })
           });
 
           const ct = response.headers.get('content-type') || '';
