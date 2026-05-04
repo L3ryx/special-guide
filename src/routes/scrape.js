@@ -131,19 +131,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(async ([shopId, raw]) => {
-        // Toujours aller chercher un 2ème listing directement dans la boutique,
-        // indépendamment de ce qu'on a trouvé dans les résultats de recherche.
-        let listingId2 = null;
-        try {
-          const shopListings = await getShopListings(shopId, 5);
-          const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
-          if (other) listingId2 = other.listingId;
-        } catch (e) {
-          console.warn('[fetchListings] getShopListings failed for shop', shopId, ':', e.message);
-        }
-
-        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId, listingId2);
-        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
+        const { shopName, shopUrl, image, numSales } = await getShopNameAndImage(shopId, raw.listingId);
+        return { shopId, shopName, shopUrl, image, numSales, listingId: raw.listingId, link: raw.link, title: raw.title };
       })
     );
 
@@ -153,7 +142,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         continue;
       }
       const l = r.value;
-      if (!l.shopName || !l.image || !l.image2) continue;
+      if (!l.shopName || !l.image) continue;
       if (shopsSeen.has(l.shopName)) continue;
       shopsSeen.add(l.shopName);
       listings.push({
@@ -161,10 +150,10 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         link:      l.link,
         title:     l.title,
         image:     l.image,
-        image2:    l.image2,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
+        numSales:  l.numSales || 0,
         source:    'etsy',
       });
     }
@@ -411,34 +400,31 @@ router.post('/search-dropship', async (req, res) => {
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
           const img1 = listing.image;
-          const img2 = listing.image2;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
-          if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
           console.log('[worker] running lensMatch+CLIP pour', listing.shopName);
-          const [m1, m2] = await Promise.all([lensMatchWithClip(img1), lensMatchWithClip(img2)]);
+          const m1 = await lensMatchWithClip(img1);
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
-          console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
+          console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '');
 
-          // Au moins une image confirmée par DINOv2 suffit pour valider le dropshipper
-          if (m1 && m2) {
+          // Une seule image suffit pour confirmer le dropshipper
+          if (m1) {
             const sim1 = m1?.clipSimilarity || null;
-            const sim2 = m2?.clipSimilarity || null;
             dropshippers.push({
               shopName:        listing.shopName,
               shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
               shopAvatar:      null,
               shopImage:       img1,
               listingUrl:      listing.link,
+              numSales:        listing.numSales || 0,
               clipSimilarity1: sim1,
-              clipSimilarity2: sim2,
             });
             send({
               step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + (sim1 || sim2),
+              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + sim1,
               shop: dropshippers[dropshippers.length - 1],
             });
           }
