@@ -2,7 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
-const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
+const { searchListingIds, getShopNameAndImage, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 const { ximilarRankImages } = require('../services/ximilarCompare');
 
 // ── MongoDB connection ──
@@ -129,17 +129,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(async ([shopId, raw]) => {
-        let listingId2 = null;
-        try {
-          const shopListings = await getShopListings(shopId, 5);
-          const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
-          if (other) listingId2 = other.listingId;
-        } catch (e) {
-          console.warn('[fetchListings] getShopListings failed for shop', shopId, ':', e.message);
-        }
-
-        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId, listingId2);
-        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
+        const { shopName, shopUrl, image } = await getShopNameAndImage(shopId, raw.listingId);
+        return { shopId, shopName, shopUrl, image, listingId: raw.listingId, link: raw.link, title: raw.title };
       })
     );
 
@@ -149,7 +140,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         continue;
       }
       const l = r.value;
-      if (!l.shopName || !l.image || !l.image2) continue;
+      if (!l.shopName || !l.image) continue;
       if (shopsSeen.has(l.shopName)) continue;
       shopsSeen.add(l.shopName);
       listings.push({
@@ -157,7 +148,6 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         link:      l.link,
         title:     l.title,
         image:     l.image,
-        image2:    l.image2,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
@@ -372,32 +362,27 @@ router.post('/search-dropship', async (req, res) => {
 
         try {
           const img1 = listing.image;
-          const img2 = listing.image2;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
-          if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
           console.log('[worker] analyse', listing.shopName);
-          const [r1, r2] = await Promise.all([analyzeImage(img1), analyzeImage(img2)]);
+          const r1 = await analyzeImage(img1);
 
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
           console.log('[worker]', listing.shopName,
-            '| img1:', r1 ? `✅ (dist=${r1.ximilarDistance ?? 'lens'})` : '❌',
-            '| img2:', r2 ? `✅ (dist=${r2.ximilarDistance ?? 'lens'})` : '❌'
+            '| img1:', r1 ? `✅ (dist=${r1.ximilarDistance ?? 'lens'})` : '❌'
           );
 
-          // Les deux images doivent être confirmées
-          if (r1 && r2) {
+          if (r1) {
             dropshippers.push({
-              shopName:         listing.shopName,
-              shopUrl:          listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
-              shopAvatar:       null,
-              shopImage:        img1,
-              listingUrl:       listing.link,
-              ximilarDistance1: r1.ximilarDistance,
-              ximilarDistance2: r2.ximilarDistance,
+              shopName:        listing.shopName,
+              shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
+              shopAvatar:      null,
+              shopImage:       img1,
+              listingUrl:      listing.link,
+              ximilarDistance: r1.ximilarDistance,
             });
             const distLabel = r1.ximilarDistance !== null
               ? ` | Ximilar: ${r1.ximilarDistance}`
