@@ -233,7 +233,7 @@ router.post('/search-dropship', async (req, res) => {
 
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse Google Lens...' });
 
-    // ── STEP 3 : Google Lens puis Ximilar ──
+    // ── STEP 3 : Google Lens + pHash ──
     const { uploadImageFree } = require('../services/freeImageUploader');
 
     /**
@@ -294,17 +294,27 @@ router.post('/search-dropship', async (req, res) => {
     /**
      * Pipeline complet pour une image :
      *  1. Lens → candidats AliExpress
-     *  2. Ximilar rank_images → confirmation visuelle (si clé dispo)
+     *  2. pHash → confirmation visuelle (100% gratuit, local)
      *
-     * @returns {{ aliMatch: object, ximilarDistance: number|null }|null}
+     * @returns {{ aliMatch: object, pHashScore: number|null }|null}
      */
     async function analyzeImage(etsyImageUrl) {
       if (isAborted()) return null;
       try {
         const lensResult = await lensSearch(etsyImageUrl);
         if (!lensResult) return null;
-        console.log(`[analyzeImage] ✅ Match AliExpress trouvé via Google Lens`);
-        return { aliMatch: lensResult.aliMatches[0], ximilarDistance: null };
+
+        const { findBestAliMatch } = require('../services/imageComparator');
+        const { pubUrl, aliMatches } = lensResult;
+
+        const { best, score } = await findBestAliMatch(pubUrl, aliMatches);
+        if (!best) {
+          console.log(`[analyzeImage] ❌ pHash — aucun match visuel confirmé (meilleur score: ${score})`);
+          return null;
+        }
+
+        console.log(`[analyzeImage] ✅ Match confirmé par pHash — score: ${score}`);
+        return { aliMatch: best, pHashScore: score };
       } catch (e) {
         if (e.message === 'serper_401') throw e;
         if (e.message === 'serper_no_credits') throw e;
@@ -338,24 +348,21 @@ router.post('/search-dropship', async (req, res) => {
           if (isAborted()) break;
 
           console.log('[worker]', listing.shopName,
-            '| img1:', r1 ? `✅ (dist=${r1.ximilarDistance ?? 'lens'})` : '❌'
+            '| img1:', r1 ? `✅ (pHash=${r1.pHashScore})` : '❌'
           );
 
           if (r1) {
             dropshippers.push({
-              shopName:        listing.shopName,
-              shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
-              shopAvatar:      null,
-              shopImage:       img1,
-              listingUrl:      listing.link,
-              ximilarDistance: r1.ximilarDistance,
+              shopName:   listing.shopName,
+              shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
+              shopAvatar: null,
+              shopImage:  img1,
+              listingUrl: listing.link,
+              pHashScore: r1.pHashScore,
             });
-            const distLabel = r1.ximilarDistance !== null
-              ? ` | Ximilar: ${r1.ximilarDistance}`
-              : '';
             send({
               step:    'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)' + distLabel,
+              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | pHash: ${r1.pHashScore}`,
               shop:    dropshippers[dropshippers.length - 1],
             });
           }
@@ -390,7 +397,6 @@ router.get('/health', (req, res) => {
     ETSY_CLIENT_ID:   !!process.env.ETSY_CLIENT_ID,
     SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
     SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
-    XIMILAR_API_KEY:  !!process.env.XIMILAR_API_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
