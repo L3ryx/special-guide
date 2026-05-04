@@ -870,10 +870,6 @@
         });
       } catch(e) {}
     }
-else {
-        toggle.classList.remove('active');
-      }
-    }
 
     function toggleAutoSearch() {
       _autoSearch = !_autoSearch;
@@ -957,7 +953,8 @@ else {
         if (e.key === 'Enter') addKeyword();
       });
     });
-window.addEventListener('beforeunload', function() {
+
+    window.addEventListener('beforeunload', function() {
       _stopRequested = true;
       _searching = false;
     });
