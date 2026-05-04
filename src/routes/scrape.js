@@ -178,7 +178,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
 
 // ── SEARCH DROPSHIP ──
 router.post('/search-dropship', async (req, res) => {
-  const { keyword, sessionId } = req.body;
+  const { keyword, sessionId, useDino = false } = req.body;
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
@@ -221,16 +221,13 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 & 3 : Warm-up DINOv2 + Scraping Etsy en parallèle ──
-    send({ step: 'analyzing', message: '🤖 Vérification du service DINOv2...' });
+    // ── STEP 2 & 3 : Warm-up DINOv2 (si Ultra activé) + Scraping Etsy en parallèle ──
     send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
 
     async function waitForDino(maxAttempts = 8, delayMs = 20000) {
       for (let i = 0; i < maxAttempts; i++) {
-        // First check: is the service reachable at all (ready OR loading)?
         const reachable = await isClipAvailable().catch(() => false);
         if (!reachable) continue;
-        // Second check: is the model fully loaded?
         const ready = await isDinoReady().catch(() => false);
         if (ready) return true;
         if (i < maxAttempts - 1) {
@@ -245,20 +242,30 @@ router.post('/search-dropship', async (req, res) => {
     let dinoReady = false;
 
     try {
-      [dinoReady, listings] = await Promise.all([
-        waitForDino(),
-        fetchListingsForDropship(
+      if (useDino) {
+        send({ step: 'analyzing', message: '🤖 Vérification du service DINOv2...' });
+        [dinoReady, listings] = await Promise.all([
+          waitForDino(),
+          fetchListingsForDropship(
+            keyword,
+            (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
+            usedShops,
+            isAborted
+          ),
+        ]);
+      } else {
+        listings = await fetchListingsForDropship(
           keyword,
           (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
           usedShops,
           isAborted
-        ),
-      ]);
+        );
+      }
     } catch(e) {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
     }
 
-    if (!dinoReady) {
+    if (useDino && !dinoReady) {
       send({
         step: 'error',
         message: '❌ Le service DINOv2 est indisponible après plusieurs tentatives. Veuillez réessayer dans 1-2 minutes (cold start HuggingFace ~60-90s).',
@@ -267,8 +274,13 @@ router.post('/search-dropship', async (req, res) => {
       return res.end();
     }
 
-    send({ step: 'analyzing', message: '✅ DINOv2 prêt — comparaison visuelle obligatoire activée' });
-    console.log('[search-dropship] ✅ DINOv2 disponible — comparaison visuelle obligatoire');
+    if (useDino) {
+      send({ step: 'analyzing', message: '✅ DINOv2 prêt — comparaison visuelle activée (mode Ultra)' });
+      console.log('[search-dropship] ✅ DINOv2 disponible — mode Ultra');
+    } else {
+      send({ step: 'analyzing', message: '🔍 Mode Lens uniquement (Ultra désactivé)' });
+      console.log('[search-dropship] ℹ️ Mode Lens uniquement — DINOv2 désactivé');
+    }
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
     listings = listings.filter(l => l.shopName);
@@ -355,14 +367,19 @@ router.post('/search-dropship', async (req, res) => {
         // Pas de candidat AliExpress trouvé par Serper → pas de match
         if (!aliMatches.length) return null;
 
-        // Étape 2 : DINOv2 — vérification visuelle OBLIGATOIRE
+        // Étape 2 : DINOv2 — vérification visuelle (mode Ultra uniquement)
+        if (!useDino) {
+          // Ultra désactivé → on retourne le premier match Lens directement
+          console.log(`[Lens] ✅ Match Lens accepté sans vérification DINOv2`);
+          return { ...aliMatches[0], clipSimilarity: null };
+        }
+
         const aliUrls = aliMatches
-          .slice(0, 4) // augmenté à 4 candidats pour plus de chances de match
+          .slice(0, 4)
           .flatMap(m => extractAliImageUrls(m))
           .filter(Boolean);
 
         if (!aliUrls.length) {
-          // Serper n'a retourné aucune image AliExpress utilisable → refus
           console.log(`[DINO] ❌ Aucune image AliExpress exploitable pour DINOv2`);
           return null;
         }
@@ -374,18 +391,15 @@ router.post('/search-dropship', async (req, res) => {
 
         console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
 
-        // Si le service DINOv2 est en 500 (fallback=true) → on skip ce shop et on log
         if (dinoResult.fallback) {
           console.warn(`[DINO] ⚠️ Service DINOv2 retourne 500/indisponible — shop ignoré (${etsyImageUrl?.slice(-30)})`);
           return null;
         }
 
-        // DINOv2 confirme l'objet → match validé
         if (dinoResult.match) {
           return { ...aliMatches[0], clipSimilarity: dinoResult.similarity };
         }
 
-        // DINOv2 rejette l'objet → pas de match même si Serper avait trouvé quelque chose
         console.log(`[DINO] ❌ Objet non confirmé (sim=${dinoResult.similarity} < seuil)`);
         return null;
 
