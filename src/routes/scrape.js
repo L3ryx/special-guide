@@ -73,7 +73,7 @@ router.post('/niche-keyword', async (req, res) => {
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 7;
+  const MAX_PAGES  = 5;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
   const shopIdToRaw = new Map();
@@ -424,7 +424,7 @@ router.post('/search-dropship', async (req, res) => {
           console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
 
           // Au moins une image confirmée par DINOv2 suffit pour valider le dropshipper
-          if (m1 || m2) {
+          if (m1 && m2) {
             const sim1 = m1?.clipSimilarity || null;
             const sim2 = m2?.clipSimilarity || null;
             dropshippers.push({
