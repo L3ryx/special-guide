@@ -441,6 +441,22 @@ router.post('/search-dropship', async (req, res) => {
           if (m1 && m2) {
             const sim1 = m1?.clipSimilarity || null;
             const sim2 = m2?.clipSimilarity || null;
+
+            // ── Récupérer numSales + date création pour calculer salesPerYear ──
+            let numSales = null;
+            let salesPerYear = null;
+            try {
+              const info = await getShopInfo(listing.shopId || listing.shopName);
+              numSales = info.numSales || 0;
+              if (info.createdAt) {
+                const ageMs    = Date.now() - info.createdAt * 1000;
+                const ageYears = Math.max(ageMs / (1000 * 60 * 60 * 24 * 365.25), 0.083);
+                salesPerYear = Math.round(numSales / ageYears);
+              }
+            } catch(e) {
+              console.warn('[worker] getShopInfo failed for', listing.shopName, ':', e.message);
+            }
+
             dropshippers.push({
               shopName:        listing.shopName,
               shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
@@ -449,6 +465,8 @@ router.post('/search-dropship', async (req, res) => {
               listingUrl:      listing.link,
               clipSimilarity1: sim1,
               clipSimilarity2: sim2,
+              numSales,
+              salesPerYear,
             });
             send({
               step: 'match',
