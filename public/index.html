@@ -1112,8 +1112,8 @@
       }
     }
 
-    async function generateKeywordBatch() {
-      showToast('⏳ Generating 50 keywords with Gemini…', '#f97316');
+    async function getNextKeyword() {
+      showToast('⏳ Generating keyword with Gemini…', '#f97316');
       const token = localStorage.getItem('scout_token') || '';
       const res = await fetch('/api/niche-keyword', {
         method: 'POST',
@@ -1121,22 +1121,8 @@
         body: JSON.stringify({ usedKeywords: _usedKeywords })
       });
       const data = await res.json();
-      if (!res.ok || !data.keywords) throw new Error(data.error || 'Failed to generate keywords');
-      const fresh = data.keywords.filter(function(k) { return !_usedKeywords.includes(k); });
-      _keywordQueue = fresh;
-      await saveQueueState(null);
-      showToast('✅ ' + fresh.length + ' keywords ready!', '#22c55e');
-      return fresh;
-    }
-
-    async function getNextKeyword() {
-      if (_keywordQueue.length === 0) {
-        await generateKeywordBatch();
-      }
-      if (_keywordQueue.length === 0) throw new Error('No keywords available');
-      const kw = _keywordQueue.shift();
-      await saveQueueState(null);
-      return kw;
+      if (!res.ok || !data.keyword) throw new Error(data.error || 'Failed to generate keyword');
+      return data.keyword;
     }
 
     function saveUsedShops(shopNames) {
@@ -1156,11 +1142,7 @@
     function updateQueueDisplay() {
       const label = document.getElementById('auto-search-label');
       if (!label) return;
-      if (_autoSearch) {
-        const remaining = _keywordQueue.length;
-        
-        label.innerHTML = '🤖 Automated';
-      }
+      if (_autoSearch) label.innerHTML = '🤖 Automated';
     }
 
     function clearKeywords() {
