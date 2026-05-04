@@ -44,7 +44,7 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── Litterbox (catbox.moe) — primaire, sans clé API, expiration 1h ──
+// ── Litterbox (catbox.moe) — sans clé API, expiration 1h ──
 async function uploadToLitterbox(buffer, mimeType) {
   console.log('[freeUploader] 🔄 Upload litterbox.catbox.moe...');
   try {
@@ -74,36 +74,8 @@ async function uploadToLitterbox(buffer, mimeType) {
   return null;
 }
 
-// ── 0x0.st — fallback ──
-async function uploadTo0x0(buffer, mimeType) {
-  console.log('[freeUploader] 🔄 Upload 0x0.st...');
-  try {
-    const form = new FormData();
-    form.append('file', buffer, { filename: 'image.jpg', contentType: mimeType });
-
-    const res = await axios.post(
-      'https://0x0.st',
-      form,
-      { headers: form.getHeaders(), timeout: 20000, responseType: 'text' }
-    );
-
-    const url = (typeof res.data === 'string' ? res.data : '').trim();
-    if (url.startsWith('https://')) {
-      console.log(`[freeUploader] ✅ 0x0.st OK → ${url}`);
-      return url;
-    }
-    console.warn(`[freeUploader] ⚠️ 0x0.st — réponse inattendue: ${url}`);
-  } catch (e) {
-    const status = e.response?.status;
-    const detail = e.response?.data ? String(e.response.data) : e.message;
-    const code   = e.code || '';
-    console.error(`[freeUploader] ❌ 0x0.st FAILED — HTTP ${status || 'réseau'} code=${code}: ${detail}`);
-  }
-  return null;
-}
-
 /**
- * Télécharge une image Etsy et l'héberge sur 0x0.st.
+ * Télécharge une image Etsy et l'héberge sur litterbox.catbox.moe.
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -125,17 +97,13 @@ async function uploadImageFree(etsyUrl) {
 
   console.log(`[freeUploader] 📤 Upload en cours (${img.buffer.length} bytes)...`);
 
-  let url = await uploadToLitterbox(img.buffer, img.mimeType);
-  if (!url) {
-    console.warn('[freeUploader] ⚠️ Litterbox échoué, tentative 0x0.st...');
-    url = await uploadTo0x0(img.buffer, img.mimeType);
-  }
+  const url = await uploadToLitterbox(img.buffer, img.mimeType);
   if (url) {
     uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
     return url;
   }
 
-  console.error('[freeUploader] ❌ ÉCHEC upload (Litterbox + 0x0.st). Ximilar ne sera PAS appelé.');
+  console.error('[freeUploader] ❌ ÉCHEC upload Litterbox. Ximilar ne sera PAS appelé.');
   return null;
 }
 
