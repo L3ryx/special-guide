@@ -128,12 +128,10 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null, listing
     fetchImage(listingId4, 'image4'),
   ]);
 
-  const numSales = shop.num_sales || 0;
   console.log('[etsyApi] getShopNameAndImage:', shopName,
     '| image1:', !!image, '| image2:', !!image2,
-    '| image3:', !!image3, '| image4:', !!image4,
-    '| numSales:', numSales);
-  return { shopName, shopUrl, image, image2, image3, image4, numSales };
+    '| image3:', !!image3, '| image4:', !!image4);
+  return { shopName, shopUrl, image, image2, image3, image4 };
 }
 
 /**
