@@ -13,7 +13,7 @@
 const axios = require('axios');
 
 const XIMILAR_BASE      = 'https://api.ximilar.com/image_matching/v2';
-const DEFAULT_THRESHOLD = parseFloat(process.env.XIMILAR_THRESHOLD || '10');
+const DEFAULT_THRESHOLD = parseFloat(process.env.XIMILAR_THRESHOLD || '20');
 const TIMEOUT_MS        = 20000;
 
 /**
