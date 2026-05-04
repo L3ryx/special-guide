@@ -4,7 +4,7 @@ const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
 // DINOv2 : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
-const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable, isDinoReady } = require('../services/dinoCompare');
+const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable, isDinoReady, getAdaptiveThreshold } = require('../services/dinoCompare');
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -341,19 +341,24 @@ router.post('/search-dropship', async (req, res) => {
         if (!aliMatches.length) return null;
 
         // Étape 2 : DINOv2 — vérification visuelle OBLIGATOIRE
-        // Une seule image AliExpress : le 1er resultat Google Lens
-        const aliUrl = extractAliImageUrls(aliMatches[0]).find(Boolean);
+        // On teste les 3 premiers résultats AliExpress et on garde le meilleur score
+        const aliCandidates = aliMatches.slice(0, 3)
+          .flatMap(m => extractAliImageUrls(m))
+          .filter(Boolean);
 
-        if (!aliUrl) {
+        if (!aliCandidates.length) {
           console.log(`[DINO] ❌ Aucune image AliExpress exploitable pour DINOv2`);
           return null;
         }
 
-        const dinoResult = await compareImages(etsyImageUrl, aliUrl, {
-          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
-        });
+        // Seuil adaptatif basé sur la catégorie produit (DINOv2 ≠ CLIP, seuils plus bas)
+        const adaptiveThreshold = getAdaptiveThreshold(listing?.title || '');
+        const threshold = parseFloat(process.env.CLIP_THRESHOLD || String(adaptiveThreshold));
 
-        console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
+        const bestMatch = await findBestAliMatch(etsyImageUrl, aliCandidates, { threshold });
+        const dinoResult = { ...bestMatch, fallback: bestMatch.fallback ?? false };
+
+        console.log(`[DINO] bestSim=${dinoResult.similarity} match=${dinoResult.match} candidates=${aliCandidates.length} threshold=${threshold}`);
 
         // Si le service DINOv2 est en 500 (fallback=true) → on skip ce shop et on log
         if (dinoResult.fallback) {
@@ -367,7 +372,7 @@ router.post('/search-dropship', async (req, res) => {
         }
 
         // DINOv2 rejette l'objet → pas de match même si Serper avait trouvé quelque chose
-        console.log(`[DINO] ❌ Objet non confirmé (sim=${dinoResult.similarity} < seuil)`);
+        console.log(`[DINO] ❌ Objet non confirmé (bestSim=${dinoResult.similarity} < seuil=${threshold})`);
         return null;
 
       } catch (e) {
