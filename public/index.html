@@ -253,6 +253,20 @@
     #results-container { display:flex; flex-direction:column; gap:20px; }
     .keyword-section-title { font-size:0.75rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#f97316; padding:8px 0 4px; border-bottom:1px solid rgba(249,115,22,0.2); }
     .results-count-bar { text-align:center; font-size:0.8rem; color:var(--muted); margin-bottom:4px; }
+    /* ── SALES GAUGE ── */
+    .sales-gauge-wrap {
+      display: flex; align-items: center; gap: 5px; margin-top: 3px;
+    }
+    .sales-gauge-bar {
+      height: 5px; border-radius: 3px; flex-shrink: 0;
+      transition: width 0.4s ease;
+      min-width: 4px;
+    }
+    .sales-gauge-label {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.04em;
+      white-space: nowrap; font-family: 'Courier New', monospace;
+    }
+
     /* ── BANDEROLE CARD ── */
     @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:none} }
     @property --glow-angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
@@ -1617,7 +1631,41 @@
       info.className = 'shop-result-info';
       const nameEl = document.createElement('div'); nameEl.className = 'shop-result-name'; nameEl.textContent = shop.shopName || '—';
       const tagEl  = document.createElement('div'); tagEl.className  = 'shop-result-tag';  tagEl.textContent  = '🛒 Dropshipping confirmed';
-      info.appendChild(nameEl); info.appendChild(tagEl);
+
+      // ── SALES GAUGE ──
+      const numSales = shop.numSales || 0;
+      const gaugeWrap = document.createElement('div');
+      gaugeWrap.className = 'sales-gauge-wrap';
+
+      // Paliers : 0-500 gris, 500-2k jaune, 2k-10k orange, 10k-50k vert, 50k+ violet
+      let gaugeColor, gaugeText, gaugePct;
+      if (numSales === 0) {
+        gaugeColor = 'rgba(255,255,255,0.2)'; gaugeText = 'N/A'; gaugePct = 5;
+      } else if (numSales < 500) {
+        gaugeColor = '#64748b'; gaugeText = numSales + ' sales'; gaugePct = 10;
+      } else if (numSales < 2000) {
+        gaugeColor = '#facc15'; gaugeText = numSales.toLocaleString() + ' sales'; gaugePct = 25;
+      } else if (numSales < 10000) {
+        gaugeColor = '#f97316'; gaugeText = numSales.toLocaleString() + ' sales'; gaugePct = 50;
+      } else if (numSales < 50000) {
+        gaugeColor = '#22c55e'; gaugeText = numSales.toLocaleString() + ' sales'; gaugePct = 75;
+      } else {
+        gaugeColor = '#a855f7'; gaugeText = numSales.toLocaleString() + ' sales'; gaugePct = 100;
+      }
+
+      const gaugeBar = document.createElement('div');
+      gaugeBar.className = 'sales-gauge-bar';
+      gaugeBar.style.cssText = 'width:' + gaugePct + 'px; background:' + gaugeColor + '; box-shadow: 0 0 6px ' + gaugeColor + ';';
+
+      const gaugeLabel = document.createElement('span');
+      gaugeLabel.className = 'sales-gauge-label';
+      gaugeLabel.style.color = gaugeColor;
+      gaugeLabel.textContent = gaugeText;
+
+      gaugeWrap.appendChild(gaugeBar);
+      gaugeWrap.appendChild(gaugeLabel);
+
+      info.appendChild(nameEl); info.appendChild(tagEl); info.appendChild(gaugeWrap);
       inner.appendChild(info);
 
       const visitBtn = document.createElement('a');
