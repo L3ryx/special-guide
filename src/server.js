@@ -9,7 +9,6 @@ const { Server } = require('socket.io');
 const scrapeRoutes = require('./routes/scrape');
 const { router: authRouter } = require('./routes/auth');
 const shopRoutes   = require('./routes/shopRoutes');
-const stripeRoutes = require('./routes/stripeRoutes');
 
 const app    = express();
 const server = http.createServer(app);
@@ -69,7 +68,6 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api', scrapeRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
-app.use('/api/stripe', stripeRoutes);
 
 // ── Pages ──
 app.get('/',               (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
