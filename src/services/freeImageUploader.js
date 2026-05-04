@@ -103,7 +103,7 @@ async function uploadImageFree(etsyUrl) {
     return url;
   }
 
-  console.error('[freeUploader] ❌ ÉCHEC upload Litterbox. Ximilar ne sera PAS appelé.');
+  console.error('[freeUploader] ❌ ÉCHEC upload Litterbox. Pipeline arrêté.');
   return null;
 }
 
