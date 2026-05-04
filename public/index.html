@@ -66,7 +66,11 @@
     #user-badge.hidden { opacity:0; pointer-events:none; }
 
     /* ── USER BADGE (top right) ── */
-    #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; }
+    #user-badge { position:fixed; top:10px; right:12px; z-index:500; display:none; align-items:center; gap:8px; }
+    #online-indicator { display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:4px 10px 4px 7px; }
+    #online-dot { width:9px; height:9px; border-radius:50%; background:#22c55e; box-shadow:0 0 6px rgba(34,197,94,0.8); flex-shrink:0; animation:pulse-dot 2s ease-in-out infinite; }
+    #online-count { font-size:0.75rem; font-weight:700; color:rgba(255,255,255,0.85); font-family:'Croissant One',cursive; }
+    @keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
     #user-avatar-btn { background:none; border:none; cursor:pointer; font-size:1.7rem; line-height:1; padding:4px; display:flex; align-items:center; justify-content:center; transition:transform 0.15s; }
     #user-avatar-btn:hover { transform:scale(1.25); }
     .user-dropdown { position:absolute; top:calc(100% + 10px); right:0; background:rgba(10,10,10,0.97); border:1px solid rgba(255,255,255,0.13); border-radius:16px; padding:8px; min-width:220px; box-shadow:0 16px 48px rgba(0,0,0,0.7); backdrop-filter:blur(20px); display:none; flex-direction:column; gap:2px; z-index:600; animation:menuPop 0.15s ease; }
@@ -223,13 +227,13 @@
     /* ── PROGRESS ── */
     #loading-spinner { display:none !important; }
     /* Progress inline sous le bouton search */
-    #progress-wrap { width:100%; display:none; flex-direction:column; align-items:center; gap:16px; margin-top:12px; }
+    #progress-wrap { width:65%; align-self:center; display:none; flex-direction:column; align-items:center; gap:16px; margin-top:12px; }
     #stop-btn { margin-top:4px; padding:14px 0; border-radius:14px; border:none; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:1rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; letter-spacing:0.1em; box-shadow:0 6px 32px rgba(220,38,38,0.55); width:65%; }
     #stop-btn:hover { background:#b91c1c; transform:scale(1.03); box-shadow:0 10px 40px rgba(220,38,38,0.7); }
     #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
-    .progress-steps { display:flex; justify-content:space-between; gap:4px; }
-    .step-dot { flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; opacity:0.3; transition:opacity 0.3s; }
+    .step-dot { display:flex; flex-direction:column; align-items:center; gap:5px; opacity:0.3; transition:opacity 0.3s; }
+    .step-dot:nth-child(2) { align-items:center; }
     .step-dot.active { opacity:1; } .step-dot.done { opacity:0.6; }
     .step-dot .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); transition:background 0.3s,box-shadow 0.3s; }
     .step-dot.active .dot { background:#f97316; box-shadow:0 0 8px #f97316; animation:blink 0.8s infinite; }
@@ -244,8 +248,8 @@
     .progress-msg { text-align:center; font-size:0.78rem; color:var(--muted); min-height:1.2em; }
 
     /* ── RESULTS ── */
-    #results-section { position:relative; z-index:10; padding:0 20px 80px; display:none; }
-    .results-grid { max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:28px; }
+    #results-section { position:relative; z-index:10; padding:0 12px 80px; display:none; }
+    .results-grid { max-width:min(460px,96vw); margin:0 auto; display:flex; flex-direction:column; gap:16px; }
     #results-container { display:flex; flex-direction:column; gap:20px; }
     .keyword-section-title { font-size:0.75rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#f97316; padding:8px 0 4px; border-bottom:1px solid rgba(249,115,22,0.2); }
     .results-count-bar { text-align:center; font-size:0.8rem; color:var(--muted); margin-bottom:4px; }
@@ -265,12 +269,12 @@
     .match-card-inner {
       background:rgba(8,8,16,0.92);
       border-radius:12px;
-      display:flex; align-items:center; gap:12px;
-      padding:16px 18px;
+      display:flex; align-items:center; gap:10px;
+      padding:11px 13px;
       backdrop-filter:blur(20px);
     }
-    .shop-result-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.15); }
-    .shop-result-avatar-ph { width:48px; height:48px; border-radius:50%; flex-shrink:0; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:1.3rem; }
+    .shop-result-avatar { width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.15); }
+    .shop-result-avatar-ph { width:40px; height:40px; border-radius:50%; flex-shrink:0; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
     .shop-result-info { flex:1; min-width:0; }
     .shop-result-name { font-weight:700; font-size:0.9rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .shop-result-tag { font-size:0.62rem; color:#a78bfa; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; margin-top:2px; }
@@ -285,8 +289,8 @@
 
     /* ── PAY BUTTON (top center) ── */
     #pay-btn-wrap { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:600; display:none; }
-    #pay-btn { background:#facc15; color:#1a1a1a; border:none; border-radius:12px; padding:10px 24px; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; letter-spacing:0.06em; box-shadow:0 4px 20px rgba(250,204,21,0.5); transition:all 0.2s; display:flex; align-items:center; gap:8px; white-space:nowrap; }
-    #pay-btn:hover { background:#fde047; transform:scale(1.05); box-shadow:0 6px 28px rgba(250,204,21,0.65); }
+    #pay-btn { background:#22c55e; color:#fff; border:none; border-radius:12px; padding:10px 24px; font-family:'Croissant One',cursive; font-size:0.95rem; font-weight:700; cursor:pointer; letter-spacing:0.06em; box-shadow:0 4px 20px rgba(34,197,94,0.5); transition:all 0.2s; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+    #pay-btn:hover { background:#16a34a; transform:scale(1.05); box-shadow:0 6px 28px rgba(34,197,94,0.65); }
     #pay-btn:active { transform:scale(0.98); }
 
     /* ── SEARCH COUNTER ── */
@@ -391,7 +395,7 @@
 
   <!-- PAY BUTTON -->
   <div id="pay-btn-wrap">
-    <button id="pay-btn" onclick="openStripeModal()">💳 Pay</button>
+    <button id="pay-btn" onclick="openStripeModal()">💳 Buy</button>
   </div>
 
   <!-- STRIPE MODAL -->
@@ -400,21 +404,25 @@
       <button id="stripe-close-btn" onclick="closeStripeModal()" aria-label="Close">✕</button>
       <div class="stripe-logo">💳</div>
       <div class="stripe-title">Unlock Searches</div>
-      <div class="stripe-subtitle">Get 10 searches instantly. No subscription, pay once.</div>
+      <div class="stripe-subtitle">Get 20 searches instantly. No subscription, pay once.</div>
       <div class="stripe-price-badge">
-        <div class="stripe-price">$24.99</div>
-        <div class="stripe-price-detail">= 10 searches · $2.50 per search</div>
+        <div class="stripe-price">$19.99</div>
+        <div class="stripe-price-detail">= 20 searches · $1.00 per search</div>
       </div>
       <!-- Stripe Elements injecte ici -->
       <div id="stripe-payment-element"></div>
       <div class="stripe-msg" id="stripe-msg"></div>
-      <button class="stripe-pay-btn" id="stripe-pay-btn" onclick="processPay()">🔒 Pay $24.99</button>
+      <button class="stripe-pay-btn" id="stripe-pay-btn" onclick="processPay()">🔒 Pay $19.99</button>
       <div class="stripe-cancel" onclick="closeStripeModal()">Cancel</div>
       <div class="stripe-secure">🔒 Secured by Stripe · SSL encrypted</div>
     </div>
   </div>
 
   <div id="user-badge">
+    <div id="online-indicator">
+      <span id="online-dot"></span>
+      <span id="online-count">1</span>
+    </div>
     <button id="user-avatar-btn" onclick="toggleUserDropdown()">👤</button>
     <div class="user-dropdown" id="user-dropdown">
       <div class="user-dropdown-email" id="user-email-display">—</div>
@@ -423,6 +431,7 @@
       <button class="user-dropdown-item" onclick="openAcctModal('password')">🔑 Change password</button>
       <hr class="user-dropdown-sep"/>
       <button class="user-dropdown-item" onclick="logout()">🚪 Log out</button>
+      <button class="user-dropdown-item danger" onclick="clearData()">🧹 Clear data</button>
       <button class="user-dropdown-item danger" onclick="deleteAccount()">🗑 Delete account</button>
     </div>
   </div>
@@ -481,9 +490,8 @@
 </button>
           <button id="stop-btn" onclick="stopSearch()" style="display:none;">Stop</button>
       </div>
-      <div id="progress-wrap" style="width:100%;">
+      <div id="progress-wrap">
         <div class="progress-keyword-label" id="progress-keyword-label"></div>
-        <div class="progress-steps" id="progress-steps"></div>
         <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
         <div class="progress-msg" id="progress-msg"></div>
       </div>
@@ -723,11 +731,11 @@
         _stripePaymentEl.mount('#stripe-payment-element');
         _stripePaymentEl.on('ready', function() {
           document.getElementById('stripe-pay-btn').disabled = false;
-          document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $24.99';
+          document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $19.99';
         });
       } catch(e) {
         document.getElementById('stripe-msg').textContent = e.message;
-        document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $24.99';
+        document.getElementById('stripe-pay-btn').innerHTML = '🔒 Pay $19.99';
       }
     }
 
@@ -758,7 +766,7 @@
         if (result.error) {
           msg.textContent = result.error.message;
           btn.disabled = false;
-          btn.innerHTML = '🔒 Pay $24.99';
+          btn.innerHTML = '🔒 Pay $19.99';
           return;
         }
 
@@ -775,16 +783,16 @@
           _searchCredits = d2.searchCredits;
           renderCredits();
           closeStripeModal();
-          showToast('✅ Payment successful! 10 searches unlocked.', '#22c55e');
+          showToast('✅ Payment successful! 20 searches unlocked.', '#22c55e');
         } else {
           msg.textContent = 'Payment not completed. Please try again.';
           btn.disabled = false;
-          btn.innerHTML = '🔒 Pay $24.99';
+          btn.innerHTML = '🔒 Pay $19.99';
         }
       } catch(e) {
         msg.textContent = e.message;
         btn.disabled = false;
-        btn.innerHTML = '🔒 Pay $24.99';
+        btn.innerHTML = '🔒 Pay $19.99';
       }
     }
 
@@ -859,6 +867,19 @@
       document.getElementById('niche-list-btn').style.display = 'none';
       document.getElementById('user-dropdown').classList.remove('open');
       showAuthModal();
+    }
+
+    async function clearData() {
+      if (!confirm('⚠️ Clear all saved shops and search history? This cannot be undone.')) return;
+      try {
+        await Promise.all([
+          fetch('/api/shops', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } }),
+          fetch('/api/shops/auto-state', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + SCOUT_TOKEN } }),
+        ]);
+        _usedShops = []; _usedKeywords = [];
+        document.getElementById('user-dropdown').classList.remove('open');
+        showToast('✅ All data cleared', '#22c55e');
+      } catch(e) { showToast('Error: ' + e.message, '#ef4444'); }
     }
 
     async function deleteAccount() {
@@ -1155,6 +1176,12 @@
       });
     });
 
+    // ── CLIP WAKE-UP ──
+    // Ping CLIP dès le chargement de la page pour éviter le cold start HuggingFace
+    (function wakeUpClip() {
+      fetch('/api/clip-warmup').catch(() => {});
+    })();
+
     window.addEventListener('beforeunload', function() {
       _stopRequested = true;
       _searching = false;
@@ -1168,16 +1195,10 @@
     ];
 
     function initProgress(keyword) {
-      const c = document.getElementById('progress-steps');
-      c.innerHTML = '';
-      STEPS.forEach(function(s) {
-        const d = document.createElement('div');
-        d.className = 'step-dot'; d.id = 'step-' + s.key;
-        d.innerHTML = '<div class="dot"></div><span class="step-label">' + s.label + '</span>';
-        c.appendChild(d);
-      });
       resetProgress();
       document.getElementById('progress-msg').textContent = '';
+      var kl = document.getElementById('progress-keyword-label');
+      if (kl) kl.textContent = keyword || '';
     }
 
     var _progressCurrent = 0;
@@ -1237,13 +1258,6 @@
     }
 
     function advanceStep(k, msg) {
-      const idx = STEPS.findIndex(function(s) { return s.key === k; });
-      STEPS.forEach(function(s, i) {
-        const el = document.getElementById('step-' + s.key); if (!el) return;
-        if (idx >= 0 && i < idx) el.className = 'step-dot done';
-        else if (i === idx) el.className = 'step-dot active';
-        else el.className = 'step-dot';
-      });
       if (msg) document.getElementById('progress-msg').textContent = msg;
       if (k === 'scraping') {
         setProgress(10);
@@ -1256,7 +1270,6 @@
     }
 
     function completeAllSteps() {
-      STEPS.forEach(function(s) { const el = document.getElementById('step-' + s.key); if (el) el.className = 'step-dot done'; });
       _progressTarget = 100;
       _progressCurrent = Math.min(99, _progressCurrent);
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
@@ -1278,7 +1291,7 @@
       resetProgress();
     }
 
-    function setStopMode(btn) {
+    function setStopMode() {
       document.getElementById('start-btn').style.display = 'none';
       document.getElementById('stop-btn').style.display = 'flex';
     }
@@ -1317,7 +1330,10 @@
       document.getElementById('keyword-input').disabled = false;
     }
 
-    function setRetryMode(btn) {
+    function setRetryMode() {
+      const btn = document.getElementById('start-btn');
+      btn.style.display = 'flex';
+      document.getElementById('stop-btn').style.display = 'none';
       btn.classList.remove('loading');
       btn.classList.add('retry');
       btn.innerHTML = '<div id="container-stars"><div id="stars"></div></div><span>Retry</span><div id="glow"><div class="circle"></div><div class="circle"></div></div>';
@@ -1438,7 +1454,7 @@
             showErrorPopup(errMsg);
             if (tag) tag.className = 'keyword-tag error';
             hasError = true;
-            setRetryMode(btn);
+            setRetryMode();
             continue;
           }
 
@@ -1464,7 +1480,7 @@
                     if (_autoSearch && ev.shop.shopName && _usedShops.includes(ev.shop.shopName)) {
                       // skip
                     } else {
-                      renderShopResult(ev.shop);
+                      renderShopResult(ev.shop, keyword);
                       totalMatches++;
                       document.getElementById('results-section').style.display = 'block';
                       document.documentElement.classList.add('unlocked');
@@ -1482,7 +1498,7 @@
                   showErrorPopup(ev.message);
                   if (tag) tag.className = 'keyword-tag error';
                   hasError = true;
-                  setRetryMode(btn);
+                  setRetryMode();
                 } else {
                   advanceStep(ev.step, ev.message);
                 }
@@ -1501,7 +1517,7 @@
           showErrorPopup(err.message);
           if (tag) tag.className = 'keyword-tag error';
           hasError = true;
-          setRetryMode(btn);
+          setRetryMode();
         }
 
         if (totalMatches > 0) {
@@ -1533,17 +1549,7 @@
 
       if (_autoSearch) {
         _totalAutoMatches += totalMatches;
-        if (_totalAutoMatches > 0) {
-          const badge = document.createElement('div');
-          badge.textContent = _totalAutoMatches + ' result(s) total';
-          badge.style.color = 'var(--muted)';
-          countBar.appendChild(badge);
-        }
       } else if (totalMatches > 0) {
-        const badge = document.createElement('div');
-        badge.textContent = totalMatches + ' result(s)';
-        badge.style.color = 'var(--muted)';
-        countBar.appendChild(badge);
         setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
       }
 
@@ -1569,7 +1575,7 @@
     window._shopDataMap = {};
     function encodeShopKey(u) { return (u || '').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40); }
 
-    function renderShopResult(shop) {
+    function renderShopResult(shop, keyword) {
       const productUrl = shop.listingUrl || shop.shopUrl || '#';
       const idx = Object.keys(window._shopDataMap).length;
       const shopUrl = shop.shopName ? 'https://www.etsy.com/shop/' + shop.shopName : (shop.shopUrl || '#');
@@ -1579,6 +1585,7 @@
         shopAvatar:   shop.shopAvatar || shop.shopImage || null,
         productImage: shop.shopImage || null,
         productUrl:   shopUrl,
+        keyword:      keyword || null,
       };
 
       const card = document.createElement('div');
@@ -1662,7 +1669,7 @@
       try {
         const r = await fetch('/api/shops/save', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ shopUrl: data.shopUrl, shopName: data.shopName, shopAvatar: data.shopAvatar, productImage: data.productImage, productUrl: data.productUrl })
+          body: JSON.stringify({ shopUrl: data.shopUrl, shopName: data.shopName, shopAvatar: data.shopAvatar, productImage: data.productImage, productUrl: data.productUrl, keyword: data.keyword || null })
         });
         if (r.ok) {
           _savedShopUrls.add(data.shopUrl); btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent = '✔';
@@ -1677,6 +1684,26 @@
     // ── MILKY WAY ──
     (function(){const canvas=document.getElementById('milkyway-canvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H,cx,cy;const bandAngle=Math.PI/5,bandW=600,rand=function(a,b){return Math.random()*(b-a)+a;};let nebulae=[];function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;cx=W/2;cy=H/2;buildNebulae();}window.addEventListener('resize',resize);resize();function buildNebulae(){nebulae=[];const colors=[[180,100,200],[100,120,255],[255,120,80],[80,200,255],[200,80,255]];for(var i=0;i<5;i++){const col=colors[i],along=rand(-bandW*0.4,bandW*0.4),spread=rand(-60,60);nebulae.push({x:cx+Math.cos(bandAngle)*along-Math.sin(bandAngle)*spread,y:cy+Math.sin(bandAngle)*along+Math.cos(bandAngle)*spread,rx:rand(80,220),ry:rand(40,120),angle:bandAngle+rand(-0.3,0.3),r:col[0],g:col[1],b:col[2],alpha:rand(0.04,0.1),pulse:rand(0.001,0.003),pulseDir:1});}}var driftAngle=0;function draw(){ctx.clearRect(0,0,W,H);driftAngle+=0.00008;ctx.save();ctx.translate(W/2,H/2);ctx.rotate(driftAngle);ctx.translate(-W/2,-H/2);nebulae.forEach(function(n){n.alpha+=n.pulse*n.pulseDir;if(n.alpha>0.12||n.alpha<0.03)n.pulseDir*=-1;ctx.save();ctx.translate(n.x,n.y);ctx.rotate(n.angle);const g=ctx.createRadialGradient(0,0,0,0,0,n.rx);g.addColorStop(0,'rgba('+n.r+','+n.g+','+n.b+','+n.alpha+')');g.addColorStop(0.5,'rgba('+n.r+','+n.g+','+n.b+','+(n.alpha*0.4)+')');g.addColorStop(1,'rgba('+n.r+','+n.g+','+n.b+',0)');ctx.scale(1,n.ry/n.rx);ctx.beginPath();ctx.arc(0,0,n.rx,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();ctx.restore();});ctx.restore();requestAnimationFrame(draw);}draw();})();
 
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    (function() {
+      try {
+        var _socket = io();
+        _socket.on('online_count', function(n) {
+          var el = document.getElementById('online-count');
+          if (el) el.textContent = n;
+        });
+      } catch(e) {
+        // socket.io not available, fallback to polling
+        setInterval(function() {
+          fetch('/api/online-count').then(function(r){ return r.json(); }).then(function(d){
+            var el = document.getElementById('online-count');
+            if (el) el.textContent = d.count || 1;
+          }).catch(function(){});
+        }, 10000);
+      }
+    })();
   </script>
 </body>
 </html>
