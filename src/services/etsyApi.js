@@ -140,10 +140,11 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null, listing
   ]);
 
   // num_sales : masqué à 0 pour les clés API publiques (OAuth uniquement).
-  // Fallback : tenter via /shops/{shopId}/listings/active?includes=shop
-  // qui expose parfois shop.num_sales dans la réponse embedded.
+  // Fallback 1 : via listings embedded
+  // Fallback 2 : scraping page HTML publique /shop/{name} → "X Sales"
   let numSales = shop.num_sales || 0;
-  if (numSales === 0 && image) {
+
+  if (numSales === 0) {
     try {
       const statsRes = await axios.get(
         `${BASE}/shops/${shopId}/listings/active?limit=1&includes=shop`,
@@ -152,6 +153,25 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null, listing
       const embedded = statsRes.data?.results?.[0]?.shop;
       if (embedded?.num_sales > 0) numSales = embedded.num_sales;
     } catch(e) { /* silencieux */ }
+  }
+
+  // Fallback 2 : scraping HTML public si toujours 0
+  if (numSales === 0 && shopName) {
+    try {
+      const html = await axios.get(`https://www.etsy.com/shop/${shopName}`, {
+        timeout: 8000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+        }
+      });
+      // Pattern Etsy : "12,345 Sales" ou "12345 Sales"
+      const match = html.data.match(/([\d,]+)\s*Sales?/i);
+      if (match) {
+        numSales = parseInt(match[1].replace(/,/g, ''), 10) || 0;
+        if (numSales > 0) console.log(`[etsyApi] numSales scrapped for ${shopName}: ${numSales}`);
+      }
+    } catch(e) { /* silencieux — ne pas bloquer si Etsy refuse */ }
   }
   console.log('[etsyApi] getShopNameAndImage:', shopName,
     '| image1:', !!image, '| image2:', !!image2,
