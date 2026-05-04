@@ -23,16 +23,16 @@ const CLIP_BASE = process.env.SIGLIP_SERVICE_URL || process.env.CLIP_SERVICE_URL
 // Seuil de similarité cosinus par défaut
 const DEFAULT_THRESHOLD = parseFloat(process.env.CLIP_THRESHOLD || '0.75');
 
-// 90s max — HuggingFace Spaces peut avoir un cold start de 60-90s
-const TIMEOUT_MS = 90000;
+// 30s max — réduit pour ne pas bloquer les workers en mode Ultra
+const TIMEOUT_MS = 30000;
 
 // Timeout court pour le health check
 const HEALTH_TIMEOUT_MS = 8000;
 
-// FIX : 4 retries avec backoff long pour absorber les cold starts HuggingFace (60-90s)
-// Séquence d'attente : 15s → 30s → 45s → 60s = max 150s de tentatives
-const MAX_RETRIES = 4;
-const RETRY_DELAYS_MS = [15000, 30000, 45000, 60000];
+// FIX : 2 retries max pour ne pas bloquer la progression en mode Ultra
+// Séquence d'attente : 5s → 10s = max 15s de tentatives avant fallback
+const MAX_RETRIES = 2;
+const RETRY_DELAYS_MS = [5000, 10000];
 
 
 /**
@@ -152,8 +152,8 @@ async function compareImages(etsyUrl, aliUrl, options = {}) {
 /**
  * Compare via /compare-hybrid (DINOv2 75% + structure 25%).
  *
- * FIX : retry MAX_RETRIES=4 avec backoff long (15s/30s/45s/60s) pour absorber
- * les cold starts HuggingFace qui peuvent durer jusqu'à 90s.
+ * FIX : retry MAX_RETRIES=2 avec backoff court (5s/10s) pour ne pas bloquer
+ * la progression en mode Ultra quand HuggingFace est en cold start.
  *
  * @param {string} etsyUrl
  * @param {string} aliUrl
