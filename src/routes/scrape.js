@@ -341,18 +341,15 @@ router.post('/search-dropship', async (req, res) => {
         if (!aliMatches.length) return null;
 
         // Étape 2 : DINOv2 — vérification visuelle OBLIGATOIRE
-        const aliUrls = aliMatches
-          .slice(0, 2) // plan gratuit Serper : on limite à 2 candidats
-          .flatMap(m => extractAliImageUrls(m))
-          .filter(Boolean);
+        // Une seule image AliExpress : le 1er resultat Google Lens
+        const aliUrl = extractAliImageUrls(aliMatches[0]).find(Boolean);
 
-        if (!aliUrls.length) {
-          // Serper n'a retourné aucune image AliExpress utilisable → refus
+        if (!aliUrl) {
           console.log(`[DINO] ❌ Aucune image AliExpress exploitable pour DINOv2`);
           return null;
         }
 
-        const dinoResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
+        const dinoResult = await compareImages(etsyImageUrl, aliUrl, {
           threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
         });
 
