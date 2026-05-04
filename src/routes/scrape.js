@@ -3,8 +3,8 @@ const router   = express.Router();
 const axios    = require('axios');
 const mongoose = require('mongoose');
 const { searchListingIds, getShopNameAndImage, getShopListings, getShopInfo, getListingDetail, handleEtsyError } = require('../services/etsyApi');
-// DINOv2 : comparaison visuelle objet Etsy ↔ AliExpress (HuggingFace, gratuit)
-const { compareImages, findBestAliMatch, extractAliImageUrls, isClipAvailable, isDinoReady } = require('../services/dinoCompare');
+// ScraperAPI conservé UNIQUEMENT pour AliExpress
+const { scraperApiFetch } = require('../services/scrapingFetch');
 
 // ── MongoDB connection ──
 if (mongoose.connection.readyState === 0) {
@@ -13,16 +13,7 @@ if (mongoose.connection.readyState === 0) {
     .catch(err => console.error('❌ MongoDB:', err.message));
 }
 
-
-// ── Clé Serper unique ──
-const SERPER_KEYS = [process.env.SERPER_API_KEY].filter(Boolean);
-let _serperKeyIndex = 0;
-function getSerperKey() {
-  const key = SERPER_KEYS[_serperKeyIndex % SERPER_KEYS.length];
-  _serperKeyIndex++;
-  return key;
-}
-
+// ── Active searches registry (sessionId → aborted) ──
 const activeSearches = new Map();
 
 router.post('/stop-search', (req, res) => {
@@ -68,20 +59,25 @@ router.post('/niche-keyword', async (req, res) => {
 
 /**
  * Récupère les listings Etsy via l'API officielle pour la détection de dropship.
+ *
+ * Stratégie :
+ *  1. Collecter tous les shop_id uniques via /listings/active (8 pages x 100)
+ *  2. Pour chaque shop_id nouveau : appeler getShopNameAndImage() en parallèle (batch de 5)
+ *     → /shops/{id} pour le nom + /shops/{id}/listings?includes=images pour l'image
+ *
+ * Retourne un tableau de { listingId, link, image, shopName, shopUrl }.
  */
 async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAborted = () => false) {
-  const MAX_PAGES  = 7;
+  const MAX_PAGES  = 8;
   const perPage    = 100;
   const shopsSeen  = new Set(usedShops);
-  const shopIdToRaw = new Map();
+  const shopIdToRaw = new Map(); // shopId → { listingId, link, title }
   let offset = 0;
   let page   = 0;
-  const pageTimes = [];
-  let lastPageStart = Date.now();
 
+  // ── PHASE 1 : collecter tous les shop_id uniques ──
   while (page < MAX_PAGES) {
     if (isAborted()) return [];
-    lastPageStart = Date.now();
     let results;
     try {
       results = await searchListingIds(keyword, perPage, offset);
@@ -96,8 +92,10 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       const sid = String(r.shopId);
       if (shopsSeen.has(sid)) continue;
       if (!shopIdToRaw.has(sid)) {
+        // Premier listing de cette boutique
         shopIdToRaw.set(sid, { listingId: r.listingId, listingId2: null, link: r.link, title: r.title });
       } else {
+        // Deuxième listing différent — on le stocke si pas encore trouvé
         const existing = shopIdToRaw.get(sid);
         if (!existing.listingId2 && r.listingId !== existing.listingId) {
           existing.listingId2 = r.listingId;
@@ -105,21 +103,19 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
       }
     }
 
-    const pageElapsed = Date.now() - lastPageStart;
-    pageTimes.push(pageElapsed);
-    const avgPageMs = pageTimes.reduce((a, b) => a + b, 0) / pageTimes.length;
-
     page++;
     console.log(`fetchListingsForDropship scan page ${page}/${MAX_PAGES}: ${shopIdToRaw.size} unique new shopIds`);
-    if (onBatch) onBatch(page, shopIdToRaw.size, avgPageMs, MAX_PAGES);
+    if (onBatch) onBatch(page, shopIdToRaw.size);
 
     if (results.length < perPage) break;
     offset += perPage;
+    await new Promise(r => setTimeout(r, 100));
   }
 
   console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
 
-  const BATCH = 12;
+  // ── PHASE 2 : résoudre shopName + image par batch de 5 ──
+  const BATCH = 5;
   const listings = [];
   const shopIdList = [...shopIdToRaw.entries()];
 
@@ -127,21 +123,14 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     if (isAborted()) return listings;
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
-      batch.map(async ([shopId, raw]) => {
-        // Toujours aller chercher un 2ème listing directement dans la boutique,
-        // indépendamment de ce qu'on a trouvé dans les résultats de recherche.
-        let listingId2 = null;
-        try {
-          const shopListings = await getShopListings(shopId, 5);
-          const other = shopListings.find(l => l.listingId && String(l.listingId) !== String(raw.listingId));
-          if (other) listingId2 = other.listingId;
-        } catch (e) {
-          console.warn('[fetchListings] getShopListings failed for shop', shopId, ':', e.message);
-        }
-
-        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId, listingId2);
-        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
-      })
+      batch.map(([shopId, raw]) =>
+        getShopNameAndImage(shopId, raw.listingId, raw.listingId2).then(({ shopName, shopUrl, image, image2 }) => ({
+          shopId, shopName, shopUrl, image, image2,
+          listingId: raw.listingId,
+          link:      raw.link,
+          title:     raw.title,
+        }))
+      )
     );
 
     for (const r of resolved) {
@@ -165,7 +154,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         source:    'etsy',
       });
     }
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 100));
   }
 
   console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
@@ -179,8 +168,8 @@ router.post('/search-dropship', async (req, res) => {
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID)   return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
-  if (!SERPER_KEYS.length) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
-
+  if (!process.env.SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY missing' });
+  if (!process.env.IMGBB_API_KEY)  return res.status(500).json({ error: 'IMGBB_API_KEY missing' });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -188,22 +177,24 @@ router.post('/search-dropship', async (req, res) => {
   const send = d => { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch {} };
 
   // ── Abort detection ──
+  // Nettoyer les anciennes sessions terminées pour éviter les faux positifs
   for (const [key, val] of activeSearches.entries()) {
     if (val === true) activeSearches.delete(key);
   }
   const sid = sessionId && sessionId.trim() ? sessionId.trim() : (Date.now() + Math.random()).toString(36);
-  activeSearches.set(sid, false);
+  activeSearches.set(sid, false);   // false = en cours
   const isAborted = () => activeSearches.get(sid) === true;
 
   try {
+    const { uploadToImgBB } = require('../services/imgbbUploader');
 
-    // ── STEP 1 : Récupérer les boutiques déjà analysées ──
+    // ── STEP 1 : Récupérer les boutiques déjà analysées pour les exclure ──
     const AutoSearchState = require('../models/autoSearchModel');
     let usedShops = [];
     try {
       const { requireAuth } = require('./auth');
       const jwt = require('jsonwebtoken');
-      const JWT_SECRET = process.env.JWT_SECRET;
+      const JWT_SECRET = process.env.JWT_SECRET || 'Bretignydu91';
       const header = req.headers.authorization || '';
       const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
       if (token) {
@@ -218,54 +209,20 @@ router.post('/search-dropship', async (req, res) => {
       console.warn('[search-dropship] Could not load usedShops:', e.message);
     }
 
-    // ── STEP 2 & 3 : Warm-up DINOv2 + Scraping Etsy en parallèle ──
-    send({ step: 'analyzing', message: '🤖 Vérification du service DINOv2...' });
+    // ── STEP 2 : Récupérer les listings Etsy ──
     send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
 
-    async function waitForDino(maxAttempts = 8, delayMs = 20000) {
-      for (let i = 0; i < maxAttempts; i++) {
-        // First check: is the service reachable at all (ready OR loading)?
-        const reachable = await isClipAvailable().catch(() => false);
-        if (!reachable) continue;
-        // Second check: is the model fully loaded?
-        const ready = await isDinoReady().catch(() => false);
-        if (ready) return true;
-        if (i < maxAttempts - 1) {
-          send({ step: 'analyzing', message: `⏳ DINOv2 en démarrage... (${i + 1}/${maxAttempts}) — nouvelle tentative dans ${delayMs / 1000}s` });
-          await new Promise(r => setTimeout(r, delayMs));
-        }
-      }
-      return false;
-    }
-
     let listings = [];
-    let dinoReady = false;
-
     try {
-      [dinoReady, listings] = await Promise.all([
-        waitForDino(),
-        fetchListingsForDropship(
-          keyword,
-          (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/7 — ' + count + ' boutiques...' }),
-          usedShops,
-          isAborted
-        ),
-      ]);
+      listings = await fetchListingsForDropship(
+        keyword,
+        (page, count) => send({ step: 'scraping', message: '📄 Page ' + page + '/8 — ' + count + ' boutiques...' }),
+        usedShops,
+        isAborted
+      );
     } catch(e) {
       send({ step: 'error', message: '❌ Etsy API failed: ' + e.message }); return res.end();
     }
-
-    if (!dinoReady) {
-      send({
-        step: 'error',
-        message: '❌ Le service DINOv2 est indisponible après plusieurs tentatives. Veuillez réessayer dans 1-2 minutes (cold start HuggingFace ~60-90s).',
-      });
-      activeSearches.delete(sid);
-      return res.end();
-    }
-
-    send({ step: 'analyzing', message: '✅ DINOv2 prêt — comparaison visuelle obligatoire activée' });
-    console.log('[search-dropship] ✅ DINOv2 disponible — comparaison visuelle obligatoire');
 
     if (isAborted()) { send({ step: 'stopped', message: '🛑 Search stopped by user.' }); activeSearches.delete(sid); return res.end(); }
     listings = listings.filter(l => l.shopName);
@@ -275,120 +232,31 @@ router.post('/search-dropship', async (req, res) => {
       send({ step: 'error', message: '❌ Aucune boutique trouvée dans les résultats Etsy' });
       return res.end();
     }
-    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse DINOv2...' });
+    send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse...' });
 
-    // ── STEP 4 : Google Lens + CLIP obligatoire ──
+    // ── STEP 3 : Google Lens via Serper ──
+    const imgbbCache = new Map();
+    async function uploadCached(url) {
+      if (imgbbCache.has(url)) return imgbbCache.get(url);
+      const r = await uploadToImgBB(url);
+      imgbbCache.set(url, r);
+      return r;
+    }
 
-    /**
-     * Vérifie si une image Etsy trouve son objet sur AliExpress.
-     *
-     * CLIP est OBLIGATOIRE :
-     *  - Si CLIP rejette l'objet → null (pas de match)
-     *  - Si CLIP est en erreur   → null (pas de match, on ne fait pas confiance à Serper seul)
-     *  - Aucun fallback pHash, aucun fallback Serper seul
-     *
-     * @returns {object|null} Le match AliExpress confirmé par CLIP, ou null
-     */
-    const { uploadImageFree } = require('../services/freeImageUploader');
-
-    async function lensMatchWithClip(etsyImageUrl) {
+    async function lensMatch(imageUrl) {
       if (isAborted()) return null;
       try {
-        if (!etsyImageUrl || isAborted()) return null;
-
-        // ── Étape 0 : upload vers un hébergeur public gratuit ──
-        // Serper Lens nécessite une URL publique (les URLs i.etsystatic.com sont rejetées).
-        // On utilise 0x0.st avec fallback sur litterbox — sans clé API.
-        const pub = await uploadImageFree(etsyImageUrl);
+        const pub = await uploadCached(imageUrl);
         if (!pub || isAborted()) return null;
-
-        // ── Étape 1 : Google Lens pour trouver des candidats AliExpress ──
-        // Retry automatique sur 429 (rate limit Serper) avec backoff exponentiel
-        let r;
-        const SERPER_RETRIES = 3;
-        for (let attempt = 0; attempt < SERPER_RETRIES; attempt++) {
-          try {
-            r = await axios.post('https://google.serper.dev/lens',
-              { url: pub, gl: 'us', hl: 'en' },
-              { headers: { 'X-API-KEY': getSerperKey() }, timeout: 25000 }
-            );
-            break; // succès → sort du loop
-          } catch (serperErr) {
-            const status = serperErr.response?.status;
-            const detail = serperErr.response?.data;
-
-            if (status === 400) {
-              console.warn('[lensMatchWithClip] Serper 400 — détail:', JSON.stringify(detail));
-              if (detail?.message?.toLowerCase().includes('not enough credits')) {
-                throw new Error('serper_no_credits');
-              }
-              throw serperErr; // autre 400 non récupérable
-            }
-
-            if (status === 429) {
-              if (attempt < SERPER_RETRIES - 1) {
-                const wait = 1500 * Math.pow(2, attempt); // 1.5s, 3s
-                console.warn(`[lensMatchWithClip] Serper 429 — rate limit, retry dans ${wait}ms`);
-                await new Promise(res => setTimeout(res, wait));
-                continue;
-              }
-              // Dernier essai épuisé → on skip silencieusement (pas un crash)
-              console.warn('[lensMatchWithClip] Serper 429 — skip après', SERPER_RETRIES, 'tentatives');
-              return null;
-            }
-
-            throw serperErr; // autre erreur (réseau, 5xx…)
-          }
-        }
+        const r = await axios.post('https://google.serper.dev/lens',
+          { url: pub, gl: 'us', hl: 'en' },
+          { headers: { 'X-API-KEY': process.env.SERPER_API_KEY }, timeout: 25000 }
+        );
         if (isAborted()) return null;
-
         const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
-        const aliMatches = all.filter(x => {
-          const u = x.link || x.url || '';
-          return u.includes('aliexpress.com') && u.includes('/item/') &&
-                 (x.imageUrl || x.thumbnailUrl);
-        });
-
-        // Pas de candidat AliExpress trouvé par Serper → pas de match
-        if (!aliMatches.length) return null;
-
-        // Étape 2 : DINOv2 — vérification visuelle OBLIGATOIRE
-        const aliUrls = aliMatches
-          .slice(0, 2) // plan gratuit Serper : on limite à 2 candidats
-          .flatMap(m => extractAliImageUrls(m))
-          .filter(Boolean);
-
-        if (!aliUrls.length) {
-          // Serper n'a retourné aucune image AliExpress utilisable → refus
-          console.log(`[DINO] ❌ Aucune image AliExpress exploitable pour DINOv2`);
-          return null;
-        }
-
-        const dinoResult = await findBestAliMatch(etsyImageUrl, aliUrls, {
-          threshold: parseFloat(process.env.CLIP_THRESHOLD || '0.78'),
-        });
-
-        console.log(`[DINO] sim=${dinoResult.similarity} match=${dinoResult.match} fallback=${dinoResult.fallback}`);
-
-        // Si le service DINOv2 est en 500 (fallback=true) → on skip ce shop et on log
-        if (dinoResult.fallback) {
-          console.warn(`[DINO] ⚠️ Service DINOv2 retourne 500/indisponible — shop ignoré (${etsyImageUrl?.slice(-30)})`);
-          return null;
-        }
-
-        // DINOv2 confirme l'objet → match validé
-        if (dinoResult.match) {
-          return { ...aliMatches[0], clipSimilarity: dinoResult.similarity };
-        }
-
-        // DINOv2 rejette l'objet → pas de match même si Serper avait trouvé quelque chose
-        console.log(`[DINO] ❌ Objet non confirmé (sim=${dinoResult.similarity} < seuil)`);
-        return null;
-
+        return all.find(x => { const u = x.link || x.url || ''; return u.includes('aliexpress.com') && u.includes('/item/') && (x.imageUrl || x.thumbnailUrl); }) || null;
       } catch (e) {
         if (e.response?.status === 401) throw new Error('serper_401');
-        if (e.message === 'serper_no_credits') throw e; // remonte pour stopper la recherche
-        console.warn('[lensMatchWithClip] erreur:', e.message);
         return null;
       }
     }
@@ -403,7 +271,6 @@ router.post('/search-dropship', async (req, res) => {
         const listing = queue.shift();
         if (!listing) continue;
         analyzed++;
-        const shopStart = Date.now();
         send({ step: 'analyzing', total: listings.length, done: analyzed, message: '\u{1F50E} ' + analyzed + '/' + listings.length + ' \u2014 ' + dropshippers.length + ' dropshippers' });
         try {
           const img1 = listing.image;
@@ -411,40 +278,27 @@ router.post('/search-dropship', async (req, res) => {
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
           if (!img2) { console.warn('[worker] no img2 for', listing.shopName); continue; }
 
-          console.log('[worker] running lensMatch+CLIP pour', listing.shopName);
-          const [m1, m2] = await Promise.all([lensMatchWithClip(img1), lensMatchWithClip(img2)]);
-          const shopElapsedMs = Date.now() - shopStart;
-          send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
+          console.log('[worker] running lensMatch for', listing.shopName);
+          const [m1, m2] = await Promise.all([lensMatch(img1), lensMatch(img2)]);
           if (isAborted()) break;
-
-          console.log('[worker]', listing.shopName, '| m1:', !!m1, m1?.clipSimilarity || '', '| m2:', !!m2, m2?.clipSimilarity || '');
-
-          // Les deux images doivent être confirmées par CLIP pour valider le dropshipper
+          console.log('[worker]', listing.shopName, '| m1:', !!m1, '| m2:', !!m2);
           if (m1 && m2) {
             dropshippers.push({
-              shopName:        listing.shopName,
-              shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
-              shopAvatar:      null,
-              shopImage:       img1,
-              listingUrl:      listing.link,
-              clipSimilarity1: m1.clipSimilarity || null,
-              clipSimilarity2: m2.clipSimilarity || null,
+              shopName:   listing.shopName,
+              shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
+              shopAvatar: null,
+              shopImage:  img1,
+              listingUrl: listing.link,
             });
-            send({
-              step: 'match',
-              message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers) | DINO: ' + m1.clipSimilarity,
-              shop: dropshippers[dropshippers.length - 1],
-            });
+            send({ step: 'match', message: '\u2705 ' + listing.shopName + ' (' + dropshippers.length + ' dropshippers)', shop: dropshippers[dropshippers.length - 1] });
           }
         } catch (e) {
-          if (e.message === 'serper_401') { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
-          if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge ton compte sur serper.dev' }); return; }
+          if (e.message === 'serper_401') { send({ step: 'error', message: '\u274C Serper key invalid' }); return; }
         }
       }
     }
 
-    // 3 workers max — au-delà, Serper retourne 429 (rate limit)
-    await Promise.all(Array.from({ length: 3 }, worker));
+    await Promise.all([worker(), worker(), worker(), worker()]);
     activeSearches.delete(sid);
     if (isAborted()) {
       send({ step: 'stopped', message: '🛑 Search stopped by user.' });
@@ -461,24 +315,21 @@ router.post('/search-dropship', async (req, res) => {
 });
 
 
-// ── CLIP WAKE-UP ──
-// Appelé au chargement de la page pour réveiller HuggingFace avant la recherche
-router.get('/dino-warmup', async (req, res) => {
-  try {
-    const ready = await isClipAvailable();
-    res.json({ ready });
-  } catch {
-    res.json({ ready: false });
-  }
-});
-
 router.get('/health', (req, res) => {
   const keys = {
     ETSY_CLIENT_ID: !!process.env.ETSY_CLIENT_ID,
-    SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
-    SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
+    SERPER_API_KEY: !!process.env.SERPER_API_KEY,
+    IMGBB_API_KEY:  !!process.env.IMGBB_API_KEY,
+    // SCRAPEAPI_KEY uniquement pour AliExpress dans CloneRoutes
+    SCRAPEAPI_KEY:  !!process.env.SCRAPEAPI_KEY,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
 
 module.exports = router;
+
+
+
+
+
+
