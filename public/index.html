@@ -295,6 +295,8 @@
     .sc-count { font-size:1.1rem; font-weight:700; color:#facc15; font-family:'Croissant One',cursive; min-width:20px; text-align:center; }
     .sc-count.low { color:#f87171; }
 
+    /* ── STRIPE MODAL ── */
+
         /* ── ERROR POPUP ── */
     #error-popup { position:fixed; inset:0; z-index:99999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); backdrop-filter:blur(6px); padding:20px; }
     #error-popup.open { display:flex; animation:epFade 0.2s ease; }
@@ -360,6 +362,8 @@
   </div>
 
   <a id="niche-list-btn" href="/niche-list">❤️<span class="nl-count" id="nl-count" style="position:absolute;top:-2px;right:-2px;">0</span></a>
+  </div>
+
   <div id="user-badge">
     <div id="online-indicator">
       <span id="online-dot"></span>
@@ -578,7 +582,6 @@
       document.getElementById('user-email-display').textContent = email || '—';
       document.getElementById('user-badge').style.display = 'flex';
       document.getElementById('niche-list-btn').style.display = 'flex';
-
       initSavedShops();
       loadAutoState();
     }
@@ -1131,7 +1134,6 @@
     async function startSearch() {
       if (_searching) return;
 
-
       // Mode auto : prendre le prochain keyword de la queue
       if (_autoSearch) {
         try {
@@ -1156,7 +1158,6 @@
         }
         if (_keywords.length === 0) { document.getElementById('keyword-input').focus(); return; }
       }
-
 
       _searching = true;
       _stopRequested = false;
