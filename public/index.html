@@ -543,7 +543,7 @@
           if (d) onLoggedIn(d.email);
         })
         .catch(function() {
-          window.location.href = '/loading';
+          showAuthModal();
         });
     }
 
