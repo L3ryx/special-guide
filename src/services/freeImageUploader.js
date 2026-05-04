@@ -1,5 +1,6 @@
 const axios    = require('axios');
 const FormData = require('form-data');
+const { buildHeaders, humanDelay, fetchProxies, getNextProxy } = require('../utils/antiDetection');
 
 // ── Cache en mémoire avec TTL 1h pour éviter les re-uploads ──
 const uploadCache = new Map();
@@ -12,24 +13,46 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
-// ── Télécharger l'image depuis Etsy ──
+// ── Télécharger l'image depuis Etsy (avec anti-détection) ──
 async function downloadEtsyImage(etsyUrl) {
+  await fetchProxies();
   const smallUrl = etsyUrl.replace(/_(fullxfull|\d{3,4}x[^.]*)\\.(?=\w+$)/i, '_570x.');
+
   for (const url of smallUrl !== etsyUrl ? [smallUrl, etsyUrl] : [etsyUrl]) {
-    try {
-      const res = await axios.get(url, {
-        responseType: 'arraybuffer',
-        timeout: 15000,
-        headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.etsy.com/' },
-      });
-      const buf = Buffer.from(res.data);
-      if (buf.length > 100 && (buf[0] === 0xFF || buf[0] === 0x89)) {
-        return {
-          buffer:   buf,
-          mimeType: (res.headers['content-type'] || 'image/jpeg').split(';')[0].trim(),
+    const MAX_TRIES = 3;
+    for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
+      try {
+        await humanDelay(500, 2000);
+        const proxy = getNextProxy();
+        const headers = buildHeaders({ 'Referer': 'https://www.etsy.com/' });
+
+        const config = {
+          responseType: 'arraybuffer',
+          timeout: 20000,
+          headers,
         };
+
+        if (proxy) {
+          const proxyUrl = new URL(proxy);
+          config.proxy = {
+            protocol: proxyUrl.protocol.replace(':', ''),
+            host:     proxyUrl.hostname,
+            port:     parseInt(proxyUrl.port, 10),
+          };
+        }
+
+        const res = await axios.get(url, config);
+        const buf = Buffer.from(res.data);
+        if (buf.length > 100 && (buf[0] === 0xFF || buf[0] === 0x89)) {
+          return {
+            buffer:   buf,
+            mimeType: (res.headers['content-type'] || 'image/jpeg').split(';')[0].trim(),
+          };
+        }
+      } catch {
+        if (attempt < MAX_TRIES - 1) await humanDelay(1000, 3000);
       }
-    } catch { /* essai suivant */ }
+    }
   }
   return null;
 }
