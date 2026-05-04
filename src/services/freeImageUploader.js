@@ -3,7 +3,7 @@ const FormData = require('form-data');
 
 // ── Cache en mémoire avec TTL 1h pour éviter les re-uploads ──
 const uploadCache = new Map();
-const CACHE_TTL   = 60 * 60 * 1000;
+const CACHE_TTL   = 60 * 60 * 1000; // 1 heure
 
 setInterval(() => {
   const now = Date.now();
@@ -34,40 +34,7 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── Service 1 : Uploadcare (clé publique gratuite) ──
-// Définir UPLOADCARE_PUBLIC_KEY dans les variables d'environnement
-async function uploadToUploadcare(buffer, mimeType) {
-  const pubKey = process.env.UPLOADCARE_PUBLIC_KEY;
-  if (!pubKey) {
-    console.warn('[freeUploader] UPLOADCARE_PUBLIC_KEY non configurée — skip Uploadcare');
-    return null;
-  }
-  try {
-    const ext  = mimeType === 'image/png' ? 'png' : 'jpg';
-    const form = new FormData();
-    form.append('UPLOADCARE_PUB_KEY', pubKey);
-    form.append('UPLOADCARE_STORE',   '0'); // 0 = auto-delete après 24h (CDN gratuit)
-    form.append('file', buffer, { filename: `image.${ext}`, contentType: mimeType });
-
-    const res = await axios.post('https://upload.uploadcare.com/base/', form, {
-      headers: { ...form.getHeaders() },
-      timeout: 20000,
-      maxContentLength: Infinity,
-    });
-
-    const uuid = res.data?.file;
-    if (uuid) {
-      const url = `https://ucarecdn.com/${uuid}/`;
-      console.log('[freeUploader] Uploadcare OK', url);
-      return url;
-    }
-  } catch (e) {
-    console.warn('[freeUploader] Uploadcare failed:', e.message);
-  }
-  return null;
-}
-
-// ── Service 2 : freeimage.host (clé API publique, sans compte) ──
+// ── Service 1 : freeimage.host (clé API publique, sans compte) ──
 async function uploadToFreeImageHost(buffer, mimeType) {
   try {
     const base64 = buffer.toString('base64');
@@ -88,6 +55,34 @@ async function uploadToFreeImageHost(buffer, mimeType) {
     }
   } catch (e) {
     console.warn('[freeUploader] freeimage.host failed:', e.message);
+  }
+  return null;
+}
+
+// ── Service 2 : Imgur (anonyme via Client-ID) ──
+// Recommandé par SerpApi pour Google Lens (pas de blocage d'URLs)
+// Ajoute IMGUR_CLIENT_ID dans les env vars Render pour utiliser ta propre app Imgur gratuite
+async function uploadToImgur(buffer, mimeType) {
+  const rawId  = process.env.IMGUR_CLIENT_ID || '546c25a59c58ad7';
+  const authHdr = rawId.startsWith('Client-ID') ? rawId : `Client-ID ${rawId}`;
+  try {
+    const form = new FormData();
+    form.append('image', buffer, { filename: 'image.jpg', contentType: mimeType });
+    form.append('type', 'file');
+
+    const res = await axios.post('https://api.imgur.com/3/image', form, {
+      headers: { ...form.getHeaders(), Authorization: authHdr },
+      timeout: 20000,
+      maxContentLength: Infinity,
+    });
+
+    const url = res.data?.data?.link;
+    if (url && url.startsWith('https://')) {
+      console.log('[freeUploader] imgur OK', url);
+      return url;
+    }
+  } catch (e) {
+    console.warn('[freeUploader] imgur failed:', e.message);
   }
   return null;
 }
@@ -119,7 +114,7 @@ async function uploadToLitterbox(buffer, mimeType) {
 
 /**
  * Télécharge une image Etsy et l'héberge sur un service public gratuit.
- * Ordre : Uploadcare → freeimage.host → litterbox
+ * Ordre : freeimage.host → Imgur → litterbox
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -137,8 +132,8 @@ async function uploadImageFree(etsyUrl) {
   }
 
   const services = [
-    () => uploadToUploadcare(img.buffer, img.mimeType),
     () => uploadToFreeImageHost(img.buffer, img.mimeType),
+    () => uploadToImgur(img.buffer, img.mimeType),
     () => uploadToLitterbox(img.buffer, img.mimeType),
   ];
 
