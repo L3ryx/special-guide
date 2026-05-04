@@ -44,43 +44,19 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── Service 1 : freeimage.host (clé API publique, sans compte) ──
-async function uploadToFreeImageHost(buffer, mimeType) {
-  console.log('[freeUploader] 🔄 Tentative freeimage.host...');
-  try {
-    const base64 = buffer.toString('base64');
-    const params = new URLSearchParams();
-    params.append('key', '6d207e02198a847aa98d0a2a901485a5');
-    params.append('source', base64);
-    params.append('format', 'json');
-
-    const res = await axios.post('https://freeimage.host/api/1/upload', params, {
-      timeout: 20000,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
-
-    const url = res.data?.image?.url;
-    if (url && url.startsWith('https://')) {
-      console.log(`[freeUploader] ✅ freeimage.host OK → ${url}`);
-      return url;
-    }
-    console.warn(`[freeUploader] ⚠️ freeimage.host — réponse inattendue: ${JSON.stringify(res.data)}`);
-  } catch (e) {
-    const status = e.response?.status;
-    const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-    console.warn(`[freeUploader] ❌ freeimage.host FAILED — HTTP ${status || 'réseau'}: ${detail}`);
-  }
-  return null;
-}
-
-// ── Service 2 : Uploadcare (clé publique gratuite) ──
+// ── Uploadcare ──
 async function uploadToUploadcare(buffer, mimeType) {
-  const pubKey = process.env.UPLOADCARE_PUBLIC_KEY || 'demopublickey';
-  console.log(`[freeUploader] 🔄 Tentative Uploadcare (pubKey: ${pubKey === 'demopublickey' ? '⚠️ DEMO KEY' : pubKey.slice(0, 8) + '...'})...`);
+  const pubKey = process.env.UPLOADCARE_PUBLIC_KEY;
+  if (!pubKey) {
+    console.error('[freeUploader] ❌ UPLOADCARE_PUBLIC_KEY manquante dans les env vars');
+    return null;
+  }
+
+  console.log(`[freeUploader] 🔄 Upload Uploadcare (pubKey: ${pubKey.slice(0, 8)}...)...`);
   try {
     const form = new FormData();
     form.append('UPLOADCARE_PUB_KEY', pubKey);
-    form.append('UPLOADCARE_STORE', '0');
+    form.append('UPLOADCARE_STORE', '0'); // pas de stockage permanent
     form.append('file', buffer, { filename: 'image.jpg', contentType: mimeType });
 
     const res = await axios.post('https://upload.uploadcare.com/base/', form, {
@@ -92,7 +68,7 @@ async function uploadToUploadcare(buffer, mimeType) {
     const uuid = res.data?.file;
     if (uuid) {
       const url = `https://ucarecdn.com/${uuid}/`;
-      console.log(`[freeUploader] ✅ Uploadcare OK → uuid: ${uuid} → ${url}`);
+      console.log(`[freeUploader] ✅ Uploadcare OK → ${url}`);
       return url;
     }
     console.warn(`[freeUploader] ⚠️ Uploadcare — pas de uuid dans la réponse: ${JSON.stringify(res.data)}`);
@@ -100,48 +76,18 @@ async function uploadToUploadcare(buffer, mimeType) {
     const status = e.response?.status;
     const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
     if (status === 403) {
-      console.error(`[freeUploader] ❌ Uploadcare FAILED — 403 Forbidden: clé publique invalide ou quota dépassé. Vérifie UPLOADCARE_PUBLIC_KEY dans tes env vars.`);
+      console.error('[freeUploader] ❌ Uploadcare 403 — clé publique invalide ou quota dépassé');
     } else if (status === 429) {
-      console.error(`[freeUploader] ❌ Uploadcare FAILED — 429 Rate limit atteint`);
+      console.error('[freeUploader] ❌ Uploadcare 429 — rate limit atteint');
     } else {
-      console.warn(`[freeUploader] ❌ Uploadcare FAILED — HTTP ${status || 'réseau'}: ${detail}`);
+      console.error(`[freeUploader] ❌ Uploadcare FAILED — HTTP ${status || 'réseau'}: ${detail}`);
     }
-  }
-  return null;
-}
-
-// ── Service 3 : litterbox (dernier recours) ──
-async function uploadToLitterbox(buffer, mimeType) {
-  console.log('[freeUploader] 🔄 Tentative litterbox (dernier recours)...');
-  try {
-    const form = new FormData();
-    form.append('reqtype', 'fileupload');
-    form.append('time',    '1h');
-    form.append('fileToUpload', buffer, { filename: 'image.jpg', contentType: mimeType });
-
-    const res = await axios.post('https://litterbox.catbox.moe/resources/internals/api.php', form, {
-      headers: form.getHeaders(),
-      timeout: 20000,
-      maxContentLength: Infinity,
-    });
-
-    const url = res.data?.trim();
-    if (url && url.startsWith('https://')) {
-      console.log(`[freeUploader] ✅ litterbox OK → ${url}`);
-      return url;
-    }
-    console.warn(`[freeUploader] ⚠️ litterbox — réponse inattendue: "${res.data}"`);
-  } catch (e) {
-    const status = e.response?.status;
-    const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-    console.warn(`[freeUploader] ❌ litterbox FAILED — HTTP ${status || 'réseau'}: ${detail}`);
   }
   return null;
 }
 
 /**
- * Télécharge une image Etsy et l'héberge sur un service public gratuit.
- * Ordre : freeimage.host → Uploadcare → litterbox
+ * Télécharge une image Etsy et l'héberge sur Uploadcare.
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -163,22 +109,13 @@ async function uploadImageFree(etsyUrl) {
 
   console.log(`[freeUploader] 📤 Upload en cours (${img.buffer.length} bytes, ${img.mimeType})...`);
 
-  const services = [
-    { name: 'freeimage.host', fn: () => uploadToFreeImageHost(img.buffer, img.mimeType) },
-    { name: 'Uploadcare',     fn: () => uploadToUploadcare(img.buffer, img.mimeType) },
-    { name: 'litterbox',      fn: () => uploadToLitterbox(img.buffer, img.mimeType) },
-  ];
-
-  for (const service of services) {
-    const url = await service.fn();
-    if (url) {
-      console.log(`[freeUploader] ✅ Upload réussi via ${service.name} → ${url}`);
-      uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
-      return url;
-    }
+  const url = await uploadToUploadcare(img.buffer, img.mimeType);
+  if (url) {
+    uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
+    return url;
   }
 
-  console.error('[freeUploader] ❌ ÉCHEC TOTAL — tous les services d\'upload ont échoué. Ximilar ne sera PAS appelé pour cette image.');
+  console.error('[freeUploader] ❌ ÉCHEC — Upload Uploadcare échoué. Ximilar ne sera PAS appelé pour cette image.');
   return null;
 }
 
