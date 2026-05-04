@@ -13,15 +13,12 @@ const ETSY_CLIENT_SECRET = process.env.ETSY_CLIENT_SECRET;
 const APP_URL            = process.env.APP_URL || 'https://www.finder-niche.com';
 const ETSY_REDIRECT_URI  = APP_URL + '/api/auth/etsy/callback';
 
-// Stockage temporaire des code_verifier (en mémoire — suffit pour un seul serveur)
-// Pour multi-instance, remplacer par Redis ou MongoDB
 const pkceStore = new Map();
 
 function makeToken(userId) {
   return jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
-// ── Middleware auth — vérifie le JWT dans le header Authorization ──
 function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -34,25 +31,17 @@ function requireAuth(req, res, next) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// ETSY OAUTH 2.0 (PKCE)
-// ══════════════════════════════════════════════════════════════════
-
-// Génère un code_verifier aléatoire et son code_challenge SHA-256
 function generatePKCE() {
   const verifier  = crypto.randomBytes(32).toString('base64url');
   const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
   return { verifier, challenge };
 }
 
-// GET /api/auth/etsy
-// Redirige l'utilisateur vers la page d'autorisation Etsy
 router.get('/etsy', (req, res) => {
   if (!ETSY_CLIENT_ID) {
     return res.status(500).json({ error: 'ETSY_CLIENT_ID manquant dans les variables d\'environnement' });
   }
 
-  // Récupérer l'userId depuis le JWT — accepte header Authorization OU query param ?token=
   const header = req.headers.authorization || '';
   const token  = (header.startsWith('Bearer ') ? header.slice(7) : null) || req.query.token || req.query.jwt || null;
   if (!token) {
@@ -69,7 +58,6 @@ router.get('/etsy', (req, res) => {
   const { verifier, challenge } = generatePKCE();
   const state = crypto.randomBytes(16).toString('hex');
 
-  // Stocker le verifier ET l'userId lié au state (expire après 10 min)
   pkceStore.set(state, { verifier, userId, createdAt: Date.now() });
   setTimeout(() => pkceStore.delete(state), 10 * 60 * 1000);
 
@@ -86,8 +74,6 @@ router.get('/etsy', (req, res) => {
   res.redirect('https://www.etsy.com/oauth/connect?' + params.toString());
 });
 
-// GET /api/auth/etsy/callback
-// Etsy redirige ici après l'autorisation de l'utilisateur
 router.get('/etsy/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
@@ -106,7 +92,6 @@ router.get('/etsy/callback', async (req, res) => {
   pkceStore.delete(state);
 
   try {
-    // Échanger le code contre un access_token
     const tokenRes = await axios.post(
       'https://api.etsy.com/v3/public/oauth/token',
       new URLSearchParams({
@@ -122,9 +107,8 @@ router.get('/etsy/callback', async (req, res) => {
       }
     );
 
-    const { access_token, refresh_token, expires_in } = tokenRes.data;
+    const { access_token } = tokenRes.data;
 
-    // Récupérer le profil Etsy pour avoir l'email / user_id
     const profileRes = await axios.get('https://api.etsy.com/v3/application/users/me', {
       headers: {
         'x-api-key':     ETSY_CLIENT_ID + ':' + ETSY_CLIENT_SECRET,
@@ -133,14 +117,9 @@ router.get('/etsy/callback', async (req, res) => {
       timeout: 10000,
     });
 
-    const etsyUser  = profileRes.data;
-    const etsyId    = String(etsyUser.user_id);
-    // Etsy ne retourne pas toujours l'email — on utilise l'etsyId comme identifiant unique
-    const etsyEmail = etsyUser.primary_email || etsyUser.email || null;
-    // Email de substitution basé sur le user_id Etsy si pas d'email fourni
-    const userEmail = etsyEmail ? etsyEmail.toLowerCase().trim() : ('etsy_' + etsyId + '@finder-niche.com');
+    const etsyUser = profileRes.data;
+    const etsyId   = String(etsyUser.user_id);
 
-    // Lier la boutique Etsy au compte déjà connecté (pkce.userId = id du user connecté)
     const user = await User.findById(pkce.userId);
     if (!user) {
       return res.redirect(APP_URL + '/niche-list?etsy_error=' + encodeURIComponent('Compte introuvable — reconnecte-toi'));
@@ -148,7 +127,6 @@ router.get('/etsy/callback', async (req, res) => {
     user.etsyUserId = etsyId;
     await user.save();
 
-    // On retourne le même token (le compte n'a pas changé) + confirmation
     const appToken = makeToken(user._id);
     res.redirect(APP_URL + '/niche-list?token=' + appToken + '&etsy_linked=1&email=' + encodeURIComponent(user.email));
 
@@ -159,42 +137,29 @@ router.get('/etsy/callback', async (req, res) => {
   }
 });
 
-// GET /api/auth/etsy/status
-// Permet au frontend de savoir si ETSY_CLIENT_ID est configuré
 router.get('/etsy/status', (req, res) => {
   res.json({ configured: !!ETSY_CLIENT_ID });
 });
 
-// ══════════════════════════════════════════════════════════════════
-// AUTH CLASSIQUE (email / mot de passe)
-// ══════════════════════════════════════════════════════════════════
-
-// POST /api/auth/register
 router.post('/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
   if (password.length < 6)  return res.status(400).json({ error: 'Mot de passe trop court (6 chars min)' });
   try {
-    // ── Récupérer l'IP réelle (proxy/Nginx inclus) ──
     const ip =
       (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
       req.socket?.remoteAddress ||
       null;
 
-    // ── Vérifier si cette IP a déjà un compte ──
-    const ipAlreadyUsed = ip ? await User.findOne({ registrationIp: ip }) : null;
-    const freeCredits   = ipAlreadyUsed ? 0 : 2;
-
-    const user  = await new User({ email, password, registrationIp: ip, searchCredits: freeCredits }).save();
+    const user  = await new User({ email, password, registrationIp: ip }).save();
     const token = makeToken(user._id);
-    res.json({ token, email: user.email, searchCredits: user.searchCredits });
+    res.json({ token, email: user.email });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Email déjà utilisé' });
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
@@ -209,14 +174,12 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/me
 router.get('/me', requireAuth, async (req, res) => {
   const user = await User.findById(req.user.id).select('-password');
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json({ email: user.email, id: user._id });
 });
 
-// POST /api/auth/change-password
 router.post('/change-password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both fields required' });
@@ -234,7 +197,6 @@ router.post('/change-password', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/auth/delete-account
 router.delete('/delete-account', requireAuth, async (req, res) => {
   const { password } = req.body;
   if (!password) return res.status(400).json({ error: 'Password required' });
@@ -252,7 +214,6 @@ router.delete('/delete-account', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/auth/change-email
 router.post('/change-email', requireAuth, async (req, res) => {
   const { newEmail, password } = req.body;
   if (!newEmail || !password) return res.status(400).json({ error: 'Both fields required' });
@@ -271,7 +232,6 @@ router.post('/change-email', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/auth/forgot-password
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email required' });
@@ -308,7 +268,6 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) return res.status(400).json({ error: 'Token and password required' });
@@ -330,9 +289,3 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = { router, requireAuth };
-
-
-
-
-
-
