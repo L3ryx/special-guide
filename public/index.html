@@ -255,18 +255,19 @@
     .results-count-bar { text-align:center; font-size:0.8rem; color:var(--muted); margin-bottom:4px; }
     /* ── SALES GAUGE ── */
     .sales-gauge-wrap {
-      display: flex; align-items: center; gap: 6px; margin-top: 4px;
+      display: flex; align-items: center; gap: 7px; margin-top: 5px;
     }
     .sales-gauge-track {
-      flex: 1; height: 5px; border-radius: 3px;
-      background: rgba(255,255,255,0.08); overflow: hidden; min-width: 40px; max-width: 90px;
+      height: 6px; border-radius: 4px;
+      background: rgba(255,255,255,0.1); overflow: hidden;
+      width: 80px; flex-shrink: 0;
     }
     .sales-gauge-bar {
-      height: 100%; border-radius: 3px;
+      height: 100%; border-radius: 4px;
       transition: width 0.5s ease;
     }
     .sales-gauge-label {
-      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.04em;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em;
       white-space: nowrap; font-family: 'Courier New', monospace;
     }
     /* ── PAGES SELECTOR ── */
@@ -1669,45 +1670,39 @@
       const nameEl = document.createElement('div'); nameEl.className = 'shop-result-name'; nameEl.textContent = shop.shopName || '—';
       const tagEl  = document.createElement('div'); tagEl.className  = 'shop-result-tag';  tagEl.textContent  = '🛒 Dropshipping confirmed';
 
-      // ── SALES GAUGE (jauge réelle proportionnelle) ──
+      // ── SALES GAUGE ──
       const numSales = shop.numSales || 0;
       const gaugeWrap = document.createElement('div');
       gaugeWrap.className = 'sales-gauge-wrap';
 
-      const GAUGE_MAX = 100000;
+      // Couleur par palier
       let gaugeColor, gaugeText, logPct;
-      if (numSales === 0) {
-        // 0 = valeur inconnue (API masquée) — on affiche quand même un indicateur
-        gaugeColor = 'rgba(255,255,255,0.35)';
-        gaugeText = '? sales';
-        logPct = 3;
+      const GAUGE_MAX = 100000;
+      if (numSales <= 0) {
+        gaugeColor = '#94a3b8'; gaugeText = 'N/A ventes'; logPct = 5;
       } else if (numSales < 500) {
-        gaugeColor = '#64748b'; gaugeText = numSales.toLocaleString() + ' sales';
-        logPct = Math.min(100, Math.round((Math.log10(numSales + 1) / Math.log10(GAUGE_MAX + 1)) * 100));
+        gaugeColor = '#64748b'; gaugeText = numSales.toLocaleString() + ' ventes'; logPct = Math.max(5, Math.round((Math.log10(numSales+1)/Math.log10(GAUGE_MAX+1))*100));
       } else if (numSales < 2000) {
-        gaugeColor = '#facc15'; gaugeText = numSales.toLocaleString() + ' sales';
-        logPct = Math.min(100, Math.round((Math.log10(numSales + 1) / Math.log10(GAUGE_MAX + 1)) * 100));
+        gaugeColor = '#facc15'; gaugeText = numSales.toLocaleString() + ' ventes'; logPct = Math.round((Math.log10(numSales+1)/Math.log10(GAUGE_MAX+1))*100);
       } else if (numSales < 10000) {
-        gaugeColor = '#f97316'; gaugeText = numSales.toLocaleString() + ' sales';
-        logPct = Math.min(100, Math.round((Math.log10(numSales + 1) / Math.log10(GAUGE_MAX + 1)) * 100));
+        gaugeColor = '#f97316'; gaugeText = numSales.toLocaleString() + ' ventes'; logPct = Math.round((Math.log10(numSales+1)/Math.log10(GAUGE_MAX+1))*100);
       } else if (numSales < 50000) {
-        gaugeColor = '#22c55e'; gaugeText = numSales.toLocaleString() + ' sales';
-        logPct = Math.min(100, Math.round((Math.log10(numSales + 1) / Math.log10(GAUGE_MAX + 1)) * 100));
+        gaugeColor = '#22c55e'; gaugeText = numSales.toLocaleString() + ' ventes'; logPct = Math.round((Math.log10(numSales+1)/Math.log10(GAUGE_MAX+1))*100);
       } else {
-        gaugeColor = '#a855f7'; gaugeText = numSales.toLocaleString() + ' sales';
-        logPct = 100;
+        gaugeColor = '#a855f7'; gaugeText = numSales.toLocaleString() + ' ventes'; logPct = 100;
       }
+      logPct = Math.min(logPct, 100);
 
       const gaugeTrack = document.createElement('div');
       gaugeTrack.className = 'sales-gauge-track';
       const gaugeBar = document.createElement('div');
       gaugeBar.className = 'sales-gauge-bar';
-      gaugeBar.style.cssText = 'width:' + logPct + '%; background:' + gaugeColor + '; box-shadow: 0 0 5px ' + gaugeColor + ';';
+      gaugeBar.style.cssText = 'width:' + logPct + '%; background:' + gaugeColor + '; box-shadow:0 0 6px ' + gaugeColor + ';';
       gaugeTrack.appendChild(gaugeBar);
 
       const gaugeLabel = document.createElement('span');
       gaugeLabel.className = 'sales-gauge-label';
-      gaugeLabel.style.color = gaugeColor;
+      gaugeLabel.style.cssText = 'color:' + gaugeColor + '; font-size:0.7rem; font-weight:700;';
       gaugeLabel.textContent = gaugeText;
 
       gaugeWrap.appendChild(gaugeTrack);
