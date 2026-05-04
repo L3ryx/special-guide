@@ -44,50 +44,39 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── imgbb ──
-async function uploadToImgbb(buffer, mimeType) {
-  const apiKey = process.env.IMGBB_API_KEY;
-  if (!apiKey) {
-    console.error('[freeUploader] ❌ IMGBB_API_KEY manquante dans les env vars');
-    return null;
-  }
-
-  console.log('[freeUploader] 🔄 Upload imgbb...');
+// ── 0x0.st ──
+async function uploadTo0x0(buffer, mimeType) {
+  console.log('[freeUploader] 🔄 Upload 0x0.st...');
   try {
-    const base64 = buffer.toString('base64');
-    const form   = new FormData();
-    form.append('image', base64);
-    // expiration 1h (3600 secondes) — suffisant pour Serper + Ximilar
-    form.append('expiration', '3600');
+    const form = new FormData();
+    form.append('file', buffer, { filename: 'image.jpg', contentType: mimeType });
 
     const res = await axios.post(
-      `https://api.imgbb.com/1/upload?key=${apiKey}`,
+      'https://0x0.st',
       form,
-      { headers: form.getHeaders(), timeout: 20000 }
+      { headers: form.getHeaders(), timeout: 20000, responseType: 'text' }
     );
 
-    const url = res.data?.data?.url;
-    if (url) {
-      console.log(`[freeUploader] ✅ imgbb OK → ${url}`);
+    const url = (typeof res.data === 'string' ? res.data : '').trim();
+    if (url.startsWith('https://')) {
+      console.log(`[freeUploader] ✅ 0x0.st OK → ${url}`);
       return url;
     }
-    console.warn(`[freeUploader] ⚠️ imgbb — réponse inattendue: ${JSON.stringify(res.data)}`);
+    console.warn(`[freeUploader] ⚠️ 0x0.st — réponse inattendue: ${url}`);
   } catch (e) {
     const status = e.response?.status;
-    const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-    if (status === 400) {
-      console.error(`[freeUploader] ❌ imgbb 400 — clé API invalide ou image corrompue: ${detail}`);
-    } else if (status === 429) {
-      console.error('[freeUploader] ❌ imgbb 429 — rate limit atteint');
+    const detail = e.response?.data ? String(e.response.data) : e.message;
+    if (status === 429) {
+      console.error('[freeUploader] ❌ 0x0.st 429 — rate limit atteint');
     } else {
-      console.error(`[freeUploader] ❌ imgbb FAILED — HTTP ${status || 'réseau'}: ${detail}`);
+      console.error(`[freeUploader] ❌ 0x0.st FAILED — HTTP ${status || 'réseau'}: ${detail}`);
     }
   }
   return null;
 }
 
 /**
- * Télécharge une image Etsy et l'héberge sur imgbb.
+ * Télécharge une image Etsy et l'héberge sur 0x0.st.
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -109,13 +98,13 @@ async function uploadImageFree(etsyUrl) {
 
   console.log(`[freeUploader] 📤 Upload en cours (${img.buffer.length} bytes)...`);
 
-  const url = await uploadToImgbb(img.buffer, img.mimeType);
+  const url = await uploadTo0x0(img.buffer, img.mimeType);
   if (url) {
     uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
     return url;
   }
 
-  console.error('[freeUploader] ❌ ÉCHEC upload imgbb. Ximilar ne sera PAS appelé.');
+  console.error('[freeUploader] ❌ ÉCHEC upload 0x0.st. Ximilar ne sera PAS appelé.');
   return null;
 }
 
