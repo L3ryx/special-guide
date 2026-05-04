@@ -59,30 +59,31 @@ async function uploadToFreeImageHost(buffer, mimeType) {
   return null;
 }
 
-// ── Service 2 : Imgur (anonyme via Client-ID) ──
-// Recommandé par SerpApi pour Google Lens (pas de blocage d'URLs)
-// Ajoute IMGUR_CLIENT_ID dans les env vars Render pour utiliser ta propre app Imgur gratuite
-async function uploadToImgur(buffer, mimeType) {
-  const rawId  = process.env.IMGUR_CLIENT_ID || '546c25a59c58ad7';
-  const authHdr = rawId.startsWith('Client-ID') ? rawId : `Client-ID ${rawId}`;
+// ── Service 2 : Uploadcare (clé publique gratuite) ──
+// Upload direct via l'API Uploadcare — URL publique stable, pas de blocage Serper
+// Ajoute UPLOADCARE_PUBLIC_KEY dans les env vars Render pour ta propre clé
+async function uploadToUploadcare(buffer, mimeType) {
+  const pubKey = process.env.UPLOADCARE_PUBLIC_KEY || 'demopublickey';
   try {
     const form = new FormData();
-    form.append('image', buffer, { filename: 'image.jpg', contentType: mimeType });
-    form.append('type', 'file');
+    form.append('UPLOADCARE_PUB_KEY', pubKey);
+    form.append('UPLOADCARE_STORE', '0'); // pas de stockage permanent
+    form.append('file', buffer, { filename: 'image.jpg', contentType: mimeType });
 
-    const res = await axios.post('https://api.imgur.com/3/image', form, {
-      headers: { ...form.getHeaders(), Authorization: authHdr },
+    const res = await axios.post('https://upload.uploadcare.com/base/', form, {
+      headers: form.getHeaders(),
       timeout: 20000,
       maxContentLength: Infinity,
     });
 
-    const url = res.data?.data?.link;
-    if (url && url.startsWith('https://')) {
-      console.log('[freeUploader] imgur OK', url);
+    const uuid = res.data?.file;
+    if (uuid) {
+      const url = `https://ucarecdn.com/${uuid}/`;
+      console.log('[freeUploader] uploadcare OK', url);
       return url;
     }
   } catch (e) {
-    console.warn('[freeUploader] imgur failed:', e.message);
+    console.warn('[freeUploader] uploadcare failed:', e.message);
   }
   return null;
 }
@@ -114,7 +115,7 @@ async function uploadToLitterbox(buffer, mimeType) {
 
 /**
  * Télécharge une image Etsy et l'héberge sur un service public gratuit.
- * Ordre : freeimage.host → Imgur → litterbox
+ * Ordre : freeimage.host → Uploadcare → litterbox
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -133,7 +134,7 @@ async function uploadImageFree(etsyUrl) {
 
   const services = [
     () => uploadToFreeImageHost(img.buffer, img.mimeType),
-    () => uploadToImgur(img.buffer, img.mimeType),
+    () => uploadToUploadcare(img.buffer, img.mimeType),
     () => uploadToLitterbox(img.buffer, img.mimeType),
   ];
 
