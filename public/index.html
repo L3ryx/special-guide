@@ -1452,19 +1452,25 @@
 
     function renderShopResult(shop, keyword) {
       const idx = Object.keys(window._shopDataMap).length;
-      // Build the best possible shop URL from available data
-      const shopUrl = shop.shopName
+
+      // Shop URL : toujours construite depuis shopName si disponible
+      const shopUrl    = shop.shopName
         ? 'https://www.etsy.com/shop/' + shop.shopName
-        : (shop.shopUrl && shop.shopUrl !== '#' ? shop.shopUrl
-          : (shop.listingUrl && shop.listingUrl !== '#' ? shop.listingUrl : null));
-      const productUrl = shopUrl || shop.listingUrl || shop.shopUrl || null;
+        : (shop.shopUrl && shop.shopUrl !== '#' ? shop.shopUrl : null);
+
+      // Listing URL : lien direct vers l'annonce Etsy trouvée
+      const listingUrl = shop.listingUrl && shop.listingUrl !== '#'
+        ? shop.listingUrl
+        : (shop.listingId ? 'https://www.etsy.com/listing/' + shop.listingId : null);
+
       window._shopDataMap[idx] = {
-        shopName:     shop.shopName || null,
-        shopUrl:      shopUrl || null,
+        shopName:     shop.shopName   || null,
+        shopUrl:      shopUrl         || null,
+        listingUrl:   listingUrl      || null,
         shopAvatar:   shop.shopAvatar || shop.shopImage || null,
-        productImage: shop.shopImage || null,
-        productUrl:   productUrl || null,
-        keyword:      keyword || null,
+        productImage: shop.shopImage  || null,
+        productUrl:   shopUrl         || listingUrl || null,
+        keyword:      keyword         || null,
       };
 
       const card = document.createElement('div');
@@ -1472,6 +1478,7 @@
       const inner = document.createElement('div');
       inner.className = 'match-card-inner';
 
+      // ── Bouton save ──
       const heartBtn = document.createElement('button');
       heartBtn.className = 'btn-save-shop' + (shopUrl && _savedShopUrls.has(shopUrl) ? ' saved' : '');
       heartBtn.id = 'heart-' + encodeShopKey(shopUrl || '');
@@ -1479,6 +1486,7 @@
       heartBtn.onclick = function() { saveShop(idx, this); };
       inner.appendChild(heartBtn);
 
+      // ── Avatar ──
       const avatarUrl = shop.shopAvatar || shop.shopImage || null;
       const ph = document.createElement('div');
       ph.className = 'shop-result-avatar-ph'; ph.textContent = '🛍';
@@ -1492,22 +1500,46 @@
       }
       inner.appendChild(ph);
 
+      // ── Infos boutique ──
       const info = document.createElement('div');
       info.className = 'shop-result-info';
-      const nameEl = document.createElement('div'); nameEl.className = 'shop-result-name'; nameEl.textContent = shop.shopName || '—';
-      const tagEl  = document.createElement('div'); tagEl.className  = 'shop-result-tag';  tagEl.textContent  = '🛒 Dropshipping confirmed';
-      info.appendChild(nameEl); info.appendChild(tagEl);
+      const nameEl = document.createElement('div');
+      nameEl.className = 'shop-result-name';
+      nameEl.textContent = shop.shopName || '—';
+      const tagEl = document.createElement('div');
+      tagEl.className = 'shop-result-tag';
+      tagEl.textContent = '🛒 Dropshipping confirmed';
+      info.appendChild(nameEl);
+      info.appendChild(tagEl);
       inner.appendChild(info);
 
+      // ── Boutons visite ──
+      const btnsWrap = document.createElement('div');
+      btnsWrap.style.cssText = 'display:flex;flex-direction:column;gap:5px;flex-shrink:0;';
+
+      // Bouton boutique
       const visitBtn = document.createElement('a');
       if (shopUrl) {
         visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
       } else {
-        visitBtn.href = '#'; visitBtn.onclick = function(e){ e.preventDefault(); showToast('URL not found', '#ef4444'); };
+        visitBtn.href = '#';
+        visitBtn.onclick = function(e){ e.preventDefault(); showToast('Boutique URL non trouvée', '#ef4444'); };
       }
-      visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop ↗';
-      inner.appendChild(visitBtn);
+      visitBtn.className = 'shop-result-btn';
+      visitBtn.textContent = '🏪 Boutique ↗';
+      btnsWrap.appendChild(visitBtn);
 
+      // Bouton annonce (si listing disponible)
+      if (listingUrl) {
+        const listingBtn = document.createElement('a');
+        listingBtn.href = listingUrl; listingBtn.target = '_blank'; listingBtn.rel = 'noopener';
+        listingBtn.className = 'shop-result-btn';
+        listingBtn.style.cssText = 'font-size:0.68rem;padding:6px 10px;opacity:0.8;';
+        listingBtn.textContent = '🔗 Annonce ↗';
+        btnsWrap.appendChild(listingBtn);
+      }
+
+      inner.appendChild(btnsWrap);
       card.appendChild(inner);
       document.getElementById('results-container').appendChild(card);
     }
