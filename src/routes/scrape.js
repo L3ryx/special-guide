@@ -405,7 +405,7 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
   } else if (listingMatch) {
     // Essayer de récupérer le shop name via l'API Etsy
     try {
-      const { getListingDetail } = require('./etsyApi');
+      const { getListingDetail } = require('../services/etsyApi');
       const detail = await getListingDetail(listingMatch[1]);
       if (detail.shopName) {
         shopName = detail.shopName;
@@ -419,7 +419,7 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
   // Récupérer l'avatar de la boutique si on a le shopName
   if (shopName) {
     try {
-      const { getShopInfo } = require('./etsyApi');
+      const { getShopInfo } = require('../services/etsyApi');
       const info = await getShopInfo(shopName);
       shopAvatar = info.shopAvatar || null;
       if (!shopUrl) shopUrl = info.shopUrl;
