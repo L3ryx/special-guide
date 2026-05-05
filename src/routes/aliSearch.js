@@ -195,7 +195,7 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
     }
 
     // 4b. URL /listing/{id} → API Etsy : listing_id → shop_id → shop_name
-    const lm = link.match(/etsy\.com\/listing\/(\d+)/);
+    const lm = link.match(/etsy\.com(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/listing\/(\d+)/);
     if (lm) listingId = lm[1];
 
     let resolvedShopId = null;
