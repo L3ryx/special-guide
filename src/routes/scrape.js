@@ -67,117 +67,208 @@ router.post('/niche-keyword', async (req, res) => {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── ALIEXPRESS SCRAPING ──
-// Utilise ScrapeAPI (ou direct) pour récupérer les N premières annonces AliExpress
-// et l'image principale de chaque annonce.
+// Stratégie en cascade :
+//  1. Serper /images  → "aliexpress.com keyword" — retourne toujours des imageUrl
+//  2. Scrape direct AliExpress via ScrapeAPI (si SCRAPEAPI_KEY dispo)
+//  3. Scrape direct AliExpress sans clé (fallback léger)
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Scrape AliExpress search results for a keyword.
- * Returns an array of { title, link, imageUrl } for up to `maxListings` results.
- *
- * Stratégie :
- *  1. On utilise l'API AliExpress affiliate/search si ALIEXPRESS_APP_KEY est dispo
- *  2. Sinon, on passe par ScrapeAPI pour parser le HTML de la page de recherche
- *  3. Sinon, on appelle l'endpoint Serper Google Shopping pour AliExpress
+ * Extrait les annonces AliExpress depuis la page HTML de résultats.
+ * Utilisé comme fallback si Serper Images ne suffit pas.
+ */
+async function scrapeAliExpressDirect(keyword, maxListings, isAborted) {
+  const listings = [];
+  const seen = new Set();
+
+  // Nombre de pages à scraper (60 annonces/page sur AliExpress)
+  const pagesNeeded = Math.ceil(maxListings / 60);
+
+  for (let page = 1; page <= pagesNeeded && listings.length < maxListings; page++) {
+    if (isAborted()) break;
+
+    const searchUrl = `https://www.aliexpress.com/wholesale?SearchText=${encodeURIComponent(keyword)}&page=${page}`;
+
+    let html = null;
+
+    // Essai 1 : ScrapeAPI si dispo
+    if (process.env.SCRAPEAPI_KEY) {
+      try {
+        const r = await axios.get('https://api.scraperapi.com/', {
+          params: { api_key: process.env.SCRAPEAPI_KEY, url: searchUrl, render: 'true' },
+          timeout: 45000,
+        });
+        html = r.data;
+        console.log(`[aliexpress] ScrapeAPI page ${page}: ${html?.length || 0} chars`);
+      } catch(e) {
+        console.warn(`[aliexpress] ScrapeAPI failed: ${e.message}`);
+      }
+    }
+
+    // Essai 2 : requête directe avec headers navigateur
+    if (!html) {
+      try {
+        const r = await axios.get(searchUrl, {
+          timeout: 20000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+        });
+        html = r.data;
+        console.log(`[aliexpress] Direct page ${page}: ${html?.length || 0} chars`);
+      } catch(e) {
+        console.warn(`[aliexpress] Direct request failed: ${e.message}`);
+        break;
+      }
+    }
+
+    if (!html) break;
+
+    // Parser les URLs d'items et d'images depuis le HTML/JSON embarqué
+    // AliExpress injecte les données dans window._dida_config_ ou __INITIAL_STATE__
+    const itemMatches = [];
+
+    // Regex pour extraire les product IDs et images depuis le JSON embarqué
+    const jsonMatch = html.match(/"productId"\s*:\s*"?(\d+)"?[^}]*?"imageUrl"\s*:\s*"([^"]+)"/g)
+      || html.match(/\/\/ae\d+\.alicdn\.com\/kf\/[^"'\s]+/g)
+      || [];
+
+    // Extraire paires (itemId, imageUrl) depuis le HTML
+    const productPattern = /\/item\/(\d+)\.html/g;
+    const imagePattern = /https?:\/\/ae\d+\.alicdn\.com\/kf\/[A-Za-z0-9_\-]+\.(jpg|png|webp)/g;
+
+    const itemIds = [];
+    let m;
+    while ((m = productPattern.exec(html)) !== null) {
+      if (!seen.has(m[1])) {
+        seen.add(m[1]);
+        itemIds.push(m[1]);
+      }
+    }
+
+    const imageUrls = [];
+    while ((m = imagePattern.exec(html)) !== null) {
+      imageUrls.push(m[0]);
+    }
+
+    // Associer chaque itemId à une imageUrl (dans l'ordre d'apparition)
+    for (let i = 0; i < itemIds.length && listings.length < maxListings; i++) {
+      const itemId = itemIds[i];
+      const imageUrl = imageUrls[i] || null;
+      if (!imageUrl) continue;
+      listings.push({
+        title: keyword,
+        link: `https://www.aliexpress.com/item/${itemId}.html`,
+        imageUrl,
+      });
+    }
+
+    console.log(`[aliexpress] Scrape page ${page}: ${itemIds.length} items, ${listings.length} total`);
+  }
+
+  return listings;
+}
+
+
+/**
+ * Récupère N annonces AliExpress avec image via Serper /images puis fallback scrape.
  */
 async function fetchAliExpressListings(keyword, maxListings, isAborted = () => false) {
   const listings = [];
+  const seen = new Set();
 
-  // ── Méthode 1 : Serper Google Shopping filtré aliexpress.com ──
-  // Simple, ne nécessite pas de clé AliExpress spécifique
+  // ── Méthode 1 : Serper /images — "aliexpress keyword" ──
+  // C'est la méthode la plus fiable : Serper Images retourne toujours des imageUrl
   if (SERPER_KEYS.length) {
     try {
-      console.log(`[aliexpress] Serper Shopping: "${keyword}" (max ${maxListings})`);
+      console.log(`[aliexpress] Serper Images: "${keyword}" (max ${maxListings})`);
 
-      // On va paginer pour obtenir assez de résultats
-      const perPage = 10;
-      const pagesNeeded = Math.ceil(maxListings / perPage);
+      // Serper Images retourne jusqu'à 100 résultats par requête
+      const pagesNeeded = Math.ceil(maxListings / 100);
 
       for (let page = 1; page <= pagesNeeded && listings.length < maxListings; page++) {
         if (isAborted()) break;
         try {
-          const r = await axios.post('https://google.serper.dev/shopping',
-            { q: `site:aliexpress.com ${keyword}`, gl: 'us', hl: 'en', num: perPage, page },
+          const r = await axios.post('https://google.serper.dev/images',
+            {
+              q: `aliexpress ${keyword}`,
+              gl: 'us',
+              hl: 'en',
+              num: 100,
+              page,
+            },
             { headers: { 'X-API-KEY': getSerperKey() }, timeout: 20000 }
           );
 
-          const items = r.data.shopping || [];
-          for (const item of items) {
+          const images = r.data.images || [];
+          console.log(`[aliexpress] Images page ${page}: ${images.length} résultats`);
+
+          for (const item of images) {
             if (listings.length >= maxListings) break;
-            const link = item.link || item.url || '';
+            const link = item.link || item.sourceUrl || '';
+            // On garde uniquement les résultats pointant vers aliexpress.com
             if (!link.includes('aliexpress.com')) continue;
-            const imageUrl = item.imageUrl || item.thumbnailUrl || item.image || null;
+            const imageUrl = item.imageUrl || item.thumbnailUrl || null;
             if (!imageUrl) continue;
+            const key = imageUrl;
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            // Reconstruire un lien /item/ si possible depuis sourceUrl
+            const itemMatch = link.match(/\/item\/(\d+)/);
+            const cleanLink = itemMatch
+              ? `https://www.aliexpress.com/item/${itemMatch[1]}.html`
+              : link;
+
             listings.push({
-              title:    item.title || '',
-              link,
+              title:    item.title || keyword,
+              link:     cleanLink,
               imageUrl,
-              price:    item.price || null,
             });
           }
-          console.log(`[aliexpress] Page ${page}: ${items.length} résultats, total: ${listings.length}`);
-          if (items.length < perPage) break;
+
+          if (images.length < 10) break; // plus de pages
         } catch(e) {
           const status = e.response?.status;
+          if (status === 401) throw new Error('serper_401');
           if (status === 400) {
             const detail = e.response?.data;
             if (detail?.message?.toLowerCase().includes('not enough credits')) throw new Error('serper_no_credits');
           }
-          if (status === 401) throw new Error('serper_401');
-          console.warn(`[aliexpress] Serper page ${page} failed: ${e.message}`);
+          console.warn(`[aliexpress] Serper Images page ${page} failed: ${e.message}`);
           break;
         }
       }
 
       if (listings.length > 0) {
-        console.log(`[aliexpress] ✅ ${listings.length} annonces via Serper Shopping`);
+        console.log(`[aliexpress] ✅ ${listings.length} annonces via Serper Images`);
         return listings.slice(0, maxListings);
       }
     } catch(e) {
       if (e.message === 'serper_401' || e.message === 'serper_no_credits') throw e;
-      console.warn('[aliexpress] Serper Shopping fallback failed:', e.message);
+      console.warn('[aliexpress] Serper Images failed:', e.message);
     }
   }
 
-  // ── Méthode 2 : Serper Google Search filtré aliexpress.com/item ──
-  if (SERPER_KEYS.length && listings.length < maxListings) {
+  // ── Méthode 2 : Scrape direct AliExpress (ScrapeAPI ou direct) ──
+  if (listings.length < maxListings) {
+    console.log(`[aliexpress] Fallback scrape direct: "${keyword}"`);
     try {
-      console.log(`[aliexpress] Serper Search fallback: "${keyword}"`);
-      const needed = maxListings - listings.length;
-      const pagesNeeded = Math.ceil(needed / 10);
-
-      for (let page = 1; page <= pagesNeeded && listings.length < maxListings; page++) {
-        if (isAborted()) break;
-        try {
-          const r = await axios.post('https://google.serper.dev/search',
-            { q: `site:aliexpress.com/item "${keyword}"`, gl: 'us', hl: 'en', num: 10, page },
-            { headers: { 'X-API-KEY': getSerperKey() }, timeout: 20000 }
-          );
-          const organic = r.data.organic || [];
-          for (const item of organic) {
-            if (listings.length >= maxListings) break;
-            const link = item.link || '';
-            if (!link.includes('aliexpress.com/item')) continue;
-            // Serper organic inclut parfois une imageUrl dans imageBlock
-            const imageUrl = item.imageUrl || null;
-            listings.push({ title: item.title || '', link, imageUrl, price: null });
-          }
-          if (organic.length < 10) break;
-        } catch(e) {
-          const status = e.response?.status;
-          if (status === 401) throw new Error('serper_401');
-          if (status === 400) {
-            const detail = e.response?.data;
-            if (detail?.message?.toLowerCase().includes('not enough credits')) throw new Error('serper_no_credits');
-          }
-          break;
+      const scraped = await scrapeAliExpressDirect(keyword, maxListings - listings.length, isAborted);
+      for (const item of scraped) {
+        if (!seen.has(item.imageUrl)) {
+          seen.add(item.imageUrl);
+          listings.push(item);
         }
       }
     } catch(e) {
-      if (e.message === 'serper_401' || e.message === 'serper_no_credits') throw e;
+      console.warn('[aliexpress] Scrape direct failed:', e.message);
     }
   }
 
+  console.log(`[aliexpress] Total final: ${listings.length} annonces`);
   return listings.slice(0, maxListings);
 }
 
