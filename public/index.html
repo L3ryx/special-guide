@@ -161,6 +161,13 @@
     #pages-label { color:#ccc; font-size:13px; font-weight:500; white-space:nowrap; }
     #pages-select { background:#1a1a2e; color:#e0e0e0; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:2px 8px; font-size:13px; cursor:pointer; outline:none; }
     #pages-select:focus { border-color:rgba(255,255,255,0.35); }
+    /* Mode toggle */
+    #mode-toggle-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:center; gap:0; margin-bottom:4px; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); }
+    .mode-tab { flex:1; padding:8px 0; background:rgba(255,255,255,0.04); color:rgba(255,255,255,0.45); font-family:'Croissant One',cursive; font-size:0.78rem; font-weight:600; border:none; cursor:pointer; transition:all 0.2s; letter-spacing:0.04em; }
+    .mode-tab.active { background:rgba(249,115,22,0.18); color:#f97316; border-bottom:2px solid #f97316; }
+    .mode-tab:hover:not(.active) { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); }
+    #category-select { width:80%; align-self:center; background:#1a1a2e; color:#e0e0e0; border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:10px 14px; font-size:0.9rem; cursor:pointer; outline:none; display:none; }
+    #category-select:focus { border-color:#f97316; }
     
 #start-btn { box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:8px; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
@@ -408,8 +415,68 @@
     <div class="search-card">
       <div id="search-inputs" style="width:100%;display:flex;flex-direction:column;gap:8px;">
           <!-- SEARCH COUNTER -->
-          
+          <!-- MODE TOGGLE -->
+          <div id="mode-toggle-row">
+            <button class="mode-tab active" id="tab-keyword" onclick="setSearchMode('keyword')">🔍 Mot-clé</button>
+            <button class="mode-tab" id="tab-category" onclick="setSearchMode('category')">📦 Catégorie AliExpress</button>
+          </div>
           <input type="text" id="keyword-input" placeholder="Enter keyword">
+          <select id="category-select">
+            <optgroup label="🏠 Maison & Déco">
+              <option value="home decor trending">Déco maison tendance</option>
+              <option value="wall art prints boho">Art mural boho</option>
+              <option value="candles holders decor">Bougeoirs décoratifs</option>
+              <option value="macrame wall hanging">Macramé mural</option>
+              <option value="aesthetic room decor">Déco chambre aesthetic</option>
+              <option value="vase ceramic minimalist">Vases céramique</option>
+              <option value="fairy lights bedroom decor">Guirlandes lumineuses déco</option>
+            </optgroup>
+            <optgroup label="💍 Bijoux & Accessoires">
+              <option value="jewelry accessories women">Bijoux femme</option>
+              <option value="minimalist necklace pendant">Colliers minimalistes</option>
+              <option value="crystal bracelet gemstone">Bracelets cristal</option>
+              <option value="earrings boho statement">Boucles d'oreilles boho</option>
+              <option value="rings vintage aesthetic">Bagues vintage</option>
+            </optgroup>
+            <optgroup label="👗 Mode & Vêtements">
+              <option value="clothing women aesthetic">Vêtements femme aesthetic</option>
+              <option value="oversized hoodie women">Hoodies oversized</option>
+              <option value="cottagecore dress women">Robes cottagecore</option>
+              <option value="accessories scrunchies hair">Accessoires cheveux</option>
+              <option value="tote bag canvas printed">Tote bags imprimés</option>
+            </optgroup>
+            <optgroup label="🐾 Animaux">
+              <option value="pet accessories dog cat">Accessoires animaux</option>
+              <option value="cat collar bandana cute">Colliers chats mignons</option>
+              <option value="dog accessories gift">Cadeaux chiens</option>
+            </optgroup>
+            <optgroup label="👶 Bébé & Enfants">
+              <option value="baby kids toys educational">Jouets éducatifs enfants</option>
+              <option value="baby shower gift cute">Cadeaux naissance</option>
+              <option value="kids room decor nursery">Déco chambre enfant</option>
+            </optgroup>
+            <optgroup label="🌿 Bien-être & Nature">
+              <option value="crystal healing stones set">Pierres de guérison cristaux</option>
+              <option value="yoga accessories meditation">Yoga & méditation</option>
+              <option value="essential oil diffuser">Diffuseurs huiles essentielles</option>
+              <option value="dried flowers bouquet">Fleurs séchées</option>
+            </optgroup>
+            <optgroup label="🍳 Cuisine & Maison">
+              <option value="kitchen gadgets unique">Gadgets cuisine originaux</option>
+              <option value="personalized cutting board">Planches à découper perso</option>
+              <option value="mug cute aesthetic">Mugs aesthetic</option>
+            </optgroup>
+            <optgroup label="🎨 Papeterie & Art">
+              <option value="stationery cute aesthetic">Papeterie cute</option>
+              <option value="stickers pack journal">Stickers journal</option>
+              <option value="art supply craft tools">Matériel créatif</option>
+            </optgroup>
+            <optgroup label="🏕️ Outdoor & Sport">
+              <option value="outdoor camping accessories">Accessoires camping</option>
+              <option value="hiking gear accessories">Équipement randonnée</option>
+              <option value="beach accessories summer">Accessoires plage été</option>
+            </optgroup>
+          </select>
           <div id="pages-row">
             <span id="pages-label">Annonces AliExpress</span>
             <select id="pages-select">
@@ -1011,7 +1078,13 @@
       if (_sessionId) {
         const sidToStop = _sessionId;
         _sessionId = null;
+        // Stop les deux routes possibles
         fetch('/api/stop-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {}) },
+          body: JSON.stringify({ sessionId: sidToStop })
+        }).catch(() => {});
+        fetch('/api/stop-ali-search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {}) },
           body: JSON.stringify({ sessionId: sidToStop })
@@ -1039,11 +1112,28 @@
       btn.disabled = false;
     }
 
+    // ── MODE TOGGLE ──
+    let _searchMode = 'keyword'; // 'keyword' | 'category'
+
+    function setSearchMode(mode) {
+      _searchMode = mode;
+      document.getElementById('tab-keyword').classList.toggle('active', mode === 'keyword');
+      document.getElementById('tab-category').classList.toggle('active', mode === 'category');
+      document.getElementById('keyword-input').style.display   = mode === 'keyword'  ? '' : 'none';
+      document.getElementById('category-select').style.display = mode === 'category' ? '' : 'none';
+      document.getElementById('pages-row').style.display       = mode === 'keyword'  ? '' : 'none';
+    }
+
     // --- START SEARCH ---
     async function startSearch() {
       if (_searching) return;
 
-      // Mode manuel uniquement
+      if (_searchMode === 'category') {
+        await startCategorySearch();
+        return;
+      }
+
+      // Mode mot-clé (comportement d'origine)
       const inputVal = document.getElementById('keyword-input').value.trim();
       _keywords = [];
       if (inputVal) {
@@ -1211,7 +1301,124 @@
       }
     }
 
-    // ── RENDER SHOP RESULT ──
+    // ── CATEGORY SEARCH (route /search-from-ali) ──
+    async function startCategorySearch() {
+      _searching = true;
+      _stopRequested = false;
+      _sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+      window._shopDataMap = {};
+
+      if (_restoreTimer) { clearTimeout(_restoreTimer); _restoreTimer = null; }
+      setStopMode();
+
+      resetProgress();
+      document.getElementById('progress-wrap').style.display = 'flex';
+      document.getElementById('results-section').style.display = 'none';
+      document.getElementById('results-container').innerHTML = '';
+      document.getElementById('results-count').textContent = '';
+      document.documentElement.classList.remove('unlocked');
+      window.scrollTo({ top: 0 });
+
+      const catSelect = document.getElementById('category-select');
+      const category = catSelect ? catSelect.value : null;
+      const catLabel = catSelect ? catSelect.options[catSelect.selectedIndex].text : category;
+
+      const currentLabel = document.getElementById('progress-keyword-label');
+      if (currentLabel) currentLabel.textContent = '📦 ' + catLabel;
+
+      let totalMatches = 0;
+      let hasError = false;
+
+      try {
+        document.getElementById('progress-msg').textContent = '⏳ Connexion...';
+        _activateStepDot('connecting');
+
+        const response = await fetch('/api/search-from-ali', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {})
+          },
+          body: JSON.stringify({ category, sessionId: _sessionId, productsPerCategory: 10 })
+        });
+
+        const ct = response.headers.get('content-type') || '';
+        if (!ct.includes('text/event-stream')) {
+          const data = await response.json().catch(() => ({}));
+          const errMsg = data.error || 'Erreur serveur';
+          document.getElementById('progress-msg').textContent = '❌ ' + errMsg;
+          hasError = true;
+          setRetryMode();
+          _searching = false;
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n'); buf = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const ev = JSON.parse(line.slice(6));
+              if (_stopRequested) { reader.cancel(); break; }
+
+              if (ev.step === 'complete') {
+                completeAllSteps();
+              } else if (ev.step === 'match') {
+                if (ev.shop) {
+                  renderShopResult(ev.shop, ev.shop.category || category);
+                  totalMatches++;
+                  document.getElementById('results-section').style.display = 'block';
+                  document.documentElement.classList.add('unlocked');
+                  document.documentElement.style.overflowY = 'auto';
+                  document.body.style.overflowY = 'auto';
+                }
+                advanceStep('match', ev.message);
+              } else if (ev.step === 'category') {
+                const lbl = document.getElementById('progress-keyword-label');
+                if (lbl) lbl.textContent = ev.message;
+                _activateStepDot('scraping');
+                advanceStep('scraping', ev.message);
+              } else if (ev.step === 'products') {
+                advanceStep('analyzing', ev.message);
+              } else if (ev.step === 'analyzing') {
+                _activateStepDot('analyzing');
+                advanceStep('analyzing', ev.message);
+              } else if (ev.step === 'error') {
+                document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
+                hasError = true;
+                setRetryMode();
+              } else {
+                advanceStep(ev.step, ev.message);
+              }
+            } catch(e) { /* ignore parse errors */ }
+          }
+        }
+      } catch(err) {
+        if (!_stopRequested) {
+          document.getElementById('progress-msg').textContent = '❌ ' + err.message;
+          hasError = true;
+          setRetryMode();
+        }
+      }
+
+      if (totalMatches > 0) {
+        setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+      }
+
+      if (!_stopRequested && !hasError) restoreUI();
+      if (totalMatches === 0 && !hasError && !_stopRequested) {
+        document.getElementById('results-container').innerHTML += '<div class="empty">No results found.</div>';
+        document.getElementById('results-section').style.display = 'block';
+      }
+      _searching = false;
+    }
     window._shopDataMap = {};
     function encodeShopKey(u) { return (u || '').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40); }
 
