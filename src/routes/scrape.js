@@ -170,6 +170,7 @@ router.post('/search-dropship', async (req, res) => {
 
   if (!process.env.ETSY_CLIENT_ID) return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
   if (!SERPER_KEYS.length)         return res.status(500).json({ error: 'SERPER_API_KEY missing' });
+  if (!process.env.VISUAL_API_URL) return res.status(500).json({ error: 'VISUAL_API_URL missing — pipeline DINOv2 requis' });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -291,7 +292,7 @@ router.post('/search-dropship', async (req, res) => {
      * @returns {number|null} visualSimilarity
      */
     async function runVisualPipeline(etsyImageUrl, aliImageUrl) {
-      if (!process.env.VISUAL_API_URL) return null;
+      // VISUAL_API_URL est garanti présent (vérifié en entrée de route)
       try {
         console.log('[visualPipeline] Lancement SAM + DINOv2 (fond blanc)...');
 
@@ -343,8 +344,8 @@ router.post('/search-dropship', async (req, res) => {
         }
         return null;
       } catch (e) {
-        console.warn('[visualPipeline] ⚠️ Erreur (non bloquant):', e.message);
-        return null;
+        console.error('[visualPipeline] ❌ Erreur DINOv2 (bloquant):', e.message);
+        throw new Error('dinov2_unavailable');
       }
     }
 
@@ -383,10 +384,10 @@ router.post('/search-dropship', async (req, res) => {
 
           const pipelineResult = await runVisualPipeline(etsyImg, aliImageUrl);
 
-          // Si pas de pipeline visuel dispo, on se fie à Lens seul (match = trouvé)
+          // DINOv2 obligatoire — si le pipeline ne répond pas, on arrête
           if (!pipelineResult) {
-            console.log(`[analyzeImage] ✅ Match Lens (sans DINOv2) — ${(aliMatch.link || '').slice(0, 60)}`);
-            return { aliMatch, visualSimilarity: null };
+            console.error(`[analyzeImage] ❌ Pipeline DINOv2 sans résultat — arrêt`);
+            throw new Error('dinov2_unavailable');
           }
 
           if (pipelineResult.is_dropship) {
@@ -451,8 +452,9 @@ router.post('/search-dropship', async (req, res) => {
           }
 
         } catch (e) {
-          if (e.message === 'serper_401')        { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
-          if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge sur serper.dev' }); return; }
+          if (e.message === 'serper_401')         { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
+          if (e.message === 'serper_no_credits')  { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge sur serper.dev' }); return; }
+          if (e.message === 'dinov2_unavailable') { send({ step: 'error', message: '❌ Pipeline DINOv2 indisponible — vérifier VISUAL_API_URL et le serveur Python' }); return; }
         }
       }
     }
@@ -480,6 +482,7 @@ router.get('/health', (req, res) => {
     ETSY_CLIENT_ID:   !!process.env.ETSY_CLIENT_ID,
     SERPER_API_KEY:   !!process.env.SERPER_API_KEY,
     SERPER_API_KEY_2: !!process.env.SERPER_API_KEY_2,
+    VISUAL_API_URL:   !!process.env.VISUAL_API_URL,
   };
   res.json({ status: Object.values(keys).every(Boolean) ? 'ready' : 'missing_keys', keys });
 });
