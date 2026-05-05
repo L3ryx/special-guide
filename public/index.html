@@ -162,13 +162,12 @@
     #pages-select { background:#1a1a2e; color:#e0e0e0; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:2px 8px; font-size:13px; cursor:pointer; outline:none; }
     #pages-select:focus { border-color:rgba(255,255,255,0.35); }
     /* Mode toggle */
-    #mode-toggle-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:center; gap:0; margin-bottom:4px; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); }
-    .mode-tab { flex:1; padding:8px 0; background:rgba(255,255,255,0.04); color:rgba(255,255,255,0.45); font-family:'Croissant One',cursive; font-size:0.78rem; font-weight:600; border:none; cursor:pointer; transition:all 0.2s; letter-spacing:0.04em; }
-    .mode-tab.active { background:rgba(249,115,22,0.18); color:#f97316; border-bottom:2px solid #f97316; }
-    .mode-tab:hover:not(.active) { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); }
+    #mode-toggle-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:center; gap:0; margin-bottom:4px; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.03); }
+    .mode-tab { flex:1; padding:9px 0; background:transparent; color:rgba(255,255,255,0.4); font-family:'Croissant One',cursive; font-size:0.78rem; font-weight:600; border:none; cursor:pointer; transition:all 0.2s; letter-spacing:0.04em; }
+    .mode-tab.active { background:rgba(249,115,22,0.22); color:#f97316; box-shadow:inset 0 0 0 2px rgba(249,115,22,0.45); }
+    .mode-tab:hover:not(.active) { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.7); }
     #category-select { width:80%; align-self:center; background:#1a1a2e; color:#e0e0e0; border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:10px 14px; font-size:0.9rem; cursor:pointer; outline:none; display:none; }
-    #category-select:focus { border-color:#f97316; }
-    
+    #category-select:focus { border-color:#f97316; }    
 #start-btn { box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:8px; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
     #stop-btn { display:none; height:3.5rem; width:65%; align-self:center; margin-top:18px; padding:0; border:none; border-radius:5rem; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:1.2rem; font-weight:700; letter-spacing:0.15em; cursor:pointer; box-shadow:0 6px 32px rgba(220,38,38,0.55); transition:background 0.2s, transform 0.2s; }
@@ -417,68 +416,68 @@
           <!-- SEARCH COUNTER -->
           <!-- MODE TOGGLE -->
           <div id="mode-toggle-row">
-            <button class="mode-tab active" id="tab-keyword" onclick="setSearchMode('keyword')">🔍 Mot-clé</button>
-            <button class="mode-tab" id="tab-category" onclick="setSearchMode('category')">📦 Catégorie AliExpress</button>
+            <button class="mode-tab active" id="tab-keyword" onclick="setSearchMode('keyword')">🔍 Keyword</button>
+            <button class="mode-tab" id="tab-category" onclick="setSearchMode('category')">📦 AliExpress Category</button>
           </div>
           <input type="text" id="keyword-input" placeholder="Enter keyword">
           <select id="category-select">
-            <optgroup label="🏠 Maison & Déco">
-              <option value="home decor trending">Déco maison tendance</option>
-              <option value="wall art prints boho">Art mural boho</option>
-              <option value="candles holders decor">Bougeoirs décoratifs</option>
-              <option value="macrame wall hanging">Macramé mural</option>
-              <option value="aesthetic room decor">Déco chambre aesthetic</option>
-              <option value="vase ceramic minimalist">Vases céramique</option>
-              <option value="fairy lights bedroom decor">Guirlandes lumineuses déco</option>
+            <optgroup label="🏠 Home & Decor">
+              <option value="home decor trending">Trending home decor</option>
+              <option value="wall art prints boho">Boho wall art prints</option>
+              <option value="candles holders decor">Decorative candle holders</option>
+              <option value="macrame wall hanging">Macrame wall hanging</option>
+              <option value="aesthetic room decor">Aesthetic room decor</option>
+              <option value="vase ceramic minimalist">Minimalist ceramic vases</option>
+              <option value="fairy lights bedroom decor">Fairy lights bedroom decor</option>
             </optgroup>
-            <optgroup label="💍 Bijoux & Accessoires">
-              <option value="jewelry accessories women">Bijoux femme</option>
-              <option value="minimalist necklace pendant">Colliers minimalistes</option>
-              <option value="crystal bracelet gemstone">Bracelets cristal</option>
-              <option value="earrings boho statement">Boucles d'oreilles boho</option>
-              <option value="rings vintage aesthetic">Bagues vintage</option>
+            <optgroup label="💍 Jewelry & Accessories">
+              <option value="jewelry accessories women">Women's jewelry</option>
+              <option value="minimalist necklace pendant">Minimalist necklaces</option>
+              <option value="crystal bracelet gemstone">Crystal gemstone bracelets</option>
+              <option value="earrings boho statement">Boho statement earrings</option>
+              <option value="rings vintage aesthetic">Vintage aesthetic rings</option>
             </optgroup>
-            <optgroup label="👗 Mode & Vêtements">
-              <option value="clothing women aesthetic">Vêtements femme aesthetic</option>
-              <option value="oversized hoodie women">Hoodies oversized</option>
-              <option value="cottagecore dress women">Robes cottagecore</option>
-              <option value="accessories scrunchies hair">Accessoires cheveux</option>
-              <option value="tote bag canvas printed">Tote bags imprimés</option>
+            <optgroup label="👗 Fashion & Clothing">
+              <option value="clothing women aesthetic">Aesthetic women's clothing</option>
+              <option value="oversized hoodie women">Oversized hoodies</option>
+              <option value="cottagecore dress women">Cottagecore dresses</option>
+              <option value="accessories scrunchies hair">Hair accessories & scrunchies</option>
+              <option value="tote bag canvas printed">Printed canvas tote bags</option>
             </optgroup>
-            <optgroup label="🐾 Animaux">
-              <option value="pet accessories dog cat">Accessoires animaux</option>
-              <option value="cat collar bandana cute">Colliers chats mignons</option>
-              <option value="dog accessories gift">Cadeaux chiens</option>
+            <optgroup label="🐾 Pets">
+              <option value="pet accessories dog cat">Dog & cat accessories</option>
+              <option value="cat collar bandana cute">Cute cat collars & bandanas</option>
+              <option value="dog accessories gift">Dog gift accessories</option>
             </optgroup>
-            <optgroup label="👶 Bébé & Enfants">
-              <option value="baby kids toys educational">Jouets éducatifs enfants</option>
-              <option value="baby shower gift cute">Cadeaux naissance</option>
-              <option value="kids room decor nursery">Déco chambre enfant</option>
+            <optgroup label="👶 Baby & Kids">
+              <option value="baby kids toys educational">Educational kids toys</option>
+              <option value="baby shower gift cute">Cute baby shower gifts</option>
+              <option value="kids room decor nursery">Kids nursery room decor</option>
             </optgroup>
-            <optgroup label="🌿 Bien-être & Nature">
-              <option value="crystal healing stones set">Pierres de guérison cristaux</option>
-              <option value="yoga accessories meditation">Yoga & méditation</option>
-              <option value="essential oil diffuser">Diffuseurs huiles essentielles</option>
-              <option value="dried flowers bouquet">Fleurs séchées</option>
+            <optgroup label="🌿 Wellness & Nature">
+              <option value="crystal healing stones set">Crystal healing stone sets</option>
+              <option value="yoga accessories meditation">Yoga & meditation accessories</option>
+              <option value="essential oil diffuser">Essential oil diffusers</option>
+              <option value="dried flowers bouquet">Dried flower bouquets</option>
             </optgroup>
-            <optgroup label="🍳 Cuisine & Maison">
-              <option value="kitchen gadgets unique">Gadgets cuisine originaux</option>
-              <option value="personalized cutting board">Planches à découper perso</option>
-              <option value="mug cute aesthetic">Mugs aesthetic</option>
+            <optgroup label="🍳 Kitchen & Home">
+              <option value="kitchen gadgets unique">Unique kitchen gadgets</option>
+              <option value="personalized cutting board">Personalized cutting boards</option>
+              <option value="mug cute aesthetic">Cute aesthetic mugs</option>
             </optgroup>
-            <optgroup label="🎨 Papeterie & Art">
-              <option value="stationery cute aesthetic">Papeterie cute</option>
-              <option value="stickers pack journal">Stickers journal</option>
-              <option value="art supply craft tools">Matériel créatif</option>
+            <optgroup label="🎨 Stationery & Art">
+              <option value="stationery cute aesthetic">Cute aesthetic stationery</option>
+              <option value="stickers pack journal">Journal sticker packs</option>
+              <option value="art supply craft tools">Art & craft supplies</option>
             </optgroup>
             <optgroup label="🏕️ Outdoor & Sport">
-              <option value="outdoor camping accessories">Accessoires camping</option>
-              <option value="hiking gear accessories">Équipement randonnée</option>
-              <option value="beach accessories summer">Accessoires plage été</option>
+              <option value="outdoor camping accessories">Camping accessories</option>
+              <option value="hiking gear accessories">Hiking gear</option>
+              <option value="beach accessories summer">Summer beach accessories</option>
             </optgroup>
           </select>
           <div id="pages-row">
-            <span id="pages-label">Annonces AliExpress</span>
+            <span id="pages-label">AliExpress Listings</span>
             <select id="pages-select">
               <option value="10" selected>10</option>
               <option value="20">20</option>
@@ -513,11 +512,11 @@
         <div class="progress-keyword-label" id="progress-keyword-label"></div>
         <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
         <div class="steps-row" id="steps-row">
-          <div class="step-dot" id="step-connecting"><div class="dot"></div><div class="step-label">Connexion</div></div>
-          <div class="step-dot" id="step-scraping"><div class="dot"></div><div class="step-label">Scraping AliExpress</div></div>
-          <div class="step-dot" id="step-analyzing"><div class="dot"></div><div class="step-label">Analyse images</div></div>
-          <div class="step-dot" id="step-match"><div class="dot"></div><div class="step-label">Correspondances</div></div>
-          <div class="step-dot" id="step-complete"><div class="dot"></div><div class="step-label">Terminé</div></div>
+          <div class="step-dot" id="step-connecting"><div class="dot"></div><div class="step-label">Connecting</div></div>
+          <div class="step-dot" id="step-scraping"><div class="dot"></div><div class="step-label">Scraping</div></div>
+          <div class="step-dot" id="step-analyzing"><div class="dot"></div><div class="step-label">Analyzing</div></div>
+          <div class="step-dot" id="step-match"><div class="dot"></div><div class="step-label">Matches</div></div>
+          <div class="step-dot" id="step-complete"><div class="dot"></div><div class="step-label">Done</div></div>
         </div>
         <div class="progress-msg" id="progress-msg"></div>
       </div>
@@ -1119,9 +1118,9 @@
       _searchMode = mode;
       document.getElementById('tab-keyword').classList.toggle('active', mode === 'keyword');
       document.getElementById('tab-category').classList.toggle('active', mode === 'category');
-      document.getElementById('keyword-input').style.display   = mode === 'keyword'  ? '' : 'none';
-      document.getElementById('category-select').style.display = mode === 'category' ? '' : 'none';
-      document.getElementById('pages-row').style.display       = mode === 'keyword'  ? '' : 'none';
+      document.getElementById('keyword-input').style.display   = mode === 'keyword'  ? 'block' : 'none';
+      document.getElementById('category-select').style.display = mode === 'category' ? 'block' : 'none';
+      document.getElementById('pages-row').style.display       = 'flex';
     }
 
     // --- START SEARCH ---
@@ -1330,7 +1329,7 @@
       let hasError = false;
 
       try {
-        document.getElementById('progress-msg').textContent = '⏳ Connexion...';
+        document.getElementById('progress-msg').textContent = '⏳ Connecting...';
         _activateStepDot('connecting');
 
         const response = await fetch('/api/search-from-ali', {
@@ -1339,13 +1338,13 @@
             'Content-Type': 'application/json',
             ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {})
           },
-          body: JSON.stringify({ category, sessionId: _sessionId, productsPerCategory: 10 })
+          body: JSON.stringify({ category, sessionId: _sessionId, productsPerCategory: parseInt(document.getElementById('pages-select')?.value || '10', 10) })
         });
 
         const ct = response.headers.get('content-type') || '';
         if (!ct.includes('text/event-stream')) {
           const data = await response.json().catch(() => ({}));
-          const errMsg = data.error || 'Erreur serveur';
+          const errMsg = data.error || 'Server error';
           document.getElementById('progress-msg').textContent = '❌ ' + errMsg;
           hasError = true;
           setRetryMode();
@@ -1475,7 +1474,7 @@
       if (shopUrl) {
         visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
       } else {
-        visitBtn.href = '#'; visitBtn.onclick = function(e){ e.preventDefault(); showToast('URL introuvable', '#ef4444'); };
+        visitBtn.href = '#'; visitBtn.onclick = function(e){ e.preventDefault(); showToast('URL not found', '#ef4444'); };
       }
       visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop ↗';
       inner.appendChild(visitBtn);
@@ -1521,7 +1520,7 @@
       // Fallback: use productUrl if shopUrl is missing
       if (!data.shopUrl && data.productUrl) data.shopUrl = data.productUrl;
       if (data.shopUrl && _savedShopUrls.has(data.shopUrl)) { btn.classList.add('saved'); btn.textContent = '✔'; showToast('Already saved!', '#22c55e'); return; }
-      if (!data.shopUrl || data.shopUrl === '#') { showToast('URL introuvable pour cette boutique', '#ef4444'); return; }
+      if (!data.shopUrl || data.shopUrl === '#') { showToast('No URL found for this shop', '#ef4444'); return; }
       btn.classList.add('saving'); btn.textContent = '⏳';
       try {
         const r = await fetch('/api/shops/save', {
