@@ -423,9 +423,9 @@ router.post('/search-from-ali', async (req, res) => {
             console.warn('[search-from-ali] Lens error:', e.message);
           }
 
-          // Incrémenter le compteur global et notifier le front
-          counter.done++;
-          send({ step: 'shop_done', done: counter.done, total: globalTotal });
+          // Incrémenter atomiquement avant l'envoi (critique en batch parallèle)
+          const doneSnapshot = ++counter.done;
+          send({ step: 'shop_done', done: doneSnapshot, total: globalTotal });
 
           if (!etsyListings.length) return;
 
