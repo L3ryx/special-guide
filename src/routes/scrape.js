@@ -411,15 +411,44 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
   if (!shopName) {
     const listingMatch = etsyLink.match(/etsy\.com\/listing\/(\d+)/);
     if (listingMatch) {
+      // 2a. Essai via API Etsy officielle
       try {
         const { getListingDetail } = require('../services/etsyApi');
         const detail = await getListingDetail(listingMatch[1]);
         if (detail.shopName) {
           shopName = detail.shopName;
           shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+          console.log('[lensSearchEtsy] Shop résolu via API Etsy:', shopName);
         }
       } catch(e) {
-        console.warn('[lensSearchEtsy] Impossible de résoudre listing→shop:', e.message);
+        console.warn('[lensSearchEtsy] API Etsy listing→shop échouée:', e.message);
+      }
+
+      // 2b. Fallback ultime : scraping léger de la page listing Etsy
+      if (!shopName && !isAborted()) {
+        try {
+          const pageRes = await axios.get(etsyLink, {
+            timeout: 12000,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept-Language': 'en-US,en;q=0.9',
+            },
+            maxRedirects: 3,
+          });
+          const html = pageRes.data || '';
+          // Extraire shopName depuis l'URL canonique ou le JSON-LD ou le HTML
+          const canonMatch  = html.match(/etsy\.com\/shop\/([A-Za-z0-9_]+)/);
+          const jsonLdMatch = html.match(/"seller"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/);
+          const breadMatch  = html.match(/\/shop\/([A-Za-z0-9_]+)["']/);
+          const found = (canonMatch && canonMatch[1]) || (jsonLdMatch && jsonLdMatch[1]) || (breadMatch && breadMatch[1]) || null;
+          if (found && found.length > 2 && found !== 'etsy') {
+            shopName = found;
+            shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+            console.log('[lensSearchEtsy] Shop résolu via scraping HTML:', shopName);
+          }
+        } catch(e) {
+          console.warn('[lensSearchEtsy] Scraping HTML listing échoué:', e.message);
+        }
       }
     }
   }
