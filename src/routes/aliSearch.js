@@ -276,41 +276,38 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
   return resolved;
 }
 
-// ── STEP 3 : Pipeline DINOv2 (optionnel) ─────────────────────────────────────
+// ── STEP 3 : Pipeline DINOv2 (obligatoire) ───────────────────────────────────
 async function runVisualPipeline(aliImageUrl, etsyImageUrl) {
-  if (!process.env.VISUAL_API_URL) return null;
-  try {
-    const samRes = await axios.post(`${process.env.VISUAL_API_URL}/segment`,
-      { images: [aliImageUrl, etsyImageUrl] }, { timeout: 30000 });
-    const masks = samRes.data?.masks || [];
+  if (!process.env.VISUAL_API_URL) throw new Error('VISUAL_API_URL non configuré — DINOv2 obligatoire');
 
-    const extractRes = await axios.post(`${process.env.VISUAL_API_URL}/extract`,
-      { images: [aliImageUrl, etsyImageUrl], masks, background: 'white' }, { timeout: 30000 });
-    const croppedImages = extractRes.data?.croppedImages || [];
+  const samRes = await axios.post(`${process.env.VISUAL_API_URL}/segment`,
+    { images: [aliImageUrl, etsyImageUrl] }, { timeout: 30000 });
+  const masks = samRes.data?.masks || [];
 
-    const dinoRes = await axios.post(`${process.env.VISUAL_API_URL}/features`,
-      { images: croppedImages }, { timeout: 30000 });
-    const features = dinoRes.data?.features || [];
+  const extractRes = await axios.post(`${process.env.VISUAL_API_URL}/extract`,
+    { images: [aliImageUrl, etsyImageUrl], masks, background: 'white' }, { timeout: 30000 });
+  const croppedImages = extractRes.data?.croppedImages || [];
 
-    const patchRes = await axios.post(`${process.env.VISUAL_API_URL}/filter-patches`,
-      { features, masks }, { timeout: 30000 });
-    const filteredPatches = patchRes.data?.filteredPatches || [];
+  const dinoRes = await axios.post(`${process.env.VISUAL_API_URL}/features`,
+    { images: croppedImages }, { timeout: 30000 });
+  const features = dinoRes.data?.features || [];
 
-    if (features.length >= 2 && filteredPatches.length >= 2) {
-      const scoreRes = await axios.post(`${process.env.VISUAL_API_URL}/similarity`,
-        {
-          featuresA: { cls_embedding: features[0]?.cls_embedding, patch_tokens: filteredPatches[0] },
-          featuresB: { cls_embedding: features[1]?.cls_embedding, patch_tokens: filteredPatches[1] },
-        },
-        { timeout: 15000 }
-      );
-      return scoreRes.data;
-    }
-    return null;
-  } catch (e) {
-    console.warn('[visualPipeline] ⚠️ Erreur (non bloquant):', e.message);
-    return null;
+  const patchRes = await axios.post(`${process.env.VISUAL_API_URL}/filter-patches`,
+    { features, masks }, { timeout: 30000 });
+  const filteredPatches = patchRes.data?.filteredPatches || [];
+
+  if (features.length < 2 || filteredPatches.length < 2) {
+    throw new Error('DINOv2 — features insuffisantes pour calculer la similarité');
   }
+
+  const scoreRes = await axios.post(`${process.env.VISUAL_API_URL}/similarity`,
+    {
+      featuresA: { cls_embedding: features[0]?.cls_embedding, patch_tokens: filteredPatches[0] },
+      featuresB: { cls_embedding: features[1]?.cls_embedding, patch_tokens: filteredPatches[1] },
+    },
+    { timeout: 15000 }
+  );
+  return scoreRes.data; // { similarity, is_dropship, threshold }
 }
 
 // ── ROUTE PRINCIPALE ──────────────────────────────────────────────────────────
@@ -442,12 +439,22 @@ router.post('/search-from-ali', async (req, res) => {
             if (seenListings.has(listing.listingUrl)) continue;
             seenListings.add(listing.listingUrl);
 
-            const pipelineResult = await runVisualPipeline(product.imageUrl, listing.listingImage);
-            const confirmed  = !pipelineResult || pipelineResult.is_dropship;
-            const similarity = pipelineResult?.similarity ?? null;
+            let pipelineResult = null;
+            try {
+              pipelineResult = await runVisualPipeline(product.imageUrl, listing.listingImage);
+            } catch (e) {
+              console.error(`[search-from-ali] 🛑 DINOv2 échoué — arrêt de la recherche: ${e.message}`);
+              send({ step: 'error', message: `❌ DINOv2 indisponible — recherche arrêtée : ${e.message}` });
+              activeSessions.set(sid, true); // force abort
+              return;
+            }
+
+            const similarity = pipelineResult.similarity ?? null;
+            const DINO_THRESHOLD = 0.78;
+            const confirmed = similarity !== null && similarity >= DINO_THRESHOLD;
 
             if (!confirmed) {
-              console.log(`[search-from-ali] ❌ DINOv2 reject — sim: ${similarity}`);
+              console.log(`[search-from-ali] ❌ DINOv2 reject — sim: ${similarity} < ${DINO_THRESHOLD}`);
               continue;
             }
 
@@ -472,9 +479,7 @@ router.post('/search-from-ali', async (req, res) => {
 
             dropshippers.push(match);
 
-            const simLabel = similarity !== null
-              ? ` | DINOv2 : ${(similarity * 100).toFixed(1)}%`
-              : ' | Lens only';
+            const simLabel = ` | DINOv2 : ${(similarity * 100).toFixed(1)}%`;
 
             send({
               step:    'match',
