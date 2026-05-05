@@ -1,10 +1,10 @@
 const express = require('express');
 const router  = express.Router();
 const axios   = require('axios');
-const { uploadImageFree } = require('../services/freeImageUploader');
+const { uploadImageFree }    = require('../services/freeImageUploader');
 const { uploadAliImageFree } = require('../services/aliImageUploader');
 
-// ── Clés Serper ──────────────────────────────────────────────────────────────
+// ── Clés Serper partagées ─────────────────────────────────────────────────────
 const SERPER_KEYS = [
   process.env.SERPER_API_KEY,
   process.env.SERPER_API_KEY_2,
@@ -76,7 +76,7 @@ router.post('/stop-ali-search', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── STEP 1 : Récupérer les produits AliExpress via Serper Images (même stratégie que scrape.js) ──
+// ── STEP 1 : Récupérer les produits AliExpress via Serper Images ──────────────
 async function fetchAliExpressProducts(keyword, maxProducts = 10) {
   console.log(`[aliSearch] Serper Images: "${keyword}" (max ${maxProducts})`);
   const listings = [];
@@ -122,21 +122,17 @@ async function fetchAliExpressProducts(keyword, maxProducts = 10) {
   return listings;
 }
 
-// ── STEP 2 : Google Lens sur image AliExpress → trouver boutiques Etsy ───────
+// ── STEP 2 : Google Lens sur image AliExpress → trouver boutiques Etsy ────────
 const { getListingDetail, getShopInfo } = require('../services/etsyApi');
 
-/**
- * Recherche Google Lens → résultats Etsy → résolution shopName + avatar via API Etsy.
- * Retourne une liste de { listingUrl, listingImage, listingId, shopName, shopUrl, shopAvatar }
- */
 async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
   if (isAborted()) return [];
 
-  // ── 1. Upload image AliExpress ──
+  // 1. Upload image AliExpress
   const pubUrl = await uploadAliImageFree(aliImageUrl);
   if (!pubUrl || isAborted()) return [];
 
-  // ── 2. Google Lens via Serper ──
+  // 2. Google Lens via Serper
   let r;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -162,18 +158,17 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
   }
   if (isAborted()) return [];
 
-  // ── 3. Filtrer résultats Etsy ──
+  // 3. Filtrer résultats Etsy (max 2 pour limiter les appels inutiles)
   const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
-  const etsyResults = all.filter(x => (x.link || x.url || '').includes('etsy.com'));
+  const etsyResults = all
+    .filter(x => (x.link || x.url || '').includes('etsy.com'))
+    .slice(0, 2);
 
   console.log(`[aliSearch] Lens → ${etsyResults.length} résultats Etsy trouvés`);
-  etsyResults.slice(0, 3).forEach((x, i) =>
-    console.log(`  [${i}] ${(x.link || x.url || '').slice(0, 80)}`)
-  );
 
   if (!etsyResults.length) return [];
 
-  // ── 4. Pour chaque résultat Etsy : résoudre shopName + récupérer avatar ──
+  // 4. Pour chaque résultat Etsy : résoudre shopName + avatar
   const resolved = [];
   const seenShops = new Set();
 
@@ -187,14 +182,14 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
     let shopAvatar = null;
     let listingId  = null;
 
-    // 4a. URL /shop/ShopName → résolution immédiate
+    // 4a. URL /shop/ShopName
     const shopMatch = link.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/);
     if (shopMatch && !['ca','uk','fr','de'].includes(shopMatch[1])) {
       shopName = shopMatch[1];
       shopUrl  = `https://www.etsy.com/shop/${shopName}`;
     }
 
-    // 4b. URL /listing/{id} → API Etsy : listing_id → shop_id → shop_name
+    // 4b. URL /listing/{id} → API Etsy
     const lm = link.match(/etsy\.com(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/listing\/(\d+)/);
     if (lm) listingId = lm[1];
 
@@ -202,18 +197,22 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
     if (!shopName && listingId) {
       try {
         const detail = await getListingDetail(listingId);
+        // ── Exclure les articles numériques détectés par l'API ──
+        if (detail.isDigital) {
+          console.log(`[aliSearch] 🚫 Listing ${listingId} exclu — article numérique (is_digital)`);
+          continue;
+        }
         if (detail.shopName) {
-          shopName      = detail.shopName;
+          shopName       = detail.shopName;
           resolvedShopId = detail.shopId || null;
-          shopUrl       = `https://www.etsy.com/shop/${shopName}`;
-          console.log(`[aliSearch] shopName via API listing ${listingId}: ${shopName}`);
+          shopUrl        = `https://www.etsy.com/shop/${shopName}`;
         }
       } catch(e) {
         console.warn(`[aliSearch] getListingDetail(${listingId}) échoué:`, e.message);
       }
     }
 
-    // 4c. Fallback scraping HTML page listing
+    // 4c. Fallback scraping HTML
     if (!shopName && listingId && !isAborted()) {
       try {
         const pageRes = await axios.get(`https://www.etsy.com/listing/${listingId}`, {
@@ -231,30 +230,34 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
         if (found && found.length > 2 && !['etsy','ca','uk','fr','de'].includes(found)) {
           shopName = found;
           shopUrl  = `https://www.etsy.com/shop/${shopName}`;
-          console.log(`[aliSearch] shopName via scraping HTML: ${shopName}`);
         }
       } catch(e) {
         console.warn(`[aliSearch] scraping HTML listing ${listingId} échoué:`, e.message);
       }
     }
 
-    // Skip si toujours pas de shopName
-    if (!shopName) {
-      console.log(`[aliSearch] ❌ shopName non résolu pour: ${link.slice(0, 60)}`);
-      continue;
-    }
-
-    // Dédupliquer par shopName
+    if (!shopName) continue;
     if (seenShops.has(shopName)) continue;
     seenShops.add(shopName);
 
-    // 5. Récupérer avatar via API Etsy getShopInfo (on passe l'ID numérique si dispo)
+    // ── Filtre numérique via titre/URL (filet de sécurité si résolution par scraping) ──
+    const digitalSignals = [
+      'digital', 'printable', 'download', 'svg', 'pdf file', 'instant download',
+      'clipart', 'template', 'digital file', 'digital print', 'digital art',
+      'font', 'bundle svg', 'cricut', 'sublimation', 'digital download',
+    ];
+    const titleLower = (x.title || link).toLowerCase();
+    if (digitalSignals.some(sig => titleLower.includes(sig))) {
+      console.log(`[aliSearch] 🚫 Exclu (titre numérique): "${titleLower.slice(0, 60)}"`);
+      continue;
+    }
+
+    // 5. Avatar via API Etsy
     if (!isAborted()) {
       try {
         const info = await getShopInfo(resolvedShopId || shopName);
         shopAvatar = info.shopAvatar || null;
         shopUrl    = info.shopUrl || shopUrl;
-        console.log(`[aliSearch] ✅ ${shopName} | avatar: ${shopAvatar ? 'oui' : 'non'}`);
       } catch(e) {
         console.warn(`[aliSearch] getShopInfo(${shopName}) échoué:`, e.message);
       }
@@ -270,57 +273,38 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
     });
   }
 
-  console.log(`[aliSearch] ${resolved.length}/${etsyResults.length} boutiques résolues`);
   return resolved;
 }
 
-// ── STEP 3 : Pipeline DINOv2 pour confirmer la similarité ────────────────────
+// ── STEP 3 : Pipeline DINOv2 (optionnel) ─────────────────────────────────────
 async function runVisualPipeline(aliImageUrl, etsyImageUrl) {
   if (!process.env.VISUAL_API_URL) return null;
   try {
-    // STEP 3a — Segmentation SAM
-    const samRes = await axios.post(
-      `${process.env.VISUAL_API_URL}/segment`,
-      { images: [aliImageUrl, etsyImageUrl] },
-      { timeout: 30000 }
-    );
+    const samRes = await axios.post(`${process.env.VISUAL_API_URL}/segment`,
+      { images: [aliImageUrl, etsyImageUrl] }, { timeout: 30000 });
     const masks = samRes.data?.masks || [];
 
-    // STEP 3b — Extraction fond blanc
-    const extractRes = await axios.post(
-      `${process.env.VISUAL_API_URL}/extract`,
-      { images: [aliImageUrl, etsyImageUrl], masks, background: 'white' },
-      { timeout: 30000 }
-    );
+    const extractRes = await axios.post(`${process.env.VISUAL_API_URL}/extract`,
+      { images: [aliImageUrl, etsyImageUrl], masks, background: 'white' }, { timeout: 30000 });
     const croppedImages = extractRes.data?.croppedImages || [];
 
-    // STEP 3c — Features DINOv2
-    const dinoRes = await axios.post(
-      `${process.env.VISUAL_API_URL}/features`,
-      { images: croppedImages },
-      { timeout: 30000 }
-    );
+    const dinoRes = await axios.post(`${process.env.VISUAL_API_URL}/features`,
+      { images: croppedImages }, { timeout: 30000 });
     const features = dinoRes.data?.features || [];
 
-    // STEP 3d — Patch filtering
-    const patchRes = await axios.post(
-      `${process.env.VISUAL_API_URL}/filter-patches`,
-      { features, masks },
-      { timeout: 30000 }
-    );
+    const patchRes = await axios.post(`${process.env.VISUAL_API_URL}/filter-patches`,
+      { features, masks }, { timeout: 30000 });
     const filteredPatches = patchRes.data?.filteredPatches || [];
 
-    // STEP 3e — Score similarité
     if (features.length >= 2 && filteredPatches.length >= 2) {
-      const scoreRes = await axios.post(
-        `${process.env.VISUAL_API_URL}/similarity`,
+      const scoreRes = await axios.post(`${process.env.VISUAL_API_URL}/similarity`,
         {
           featuresA: { cls_embedding: features[0]?.cls_embedding, patch_tokens: filteredPatches[0] },
           featuresB: { cls_embedding: features[1]?.cls_embedding, patch_tokens: filteredPatches[1] },
         },
         { timeout: 15000 }
       );
-      return scoreRes.data; // { similarity, is_dropship, threshold }
+      return scoreRes.data;
     }
     return null;
   } catch (e) {
@@ -329,7 +313,9 @@ async function runVisualPipeline(aliImageUrl, etsyImageUrl) {
   }
 }
 
-// ── ROUTE PRINCIPALE ─────────────────────────────────────────────────────────
+// ── ROUTE PRINCIPALE ──────────────────────────────────────────────────────────
+const BATCH_SIZE = 3; // produits traités en parallèle
+
 router.post('/search-from-ali', async (req, res) => {
   const { category, sessionId, productsPerCategory = 8 } = req.body;
 
@@ -349,26 +335,27 @@ router.post('/search-from-ali', async (req, res) => {
   const isAborted = () => activeSessions.get(sid) === true;
 
   try {
-    // Catégories à analyser
-    const categories = category
-      ? [category]
-      : ALI_CATEGORIES;
+    const categories  = category ? [category] : ALI_CATEGORIES;
+    const globalTotal = categories.length * productsPerCategory;
 
     send({ step: 'start', message: `🚀 Analyse de ${categories.length} catégorie(s) AliExpress...`, categories });
+    // ── init : envoyer le vrai total au front AVANT tout traitement ──
+    send({ step: 'init', total: globalTotal });
 
     const dropshippers = [];
     const seenShops    = new Set();
     const seenListings = new Set();
-    let globalDone = 0; // compteur global cross-catégories
-    const globalTotal = categories.length * productsPerCategory;
-    send({ step: 'init', total: globalTotal });
+
+    // Compteur atomique thread-safe (JS est single-thread, mais les Promises
+    // peuvent s'entrelacer → on utilise un objet pour partager la référence)
+    const counter = { done: 0 };
 
     for (const cat of categories) {
       if (isAborted()) break;
 
       send({ step: 'category', message: `📦 Catégorie : "${cat}"` });
 
-      // ── STEP 1 : Produits AliExpress ───────────────────────────────────────
+      // ── STEP 1 : Produits AliExpress ────────────────────────────────────────
       let aliProducts = [];
       try {
         aliProducts = await fetchAliExpressProducts(cat, productsPerCategory);
@@ -383,103 +370,119 @@ router.post('/search-from-ali', async (req, res) => {
 
       if (!aliProducts.length) {
         send({ step: 'warning', message: `⚠️ Aucun produit AliExpress trouvé pour "${cat}"` });
+        // Incrémenter le counter pour les produits manquants afin de garder la progression cohérente
+        counter.done += productsPerCategory;
+        send({ step: 'shop_done', done: counter.done, total: globalTotal });
         continue;
       }
 
       send({ step: 'products', message: `✅ ${aliProducts.length} produits AliExpress trouvés`, products: aliProducts });
 
-      // ── STEP 2 + 3 : Lens + DINOv2 pour chaque produit ────────────────────
-      for (const [idx, product] of aliProducts.entries()) {
+      // Pré-upload de la première image pendant qu'on initialise la boucle
+      const uploadCache = new Map();
+      // Pré-fetch upload du premier produit immédiatement
+      if (aliProducts[0]) {
+        uploadCache.set(0, uploadAliImageFree(aliProducts[0].imageUrl));
+      }
+
+      // ── STEP 2+3 : Traitement par batch de BATCH_SIZE produits en parallèle ─
+      for (let batchStart = 0; batchStart < aliProducts.length; batchStart += BATCH_SIZE) {
         if (isAborted()) break;
 
-        send({
-          step:    'analyzing',
-          total:   globalTotal,
-          done:    globalDone,
-          message: `🔎 [${globalDone + 1}/${globalTotal}] Lens search...`,
-        });
+        const batchEnd     = Math.min(batchStart + BATCH_SIZE, aliProducts.length);
+        const batchItems   = aliProducts.slice(batchStart, batchEnd);
 
-        // STEP 2 — Trouver boutiques Etsy via Lens
-        let etsyListings = [];
-        try {
-          etsyListings = await findEtsyListingsFromImage(product.imageUrl, isAborted);
-        } catch (e) {
-          if (e.message === 'serper_no_credits') {
-            send({ step: 'error', message: '❌ Crédits Serper épuisés' });
-            activeSessions.delete(sid);
-            return res.end();
+        // Pré-fetch upload du prochain batch pendant le traitement du courant
+        const nextBatchStart = batchEnd;
+        const nextBatchEnd   = Math.min(nextBatchStart + BATCH_SIZE, aliProducts.length);
+        for (let ni = nextBatchStart; ni < nextBatchEnd; ni++) {
+          if (!uploadCache.has(ni)) {
+            uploadCache.set(ni, uploadAliImageFree(aliProducts[ni].imageUrl));
           }
-          console.warn('[search-from-ali] Lens error:', e.message);
-          continue;
         }
 
-        // shop_done : compteur global cross-catégories
-        globalDone++;
-        send({ step: 'shop_done', done: globalDone, total: globalTotal });
-
-        if (!etsyListings.length) {
-          continue;
-        }
-
-        send({ step: 'lens_match', message: `🎯 ${etsyListings.length} boutique(s) Etsy détectée(s) via Lens` });
-
-        // STEP 3 — DINOv2 pour confirmer chaque résultat Etsy
-        for (const listing of etsyListings) {
-          if (isAborted()) break;
-          if (!listing.listingImage) continue;
-
-          // Dédupliquer par listing URL
-          if (seenListings.has(listing.listingUrl)) continue;
-          seenListings.add(listing.listingUrl);
-
-          const pipelineResult = await runVisualPipeline(product.imageUrl, listing.listingImage);
-
-          // Si pas de pipeline visuel → on se fie à Lens seul
-          const confirmed  = !pipelineResult || pipelineResult.is_dropship;
-          const similarity = pipelineResult?.similarity ?? null;
-
-          if (!confirmed) {
-            console.log(`[search-from-ali] ❌ DINOv2 reject — sim: ${similarity}`);
-            continue;
-          }
-
-          const shopKey = listing.shopName || listing.listingUrl;
-          if (seenShops.has(shopKey)) continue;
-          seenShops.add(shopKey);
-
-          const match = {
-            // Source AliExpress
-            aliUrl:     product.aliUrl,
-            aliImage:   product.imageUrl,
-            aliTitle:   product.title,
-            aliPrice:   product.price,
-            category:   cat,
-            // Boutique Etsy
-            shopName:   listing.shopName,
-            shopUrl:    listing.shopUrl || (listing.shopName ? `https://www.etsy.com/shop/${listing.shopName}` : null),
-            shopAvatar: listing.shopAvatar || null,
-            listingUrl: listing.listingUrl,
-            listingId:  listing.listingId || null,
-            shopImage:  listing.listingImage,
-            // Score DINOv2
-            visualSimilarity: similarity,
-          };
-
-          dropshippers.push(match);
-
-          const simLabel = similarity !== null
-            ? ` | DINOv2 : ${(similarity * 100).toFixed(1)}%`
-            : ' | Lens only';
+        // Traiter le batch courant en parallèle
+        await Promise.all(batchItems.map(async (product, localIdx) => {
+          if (isAborted()) return;
+          const globalIdx = batchStart + localIdx;
 
           send({
-            step:    'match',
-            message: `✅ ${listing.shopName || listing.listingUrl} — "${product.title.slice(0, 30)}"${simLabel}`,
-            shop:    match,
+            step:    'analyzing',
+            total:   globalTotal,
+            done:    counter.done,
+            message: `🔎 [${counter.done + 1}/${globalTotal}] Lens search...`,
           });
-        }
 
-        // Pause entre produits pour ne pas flooder Serper
-        await new Promise(r => setTimeout(r, 400));
+          // STEP 2 — Trouver boutiques Etsy via Lens
+          let etsyListings = [];
+          try {
+            etsyListings = await findEtsyListingsFromImage(product.imageUrl, isAborted);
+          } catch (e) {
+            if (e.message === 'serper_no_credits') {
+              send({ step: 'error', message: '❌ Crédits Serper épuisés' });
+              activeSessions.set(sid, true); // force abort
+              return;
+            }
+            console.warn('[search-from-ali] Lens error:', e.message);
+          }
+
+          // Incrémenter le compteur global et notifier le front
+          counter.done++;
+          send({ step: 'shop_done', done: counter.done, total: globalTotal });
+
+          if (!etsyListings.length) return;
+
+          send({ step: 'lens_match', message: `🎯 ${etsyListings.length} boutique(s) Etsy détectée(s) via Lens` });
+
+          // STEP 3 — DINOv2 pour confirmer chaque résultat Etsy
+          for (const listing of etsyListings) {
+            if (isAborted()) break;
+            if (!listing.listingImage) continue;
+
+            if (seenListings.has(listing.listingUrl)) continue;
+            seenListings.add(listing.listingUrl);
+
+            const pipelineResult = await runVisualPipeline(product.imageUrl, listing.listingImage);
+            const confirmed  = !pipelineResult || pipelineResult.is_dropship;
+            const similarity = pipelineResult?.similarity ?? null;
+
+            if (!confirmed) {
+              console.log(`[search-from-ali] ❌ DINOv2 reject — sim: ${similarity}`);
+              continue;
+            }
+
+            const shopKey = listing.shopName || listing.listingUrl;
+            if (seenShops.has(shopKey)) continue;
+            seenShops.add(shopKey);
+
+            const match = {
+              aliUrl:     product.aliUrl,
+              aliImage:   product.imageUrl,
+              aliTitle:   product.title,
+              aliPrice:   product.price,
+              category:   cat,
+              shopName:   listing.shopName,
+              shopUrl:    listing.shopUrl || (listing.shopName ? `https://www.etsy.com/shop/${listing.shopName}` : null),
+              shopAvatar: listing.shopAvatar || null,
+              listingUrl: listing.listingUrl,
+              listingId:  listing.listingId || null,
+              shopImage:  listing.listingImage,
+              visualSimilarity: similarity,
+            };
+
+            dropshippers.push(match);
+
+            const simLabel = similarity !== null
+              ? ` | DINOv2 : ${(similarity * 100).toFixed(1)}%`
+              : ' | Lens only';
+
+            send({
+              step:    'match',
+              message: `✅ ${listing.shopName || listing.listingUrl} — "${product.title.slice(0, 30)}"${simLabel}`,
+              shop:    match,
+            });
+          }
+        }));
       }
     }
 
