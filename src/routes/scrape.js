@@ -189,11 +189,42 @@ router.post('/search-dropship', async (req, res) => {
 
   if (!process.env.ETSY_CLIENT_ID) return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
   if (!SERPER_KEYS.length)         return res.status(500).json({ error: 'SERPER_API_KEY missing' });
+  if (!process.env.VISUAL_API_URL) return res.status(500).json({ error: 'VISUAL_API_URL missing — serveur DINOv2 requis' });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   const send = d => { try { res.write('data: ' + JSON.stringify(d) + '\n\n'); } catch {} };
+
+  // ── Vérification DINOv2 avec gestion cold start ──
+  try {
+    send({ step: 'init', message: '🔌 Vérification serveur DINOv2...' });
+    const MAX_ATTEMPTS = 10;      // 10 tentatives max
+    const RETRY_DELAY  = 8000;    // 8s entre chaque ping (cold start HF ~60s)
+    let ready = false;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const healthRes = await axios.get(`${process.env.VISUAL_API_URL}/health`, { timeout: 12000 });
+        if (healthRes.data?.status === 'ok') { ready = true; break; }
+      } catch (e) {
+        // Space en cours de démarrage
+      }
+      if (attempt < MAX_ATTEMPTS) {
+        send({ step: 'init', message: `⏳ DINOv2 en démarrage... (${attempt}/${MAX_ATTEMPTS})` });
+        await new Promise(r => setTimeout(r, RETRY_DELAY));
+      }
+    }
+
+    if (!ready) {
+      send({ step: 'error', message: '❌ Serveur DINOv2 inaccessible après 80s — vérifier le Space HF' });
+      return res.end();
+    }
+    send({ step: 'init', message: '✅ DINOv2 prêt' });
+  } catch (e) {
+    send({ step: 'error', message: `❌ Erreur vérification DINOv2: ${e.message}` });
+    return res.end();
+  }
 
   // ── Abort detection ──
   for (const [key, val] of activeSearches.entries()) {
@@ -346,19 +377,17 @@ router.post('/search-dropship', async (req, res) => {
               return { aliMatch, similarity, confirmedByDino: true };
             }
           } catch (e) {
-            console.warn(`[analyzeImage] ⚠️ DINOv2 indisponible (${e.message}) — fallback Lens seul`);
-            // Si le serveur DINOv2 est down, on accepte le match Lens sans confirmation
-            return { aliMatch: aliMatches[0], similarity: null, confirmedByDino: false };
+            console.error(`[analyzeImage] ❌ DINOv2 erreur: ${e.message}`);
+            throw new Error('dinov2_unavailable');
           }
         }
         console.log(`[analyzeImage] ❌ Aucun candidat validé par DINOv2`);
         return null;
       }
 
-      // Pas de VISUAL_API_URL configurée → Lens seul
-      const aliMatch = aliMatches[0];
-      console.log(`[analyzeImage] ⚠️ VISUAL_API_URL absent — match Lens accepté sans DINOv2`);
-      return { aliMatch, similarity: null, confirmedByDino: false };
+      // VISUAL_API_URL absent — ne devrait pas arriver (vérifié en entrée de route)
+      console.error('[analyzeImage] VISUAL_API_URL absent malgré la vérification initiale');
+      return null;
     }
 
     const dropshippers = [];
@@ -421,6 +450,8 @@ router.post('/search-dropship', async (req, res) => {
         } catch (e) {
           if (e.message === 'serper_401')        { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
           if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge sur serper.dev' }); return; }
+          if (e.message === 'dinov2_unavailable') { send({ step: 'error', message: '❌ Serveur DINOv2 indisponible — vérifier le Space HF' }); return; }
+        }
         }
       }
     }
