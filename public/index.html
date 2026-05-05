@@ -158,9 +158,10 @@
     #clear-keywords-btn:hover { background:rgba(239,68,68,0.25); border-color:rgba(239,68,68,0.6); }
     /* Auto search toggle */
     #pages-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:space-between; padding:0; background:none; border:none; border-radius:0; backdrop-filter:none; height:27px; margin-top:6px; }
-    #pages-label { color:#ccc; font-size:13px; font-weight:500; }
+    #pages-label { color:#ccc; font-size:13px; font-weight:500; white-space:nowrap; }
     #pages-select { background:#1a1a2e; color:#e0e0e0; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:2px 8px; font-size:13px; cursor:pointer; outline:none; }
     #pages-select:focus { border-color:rgba(255,255,255,0.35); }
+    
 #start-btn { box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:8px; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
     #stop-btn { display:none; height:3.5rem; width:65%; align-self:center; margin-top:18px; padding:0; border:none; border-radius:5rem; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:1.2rem; font-weight:700; letter-spacing:0.15em; cursor:pointer; box-shadow:0 6px 32px rgba(220,38,38,0.55); transition:background 0.2s, transform 0.2s; }
@@ -421,7 +422,15 @@
               <option value="8">8</option>
               <option value="9">9</option>
               <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12">12</option>
+              <option value="13">13</option>
+              <option value="14">14</option>
               <option value="15">15</option>
+              <option value="16">16</option>
+              <option value="17">17</option>
+              <option value="18">18</option>
+              <option value="19">19</option>
               <option value="20">20</option>
               <option value="25">25</option>
               <option value="30">30</option>
@@ -600,6 +609,7 @@
       document.getElementById('user-badge').style.display = 'flex';
       document.getElementById('niche-list-btn').style.display = 'flex';
       initSavedShops();
+      loadAutoState();
     }
 
         // ── ERROR POPUP ──
@@ -841,6 +851,23 @@
       if (trash) trash.style.visibility = _keywords.length > 0 ? 'visible' : 'hidden';
     }
 
+    // ── AUTO SEARCH (désactivé) ──
+    var _autoSearch = false;
+    var _keywordQueue = [];
+    var _usedKeywords = [];
+    var _totalAutoMatches = 0;
+    var _usedShops    = [];
+
+    async function loadAutoState() { /* désactivé */ }
+    async function saveQueueState(usedKeyword) { /* désactivé */ }
+    async function saveShopToDb(shopName) { /* désactivé */ }
+    function toggleAutoSearch() { /* désactivé */ }
+    async function generateKeywordBatch() { return []; }
+    async function getNextKeyword() { throw new Error('Auto mode disabled'); }
+    function saveUsedShops(shopNames) { /* désactivé */ }
+    async function saveUsedKeyword(kw) { /* désactivé */ }
+    function updateQueueDisplay() { /* désactivé */ }
+
     function clearKeywords() {
       _keywords = [];
       renderKeywords();
@@ -972,6 +999,7 @@
 
     function stopSearch() {
       _stopRequested = true;
+      _autoSearch = false;
       _searching = false;
 
       if (_sessionId) {
@@ -984,8 +1012,6 @@
         }).catch(() => {});
       }
 
-      const input  = document.getElementById('keyword-input');
-      if (input) { input.style.opacity = '1'; input.style.visibility = 'visible'; input.disabled = false; }
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
 
@@ -1068,15 +1094,14 @@
         }
 
         try {
-          document.getElementById('progress-msg').textContent = '⏳ Connexion...';
-          const nbAnnonces = parseInt(document.getElementById('pages-select')?.value || '5', 10);
+          document.getElementById('progress-msg').textContent = '⏳ Connecting...';
           const response = await fetch('/api/search-dropship', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {})
             },
-            body: JSON.stringify({ keyword, sessionId: _sessionId, pages: nbAnnonces })
+            body: JSON.stringify({ keyword, sessionId: _sessionId, pages: parseInt(document.getElementById('pages-select')?.value || '5', 10) })
           });
 
           const ct = response.headers.get('content-type') || '';
@@ -1157,6 +1182,13 @@
         if (_stopRequested) break;
       }
 
+      var countBar = document.getElementById('results-count');
+      countBar.innerHTML = '';
+
+      if (totalMatches > 0) {
+        setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+      }
+
       if (!_stopRequested) {
         restoreUI();
         clearKeywords();
@@ -1166,20 +1198,9 @@
         }
       }
 
-      if (totalMatches === 0 && !hasError) {
-        document.getElementById('results-container').innerHTML += '<div class="empty">Aucun résultat trouvé.</div>';
+      if (totalMatches === 0 && !hasError && !_stopRequested) {
+        document.getElementById('results-container').innerHTML += '<div class="empty">No results found.</div>';
         document.getElementById('results-section').style.display = 'block';
-      }
-
-      document.getElementById('results-count').innerHTML = '';
-
-      if (totalMatches > 0) {
-        setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
-      }
-
-      if (!_stopRequested) {
-        restoreUI();
-        clearKeywords();
       }
     }
 
