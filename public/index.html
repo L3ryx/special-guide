@@ -948,6 +948,7 @@
       if (kl) kl.textContent = keyword || '';
       // Counter shown immediately on launch
       var pages = parseInt(document.getElementById('pages-select')?.value || '5', 10);
+      _counterTotal = pages;
       var counter = document.getElementById('listing-counter');
       if (counter) counter.textContent = '0 / ' + pages + ' listings analyzed — ' + pages + ' remaining';
     }
@@ -995,25 +996,29 @@
       var el = document.getElementById('progress-fill');
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
       // Reset counter
+      _counterTotal = 0;
       var counter = document.getElementById('listing-counter');
       if (counter) { counter.textContent = ''; }
     }
 
+    var _counterTotal = 0; // set by 'init' event, never overwritten by server's filtered total
+
     function syncProgressFromAnalyzing(total, done) {
-      if (!_estimated && total > 0 && done >= 1) {
+      var displayTotal = _counterTotal > 0 ? _counterTotal : total;
+      if (!_estimated && displayTotal > 0 && done >= 1) {
         var elapsed = Date.now() - _startTime;
-        _estimatedMs = (elapsed / done) * total;
+        _estimatedMs = (elapsed / done) * displayTotal;
         _estimated = true;
       }
-      if (total > 0) {
-        var pct = 10 + Math.round((done / total) * 82);
+      if (displayTotal > 0) {
+        var pct = 10 + Math.round((done / displayTotal) * 82);
         _progressTarget = Math.max(_progressCurrent, pct);
       }
       // Counter: updated on each Lens call (shop_done)
       var counter = document.getElementById('listing-counter');
       if (counter) {
-        var remaining = Math.max(0, total - done);
-        counter.textContent = done + ' / ' + total + ' listings analyzed — ' + remaining + ' remaining';
+        var remaining = Math.max(0, displayTotal - done);
+        counter.textContent = done + ' / ' + displayTotal + ' listings analyzed — ' + remaining + ' remaining';
       }
     }
 
@@ -1222,7 +1227,13 @@
               try {
                 const ev = JSON.parse(line.slice(6));
                 if (_stopRequested) { reader.cancel(); break; }
-                if (ev.step === 'complete') {
+                if (ev.step === 'init') {
+                  if (ev.total) {
+                    _counterTotal = ev.total;
+                    var counter = document.getElementById('listing-counter');
+                    if (counter) counter.textContent = '0 / ' + ev.total + ' listings analyzed — ' + ev.total + ' remaining';
+                  }
+                } else if (ev.step === 'complete') {
                   completeAllSteps();
                   if (tag) tag.className = 'keyword-tag done';
                 } else if (ev.step === 'match') {
@@ -1318,7 +1329,8 @@
       window.scrollTo({ top: 0 });
       // Init counter immediately
       (function() {
-        var pages = parseInt(document.getElementById('pages-select')?.value || '5', 10);
+        var pages = parseInt(document.getElementById('pages-select')?.value || '10', 10);
+        _counterTotal = pages;
         var counter = document.getElementById('listing-counter');
         if (counter) counter.textContent = '0 / ' + pages + ' listings analyzed — ' + pages + ' remaining';
       })();
@@ -1372,7 +1384,13 @@
               const ev = JSON.parse(line.slice(6));
               if (_stopRequested) { reader.cancel(); break; }
 
-              if (ev.step === 'complete') {
+              if (ev.step === 'init') {
+                if (ev.total) {
+                  _counterTotal = ev.total;
+                  var counter = document.getElementById('listing-counter');
+                  if (counter) counter.textContent = '0 / ' + ev.total + ' listings analyzed — ' + ev.total + ' remaining';
+                }
+              } else if (ev.step === 'complete') {
                 completeAllSteps();
               } else if (ev.step === 'match') {
                 if (ev.shop) {
