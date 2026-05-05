@@ -165,7 +165,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
 // ── SEARCH DROPSHIP ──
 router.post('/search-dropship', async (req, res) => {
   const { keyword, sessionId, pages } = req.body;
-  const maxPages = Math.min(Math.max(parseInt(pages) || 5, 1), 10);
+  const maxPages = Math.min(Math.max(parseInt(pages) || 5, 1), 200);
   if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword required' });
 
   if (!process.env.ETSY_CLIENT_ID) return res.status(500).json({ error: 'ETSY_CLIENT_ID missing' });
