@@ -59,31 +59,49 @@ async function downloadAliImage(aliUrl) {
   return null;
 }
 
-// ── Upload vers Litterbox (catbox.moe) ───────────────────────────────────────
+// ── Upload vers Litterbox (catbox.moe) avec retry sur 429 ───────────────────
 async function uploadToLitterbox(buffer, mimeType) {
-  console.log('[aliUploader] 🔄 Upload litterbox.catbox.moe...');
-  try {
-    const ext  = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-    const form = new FormData();
-    form.append('reqtype',     'fileupload');
-    form.append('time',        '1h');
-    form.append('fileToUpload', buffer, { filename: `ali_image.${ext}`, contentType: mimeType });
+  const MAX_RETRIES = 4;
+  const ext  = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
 
-    const res = await axios.post(
-      'https://litterbox.catbox.moe/resources/internals/api.php',
-      form,
-      { headers: form.getHeaders(), timeout: 20000, responseType: 'text' }
-    );
-
-    const url = (typeof res.data === 'string' ? res.data : '').trim();
-    if (url.startsWith('https://')) {
-      console.log(`[aliUploader] ✅ Litterbox OK → ${url}`);
-      return url;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s
+      console.log(`[aliUploader] ⏳ Retry Litterbox dans ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
+      await new Promise(r => setTimeout(r, delay));
     }
-    console.warn(`[aliUploader] ⚠️ Litterbox réponse inattendue: ${url}`);
-  } catch (e) {
-    console.error(`[aliUploader] ❌ Litterbox FAILED: ${e.message}`);
+
+    console.log(`[aliUploader] 🔄 Upload litterbox.catbox.moe (attempt ${attempt + 1})...`);
+    try {
+      const form = new FormData();
+      form.append('reqtype',     'fileupload');
+      form.append('time',        '1h');
+      form.append('fileToUpload', buffer, { filename: `ali_image.${ext}`, contentType: mimeType });
+
+      const res = await axios.post(
+        'https://litterbox.catbox.moe/resources/internals/api.php',
+        form,
+        { headers: form.getHeaders(), timeout: 30000, responseType: 'text' }
+      );
+
+      const url = (typeof res.data === 'string' ? res.data : '').trim();
+      if (url.startsWith('https://')) {
+        console.log(`[aliUploader] ✅ Litterbox OK → ${url}`);
+        return url;
+      }
+      console.warn(`[aliUploader] ⚠️ Litterbox réponse inattendue: ${url}`);
+    } catch (e) {
+      const status = e.response?.status;
+      if (status === 429) {
+        console.warn(`[aliUploader] 🚦 Litterbox 429 — rate limit, retry...`);
+        continue; // on retente après le délai
+      }
+      console.error(`[aliUploader] ❌ Litterbox FAILED: ${e.message}`);
+      return null; // erreur non-récupérable
+    }
   }
+
+  console.error('[aliUploader] ❌ Litterbox — max retries atteint');
   return null;
 }
 
