@@ -292,10 +292,53 @@ router.post('/search-dropship', async (req, res) => {
         return null;
       }
 
-      // On prend le premier candidat AliExpress trouvé par Lens
+      console.log(`[analyzeImage] ✅ ${aliMatches.length} candidats AliExpress via Lens — vérification DINOv2...`);
+
+      // ── Vérification DINOv2 ──────────────────────────────────────────────
+      const VISUAL_API = process.env.VISUAL_API_URL;
+
+      if (VISUAL_API) {
+        for (const aliMatch of aliMatches.slice(0, 3)) {
+          if (isAborted()) return null;
+          const aliImageUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl;
+          if (!aliImageUrl) continue;
+
+          try {
+            // Extraction features en parallèle (Etsy + AliExpress)
+            const [featEtsy, featAli] = await Promise.all([
+              axios.post(`${VISUAL_API}/features`, { images: [etsyImageUrl] }, { timeout: 30000 }),
+              axios.post(`${VISUAL_API}/features`, { images: [aliImageUrl] },  { timeout: 30000 }),
+            ]);
+
+            const fA = featEtsy.data?.features?.[0];
+            const fB = featAli.data?.features?.[0];
+            if (!fA || !fB) { console.warn('[analyzeImage] DINOv2 features vides — candidat suivant'); continue; }
+
+            // Score de similarité
+            const simRes = await axios.post(`${VISUAL_API}/similarity`,
+              { featuresA: fA, featuresB: fB },
+              { timeout: 15000 }
+            );
+            const { similarity, is_dropship } = simRes.data;
+            console.log(`[analyzeImage] DINOv2 score: ${similarity} | is_dropship: ${is_dropship} | ${(aliMatch.link || '').slice(0, 60)}`);
+
+            if (is_dropship) {
+              return { aliMatch, similarity, confirmedByDino: true };
+            }
+          } catch (e) {
+            console.warn(`[analyzeImage] ⚠️ DINOv2 indisponible (${e.message}) — fallback Lens seul`);
+            // Si le serveur DINOv2 est down, on accepte le match Lens sans confirmation
+            return { aliMatch: aliMatches[0], similarity: null, confirmedByDino: false };
+          }
+        }
+        console.log(`[analyzeImage] ❌ Aucun candidat validé par DINOv2`);
+        return null;
+      }
+
+      // Pas de VISUAL_API_URL configurée → Lens seul
       const aliMatch = aliMatches[0];
-      console.log(`[analyzeImage] ✅ Match Lens — ${aliMatches.length} candidats AliExpress, meilleur: ${(aliMatch.link || '').slice(0, 60)}`);
-      return { aliMatch };
+      console.log(`[analyzeImage] ⚠️ VISUAL_API_URL absent — match Lens accepté sans DINOv2`);
+      return { aliMatch, similarity: null, confirmedByDino: false };
     }
 
     const dropshippers = [];
@@ -325,18 +368,24 @@ router.post('/search-dropship', async (req, res) => {
           console.log('[worker]', listing.shopName, '| Lens:', r1 ? '✅' : '❌');
 
           if (r1) {
+            const dinoLabel = r1.confirmedByDino
+              ? `DINOv2 ✅ ${(r1.similarity * 100).toFixed(1)}%`
+              : (r1.similarity === null ? 'Lens only' : `DINOv2 ${(r1.similarity * 100).toFixed(1)}%`);
+
             dropshippers.push({
-              shopName:   listing.shopName,
-              shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
-              shopAvatar: null,
-              shopImage:  img1,
-              listingUrl: listing.link,
-              aliUrl:     r1.aliMatch.link || r1.aliMatch.url || null,
-              aliImage:   r1.aliMatch.imageUrl || r1.aliMatch.thumbnailUrl || null,
+              shopName:        listing.shopName,
+              shopUrl:         listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
+              shopAvatar:      null,
+              shopImage:       img1,
+              listingUrl:      listing.link,
+              aliUrl:          r1.aliMatch.link || r1.aliMatch.url || null,
+              aliImage:        r1.aliMatch.imageUrl || r1.aliMatch.thumbnailUrl || null,
+              similarity:      r1.similarity,
+              confirmedByDino: r1.confirmedByDino,
             });
             send({
               step:    'match',
-              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | Lens match`,
+              message: `✅ ${listing.shopName} — ${dinoLabel}`,
               shop:    dropshippers[dropshippers.length - 1],
             });
           }
