@@ -344,7 +344,9 @@ router.post('/search-dropship', async (req, res) => {
         }
         return null;
       } catch (e) {
-        console.error('[visualPipeline] ❌ Erreur DINOv2 (bloquant):', e.message);
+        const status = e.response?.status;
+        const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+        console.error(`[visualPipeline] ❌ Erreur DINOv2 — HTTP ${status || 'réseau'} : ${detail}`);
         throw new Error('dinov2_unavailable');
       }
     }
@@ -455,6 +457,10 @@ router.post('/search-dropship', async (req, res) => {
           if (e.message === 'serper_401')         { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
           if (e.message === 'serper_no_credits')  { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge sur serper.dev' }); return; }
           if (e.message === 'dinov2_unavailable') { send({ step: 'error', message: '❌ Pipeline DINOv2 indisponible — vérifier VISUAL_API_URL et le serveur Python' }); return; }
+          // Toute erreur non identifiée : logger + stopper (ne jamais avaler silencieusement)
+          console.error('[worker] ❌ Erreur inattendue sur', listing?.shopName, ':', e.message, e.stack);
+          send({ step: 'error', message: '❌ Erreur inattendue : ' + e.message });
+          return;
         }
       }
     }
