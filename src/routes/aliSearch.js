@@ -281,19 +281,19 @@ async function runVisualPipeline(aliImageUrl, etsyImageUrl) {
   if (!process.env.VISUAL_API_URL) throw new Error('VISUAL_API_URL non configuré — DINOv2 obligatoire');
 
   const samRes = await axios.post(`${process.env.VISUAL_API_URL}/segment`,
-    { images: [aliImageUrl, etsyImageUrl] }, { timeout: 30000 });
+    { images: [aliImageUrl, etsyImageUrl] }, { timeout: 60000 });
   const masks = samRes.data?.masks || [];
 
   const extractRes = await axios.post(`${process.env.VISUAL_API_URL}/extract`,
-    { images: [aliImageUrl, etsyImageUrl], masks, background: 'white' }, { timeout: 30000 });
+    { images: [aliImageUrl, etsyImageUrl], masks, background: 'white' }, { timeout: 60000 });
   const croppedImages = extractRes.data?.croppedImages || [];
 
   const dinoRes = await axios.post(`${process.env.VISUAL_API_URL}/features`,
-    { images: croppedImages }, { timeout: 30000 });
+    { images: croppedImages }, { timeout: 60000 });
   const features = dinoRes.data?.features || [];
 
   const patchRes = await axios.post(`${process.env.VISUAL_API_URL}/filter-patches`,
-    { features, masks }, { timeout: 30000 });
+    { features, masks }, { timeout: 60000 });
   const filteredPatches = patchRes.data?.filteredPatches || [];
 
   if (features.length < 2 || filteredPatches.length < 2) {
@@ -305,13 +305,21 @@ async function runVisualPipeline(aliImageUrl, etsyImageUrl) {
       featuresA: { cls_embedding: features[0]?.cls_embedding, patch_tokens: filteredPatches[0] },
       featuresB: { cls_embedding: features[1]?.cls_embedding, patch_tokens: filteredPatches[1] },
     },
-    { timeout: 15000 }
+    { timeout: 60000 }
   );
   return scoreRes.data; // { similarity, is_dropship, threshold }
 }
 
 // ── ROUTE PRINCIPALE ──────────────────────────────────────────────────────────
-const BATCH_SIZE = 3; // produits traités en parallèle
+const BATCH_SIZE = 3; // Lens + Etsy en parallèle
+
+// ── Mutex DINOv2 : un seul appel pipeline à la fois pour ne pas saturer le serveur visuel ──
+let _dinoQueue = Promise.resolve();
+function enqueueDino(fn) {
+  const result = _dinoQueue.then(fn);
+  _dinoQueue = result.catch(() => {});
+  return result;
+}
 
 router.post('/search-from-ali', async (req, res) => {
   const { category, sessionId, productsPerCategory = 8 } = req.body;
@@ -441,7 +449,8 @@ router.post('/search-from-ali', async (req, res) => {
 
             let pipelineResult = null;
             try {
-              pipelineResult = await runVisualPipeline(product.imageUrl, listing.listingImage);
+              // DINOv2 sérialisé via mutex — un seul appel simultané pour ne pas saturer le serveur visuel
+              pipelineResult = await enqueueDino(() => runVisualPipeline(product.imageUrl, listing.listingImage));
             } catch (e) {
               console.error(`[search-from-ali] 🛑 DINOv2 échoué — arrêt de la recherche: ${e.message}`);
               send({ step: 'error', message: `❌ DINOv2 indisponible — recherche arrêtée : ${e.message}` });
