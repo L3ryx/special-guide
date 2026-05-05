@@ -238,24 +238,16 @@ router.post('/search-dropship', async (req, res) => {
     const { uploadImageFree } = require('../services/freeImageUploader');
 
     /**
-     * Lance Google Lens sur UNE image Etsy et retourne les top 2 candidats AliExpress.
-     * @returns {Array} aliMatches (max 2)
+     * Appelle Serper Lens avec une URL donnée.
      */
-    async function lensSearch(etsyImageUrl) {
-      if (!etsyImageUrl || isAborted()) return [];
-
-      const pubUrl = await uploadImageFree(etsyImageUrl);
-      if (!pubUrl || isAborted()) return [];
-
-      let r;
+    async function callSerperLens(url) {
       const SERPER_RETRIES = 3;
       for (let attempt = 0; attempt < SERPER_RETRIES; attempt++) {
         try {
-          r = await axios.post('https://google.serper.dev/lens',
-            { url: pubUrl, gl: 'us', hl: 'en' },
+          return await axios.post('https://google.serper.dev/lens',
+            { url, gl: 'us', hl: 'en' },
             { headers: { 'X-API-KEY': getSerperKey() }, timeout: 25000 }
           );
-          break;
         } catch (serperErr) {
           const status = serperErr.response?.status;
           const detail = serperErr.response?.data;
@@ -272,12 +264,26 @@ router.post('/search-dropship', async (req, res) => {
               continue;
             }
             console.warn('[lensSearch] Serper 429 — skip');
-            return [];
+            return null;
           }
           throw serperErr;
         }
       }
-      if (isAborted()) return [];
+      return null;
+    }
+
+    /**
+     * Lance Google Lens sur UNE image Etsy et retourne les top 2 candidats AliExpress.
+     * @returns {Array} aliMatches (max 2)
+     */
+    async function lensSearch(etsyImageUrl) {
+      if (!etsyImageUrl || isAborted()) return [];
+
+      const pubUrl = await uploadImageFree(etsyImageUrl);
+      if (!pubUrl || isAborted()) return [];
+
+      const r = await callSerperLens(pubUrl);
+      if (!r || isAborted()) return [];
 
       const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
       return all.filter(x => {
