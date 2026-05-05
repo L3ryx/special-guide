@@ -1002,30 +1002,28 @@
       if (counter) { counter.textContent = ''; }
     }
 
-    var _counterTotal = 0; // set by 'init' event, never overwritten by server's filtered total
-    var _counterDoneMax = 0; // garde monotone : le counter ne régresse jamais (batch parallèle)
+    var _counterTotal = 0;   // set by 'init' event
+    var _counterDoneMax = 0; // toujours afficher la valeur la plus haute reçue
 
     function syncProgressFromAnalyzing(total, done) {
-      // Avec les batches parallèles, les événements peuvent arriver dans le désordre.
-      // On ne met à jour que si done est supérieur au max déjà affiché.
-      if (done < _counterDoneMax) return;
-      _counterDoneMax = done;
+      // Avec les batches parallèles les événements peuvent arriver dans le désordre.
+      // On garde le max reçu — jamais de régression, mais on ne bloque rien.
+      _counterDoneMax = Math.max(_counterDoneMax, done);
 
       var displayTotal = _counterTotal > 0 ? _counterTotal : total;
-      if (!_estimated && displayTotal > 0 && done >= 1) {
+      if (!_estimated && displayTotal > 0 && _counterDoneMax >= 1) {
         var elapsed = Date.now() - _startTime;
-        _estimatedMs = (elapsed / done) * displayTotal;
+        _estimatedMs = (elapsed / _counterDoneMax) * displayTotal;
         _estimated = true;
       }
       if (displayTotal > 0) {
-        var pct = 10 + Math.round((done / displayTotal) * 82);
+        var pct = 10 + Math.round((_counterDoneMax / displayTotal) * 82);
         _progressTarget = Math.max(_progressCurrent, pct);
       }
-      // Counter: updated on each shop_done event
       var counter = document.getElementById('listing-counter');
       if (counter) {
-        var remaining = Math.max(0, displayTotal - done);
-        counter.textContent = done + ' / ' + displayTotal + ' listings analyzed — ' + remaining + ' remaining';
+        var remaining = Math.max(0, displayTotal - _counterDoneMax);
+        counter.textContent = _counterDoneMax + ' / ' + displayTotal + ' listings analyzed — ' + remaining + ' remaining';
       }
     }
 
