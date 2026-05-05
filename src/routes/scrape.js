@@ -429,14 +429,16 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
   }
 
   // 4c. Si pas de shopName via URL → résoudre via API Etsy (listing_id → shop_id → shop_name)
+  let _resolvedShopId = null;
   if (!shopName && listingId && !isAborted()) {
     try {
       const { getListingDetail } = require('../services/etsyApi');
       console.log(`[lensSearchEtsy] Résolution via API Etsy, listing_id: ${listingId}`);
       const detail = await getListingDetail(listingId);
       if (detail.shopName) {
-        shopName = detail.shopName;
-        shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+        shopName       = detail.shopName;
+        _resolvedShopId = detail.shopId || null;
+        shopUrl        = `https://www.etsy.com/shop/${shopName}`;
         console.log(`[lensSearchEtsy] ✅ shopName via API Etsy: ${shopName}`);
       } else {
         console.warn(`[lensSearchEtsy] API Etsy: listing ${listingId} → shop_id ${detail.shopId} → shopName null`);
@@ -478,7 +480,7 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
   if (shopName && !isAborted()) {
     try {
       const { getShopInfo } = require('../services/etsyApi');
-      const info = await getShopInfo(shopName);
+      const info = await getShopInfo(_resolvedShopId || shopName);
       shopAvatar = info.shopAvatar || null;
       shopUrl    = info.shopUrl || shopUrl;
       console.log(`[lensSearchEtsy] ✅ Avatar récupéré pour ${shopName}: ${shopAvatar ? 'oui' : 'non'}`);
