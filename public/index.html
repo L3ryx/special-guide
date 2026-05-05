@@ -944,12 +944,12 @@
     function initProgress(keyword) {
       resetProgress();
       document.getElementById('progress-msg').textContent = '';
-      // Initialiser le compteur dès le lancement
-      var pages = parseInt(document.getElementById('pages-select')?.value || '5', 10);
-      var counter = document.getElementById('listing-counter');
-      if (counter) counter.textContent = '0 / ' + pages + ' boutiques analysées — ' + pages + ' restantes';
       var kl = document.getElementById('progress-keyword-label');
       if (kl) kl.textContent = keyword || '';
+      // Compteur visible immédiatement au lancement
+      var pages = parseInt(document.getElementById('pages-select')?.value || '5', 10);
+      var counter = document.getElementById('listing-counter');
+      if (counter) counter.textContent = '0 / ' + pages + ' annonces analysées — ' + pages + ' restantes';
     }
 
     var _progressCurrent = 0;
@@ -994,7 +994,7 @@
       _totalShops = 0; _startTime = 0; _estimated = false; _estimatedMs = 0;
       var el = document.getElementById('progress-fill');
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
-      // Reset du compteur Lens
+      // Reset du compteur
       var counter = document.getElementById('listing-counter');
       if (counter) { counter.textContent = ''; }
     }
@@ -1009,11 +1009,11 @@
         var pct = 10 + Math.round((done / total) * 82);
         _progressTarget = Math.max(_progressCurrent, pct);
       }
-      // Compteur Lens : mis à jour à chaque shop_done
+      // Compteur : mis à jour à chaque appel Lens (shop_done)
       var counter = document.getElementById('listing-counter');
-      if (counter && total > 0) {
-        var remaining = total - done;
-        counter.textContent = done + ' / ' + total + ' boutiques analysées — ' + remaining + ' restantes';
+      if (counter) {
+        var remaining = Math.max(0, total - done);
+        counter.textContent = done + ' / ' + total + ' annonces analysées — ' + remaining + ' restantes';
       }
     }
 
@@ -1316,6 +1316,12 @@
       document.getElementById('results-count').textContent = '';
       document.documentElement.classList.remove('unlocked');
       window.scrollTo({ top: 0 });
+      // Init compteur immédiatement
+      (function() {
+        var pages = parseInt(document.getElementById('pages-select')?.value || '5', 10);
+        var counter = document.getElementById('listing-counter');
+        if (counter) counter.textContent = '0 / ' + pages + ' annonces analysées — ' + pages + ' restantes';
+      })();
 
       const catSelect = document.getElementById('category-select');
       const category = catSelect ? catSelect.value : null;
@@ -1498,7 +1504,7 @@
         visitBtn.onclick = function(e){ e.preventDefault(); showToast('Boutique URL non trouvée', '#ef4444'); };
       }
       visitBtn.className = 'shop-result-btn';
-      visitBtn.textContent = 'Visit ' + (shop.shopName || 'Shop');
+      visitBtn.textContent = 'Visiter';
       btnsWrap.appendChild(visitBtn);
 
       inner.appendChild(btnsWrap);
