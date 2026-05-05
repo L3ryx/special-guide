@@ -128,8 +128,27 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(async ([shopId, raw]) => {
+        // Récupérer le nom + image1 depuis le listing principal
         const { shopName, shopUrl, image } = await getShopNameAndImage(shopId, raw.listingId);
-        return { shopId, shopName, shopUrl, image, listingId: raw.listingId, link: raw.link, title: raw.title };
+
+        // Récupérer image2 directement depuis la page boutique (2ème annonce différente)
+        let image2 = null;
+        try {
+          const shopListings = await axios.get(
+            `https://api.etsy.com/v3/application/shops/${shopId}/listings/active?limit=5&includes=images`,
+            { headers: { 'x-api-key': process.env.ETSY_CLIENT_ID }, timeout: 15000 }
+          );
+          const others = (shopListings.data.results || [])
+            .filter(l => l.listing_id !== raw.listingId && l.images?.[0]);
+          if (others.length > 0) {
+            const img = others[0].images[0];
+            image2 = (img.url_fullxfull || img.url_570xN || img.url_170x135 || '').split('?')[0] || null;
+          }
+        } catch (e) {
+          console.warn(`[fetchListings] image2 boutique échouée pour shop ${shopId}:`, e.message);
+        }
+
+        return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
       })
     );
 
@@ -147,6 +166,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         link:      l.link,
         title:     l.title,
         image:     l.image,
+        image2:    l.image2 || null,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
@@ -298,7 +318,7 @@ router.post('/search-dropship', async (req, res) => {
       const VISUAL_API = process.env.VISUAL_API_URL;
 
       if (VISUAL_API) {
-        for (const aliMatch of aliMatches.slice(0, 3)) {
+        for (const aliMatch of aliMatches.slice(0, 2)) {
           if (isAborted()) return null;
           const aliImageUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl;
           if (!aliImageUrl) continue;
@@ -359,18 +379,26 @@ router.post('/search-dropship', async (req, res) => {
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
 
           console.log('[worker] analyse', listing.shopName);
-          const r1 = await analyzeImage(img1);
+
+          // ── Image 1 : Lens + DINOv2 ──
+          let result = await analyzeImage(img1);
+
+          // ── Image 2 : si image1 ne matche pas, on compare image2 au même candidat Ali ──
+          if (!result && listing.image2) {
+            console.log('[worker]', listing.shopName, '| img1 ❌ — tentative img2...');
+            result = await analyzeImage(listing.image2);
+          }
 
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
-          console.log('[worker]', listing.shopName, '| Lens:', r1 ? '✅' : '❌');
+          console.log('[worker]', listing.shopName, '| résultat:', result ? '✅' : '❌');
 
-          if (r1) {
-            const dinoLabel = r1.confirmedByDino
-              ? `DINOv2 ✅ ${(r1.similarity * 100).toFixed(1)}%`
-              : (r1.similarity === null ? 'Lens only' : `DINOv2 ${(r1.similarity * 100).toFixed(1)}%`);
+          if (result) {
+            const dinoLabel = result.confirmedByDino
+              ? `DINOv2 ✅ ${(result.similarity * 100).toFixed(1)}%`
+              : (result.similarity === null ? 'Lens only' : `DINOv2 ${(result.similarity * 100).toFixed(1)}%`);
 
             dropshippers.push({
               shopName:        listing.shopName,
@@ -378,10 +406,10 @@ router.post('/search-dropship', async (req, res) => {
               shopAvatar:      null,
               shopImage:       img1,
               listingUrl:      listing.link,
-              aliUrl:          r1.aliMatch.link || r1.aliMatch.url || null,
-              aliImage:        r1.aliMatch.imageUrl || r1.aliMatch.thumbnailUrl || null,
-              similarity:      r1.similarity,
-              confirmedByDino: r1.confirmedByDino,
+              aliUrl:          result.aliMatch.link || result.aliMatch.url || null,
+              aliImage:        result.aliMatch.imageUrl || result.aliMatch.thumbnailUrl || null,
+              similarity:      result.similarity,
+              confirmedByDino: result.confirmedByDino,
             });
             send({
               step:    'match',
