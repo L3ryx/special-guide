@@ -1,6 +1,5 @@
 const axios    = require('axios');
 const FormData = require('form-data');
-const sharp    = require('sharp');
 
 // ── Cache en mémoire TTL 1h ───────────────────────────────────────────────
 const uploadCache = new Map();
@@ -41,20 +40,7 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── Compresser en JPEG ≤ 800px ────────────────────────────────────────────
-async function compressImage(buffer) {
-  try {
-    return await sharp(buffer)
-      .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 82, progressive: true })
-      .toBuffer();
-  } catch (e) {
-    console.warn('[freeUploader] ⚠️ Compression échouée, buffer original:', e.message);
-    return buffer;
-  }
-}
-
-// ── Stratégie 2 : imgbb ───────────────────────────────────────────────────
+// ── imgbb ─────────────────────────────────────────────────────────────────
 async function uploadToImgbb(buffer) {
   const apiKey = process.env.IMGBB_API_KEY;
   if (!apiKey) {
@@ -63,10 +49,9 @@ async function uploadToImgbb(buffer) {
   }
   console.log('[freeUploader] 🔄 Upload imgbb...');
   try {
-    const compressed = await compressImage(buffer);
     const form = new FormData();
     form.append('key',   apiKey);
-    form.append('image', compressed.toString('base64'));
+    form.append('image', buffer.toString('base64'));
 
     const res = await axios.post('https://api.imgbb.com/1/upload', form, {
       headers: form.getHeaders(),
@@ -83,15 +68,9 @@ async function uploadToImgbb(buffer) {
   return null;
 }
 
-// ── Stratégie 3 : data URI base64 (aucun réseau externe) ─────────────────
-async function toDataUri(buffer) {
-  try {
-    const compressed = await compressImage(buffer);
-    return `data:image/jpeg;base64,${compressed.toString('base64')}`;
-  } catch (e) {
-    console.warn('[freeUploader] ⚠️ DataURI échoué:', e.message);
-    return null;
-  }
+// ── data URI base64 (aucun réseau externe) ────────────────────────────────
+function toDataUri(buffer, mimeType) {
+  return `data:${mimeType};base64,${buffer.toString('base64')}`;
 }
 
 /**
@@ -128,15 +107,9 @@ async function uploadImageFree(etsyUrl) {
 
   // 2. data URI base64
   console.log('[freeUploader] 🔄 Génération data URI base64...');
-  const dataUri = await toDataUri(img.buffer);
-  if (dataUri) {
-    console.log(`[freeUploader] ✅ Data URI OK (${dataUri.length} chars)`);
-    // Pas de cache pour les data URIs (volumineuses)
-    return dataUri;
-  }
-
-  console.error('[freeUploader] ❌ Toutes les stratégies ont échoué.');
-  return null;
+  const dataUri = toDataUri(img.buffer, img.mimeType);
+  console.log(`[freeUploader] ✅ Data URI OK (${dataUri.length} chars)`);
+  return dataUri;
 }
 
 module.exports = { uploadImageFree };
