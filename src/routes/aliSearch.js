@@ -391,7 +391,9 @@ router.post('/search-from-ali', async (req, res) => {
 
         send({
           step:    'analyzing',
-          message: `🔎 [${idx + 1}/${aliProducts.length}] Lens sur "${product.title.slice(0, 40)}"...`,
+          total:   aliProducts.length,
+          done:    idx,
+          message: `🔎 [${idx + 1}/${aliProducts.length}] Lens search...`,
         });
 
         // STEP 2 — Trouver boutiques Etsy via Lens
@@ -408,8 +410,10 @@ router.post('/search-from-ali', async (req, res) => {
           continue;
         }
 
+        // shop_done : mise à jour du compteur après chaque appel Lens
+        send({ step: 'shop_done', done: idx + 1, total: aliProducts.length });
+
         if (!etsyListings.length) {
-          send({ step: 'no_match', message: `❌ Aucune boutique Etsy trouvée pour ce produit` });
           continue;
         }
 
