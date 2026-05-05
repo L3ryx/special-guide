@@ -997,13 +997,20 @@
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
       // Reset counter
       _counterTotal = 0;
+      _counterDoneMax = 0;
       var counter = document.getElementById('listing-counter');
       if (counter) { counter.textContent = ''; }
     }
 
     var _counterTotal = 0; // set by 'init' event, never overwritten by server's filtered total
+    var _counterDoneMax = 0; // garde monotone : le counter ne régresse jamais (batch parallèle)
 
     function syncProgressFromAnalyzing(total, done) {
+      // Avec les batches parallèles, les événements peuvent arriver dans le désordre.
+      // On ne met à jour que si done est supérieur au max déjà affiché.
+      if (done < _counterDoneMax) return;
+      _counterDoneMax = done;
+
       var displayTotal = _counterTotal > 0 ? _counterTotal : total;
       if (!_estimated && displayTotal > 0 && done >= 1) {
         var elapsed = Date.now() - _startTime;
@@ -1014,7 +1021,7 @@
         var pct = 10 + Math.round((done / displayTotal) * 82);
         _progressTarget = Math.max(_progressCurrent, pct);
       }
-      // Counter: updated on each Lens call (shop_done)
+      // Counter: updated on each shop_done event
       var counter = document.getElementById('listing-counter');
       if (counter) {
         var remaining = Math.max(0, displayTotal - done);
@@ -1327,12 +1334,11 @@
       document.getElementById('results-count').textContent = '';
       document.documentElement.classList.remove('unlocked');
       window.scrollTo({ top: 0 });
-      // Init counter immediately
+      // Init counter — on attend le vrai total envoyé par le serveur via l'événement 'init'
+      _counterTotal = 0;
       (function() {
-        var pages = parseInt(document.getElementById('pages-select')?.value || '10', 10);
-        _counterTotal = pages;
         var counter = document.getElementById('listing-counter');
-        if (counter) counter.textContent = '0 / ' + pages + ' listings analyzed — ' + pages + ' remaining';
+        if (counter) counter.textContent = '⏳ Initialisation...';
       })();
 
       const catSelect = document.getElementById('category-select');
