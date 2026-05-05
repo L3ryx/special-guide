@@ -354,12 +354,14 @@ router.post('/search-from-ali', async (req, res) => {
       ? [category]
       : ALI_CATEGORIES;
 
-    send({ step: 'init', total: productsPerCategory });
     send({ step: 'start', message: `🚀 Analyse de ${categories.length} catégorie(s) AliExpress...`, categories });
 
     const dropshippers = [];
     const seenShops    = new Set();
     const seenListings = new Set();
+    let globalDone = 0; // compteur global cross-catégories
+    const globalTotal = categories.length * productsPerCategory;
+    send({ step: 'init', total: globalTotal });
 
     for (const cat of categories) {
       if (isAborted()) break;
@@ -392,9 +394,9 @@ router.post('/search-from-ali', async (req, res) => {
 
         send({
           step:    'analyzing',
-          total:   aliProducts.length,
-          done:    idx,
-          message: `🔎 [${idx + 1}/${aliProducts.length}] Lens search...`,
+          total:   globalTotal,
+          done:    globalDone,
+          message: `🔎 [${globalDone + 1}/${globalTotal}] Lens search...`,
         });
 
         // STEP 2 — Trouver boutiques Etsy via Lens
@@ -411,8 +413,9 @@ router.post('/search-from-ali', async (req, res) => {
           continue;
         }
 
-        // shop_done : mise à jour du compteur après chaque appel Lens
-        send({ step: 'shop_done', done: idx + 1, total: aliProducts.length });
+        // shop_done : compteur global cross-catégories
+        globalDone++;
+        send({ step: 'shop_done', done: globalDone, total: globalTotal });
 
         if (!etsyListings.length) {
           continue;
