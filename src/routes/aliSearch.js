@@ -354,6 +354,7 @@ router.post('/search-from-ali', async (req, res) => {
       ? [category]
       : ALI_CATEGORIES;
 
+    send({ step: 'init', total: productsPerCategory });
     send({ step: 'start', message: `🚀 Analyse de ${categories.length} catégorie(s) AliExpress...`, categories });
 
     const dropshippers = [];
