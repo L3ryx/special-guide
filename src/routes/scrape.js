@@ -631,6 +631,7 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     // ── STEP 2 : Scraping AliExpress ──
+    send({ step: 'init', total: maxListings });
     send({ step: 'scraping', message: `🔍 Recherche AliExpress pour "${keyword}"...` });
 
     let aliListings = [];
