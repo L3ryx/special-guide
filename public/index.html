@@ -233,6 +233,7 @@
     .step-dot .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); transition:background 0.3s,box-shadow 0.3s; }
     .step-dot.active .dot { background:#f97316; box-shadow:0 0 8px #f97316; animation:blink 0.8s infinite; }
     .step-dot.done .dot { background:var(--green); }
+    .steps-row { display:flex; flex-direction:row; justify-content:space-between; align-items:flex-start; width:100%; margin-top:6px; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
     .step-dot .step-label { font-size:0.6rem; color:var(--muted); text-align:center; white-space:nowrap; }
     .progress-track { width:100%; height:10px; background:rgba(255,255,255,0.07); border-radius:10px; overflow:visible; position:relative; }
@@ -412,31 +413,10 @@
           <div id="pages-row">
             <span id="pages-label">Annonces AliExpress</span>
             <select id="pages-select">
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5" selected>5</option>
-              <option value="6">6</option>
-              <option value="7">7</option>
-              <option value="8">8</option>
-              <option value="9">9</option>
-              <option value="10">10</option>
-              <option value="11">11</option>
-              <option value="12">12</option>
-              <option value="13">13</option>
-              <option value="14">14</option>
-              <option value="15">15</option>
-              <option value="16">16</option>
-              <option value="17">17</option>
-              <option value="18">18</option>
-              <option value="19">19</option>
+              <option value="10" selected>10</option>
               <option value="20">20</option>
-              <option value="25">25</option>
               <option value="30">30</option>
-              <option value="35">35</option>
               <option value="40">40</option>
-              <option value="45">45</option>
               <option value="50">50</option>
               <option value="60">60</option>
               <option value="70">70</option>
@@ -465,6 +445,13 @@
       <div id="progress-wrap">
         <div class="progress-keyword-label" id="progress-keyword-label"></div>
         <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="steps-row" id="steps-row">
+          <div class="step-dot" id="step-connecting"><div class="dot"></div><div class="step-label">Connexion</div></div>
+          <div class="step-dot" id="step-scraping"><div class="dot"></div><div class="step-label">Scraping AliExpress</div></div>
+          <div class="step-dot" id="step-analyzing"><div class="dot"></div><div class="step-label">Analyse images</div></div>
+          <div class="step-dot" id="step-match"><div class="dot"></div><div class="step-label">Correspondances</div></div>
+          <div class="step-dot" id="step-complete"><div class="dot"></div><div class="step-label">Terminé</div></div>
+        </div>
         <div class="progress-msg" id="progress-msg"></div>
       </div>
     </div>
@@ -942,6 +929,10 @@
       _totalShops = 0; _startTime = 0; _estimated = false; _estimatedMs = 0;
       var el = document.getElementById('progress-fill');
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
+      ['connecting','scraping','analyzing','match','complete'].forEach(function(s) {
+        var d = document.getElementById('step-' + s);
+        if (d) { d.classList.remove('active','done'); }
+      });
     }
 
     function syncProgressFromAnalyzing(total, done) {
@@ -956,14 +947,28 @@
       }
     }
 
+    function _activateStepDot(key) {
+      var order = ['connecting','scraping','analyzing','match','complete'];
+      var idx = order.indexOf(key);
+      order.forEach(function(s, i) {
+        var d = document.getElementById('step-' + s);
+        if (!d) return;
+        d.classList.remove('active','done');
+        if (i < idx) d.classList.add('done');
+        else if (i === idx) d.classList.add('active');
+      });
+    }
+
     function advanceStep(k, msg) {
       if (msg) document.getElementById('progress-msg').textContent = msg;
       if (k === 'scraping') {
-        setProgress(10);
+        setProgress(10); _activateStepDot('scraping');
       } else if (k === 'analyzing') {
         if (!_startTime) { _startTime = Date.now(); setProgress(12); }
+        _activateStepDot('analyzing');
       } else if (k === 'match') {
         _progressTarget = Math.min(94, _progressTarget + 1);
+        _activateStepDot('match');
       }
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
@@ -972,6 +977,7 @@
       _progressTarget = 100;
       _progressCurrent = Math.min(99, _progressCurrent);
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
+      _activateStepDot('complete');
     }
 
     // ── SEARCH ──
@@ -1095,6 +1101,7 @@
 
         try {
           document.getElementById('progress-msg').textContent = '⏳ Connecting...';
+          _activateStepDot('connecting');
           const response = await fetch('/api/search-dropship', {
             method: 'POST',
             headers: {
@@ -1209,15 +1216,19 @@
     function encodeShopKey(u) { return (u || '').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40); }
 
     function renderShopResult(shop, keyword) {
-      const productUrl = shop.listingUrl || shop.shopUrl || '#';
       const idx = Object.keys(window._shopDataMap).length;
-      const shopUrl = shop.shopName ? 'https://www.etsy.com/shop/' + shop.shopName : (shop.shopUrl || '#');
+      // Build the best possible shop URL from available data
+      const shopUrl = shop.shopName
+        ? 'https://www.etsy.com/shop/' + shop.shopName
+        : (shop.shopUrl && shop.shopUrl !== '#' ? shop.shopUrl
+          : (shop.listingUrl && shop.listingUrl !== '#' ? shop.listingUrl : null));
+      const productUrl = shopUrl || shop.listingUrl || shop.shopUrl || null;
       window._shopDataMap[idx] = {
         shopName:     shop.shopName || null,
-        shopUrl:      shopUrl,
+        shopUrl:      shopUrl || null,
         shopAvatar:   shop.shopAvatar || shop.shopImage || null,
         productImage: shop.shopImage || null,
-        productUrl:   shopUrl,
+        productUrl:   productUrl || null,
         keyword:      keyword || null,
       };
 
@@ -1227,9 +1238,9 @@
       inner.className = 'match-card-inner';
 
       const heartBtn = document.createElement('button');
-      heartBtn.className = 'btn-save-shop' + (_savedShopUrls.has(shopUrl) ? ' saved' : '');
-      heartBtn.id = 'heart-' + encodeShopKey(shopUrl);
-      heartBtn.textContent = _savedShopUrls.has(shopUrl) ? '✔' : '❤️';
+      heartBtn.className = 'btn-save-shop' + (shopUrl && _savedShopUrls.has(shopUrl) ? ' saved' : '');
+      heartBtn.id = 'heart-' + encodeShopKey(shopUrl || '');
+      heartBtn.textContent = (shopUrl && _savedShopUrls.has(shopUrl)) ? '✔' : '❤️';
       heartBtn.onclick = function() { saveShop(idx, this); };
       inner.appendChild(heartBtn);
 
@@ -1254,7 +1265,11 @@
       inner.appendChild(info);
 
       const visitBtn = document.createElement('a');
-      visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      if (shopUrl) {
+        visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      } else {
+        visitBtn.href = '#'; visitBtn.onclick = function(e){ e.preventDefault(); showToast('URL introuvable', '#ef4444'); };
+      }
       visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop ↗';
       inner.appendChild(visitBtn);
 
@@ -1296,8 +1311,10 @@
       if (!token) { showAuthModal(); return; }
       const data = window._shopDataMap && window._shopDataMap[idx];
       if (!data) { showToast('Shop data not found', '#ef4444'); return; }
-      if (_savedShopUrls.has(data.shopUrl)) { btn.classList.add('saved'); btn.textContent = '✔'; showToast('Already saved!', '#22c55e'); return; }
-      if (!data.shopUrl || data.shopUrl === '#') { showToast('No shop URL', '#ef4444'); return; }
+      // Fallback: use productUrl if shopUrl is missing
+      if (!data.shopUrl && data.productUrl) data.shopUrl = data.productUrl;
+      if (data.shopUrl && _savedShopUrls.has(data.shopUrl)) { btn.classList.add('saved'); btn.textContent = '✔'; showToast('Already saved!', '#22c55e'); return; }
+      if (!data.shopUrl || data.shopUrl === '#') { showToast('URL introuvable pour cette boutique', '#ef4444'); return; }
       btn.classList.add('saving'); btn.textContent = '⏳';
       try {
         const r = await fetch('/api/shops/save', {
