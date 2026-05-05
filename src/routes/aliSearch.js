@@ -76,31 +76,50 @@ router.post('/stop-ali-search', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── STEP 1 : Récupérer les produits AliExpress trending via Serper Shopping ──
+// ── STEP 1 : Récupérer les produits AliExpress via Serper Images (même stratégie que scrape.js) ──
 async function fetchAliExpressProducts(keyword, maxProducts = 10) {
-  console.log(`[aliSearch] Recherche AliExpress trending: "${keyword}"`);
+  console.log(`[aliSearch] Serper Images: "${keyword}" (max ${maxProducts})`);
+  const listings = [];
+  const seen = new Set();
 
-  const r = await axios.post(
-    'https://google.serper.dev/shopping',
-    { q: `site:aliexpress.com ${keyword} bestseller`, gl: 'us', hl: 'en', num: 20 },
-    { headers: { 'X-API-KEY': getSerperKey() }, timeout: 20000 }
-  );
+  try {
+    const pagesNeeded = Math.ceil(maxProducts / 100);
+    for (let page = 1; page <= pagesNeeded && listings.length < maxProducts; page++) {
+      const r = await axios.post('https://google.serper.dev/images',
+        { q: `aliexpress ${keyword}`, gl: 'us', hl: 'en', num: 100, page },
+        { headers: { 'X-API-KEY': getSerperKey() }, timeout: 20000 }
+      );
+      const images = r.data.images || [];
+      console.log(`[aliSearch] Images page ${page}: ${images.length} résultats`);
 
-  const items = (r.data.shopping || [])
-    .filter(x => {
-      const link = x.link || x.url || '';
-      return link.includes('aliexpress.com') && (x.imageUrl || x.thumbnailUrl);
-    })
-    .slice(0, maxProducts)
-    .map(x => ({
-      title:    x.title || 'Unknown',
-      aliUrl:   x.link  || x.url,
-      imageUrl: x.imageUrl || x.thumbnailUrl,
-      price:    x.price || null,
-    }));
+      for (const item of images) {
+        if (listings.length >= maxProducts) break;
+        const link = item.link || item.sourceUrl || '';
+        if (!link.includes('aliexpress.com')) continue;
+        const imageUrl = item.imageUrl || item.thumbnailUrl || null;
+        if (!imageUrl) continue;
+        if (seen.has(imageUrl)) continue;
+        seen.add(imageUrl);
+        const itemMatch = link.match(/\/item\/(\d+)/);
+        listings.push({
+          title:    item.title || keyword,
+          aliUrl:   itemMatch ? `https://www.aliexpress.com/item/${itemMatch[1]}.html` : link,
+          imageUrl,
+          price:    null,
+        });
+      }
+      if (images.length < 10) break;
+    }
+  } catch (e) {
+    const status = e.response?.status;
+    if (status === 401) throw new Error('serper_401');
+    const detail = e.response?.data;
+    if (status === 400 && detail?.message?.toLowerCase().includes('not enough credits')) throw new Error('serper_no_credits');
+    throw e;
+  }
 
-  console.log(`[aliSearch] ${items.length} produits AliExpress trouvés pour "${keyword}"`);
-  return items;
+  console.log(`[aliSearch] ✅ ${listings.length} produits AliExpress pour "${keyword}"`);
+  return listings;
 }
 
 // ── STEP 2 : Google Lens sur image AliExpress → trouver boutiques Etsy ───────
