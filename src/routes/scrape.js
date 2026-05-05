@@ -128,8 +128,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(async ([shopId, raw]) => {
-        const { shopName, shopUrl, image } = await getShopNameAndImage(shopId, raw.listingId);
-        return { shopId, shopName, shopUrl, image, listingId: raw.listingId, link: raw.link, title: raw.title };
+        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId, raw.listingId2 || null);
+        return { shopId, shopName, shopUrl, image, image2: image2 || null, listingId: raw.listingId, link: raw.link, title: raw.title };
       })
     );
 
@@ -147,6 +147,7 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         link:      l.link,
         title:     l.title,
         image:     l.image,
+        image2:    l.image2 || null,
         shopName:  l.shopName,
         shopUrl:   l.shopUrl,
         shopId:    l.shopId,
@@ -236,17 +237,14 @@ router.post('/search-dropship', async (req, res) => {
     const { uploadImageFree } = require('../services/freeImageUploader');
 
     /**
-     * Recherche Google Lens pour une image Etsy.
-     * Retourne les candidats AliExpress trouvés.
-     *
-     * @returns {{ aliMatch: object }|null}
+     * Lance Google Lens sur UNE image Etsy et retourne les top 2 candidats AliExpress.
+     * @returns {Array} aliMatches (max 2)
      */
-    async function analyzeImage(etsyImageUrl) {
-      if (!etsyImageUrl || isAborted()) return null;
+    async function lensSearch(etsyImageUrl) {
+      if (!etsyImageUrl || isAborted()) return [];
 
-      // Upload de l'image Etsy pour obtenir une URL publique
       const pubUrl = await uploadImageFree(etsyImageUrl);
-      if (!pubUrl || isAborted()) return null;
+      if (!pubUrl || isAborted()) return [];
 
       let r;
       const SERPER_RETRIES = 3;
@@ -260,186 +258,148 @@ router.post('/search-dropship', async (req, res) => {
         } catch (serperErr) {
           const status = serperErr.response?.status;
           const detail = serperErr.response?.data;
-
           if (status === 400) {
-            console.warn('[analyzeImage] Serper 400:', JSON.stringify(detail));
+            console.warn('[lensSearch] Serper 400:', JSON.stringify(detail));
             if (detail?.message?.toLowerCase().includes('not enough credits')) throw new Error('serper_no_credits');
             throw serperErr;
           }
           if (status === 429) {
             if (attempt < SERPER_RETRIES - 1) {
               const wait = 1500 * Math.pow(2, attempt);
-              console.warn(`[analyzeImage] Serper 429 — retry dans ${wait}ms`);
+              console.warn(`[lensSearch] Serper 429 — retry dans ${wait}ms`);
               await new Promise(res => setTimeout(res, wait));
               continue;
             }
-            console.warn('[analyzeImage] Serper 429 — skip');
-            return null;
+            console.warn('[lensSearch] Serper 429 — skip');
+            return [];
           }
           throw serperErr;
         }
       }
-      if (isAborted()) return null;
+      if (isAborted()) return [];
 
       const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
-      const aliMatches = all.filter(x => {
+      return all.filter(x => {
         const u = x.link || x.url || '';
         return u.includes('aliexpress.com') && u.includes('/item/') && (x.imageUrl || x.thumbnailUrl);
-      });
+      }).slice(0, 2);  // top 2 AliExpress
+    }
 
-      if (!aliMatches.length) {
-        console.log(`[analyzeImage] ❌ Aucun candidat AliExpress trouvé via Lens`);
+    /**
+     * Lance le pipeline SAM + DINOv2 pour comparer une image Etsy avec une image AliExpress.
+     * Fond blanc forcé pour normaliser le style des deux images.
+     * @returns {number|null} visualSimilarity
+     */
+    async function runVisualPipeline(etsyImageUrl, aliImageUrl) {
+      if (!process.env.VISUAL_API_URL) return null;
+      try {
+        console.log('[visualPipeline] Lancement SAM + DINOv2 (fond blanc)...');
+
+        // STEP 1 — Segmentation SAM
+        const samRes = await axios.post(
+          `${process.env.VISUAL_API_URL}/segment`,
+          { images: [etsyImageUrl, aliImageUrl] },
+          { timeout: 30000 }
+        );
+        const masks = samRes.data?.masks || [];
+
+        // STEP 2 — Extraction objet, fond blanc normalisé
+        const extractRes = await axios.post(
+          `${process.env.VISUAL_API_URL}/extract`,
+          { images: [etsyImageUrl, aliImageUrl], masks, background: 'white' },
+          { timeout: 30000 }
+        );
+        const croppedImages = extractRes.data?.croppedImages || [];
+
+        // STEP 3 — Features DINOv2
+        const dinoRes = await axios.post(
+          `${process.env.VISUAL_API_URL}/features`,
+          { images: croppedImages },
+          { timeout: 30000 }
+        );
+        const features = dinoRes.data?.features || [];
+
+        // STEP 4 — Patch filtering
+        const patchRes = await axios.post(
+          `${process.env.VISUAL_API_URL}/filter-patches`,
+          { features, masks },
+          { timeout: 30000 }
+        );
+        const filteredPatches = patchRes.data?.filteredPatches || [];
+
+        // STEP 5 — Score similarité
+        if (features.length >= 2 && filteredPatches.length >= 2) {
+          const scoreRes = await axios.post(
+            `${process.env.VISUAL_API_URL}/similarity`,
+            {
+              featuresA: { cls_embedding: features[0]?.cls_embedding, patch_tokens: filteredPatches[0] },
+              featuresB: { cls_embedding: features[1]?.cls_embedding, patch_tokens: filteredPatches[1] },
+            },
+            { timeout: 15000 }
+          );
+          const sim = scoreRes.data?.similarity ?? null;
+          console.log(`[visualPipeline] ✅ Score : ${sim} | is_dropship: ${scoreRes.data?.is_dropship}`);
+          return scoreRes.data;  // { similarity, is_dropship, threshold, ... }
+        }
+        return null;
+      } catch (e) {
+        console.warn('[visualPipeline] ⚠️ Erreur (non bloquant):', e.message);
         return null;
       }
+    }
 
-      // On prend le premier candidat AliExpress trouvé par Lens
-      const aliMatch = aliMatches[0];
-      console.log(`[analyzeImage] ✅ Match Lens — ${aliMatches.length} candidats AliExpress, meilleur: ${(aliMatch.link || '').slice(0, 60)}`);
+    /**
+     * Analyse une boutique Etsy :
+     * - Lance Lens sur image1 ET image2 du listing
+     * - Pour chaque image Etsy, teste les top 2 candidats AliExpress
+     * - Retourne dès le premier match (1 seul match suffit)
+     */
+    async function analyzeImage(img1, img2) {
+      const etsyImages = [img1, img2].filter(Boolean);
 
-      // ── PIPELINE DE COMPARAISON VISUELLE AVANCÉE ──────────────────────────────
-      // Après le résultat Google Lens, on lance un pipeline SAM + DINOv2
-      // pour affiner la comparaison visuelle entre l'image Etsy et le candidat AliExpress.
+      for (const etsyImg of etsyImages) {
+        if (isAborted()) return null;
+        console.log(`[analyzeImage] Lens sur image Etsy: ${etsyImg.slice(0, 60)}`);
 
-      const aliImageUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl || null;
-      let visualSimilarity = null;
-
-      if (aliImageUrl && process.env.VISUAL_API_URL) {
+        let aliCandidates;
         try {
-          console.log('[visualPipeline] Lancement du pipeline SAM + DINOv2...');
+          aliCandidates = await lensSearch(etsyImg);
+        } catch(e) {
+          throw e;  // remonte serper_no_credits etc.
+        }
 
-          // STEP 1 — Object Segmentation (SAM)
-          // Détecte et segmente tous les objets dans chaque image.
-          // On conserve le masque principal (plus grande région / plus haute confiance)
-          // et on supprime l'arrière-plan.
-          const samRes = await axios.post(
-            `${process.env.VISUAL_API_URL}/segment`,
-            {
-              images: [etsyImageUrl, aliImageUrl],
-              pipeline: {
-                step: 1,
-                name: 'object_segmentation',
-                model: 'Segment Anything Model (SAM)',
-                description: 'Detect and segment all objects in the image',
-                input: 'raw image',
-                output: 'object masks',
-                rules: [
-                  'Select the largest or highest confidence mask as main object',
-                  'Discard all background',
-                ],
-              },
-            },
-            { timeout: 30000 }
-          );
-          const masks = samRes.data?.masks || [];
-          console.log(`[visualPipeline] STEP 1 SAM — ${masks.length} masques retournés`);
+        if (!aliCandidates.length) {
+          console.log('[analyzeImage] ❌ Aucun candidat AliExpress pour cette image');
+          continue;
+        }
 
-          // STEP 2 — Object Extraction
-          // Extrait uniquement l'objet principal à partir du masque SAM.
-          // Méthodes : crop bounding-box OU application du masque avec fond noir/transparent.
-          // Output : image normalisée 224×224 ou 336×336 (objet seul).
-          const extractRes = await axios.post(
-            `${process.env.VISUAL_API_URL}/extract`,
-            {
-              images: [etsyImageUrl, aliImageUrl],
-              masks,
-              pipeline: {
-                step: 2,
-                name: 'object_extraction',
-                description: 'Extract only the main object from the image',
-                input: 'image + mask',
-                methods: [
-                  'crop bounding box of object',
-                  'or apply mask and replace background with black/transparent',
-                ],
-                output: 'object-only normalized image (224x224 or 336x336)',
-              },
-            },
-            { timeout: 30000 }
-          );
-          const croppedImages = extractRes.data?.croppedImages || [];
-          console.log(`[visualPipeline] STEP 2 Extraction — ${croppedImages.length} images extraites`);
+        console.log(`[analyzeImage] ${aliCandidates.length} candidats AliExpress trouvés`);
 
-          // STEP 3 — Feature Extraction (DINOv2)
-          // Extrait les features visuelles globales (cls_embedding) et locales (patch_tokens)
-          // via DINOv2 (PyTorch) à partir de chaque image objet isolé.
-          const dinoRes = await axios.post(
-            `${process.env.VISUAL_API_URL}/features`,
-            {
-              images: croppedImages,
-              pipeline: {
-                step: 3,
-                name: 'feature_extraction',
-                model: 'DINOv2 (PyTorch)',
-                description: 'Extract global and local visual features',
-                input: 'object-only image',
-                output: {
-                  cls_embedding: 'global vector representation',
-                  patch_tokens: 'local patch-level feature vectors',
-                },
-              },
-            },
-            { timeout: 30000 }
-          );
-          const features = dinoRes.data?.features || [];
-          console.log(`[visualPipeline] STEP 3 DINOv2 — ${features.length} feature sets extraits`);
+        // Tester top 2 AliExpress — retourner dès le 1er match
+        for (const aliMatch of aliCandidates) {
+          if (isAborted()) return null;
+          const aliImageUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl || null;
+          if (!aliImageUrl) continue;
 
-          // STEP 4 — Patch Filtering
-          // Conserve uniquement les patch tokens appartenant à la région de l'objet
-          // en mappant la grille de patches sur le masque SAM.
-          // Supprime les patches appartenant à l'arrière-plan.
-          const patchRes = await axios.post(
-            `${process.env.VISUAL_API_URL}/filter-patches`,
-            {
-              features,
-              masks,
-              pipeline: {
-                step: 4,
-                name: 'patch_filtering',
-                description: 'Keep only patch tokens belonging to the object',
-                input: {
-                  patch_tokens: true,
-                  sam_mask: true,
-                },
-                rules: [
-                  'Map patch grid to SAM mask',
-                  'Keep patches inside object region',
-                  'Remove background patches',
-                ],
-                output: 'filtered_patch_tokens',
-              },
-            },
-            { timeout: 30000 }
-          );
-          const filteredPatches = patchRes.data?.filteredPatches || [];
-          console.log(`[visualPipeline] STEP 4 Patch Filtering — ${filteredPatches.length} patch sets filtrés`);
+          const pipelineResult = await runVisualPipeline(etsyImg, aliImageUrl);
 
-          // STEP 5 — Similarity Scoring
-          // Calcule la similarité cosinus entre les cls_embeddings (score global)
-          // et entre les filtered_patch_tokens (score local moyen).
-          // Score final = moyenne pondérée des deux scores.
-          if (features.length >= 2 && filteredPatches.length >= 2) {
-            const scoreRes = await axios.post(
-              `${process.env.VISUAL_API_URL}/similarity`,
-              {
-                featuresA: { cls_embedding: features[0]?.cls_embedding, patch_tokens: filteredPatches[0] },
-                featuresB: { cls_embedding: features[1]?.cls_embedding, patch_tokens: filteredPatches[1] },
-              },
-              { timeout: 15000 }
-            );
-            visualSimilarity = scoreRes.data?.similarity ?? null;
-            console.log(`[visualPipeline] ✅ Score similarité DINOv2 : ${visualSimilarity}`);
+          // Si pas de pipeline visuel dispo, on se fie à Lens seul (match = trouvé)
+          if (!pipelineResult) {
+            console.log(`[analyzeImage] ✅ Match Lens (sans DINOv2) — ${(aliMatch.link || '').slice(0, 60)}`);
+            return { aliMatch, visualSimilarity: null };
           }
 
-        } catch (pipelineErr) {
-          // Le pipeline visuel est optionnel : on ne bloque pas le résultat Lens
-          console.warn('[visualPipeline] ⚠️ Erreur pipeline SAM+DINOv2 (non bloquant):', pipelineErr.message);
-        }
-      } else {
-        console.log('[visualPipeline] VISUAL_API_URL non défini — pipeline SAM+DINOv2 ignoré');
-      }
-      // ── FIN PIPELINE VISUEL ────────────────────────────────────────────────────
+          if (pipelineResult.is_dropship) {
+            console.log(`[analyzeImage] ✅ Match DINOv2 — sim: ${pipelineResult.similarity} — ${(aliMatch.link || '').slice(0, 60)}`);
+            return { aliMatch, visualSimilarity: pipelineResult.similarity };
+          }
 
-      return { aliMatch, visualSimilarity };
+          console.log(`[analyzeImage] ❌ Similarité insuffisante (${pipelineResult.similarity}) — candidat suivant`);
+        }
+      }
+
+      console.log('[analyzeImage] ❌ Aucun match après toutes les combinaisons');
+      return null;
     }
 
     const dropshippers = [];
@@ -457,10 +417,11 @@ router.post('/search-dropship', async (req, res) => {
 
         try {
           const img1 = listing.image;
+          const img2 = listing.image2 || null;
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
 
-          console.log('[worker] analyse', listing.shopName);
-          const r1 = await analyzeImage(img1);
+          console.log('[worker] analyse', listing.shopName, '| images:', img1 ? 1 : 0, img2 ? '+1' : '');
+          const r1 = await analyzeImage(img1, img2);
 
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
