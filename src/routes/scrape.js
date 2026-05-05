@@ -417,7 +417,7 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
   // 4b. Extraire listing_id depuis tous les résultats (pour listingUrl)
   for (const candidate of etsyResults) {
     const cLink = candidate.link || candidate.url || '';
-    const lm = cLink.match(/etsy\.com\/listing\/(\d+)/);
+    const lm = cLink.match(/etsy\.com(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/listing\/(\d+)/);
     if (lm) {
       listingId = lm[1];
       etsyLink  = cLink;
@@ -464,7 +464,7 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
       const html = pageRes.data || '';
       // Chercher "shopName" dans le JSON de la page (window.__INITIAL_STATE__ ou data-buy-box)
       const jsMatch    = html.match(/"shop_name"\s*:\s*"([^"]+)"/);
-      const canonMatch = html.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/);
+      const canonMatch = html.match(/etsy\.com(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/shop\/([A-Za-z0-9_-]+)/);
       const found = (jsMatch && jsMatch[1]) || (canonMatch && canonMatch[1]) || null;
       if (found && found.length > 2 && !['etsy', 'ca', 'uk', 'fr', 'de'].includes(found)) {
         shopName = found;
@@ -514,15 +514,19 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
  * Pipeline SAM + DINOv2 : compare image AliExpress avec image Etsy.
  * Retourne { similarity, is_dropship, threshold } ou null si pipeline indisponible.
  */
+// Circuit-breaker : désactivé après 2 timeouts consécutifs
+let _visualPipelineDisabled = false;
+let _visualTimeoutCount = 0;
+
 async function runVisualPipeline(aliImageUrl, etsyImageUrl) {
-  if (!process.env.VISUAL_API_URL) return null;
+  if (!process.env.VISUAL_API_URL || _visualPipelineDisabled) return null;
   try {
     console.log('[visualPipeline] SAM + DINOv2 (fond blanc)...');
 
     const samRes = await axios.post(
       `${process.env.VISUAL_API_URL}/segment`,
       { images: [aliImageUrl, etsyImageUrl] },
-      { timeout: 30000 }
+      { timeout: 10000 }
     );
     const masks = samRes.data?.masks || [];
 
@@ -562,7 +566,17 @@ async function runVisualPipeline(aliImageUrl, etsyImageUrl) {
     }
     return null;
   } catch (e) {
-    console.warn('[visualPipeline] ⚠️ Erreur (non bloquant):', e.message);
+    if (e.code === 'ECONNABORTED' || e.message.includes('timeout')) {
+      _visualTimeoutCount++;
+      if (_visualTimeoutCount >= 2) {
+        _visualPipelineDisabled = true;
+        console.warn('[visualPipeline] ⚠️ 2 timeouts consécutifs — pipeline désactivé pour cette session');
+      } else {
+        console.warn('[visualPipeline] ⚠️ Timeout', _visualTimeoutCount, '/ 2');
+      }
+    } else {
+      console.warn('[visualPipeline] ⚠️ Erreur (non bloquant):', e.message);
+    }
     return null;
   }
 }
@@ -589,6 +603,10 @@ router.post('/search-dropship', async (req, res) => {
   const sid = sessionId && sessionId.trim() ? sessionId.trim() : (Date.now() + Math.random()).toString(36);
   activeSearches.set(sid, false);
   const isAborted = () => activeSearches.get(sid) === true;
+
+  // Reset circuit-breaker pour chaque nouvelle recherche
+  _visualPipelineDisabled = false;
+  _visualTimeoutCount = 0;
 
   try {
 
