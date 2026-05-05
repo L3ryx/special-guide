@@ -452,7 +452,6 @@ router.post('/search-dropship', async (req, res) => {
           if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge sur serper.dev' }); return; }
           if (e.message === 'dinov2_unavailable') { send({ step: 'error', message: '❌ Serveur DINOv2 indisponible — vérifier le Space HF' }); return; }
         }
-        }
       }
     }
 
