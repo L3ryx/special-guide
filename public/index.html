@@ -137,7 +137,7 @@
 
     /* Input row: input + add btn + tags inline + trash */
     .input-row { width:100%; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .input-row input, #keyword-input { flex:1; min-width:160px; padding:16px 24px; background:var(--glass); border:1px solid var(--glass-border); border-radius:999px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
+    .input-row input, #keyword-input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
     .input-row input::placeholder, #keyword-input::placeholder { color:var(--muted); }
     .input-row input:focus, #keyword-input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
     #add-keyword-btn { width:48px; height:48px; flex-shrink:0; background:var(--green); border:none; border-radius:14px; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(34,197,94,0.4); position:relative; }
@@ -157,18 +157,18 @@
     #clear-keywords-btn { width:48px; height:48px; flex-shrink:0; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:14px; color:#f87171; font-size:1.1rem; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; visibility:hidden; }
     #clear-keywords-btn:hover { background:rgba(239,68,68,0.25); border-color:rgba(239,68,68,0.6); }
     /* Auto search toggle */
+    #auto-search-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:space-between; padding:0; background:none; border:none; border-radius:0; backdrop-filter:none; height:27px; margin-top:8px; }
     #pages-row { width:80%; align-self:center; display:flex; align-items:center; justify-content:space-between; padding:0; background:none; border:none; border-radius:0; backdrop-filter:none; height:27px; margin-top:6px; }
-    #pages-label { color:#ccc; font-size:13px; font-weight:500; white-space:nowrap; }
+    #pages-label { color:#ccc; font-size:13px; font-weight:500; }
     #pages-select { background:#1a1a2e; color:#e0e0e0; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:2px 8px; font-size:13px; cursor:pointer; outline:none; }
     #pages-select:focus { border-color:rgba(255,255,255,0.35); }
-    /* Mode toggle */
-    #mode-toggle-row { width:80%; align-self:center; display:flex; align-items:stretch; justify-content:center; gap:0; margin-bottom:4px; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.03); }
-    .mode-tab { flex:1; padding:9px 0; background:transparent; color:rgba(255,255,255,0.4); font-family:'Croissant One',cursive; font-size:0.78rem; font-weight:600; border:none; cursor:pointer; transition:background 0.2s, color 0.2s; letter-spacing:0.04em; display:block; width:100%; }
-    .mode-tab.active { background:rgba(249,115,22,0.28); color:#f97316; border:2px solid rgba(249,115,22,0.6); }
-    .mode-tab:not(.active) { border:2px solid transparent; }
-    .mode-tab:hover:not(.active) { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.7); }
-    #category-select { width:80%; align-self:center; background:var(--glass); color:#e0e0e0; border:1px solid var(--glass-border); border-radius:999px; padding:13px 24px; font-size:0.95rem; font-family:'Croissant One',cursive; cursor:pointer; outline:none; display:none; backdrop-filter:blur(16px); text-align:center; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.4)' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:calc(100% - 18px) center; padding-right:40px; }
-    #category-select:focus { border-color:#f97316; }    
+    #auto-search-label { color:#fff; font-size:17px; font-weight:600; display:flex; align-items:center; gap:6px; font-family:'Courier New',Courier,monospace; }
+    .switch { --false: #E81B1B; --true: #009068; }
+    #auto-search-toggle { appearance: none !important; height: 1.2rem !important; width: 2.2rem !important; background-color: #fff !important; position: relative !important; border-radius: .2em !important; cursor: pointer !important; border: none !important; flex-shrink: 0 !important; padding: 0 !important; }
+    #auto-search-toggle::before { content: '' !important; display: block !important; height: 1.1em !important; width: 1.1em !important; transform: translate(-50%, -50%) !important; position: absolute !important; top: 50% !important; left: calc(1.1em/2 + .2em) !important; background-color: #E81B1B !important; border-radius: .2em !important; transition: .3s ease !important; }
+    #auto-search-toggle.active::before { background-color: #009068 !important; left: calc(100% - (1.1em/2 + .2em)) !important; }
+    #auto-search-toggle::after { display: none !important; }
+    #auto-status { font-size:1rem; transition:all 0.2s; }
 #start-btn { box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:8px; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
     #stop-btn { display:none; height:3.5rem; width:65%; align-self:center; margin-top:18px; padding:0; border:none; border-radius:5rem; background:#dc2626; color:#fff; font-family:'Croissant One',cursive; font-size:1.2rem; font-weight:700; letter-spacing:0.15em; cursor:pointer; box-shadow:0 6px 32px rgba(220,38,38,0.55); transition:background 0.2s, transform 0.2s; }
@@ -234,8 +234,14 @@
     #stop-btn:hover { background:#b91c1c; transform:scale(1.03); box-shadow:0 10px 40px rgba(220,38,38,0.7); }
     #current-keyword-label { font-size:0.82rem; color:var(--muted); font-weight:600; letter-spacing:0.06em; text-align:center; min-height:1.1em; }
     .progress-keyword-label { text-align:center; font-size:0.8rem; color:#f97316; font-weight:600; min-height:1.2em; }
-
-    @keyframes stepPop { 0%{transform:scale(1.15)} 100%{transform:scale(1.35)} }
+    .step-dot { display:flex; flex-direction:column; align-items:center; gap:5px; opacity:0.3; transition:opacity 0.3s; }
+    .step-dot:nth-child(2) { align-items:center; }
+    .step-dot.active { opacity:1; } .step-dot.done { opacity:0.6; }
+    .step-dot .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); transition:background 0.3s,box-shadow 0.3s; }
+    .step-dot.active .dot { background:#f97316; box-shadow:0 0 8px #f97316; animation:blink 0.8s infinite; }
+    .step-dot.done .dot { background:var(--green); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .step-dot .step-label { font-size:0.6rem; color:var(--muted); text-align:center; white-space:nowrap; }
     .progress-track { width:100%; height:10px; background:rgba(255,255,255,0.07); border-radius:10px; overflow:visible; position:relative; }
     .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c2d12,#dc2626,#f97316,#fbbf24,#fef08a); border-radius:10px; position:relative; transition:width 0.5s ease; box-shadow:0 0 6px #f97316,0 0 20px #dc2626; }
     .progress-fill::after { content:"🔥"; position:absolute; right:-14px; top:50%; transform:translateY(-55%); font-size:1.3rem; filter:drop-shadow(0 0 6px #f97316); animation:flicker 0.3s infinite alternate; display:none; }
@@ -272,14 +278,14 @@
     .shop-result-avatar { width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.15); }
     .shop-result-avatar-ph { width:40px; height:40px; border-radius:50%; flex-shrink:0; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
     .shop-result-info { flex:1; min-width:0; }
-    .shop-result-name { font-weight:700; font-size:0.9rem; color:#fff; white-space:normal; overflow:visible; word-break:break-word; }
+    .shop-result-name { font-weight:700; font-size:0.9rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .shop-result-tag { font-size:0.62rem; color:#a78bfa; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; margin-top:2px; }
     .btn-save-shop { width:34px; height:34px; border-radius:8px; border:none; background:rgba(255,255,255,0.07); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:1rem; transition:all 0.2s; flex-shrink:0; }
     .btn-save-shop:hover { background:rgba(255,255,255,0.14); transform:scale(1.1); }
     .btn-save-shop.saved { color:#22c55e; }
     .btn-save-shop.saving { opacity:0.5; cursor:not-allowed; }
-    .shop-result-btn { flex-shrink:0; padding:8px 16px; border-radius:9px; background:#f97316; border:none; color:#fff; font-family:'Croissant One',cursive; font-size:0.75rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:all 0.2s; box-shadow:0 2px 8px rgba(249,115,22,0.35); }
-    .shop-result-btn:hover { background:#ea6c0a; box-shadow:0 4px 14px rgba(249,115,22,0.5); }
+    .shop-result-btn { flex-shrink:0; padding:8px 14px; border-radius:9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; font-family:'Croissant One',cursive; font-size:0.75rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:all 0.2s; }
+    .shop-result-btn:hover { background:rgba(255,255,255,0.18); }
     .empty { text-align:center; padding:40px 20px; color:var(--muted); }
     @media(max-width:640px){ #main-view{padding:60px 14px 20px} .input-row input{font-size:0.95rem;padding:14px 16px} #add-keyword-btn{width:46px;height:46px} }
 
@@ -408,91 +414,25 @@
     <div class="search-card">
       <div id="search-inputs" style="width:100%;display:flex;flex-direction:column;gap:8px;">
           <!-- SEARCH COUNTER -->
-          <!-- MODE TOGGLE -->
-          <div id="mode-toggle-row">
-            <button class="mode-tab active" id="tab-keyword" onclick="setSearchMode('keyword')">🔍 Keyword</button>
-            <button class="mode-tab" id="tab-category" onclick="setSearchMode('category')" style="line-height:1.2;">📦 AliExpress<br><span style="font-size:0.72em;opacity:0.85;">Category</span></button>
-          </div>
+          
           <input type="text" id="keyword-input" placeholder="Enter keyword">
-          <select id="category-select">
-            <optgroup label="🏠 Home & Decor">
-              <option value="home decor trending">Trending home decor</option>
-              <option value="wall art prints boho">Boho wall art prints</option>
-              <option value="candles holders decor">Decorative candle holders</option>
-              <option value="macrame wall hanging">Macrame wall hanging</option>
-              <option value="aesthetic room decor">Aesthetic room decor</option>
-              <option value="vase ceramic minimalist">Minimalist ceramic vases</option>
-              <option value="fairy lights bedroom decor">Fairy lights bedroom decor</option>
-            </optgroup>
-            <optgroup label="💍 Jewelry & Accessories">
-              <option value="jewelry accessories women">Women's jewelry</option>
-              <option value="minimalist necklace pendant">Minimalist necklaces</option>
-              <option value="crystal bracelet gemstone">Crystal gemstone bracelets</option>
-              <option value="earrings boho statement">Boho statement earrings</option>
-              <option value="rings vintage aesthetic">Vintage aesthetic rings</option>
-            </optgroup>
-            <optgroup label="👗 Fashion & Clothing">
-              <option value="clothing women aesthetic">Aesthetic women's clothing</option>
-              <option value="oversized hoodie women">Oversized hoodies</option>
-              <option value="cottagecore dress women">Cottagecore dresses</option>
-              <option value="accessories scrunchies hair">Hair accessories & scrunchies</option>
-              <option value="tote bag canvas printed">Printed canvas tote bags</option>
-            </optgroup>
-            <optgroup label="🐾 Pets">
-              <option value="pet accessories dog cat">Dog & cat accessories</option>
-              <option value="cat collar bandana cute">Cute cat collars & bandanas</option>
-              <option value="dog accessories gift">Dog gift accessories</option>
-            </optgroup>
-            <optgroup label="👶 Baby & Kids">
-              <option value="baby kids toys educational">Educational kids toys</option>
-              <option value="baby shower gift cute">Cute baby shower gifts</option>
-              <option value="kids room decor nursery">Kids nursery room decor</option>
-            </optgroup>
-            <optgroup label="🌿 Wellness & Nature">
-              <option value="crystal healing stones set">Crystal healing stone sets</option>
-              <option value="yoga accessories meditation">Yoga & meditation accessories</option>
-              <option value="essential oil diffuser">Essential oil diffusers</option>
-              <option value="dried flowers bouquet">Dried flower bouquets</option>
-            </optgroup>
-            <optgroup label="🍳 Kitchen & Home">
-              <option value="kitchen gadgets unique">Unique kitchen gadgets</option>
-              <option value="personalized cutting board">Personalized cutting boards</option>
-              <option value="mug cute aesthetic">Cute aesthetic mugs</option>
-            </optgroup>
-            <optgroup label="🎨 Stationery & Art">
-              <option value="stationery cute aesthetic">Cute aesthetic stationery</option>
-              <option value="stickers pack journal">Journal sticker packs</option>
-              <option value="art supply craft tools">Art & craft supplies</option>
-            </optgroup>
-            <optgroup label="🏕️ Outdoor & Sport">
-              <option value="outdoor camping accessories">Camping accessories</option>
-              <option value="hiking gear accessories">Hiking gear</option>
-              <option value="beach accessories summer">Summer beach accessories</option>
-            </optgroup>
-          </select>
+          <div id="auto-search-row">
+            <span id="auto-search-label">🤖 Automated</span>
+            <label class="switch"><input type="checkbox" id="auto-search-toggle" onclick="toggleAutoSearch()" title="Enable automated search"></label>
+          </div>
           <div id="pages-row">
-            <span id="pages-label">AliExpress Listings</span>
+            <span id="pages-label">Pages</span>
             <select id="pages-select">
-              <option value="10" selected>10</option>
-              <option value="20">20</option>
-              <option value="30">30</option>
-              <option value="40">40</option>
-              <option value="50">50</option>
-              <option value="60">60</option>
-              <option value="70">70</option>
-              <option value="80">80</option>
-              <option value="90">90</option>
-              <option value="100">100</option>
-              <option value="110">110</option>
-              <option value="120">120</option>
-              <option value="130">130</option>
-              <option value="140">140</option>
-              <option value="150">150</option>
-              <option value="160">160</option>
-              <option value="170">170</option>
-              <option value="180">180</option>
-              <option value="190">190</option>
-              <option value="200">200</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5" selected>5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
             </select>
           </div>
 <button id="start-btn" class="sw-btn" onclick="startSearch()">
@@ -505,8 +445,7 @@
       <div id="progress-wrap">
         <div class="progress-keyword-label" id="progress-keyword-label"></div>
         <div class="progress-track" style="width:100%;"><div class="progress-fill" id="progress-fill"></div></div>
-        <div class="progress-msg" id="progress-msg" style="display:none;"></div>
-        <div id="listing-counter" style="text-align:center;font-size:0.85rem;color:rgba(255,255,255,0.75);font-family:'Courier New',monospace;font-weight:600;min-height:1.4em;letter-spacing:0.05em;"></div>
+        <div class="progress-msg" id="progress-msg"></div>
       </div>
     </div>
 
@@ -651,13 +590,6 @@
       document.getElementById('niche-list-btn').style.display = 'flex';
       initSavedShops();
       loadAutoState();
-
-      var pagesSelect = document.getElementById('pages-select');
-      function updateListingCounterLabel() {}
-      if (pagesSelect) {
-        pagesSelect.addEventListener('change', updateListingCounterLabel);
-        updateListingCounterLabel(); // initialiser au chargement
-      }
     }
 
         // ── ERROR POPUP ──
@@ -899,22 +831,120 @@
       if (trash) trash.style.visibility = _keywords.length > 0 ? 'visible' : 'hidden';
     }
 
-    // ── AUTO SEARCH (désactivé) ──
+    // ── AUTO SEARCH ──
     var _autoSearch = false;
     var _keywordQueue = [];
     var _usedKeywords = [];
     var _totalAutoMatches = 0;
     var _usedShops    = [];
 
-    async function loadAutoState() { /* désactivé */ }
-    async function saveQueueState(usedKeyword) { /* désactivé */ }
-    async function saveShopToDb(shopName) { /* désactivé */ }
-    function toggleAutoSearch() { /* désactivé */ }
-    async function generateKeywordBatch() { return []; }
-    async function getNextKeyword() { throw new Error('Auto mode disabled'); }
-    function saveUsedShops(shopNames) { /* désactivé */ }
-    async function saveUsedKeyword(kw) { /* désactivé */ }
-    function updateQueueDisplay() { /* désactivé */ }
+    async function loadAutoState() {
+      const token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        const r = await fetch('/api/shops/auto-state', { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!r.ok) return;
+        const d = await r.json();
+        _keywordQueue = d.keywordQueue || [];
+        _usedKeywords = d.usedKeywords || [];
+        _usedShops    = d.usedShops    || [];
+        updateQueueDisplay();
+      } catch(e) { console.warn('loadAutoState failed:', e.message); }
+    }
+
+    async function saveQueueState(usedKeyword) {
+      const token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        await fetch('/api/shops/auto-state/queue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ keywordQueue: _keywordQueue, usedKeyword: usedKeyword || null })
+        });
+      } catch(e) {}
+    }
+
+    async function saveShopToDb(shopName) {
+      const token = localStorage.getItem('scout_token');
+      if (!token) return;
+      try {
+        await fetch('/api/shops/auto-state/shop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ shopName })
+        });
+      } catch(e) {}
+    }
+
+    function toggleAutoSearch() {
+      _autoSearch = !_autoSearch;
+      const toggle = document.getElementById('auto-search-toggle');
+      const input  = document.getElementById('keyword-input');
+      if (_autoSearch) {
+        _totalAutoMatches = 0;
+        toggle.classList.add('active');
+        input.style.opacity = '0';
+        input.style.visibility = 'hidden';
+        input.disabled = true;
+      } else {
+        toggle.classList.remove('active');
+        input.style.opacity = '1';
+        input.style.visibility = 'visible';
+        input.disabled = false;
+        input.placeholder = 'Enter keyword';
+      }
+    }
+
+    async function generateKeywordBatch() {
+      showToast('⏳ Generating 50 keywords with Gemini…', '#f97316');
+      const token = localStorage.getItem('scout_token') || '';
+      const res = await fetch('/api/niche-keyword', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ usedKeywords: _usedKeywords })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.keywords) throw new Error(data.error || 'Failed to generate keywords');
+      const fresh = data.keywords.filter(function(k) { return !_usedKeywords.includes(k); });
+      _keywordQueue = fresh;
+      await saveQueueState(null);
+      showToast('✅ ' + fresh.length + ' keywords ready!', '#22c55e');
+      return fresh;
+    }
+
+    async function getNextKeyword() {
+      if (_keywordQueue.length === 0) {
+        await generateKeywordBatch();
+      }
+      if (_keywordQueue.length === 0) throw new Error('No keywords available');
+      const kw = _keywordQueue.shift();
+      await saveQueueState(null);
+      return kw;
+    }
+
+    function saveUsedShops(shopNames) {
+      shopNames.forEach(function(name) {
+        if (name && !_usedShops.includes(name)) {
+          _usedShops.push(name);
+          saveShopToDb(name);
+        }
+      });
+    }
+
+    async function saveUsedKeyword(kw) {
+      if (!_usedKeywords.includes(kw)) _usedKeywords.push(kw);
+      await saveQueueState(kw);
+    }
+
+    function updateQueueDisplay() {
+      const label = document.getElementById('auto-search-label');
+      if (!label) return;
+      if (_autoSearch) {
+        const remaining = _keywordQueue.length;
+        
+        label.innerHTML = '🤖 Automated';
+      }
+    }
 
     function clearKeywords() {
       _keywords = [];
@@ -946,11 +976,6 @@
       document.getElementById('progress-msg').textContent = '';
       var kl = document.getElementById('progress-keyword-label');
       if (kl) kl.textContent = keyword || '';
-      // Counter shown immediately on launch
-      var pages = parseInt(document.getElementById('pages-select')?.value || '5', 10);
-      _counterTotal = pages;
-      var counter = document.getElementById('listing-counter');
-      if (counter) counter.textContent = '0 / ' + pages + ' listings analyzed — ' + pages + ' remaining';
     }
 
     var _progressCurrent = 0;
@@ -995,52 +1020,28 @@
       _totalShops = 0; _startTime = 0; _estimated = false; _estimatedMs = 0;
       var el = document.getElementById('progress-fill');
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
-      // Reset counter
-      _counterTotal = 0;
-      _counterDoneMax = 0;
-      var counter = document.getElementById('listing-counter');
-      if (counter) { counter.textContent = ''; }
     }
-
-    var _counterTotal = 0;   // set by 'init' event
-    var _counterDoneMax = 0; // toujours afficher la valeur la plus haute reçue
 
     function syncProgressFromAnalyzing(total, done) {
-      // Avec les batches parallèles les événements peuvent arriver dans le désordre.
-      // On garde le max reçu — jamais de régression, mais on ne bloque rien.
-      _counterDoneMax = Math.max(_counterDoneMax, done);
-
-      var displayTotal = _counterTotal > 0 ? _counterTotal : total;
-      if (!_estimated && displayTotal > 0 && _counterDoneMax >= 1) {
+      if (!_estimated && total > 0 && done >= 1) {
         var elapsed = Date.now() - _startTime;
-        _estimatedMs = (elapsed / _counterDoneMax) * displayTotal;
+        _estimatedMs = (elapsed / done) * total;
         _estimated = true;
       }
-      if (displayTotal > 0) {
-        var pct = 10 + Math.round((_counterDoneMax / displayTotal) * 82);
+      if (total > 0) {
+        var pct = 10 + Math.round((done / total) * 82);
         _progressTarget = Math.max(_progressCurrent, pct);
       }
-      var counter = document.getElementById('listing-counter');
-      if (counter) {
-        var remaining = Math.max(0, displayTotal - _counterDoneMax);
-        counter.textContent = _counterDoneMax + ' / ' + displayTotal + ' listings analyzed — ' + remaining + ' remaining';
-      }
-    }
-
-    function _activateStepDot(key) {
-      // step dots removed — no-op
     }
 
     function advanceStep(k, msg) {
       if (msg) document.getElementById('progress-msg').textContent = msg;
       if (k === 'scraping') {
-        setProgress(10); _activateStepDot('scraping');
+        setProgress(10);
       } else if (k === 'analyzing') {
         if (!_startTime) { _startTime = Date.now(); setProgress(12); }
-        _activateStepDot('analyzing');
       } else if (k === 'match') {
         _progressTarget = Math.min(94, _progressTarget + 1);
-        _activateStepDot('match');
       }
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
     }
@@ -1049,7 +1050,6 @@
       _progressTarget = 100;
       _progressCurrent = Math.min(99, _progressCurrent);
       if (!_progressRaf) _progressRaf = requestAnimationFrame(_animateProgress);
-      _activateStepDot('complete');
     }
 
     // ── SEARCH ──
@@ -1083,19 +1083,19 @@
       if (_sessionId) {
         const sidToStop = _sessionId;
         _sessionId = null;
-        // Stop les deux routes possibles
         fetch('/api/stop-search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {}) },
-          body: JSON.stringify({ sessionId: sidToStop })
-        }).catch(() => {});
-        fetch('/api/stop-ali-search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {}) },
           body: JSON.stringify({ sessionId: sidToStop })
         }).catch(() => {});
       }
 
+      const toggle = document.getElementById('auto-search-toggle');
+      const label  = document.getElementById('auto-search-label');
+      const input  = document.getElementById('keyword-input');
+      if (toggle) toggle.classList.remove('active');
+      if (label)  label.innerHTML = '🤖 Automated';
+      if (input) { input.style.opacity = '1'; input.style.visibility = 'visible'; input.disabled = false; }
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'none';
 
@@ -1117,36 +1117,34 @@
       btn.disabled = false;
     }
 
-    // ── MODE TOGGLE ──
-    let _searchMode = 'keyword'; // 'keyword' | 'category'
-
-    function setSearchMode(mode) {
-      _searchMode = mode;
-      document.getElementById('tab-keyword').classList.toggle('active', mode === 'keyword');
-      document.getElementById('tab-category').classList.toggle('active', mode === 'category');
-      document.getElementById('keyword-input').style.display   = mode === 'keyword'  ? 'block' : 'none';
-      document.getElementById('category-select').style.display = mode === 'category' ? 'block' : 'none';
-      document.getElementById('pages-row').style.display       = 'flex';
-    }
-
-    // --- START SEARCH ---
+    // --- START SEARCH (corrected) ---
     async function startSearch() {
       if (_searching) return;
 
-      if (_searchMode === 'category') {
-        await startCategorySearch();
-        return;
+      // Mode auto : prendre le prochain keyword de la queue
+      if (_autoSearch) {
+        try {
+          const kw = await getNextKeyword();
+          document.getElementById('keyword-input').value = kw;
+          _keywords = [kw];
+          renderKeywords();
+          document.getElementById('keyword-input').value = '';
+          updateQueueDisplay();
+        } catch(e) {
+          showToast('❌ Auto keyword failed: ' + e.message, '#ef4444');
+          return;
+        }
+      } else {
+        // Mode manuel
+        const inputVal = document.getElementById('keyword-input').value.trim();
+        _keywords = [];
+        if (inputVal) {
+          _keywords.push(inputVal);
+          renderKeywords();
+          document.getElementById('keyword-input').value = '';
+        }
+        if (_keywords.length === 0) { document.getElementById('keyword-input').focus(); return; }
       }
-
-      // Mode mot-clé (comportement d'origine)
-      const inputVal = document.getElementById('keyword-input').value.trim();
-      _keywords = [];
-      if (inputVal) {
-        _keywords.push(inputVal);
-        renderKeywords();
-        document.getElementById('keyword-input').value = '';
-      }
-      if (_keywords.length === 0) { document.getElementById('keyword-input').focus(); return; }
 
       _searching = true;
       _stopRequested = false;
@@ -1159,11 +1157,14 @@
       const kwInput = document.getElementById('keyword-input');
       if (kwInput) kwInput.disabled = true;
 
+      // Reset the progress bar (especially in auto mode to start from 0)
       resetProgress();
       document.getElementById('progress-wrap').style.display = 'flex';
-      document.getElementById('results-section').style.display = 'none';
-      document.getElementById('results-container').innerHTML = '';
-      document.getElementById('results-count').textContent = '';
+      if (!_autoSearch) {
+        document.getElementById('results-section').style.display = 'none';
+        document.getElementById('results-container').innerHTML = '';
+        document.getElementById('results-count').textContent = '';
+      }
 
       document.documentElement.classList.remove('unlocked');
       window.scrollTo({ top: 0 });
@@ -1171,6 +1172,7 @@
       let totalMatches = 0;
       let hasError = false;
 
+      // Marquer tous les tags comme "en attente"
       _keywords.forEach(function(kw) {
         const tag = document.getElementById('tag-' + encodeKw(kw));
         if (tag) tag.className = 'keyword-tag';
@@ -1183,10 +1185,12 @@
 
         initProgress(keyword + ' (' + (ki + 1) + '/' + _keywords.length + ')');
         document.getElementById('progress-wrap').style.display = 'flex';
+        // Update current keyword label (fix)
         const currentLabel = document.getElementById('progress-keyword-label');
         if (currentLabel) currentLabel.textContent = keyword;
         setProgress(5);
 
+        // Results section title
         if (_keywords.length > 1) {
           const sec = document.createElement('div');
           sec.className = 'keyword-section-title';
@@ -1196,7 +1200,6 @@
 
         try {
           document.getElementById('progress-msg').textContent = '⏳ Connecting...';
-          _activateStepDot('connecting');
           const response = await fetch('/api/search-dropship', {
             method: 'POST',
             headers: {
@@ -1232,31 +1235,27 @@
               try {
                 const ev = JSON.parse(line.slice(6));
                 if (_stopRequested) { reader.cancel(); break; }
-                if (ev.step === 'init') {
-                  if (ev.total) {
-                    _counterTotal = ev.total;
-                    var counter = document.getElementById('listing-counter');
-                    if (counter) counter.textContent = '0 / ' + ev.total + ' listings analyzed — ' + ev.total + ' remaining';
-                  }
-                } else if (ev.step === 'complete') {
+                if (ev.step === 'complete') {
                   completeAllSteps();
                   if (tag) tag.className = 'keyword-tag done';
                 } else if (ev.step === 'match') {
                   if (ev.shop) {
-                    renderShopResult(ev.shop, keyword);
-                    totalMatches++;
-                    document.getElementById('results-section').style.display = 'block';
-                    document.documentElement.classList.add('unlocked');
-                    document.documentElement.style.overflowY = 'auto';
-                    document.body.style.overflowY = 'auto';
+                    if (_autoSearch && ev.shop.shopName && _usedShops.includes(ev.shop.shopName)) {
+                      // skip
+                    } else {
+                      renderShopResult(ev.shop, keyword);
+                      totalMatches++;
+                      document.getElementById('results-section').style.display = 'block';
+                      document.documentElement.classList.add('unlocked');
+                      document.documentElement.style.overflowY = 'auto';
+                      document.body.style.overflowY = 'auto';
+                      if (ev.shop.shopName) saveUsedShops([ev.shop.shopName]);
+                    }
                   }
                   advanceStep('match', ev.message);
                 } else if (ev.step === 'analyzing' && ev.total && ev.done !== undefined) {
                   syncProgressFromAnalyzing(ev.total, ev.done);
                   advanceStep('analyzing', ev.message);
-                } else if (ev.step === 'shop_done' && ev.total && ev.done !== undefined) {
-                  // Real-time counter update
-                  syncProgressFromAnalyzing(ev.total, ev.done);
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
                   showErrorPopup(ev.message);
@@ -1293,14 +1292,8 @@
         if (_stopRequested) break;
       }
 
-      var countBar = document.getElementById('results-count');
-      countBar.innerHTML = '';
-
-      if (totalMatches > 0) {
-        setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
-      }
-
-      if (!_stopRequested) {
+      // End
+      if (!_stopRequested && !_autoSearch) {
         restoreUI();
         clearKeywords();
         if (hasError && totalMatches === 0) {
@@ -1309,169 +1302,53 @@
         }
       }
 
-      if (totalMatches === 0 && !hasError && !_stopRequested) {
+      if (totalMatches === 0 && !hasError && !_autoSearch) {
         document.getElementById('results-container').innerHTML += '<div class="empty">No results found.</div>';
         document.getElementById('results-section').style.display = 'block';
       }
-    }
 
-    // ── CATEGORY SEARCH (route /search-from-ali) ──
-    async function startCategorySearch() {
-      _searching = true;
-      _stopRequested = false;
-      _sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-      window._shopDataMap = {};
+      var countBar = document.getElementById('results-count');
+      countBar.innerHTML = '';
 
-      if (_restoreTimer) { clearTimeout(_restoreTimer); _restoreTimer = null; }
-      setStopMode();
-
-      resetProgress();
-      document.getElementById('progress-wrap').style.display = 'flex';
-      document.getElementById('results-section').style.display = 'none';
-      document.getElementById('results-container').innerHTML = '';
-      document.getElementById('results-count').textContent = '';
-      document.documentElement.classList.remove('unlocked');
-      window.scrollTo({ top: 0 });
-      // Init counter — on attend le vrai total envoyé par le serveur via l'événement 'init'
-      _counterTotal = 0;
-      (function() {
-        var counter = document.getElementById('listing-counter');
-        if (counter) counter.textContent = '⏳ Initialisation...';
-      })();
-
-      const catSelect = document.getElementById('category-select');
-      const category = catSelect ? catSelect.value : null;
-      const catLabel = catSelect ? catSelect.options[catSelect.selectedIndex].text : category;
-
-      const currentLabel = document.getElementById('progress-keyword-label');
-      if (currentLabel) currentLabel.textContent = '📦 ' + catLabel;
-
-      let totalMatches = 0;
-      let hasError = false;
-
-      try {
-        document.getElementById('progress-msg').textContent = '⏳ Connecting...';
-        _activateStepDot('connecting');
-
-        const response = await fetch('/api/search-from-ali', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(SCOUT_TOKEN ? { 'Authorization': 'Bearer ' + SCOUT_TOKEN } : {})
-          },
-          body: JSON.stringify({ category, sessionId: _sessionId, productsPerCategory: parseInt(document.getElementById('pages-select')?.value || '10', 10) })
-        });
-
-        const ct = response.headers.get('content-type') || '';
-        if (!ct.includes('text/event-stream')) {
-          const data = await response.json().catch(() => ({}));
-          const errMsg = data.error || 'Server error';
-          document.getElementById('progress-msg').textContent = '❌ ' + errMsg;
-          hasError = true;
-          setRetryMode();
-          _searching = false;
-          return;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split('\n'); buf = lines.pop();
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const ev = JSON.parse(line.slice(6));
-              if (_stopRequested) { reader.cancel(); break; }
-
-              if (ev.step === 'init') {
-                if (ev.total) {
-                  _counterTotal = ev.total;
-                  var counter = document.getElementById('listing-counter');
-                  if (counter) counter.textContent = '0 / ' + ev.total + ' listings analyzed — ' + ev.total + ' remaining';
-                }
-              } else if (ev.step === 'complete') {
-                completeAllSteps();
-              } else if (ev.step === 'match') {
-                if (ev.shop) {
-                  renderShopResult(ev.shop, ev.shop.category || category);
-                  totalMatches++;
-                  document.getElementById('results-section').style.display = 'block';
-                  document.documentElement.classList.add('unlocked');
-                  document.documentElement.style.overflowY = 'auto';
-                  document.body.style.overflowY = 'auto';
-                }
-                advanceStep('match', ev.message);
-              } else if (ev.step === 'category') {
-                const lbl = document.getElementById('progress-keyword-label');
-                if (lbl) lbl.textContent = ev.message;
-                _activateStepDot('scraping');
-                advanceStep('scraping', ev.message);
-              } else if (ev.step === 'products') {
-                advanceStep('analyzing', ev.message);
-              } else if (ev.step === 'analyzing') {
-                _activateStepDot('analyzing');
-                if (ev.total && ev.done !== undefined) syncProgressFromAnalyzing(ev.total, ev.done);
-                advanceStep('analyzing', ev.message);
-              } else if (ev.step === 'shop_done' && ev.total && ev.done !== undefined) {
-                syncProgressFromAnalyzing(ev.total, ev.done);
-              } else if (ev.step === 'error') {
-                document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
-                hasError = true;
-                setRetryMode();
-              } else {
-                advanceStep(ev.step, ev.message);
-              }
-            } catch(e) { /* ignore parse errors */ }
-          }
-        }
-      } catch(err) {
-        if (!_stopRequested) {
-          document.getElementById('progress-msg').textContent = '❌ ' + err.message;
-          hasError = true;
-          setRetryMode();
-        }
-      }
-
-      if (totalMatches > 0) {
+      if (_autoSearch) {
+        _totalAutoMatches += totalMatches;
+      } else if (totalMatches > 0) {
         setTimeout(function() { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
       }
 
-      if (!_stopRequested && !hasError) restoreUI();
-      if (totalMatches === 0 && !hasError && !_stopRequested) {
-        document.getElementById('results-container').innerHTML += '<div class="empty">No results found.</div>';
-        document.getElementById('results-section').style.display = 'block';
+      if (_autoSearch && !_stopRequested) {
+        const usedKw = _keywords[0];
+        if (usedKw) await saveUsedKeyword(usedKw);
+        updateQueueDisplay();
+        _searching = false; // ← reset pour permettre la prochaine recherche
+        setTimeout(function() {
+          if (_autoSearch && !_stopRequested) {
+            document.getElementById('keyword-input').value = '';
+            _keywords = [];
+            startSearch(); // Start and reset the bar for the new keyword
+          }
+        }, 1500);
+      } else if (!_autoSearch && !_stopRequested) {
+        restoreUI();
+        clearKeywords();
       }
-      _searching = false;
     }
+
+    // ── RENDER SHOP RESULT ──
     window._shopDataMap = {};
     function encodeShopKey(u) { return (u || '').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40); }
 
     function renderShopResult(shop, keyword) {
+      const productUrl = shop.listingUrl || shop.shopUrl || '#';
       const idx = Object.keys(window._shopDataMap).length;
-
-      // Shop URL : toujours construite depuis shopName si disponible
-      const shopUrl    = shop.shopName
-        ? 'https://www.etsy.com/shop/' + shop.shopName
-        : (shop.shopUrl && shop.shopUrl !== '#' ? shop.shopUrl : null);
-
-      // Listing URL : lien direct vers l'annonce Etsy trouvée
-      const listingUrl = shop.listingUrl && shop.listingUrl !== '#'
-        ? shop.listingUrl
-        : (shop.listingId ? 'https://www.etsy.com/listing/' + shop.listingId : null);
-
+      const shopUrl = shop.shopName ? 'https://www.etsy.com/shop/' + shop.shopName : (shop.shopUrl || '#');
       window._shopDataMap[idx] = {
-        shopName:     shop.shopName   || null,
-        shopUrl:      shopUrl         || null,
-        listingUrl:   listingUrl      || null,
+        shopName:     shop.shopName || null,
+        shopUrl:      shopUrl,
         shopAvatar:   shop.shopAvatar || shop.shopImage || null,
-        productImage: shop.shopImage  || null,
-        productUrl:   shopUrl         || listingUrl || null,
-        keyword:      keyword         || null,
+        productImage: shop.shopImage || null,
+        productUrl:   shopUrl,
+        keyword:      keyword || null,
       };
 
       const card = document.createElement('div');
@@ -1479,15 +1356,13 @@
       const inner = document.createElement('div');
       inner.className = 'match-card-inner';
 
-      // ── Bouton save ──
       const heartBtn = document.createElement('button');
-      heartBtn.className = 'btn-save-shop' + (shopUrl && _savedShopUrls.has(shopUrl) ? ' saved' : '');
-      heartBtn.id = 'heart-' + encodeShopKey(shopUrl || '');
-      heartBtn.textContent = (shopUrl && _savedShopUrls.has(shopUrl)) ? '✔' : '❤️';
+      heartBtn.className = 'btn-save-shop' + (_savedShopUrls.has(shopUrl) ? ' saved' : '');
+      heartBtn.id = 'heart-' + encodeShopKey(shopUrl);
+      heartBtn.textContent = _savedShopUrls.has(shopUrl) ? '✔' : '❤️';
       heartBtn.onclick = function() { saveShop(idx, this); };
       inner.appendChild(heartBtn);
 
-      // ── Avatar ──
       const avatarUrl = shop.shopAvatar || shop.shopImage || null;
       const ph = document.createElement('div');
       ph.className = 'shop-result-avatar-ph'; ph.textContent = '🛍';
@@ -1501,35 +1376,18 @@
       }
       inner.appendChild(ph);
 
-      // ── Infos boutique ──
       const info = document.createElement('div');
       info.className = 'shop-result-info';
-      const nameEl = document.createElement('div');
-      nameEl.className = 'shop-result-name';
-      nameEl.textContent = shop.shopName || '—';
-      const tagEl = document.createElement('div');
-      tagEl.className = 'shop-result-tag';
-      tagEl.textContent = '🛒 Dropshipping confirmed';
-      info.appendChild(nameEl);
-      info.appendChild(tagEl);
+      const nameEl = document.createElement('div'); nameEl.className = 'shop-result-name'; nameEl.textContent = shop.shopName || '—';
+      const tagEl  = document.createElement('div'); tagEl.className  = 'shop-result-tag';  tagEl.textContent  = '🛒 Dropshipping confirmed';
+      info.appendChild(nameEl); info.appendChild(tagEl);
       inner.appendChild(info);
 
-      // ── Bouton Visit ──
-      const btnsWrap = document.createElement('div');
-      btnsWrap.style.cssText = 'display:flex;flex-direction:column;gap:5px;flex-shrink:0;';
-
       const visitBtn = document.createElement('a');
-      if (shopUrl) {
-        visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
-      } else {
-        visitBtn.href = '#';
-        visitBtn.onclick = function(e){ e.preventDefault(); showToast('Boutique URL non trouvée', '#ef4444'); };
-      }
-      visitBtn.className = 'shop-result-btn';
-      visitBtn.textContent = 'Visiter';
-      btnsWrap.appendChild(visitBtn);
+      visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
+      visitBtn.className = 'shop-result-btn'; visitBtn.textContent = 'Visit shop ↗';
+      inner.appendChild(visitBtn);
 
-      inner.appendChild(btnsWrap);
       card.appendChild(inner);
       document.getElementById('results-container').appendChild(card);
     }
@@ -1568,10 +1426,8 @@
       if (!token) { showAuthModal(); return; }
       const data = window._shopDataMap && window._shopDataMap[idx];
       if (!data) { showToast('Shop data not found', '#ef4444'); return; }
-      // Fallback: use productUrl if shopUrl is missing
-      if (!data.shopUrl && data.productUrl) data.shopUrl = data.productUrl;
-      if (data.shopUrl && _savedShopUrls.has(data.shopUrl)) { btn.classList.add('saved'); btn.textContent = '✔'; showToast('Already saved!', '#22c55e'); return; }
-      if (!data.shopUrl || data.shopUrl === '#') { showToast('No URL found for this shop', '#ef4444'); return; }
+      if (_savedShopUrls.has(data.shopUrl)) { btn.classList.add('saved'); btn.textContent = '✔'; showToast('Already saved!', '#22c55e'); return; }
+      if (!data.shopUrl || data.shopUrl === '#') { showToast('No shop URL', '#ef4444'); return; }
       btn.classList.add('saving'); btn.textContent = '⏳';
       try {
         const r = await fetch('/api/shops/save', {
