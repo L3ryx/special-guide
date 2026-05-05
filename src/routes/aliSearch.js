@@ -123,24 +123,22 @@ async function fetchAliExpressProducts(keyword, maxProducts = 10) {
 }
 
 // ── STEP 2 : Google Lens sur image AliExpress → trouver boutiques Etsy ───────
-function extractShopName(etsyUrl) {
-  // https://www.etsy.com/shop/ShopName ou /listing/123?ref=...
-  const shopMatch = etsyUrl.match(/etsy\.com\/shop\/([^/?#]+)/i);
-  if (shopMatch) return shopMatch[1];
-  // Depuis une URL listing, on ne peut pas extraire le shop_name directement
-  return null;
-}
+const { getListingDetail, getShopInfo } = require('../services/etsyApi');
 
+/**
+ * Recherche Google Lens → résultats Etsy → résolution shopName + avatar via API Etsy.
+ * Retourne une liste de { listingUrl, listingImage, listingId, shopName, shopUrl, shopAvatar }
+ */
 async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
   if (isAborted()) return [];
 
-  // Upload l'image AliExpress vers un hébergeur public
+  // ── 1. Upload image AliExpress ──
   const pubUrl = await uploadAliImageFree(aliImageUrl);
   if (!pubUrl || isAborted()) return [];
 
+  // ── 2. Google Lens via Serper ──
   let r;
-  const SERPER_RETRIES = 3;
-  for (let attempt = 0; attempt < SERPER_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
       r = await axios.post(
         'https://google.serper.dev/lens',
@@ -155,31 +153,123 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
         if (detail?.message?.toLowerCase().includes('not enough credits')) throw new Error('serper_no_credits');
         throw e;
       }
-      if (status === 429 && attempt < SERPER_RETRIES - 1) {
-        const wait = 1500 * Math.pow(2, attempt);
-        await new Promise(res => setTimeout(res, wait));
+      if (status === 429 && attempt < 2) {
+        await new Promise(res => setTimeout(res, 1500 * Math.pow(2, attempt)));
         continue;
       }
       return [];
     }
   }
+  if (isAborted()) return [];
 
+  // ── 3. Filtrer résultats Etsy ──
   const all = [...(r.data.visual_matches || []), ...(r.data.organic || [])];
-
-  // Garder uniquement les résultats Etsy avec une image
-  const etsyResults = all.filter(x => {
-    const link = x.link || x.url || '';
-    return link.includes('etsy.com') && (x.imageUrl || x.thumbnailUrl);
-  });
+  const etsyResults = all.filter(x => (x.link || x.url || '').includes('etsy.com'));
 
   console.log(`[aliSearch] Lens → ${etsyResults.length} résultats Etsy trouvés`);
+  etsyResults.slice(0, 3).forEach((x, i) =>
+    console.log(`  [${i}] ${(x.link || x.url || '').slice(0, 80)}`)
+  );
 
-  return etsyResults.map(x => ({
-    listingUrl:   x.link || x.url,
-    listingImage: x.imageUrl || x.thumbnailUrl,
-    listingTitle: x.title || null,
-    shopName:     extractShopName(x.link || x.url || ''),
-  }));
+  if (!etsyResults.length) return [];
+
+  // ── 4. Pour chaque résultat Etsy : résoudre shopName + récupérer avatar ──
+  const resolved = [];
+  const seenShops = new Set();
+
+  for (const x of etsyResults) {
+    if (isAborted()) break;
+    const link  = x.link || x.url || '';
+    const image = x.imageUrl || x.thumbnailUrl || null;
+
+    let shopName   = null;
+    let shopUrl    = null;
+    let shopAvatar = null;
+    let listingId  = null;
+
+    // 4a. URL /shop/ShopName → résolution immédiate
+    const shopMatch = link.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/);
+    if (shopMatch && !['ca','uk','fr','de'].includes(shopMatch[1])) {
+      shopName = shopMatch[1];
+      shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+    }
+
+    // 4b. URL /listing/{id} → API Etsy : listing_id → shop_id → shop_name
+    const lm = link.match(/etsy\.com\/listing\/(\d+)/);
+    if (lm) listingId = lm[1];
+
+    if (!shopName && listingId) {
+      try {
+        const detail = await getListingDetail(listingId);
+        if (detail.shopName) {
+          shopName = detail.shopName;
+          shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+          console.log(`[aliSearch] shopName via API listing ${listingId}: ${shopName}`);
+        }
+      } catch(e) {
+        console.warn(`[aliSearch] getListingDetail(${listingId}) échoué:`, e.message);
+      }
+    }
+
+    // 4c. Fallback scraping HTML page listing
+    if (!shopName && listingId && !isAborted()) {
+      try {
+        const pageRes = await axios.get(`https://www.etsy.com/listing/${listingId}`, {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+          maxRedirects: 3,
+        });
+        const html = pageRes.data || '';
+        const jsMatch    = html.match(/"shop_name"\s*:\s*"([^"]+)"/);
+        const canonMatch = html.match(/etsy\.com\/shop\/([A-Za-z0-9_-]+)/);
+        const found = (jsMatch?.[1]) || (canonMatch?.[1]) || null;
+        if (found && found.length > 2 && !['etsy','ca','uk','fr','de'].includes(found)) {
+          shopName = found;
+          shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+          console.log(`[aliSearch] shopName via scraping HTML: ${shopName}`);
+        }
+      } catch(e) {
+        console.warn(`[aliSearch] scraping HTML listing ${listingId} échoué:`, e.message);
+      }
+    }
+
+    // Skip si toujours pas de shopName
+    if (!shopName) {
+      console.log(`[aliSearch] ❌ shopName non résolu pour: ${link.slice(0, 60)}`);
+      continue;
+    }
+
+    // Dédupliquer par shopName
+    if (seenShops.has(shopName)) continue;
+    seenShops.add(shopName);
+
+    // 5. Récupérer avatar via API Etsy getShopInfo
+    if (!isAborted()) {
+      try {
+        const info = await getShopInfo(shopName);
+        shopAvatar = info.shopAvatar || null;
+        shopUrl    = info.shopUrl || shopUrl;
+        console.log(`[aliSearch] ✅ ${shopName} | avatar: ${shopAvatar ? 'oui' : 'non'}`);
+      } catch(e) {
+        console.warn(`[aliSearch] getShopInfo(${shopName}) échoué:`, e.message);
+      }
+    }
+
+    resolved.push({
+      listingUrl:   listingId ? `https://www.etsy.com/listing/${listingId}` : link,
+      listingImage: image,
+      listingId,
+      shopName,
+      shopUrl,
+      shopAvatar,
+    });
+  }
+
+  console.log(`[aliSearch] ${resolved.length}/${etsyResults.length} boutiques résolues`);
+  return resolved;
 }
 
 // ── STEP 3 : Pipeline DINOv2 pour confirmer la similarité ────────────────────
@@ -356,8 +446,10 @@ router.post('/search-from-ali', async (req, res) => {
             category:   cat,
             // Boutique Etsy
             shopName:   listing.shopName,
-            shopUrl:    listing.shopName ? `https://www.etsy.com/shop/${listing.shopName}` : null,
+            shopUrl:    listing.shopUrl || (listing.shopName ? `https://www.etsy.com/shop/${listing.shopName}` : null),
+            shopAvatar: listing.shopAvatar || null,
             listingUrl: listing.listingUrl,
+            listingId:  listing.listingId || null,
             shopImage:  listing.listingImage,
             // Score DINOv2
             visualSimilarity: similarity,
