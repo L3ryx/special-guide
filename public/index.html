@@ -515,7 +515,8 @@
           <div class="step-dot" id="step-match">✅</div>
           <div class="step-dot" id="step-complete">🎉</div>
         </div>
-        <div class="progress-msg" id="progress-msg"></div>
+        <div class="progress-msg" id="progress-msg" style="display:none;"></div>
+        <div id="listing-counter" style="text-align:center;font-size:0.82rem;color:rgba(255,255,255,0.65);font-family:'Courier New',monospace;font-weight:600;min-height:1.2em;letter-spacing:0.04em;"></div>
       </div>
     </div>
 
@@ -660,6 +661,20 @@
       document.getElementById('niche-list-btn').style.display = 'flex';
       initSavedShops();
       loadAutoState();
+
+      // Synchroniser le compteur d'annonces avec le menu déroulant
+      var pagesSelect = document.getElementById('pages-select');
+      function updateListingCounterLabel() {
+        var counter = document.getElementById('listing-counter');
+        if (counter) {
+          var total = parseInt(pagesSelect?.value || '10', 10);
+          counter.textContent = '0 / ' + total + ' annonces analysées';
+        }
+      }
+      if (pagesSelect) {
+        pagesSelect.addEventListener('change', updateListingCounterLabel);
+        updateListingCounterLabel(); // initialiser au chargement
+      }
     }
 
         // ── ERROR POPUP ──
@@ -996,6 +1011,12 @@
         var d = document.getElementById('step-' + s);
         if (d) { d.classList.remove('active','done'); }
       });
+      // Reset du compteur d'annonces
+      var counter = document.getElementById('listing-counter');
+      if (counter) {
+        var total = parseInt(document.getElementById('pages-select')?.value || '10', 10);
+        counter.textContent = '0 / ' + total + ' annonces analysées';
+      }
     }
 
     function syncProgressFromAnalyzing(total, done) {
@@ -1007,6 +1028,11 @@
       if (total > 0) {
         var pct = 10 + Math.round((done / total) * 82);
         _progressTarget = Math.max(_progressCurrent, pct);
+      }
+      // Mise à jour du compteur d'annonces analysées
+      var counter = document.getElementById('listing-counter');
+      if (counter && total > 0) {
+        counter.textContent = done + ' / ' + total + ' annonces analysées';
       }
     }
 
