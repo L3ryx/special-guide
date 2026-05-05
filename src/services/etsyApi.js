@@ -180,12 +180,13 @@ async function getShopInfo(shopIdOrName) {
 }
 
 async function getListingDetail(listingId) {
-  const r = await axios.get(`${BASE}/listings/${listingId}?includes=images`, {
+  // On inclut "images" ET "shop" pour récupérer shop_name directement
+  const r = await axios.get(`${BASE}/listings/${listingId}?includes=images,shop`, {
     headers: headers(), timeout: 30000,
   });
 
   const item = r.data;
-  console.log('[getListingDetail]', listingId, '| images in response:', item.images?.length, '| keys:', Object.keys(item).join(','));
+  console.log('[getListingDetail]', listingId, '| images:', item.images?.length, '| shop_name:', item.shop?.shop_name || 'N/A', '| shop_id:', item.shop_id);
   const images = (item.images || [])
     .map(img => cleanImage(img.url_fullxfull || img.url_570xN || img.url_170x135 || null))
     .filter(Boolean)
@@ -195,12 +196,28 @@ async function getListingDetail(listingId) {
     ? `${item.price.currency_code} ${(item.price.amount / item.price.divisor).toFixed(2)}`
     : null;
 
+  // Si l'API ne retourne pas le shop dans l'objet, on résout via shop_id
+  let shopName = item.shop?.shop_name || null;
+  const shopId = item.shop_id || item.shop?.shop_id || null;
+
+  if (!shopName && shopId) {
+    try {
+      const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
+        headers: headers(), timeout: 15000,
+      });
+      shopName = shopRes.data.shop_name || null;
+      console.log('[getListingDetail] Resolved shopName via shop_id:', shopName);
+    } catch(e) {
+      console.warn('[getListingDetail] Could not resolve shop_id', shopId, ':', e.message);
+    }
+  }
+
   return {
     title:    item.title || null,
     price,
     images,
-    shopName: item.shop?.shop_name || null,
-    shopId:   item.shop_id || null,
+    shopName,
+    shopId,
   };
 }
 
