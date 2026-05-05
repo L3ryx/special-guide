@@ -295,7 +295,151 @@ router.post('/search-dropship', async (req, res) => {
       // On prend le premier candidat AliExpress trouvé par Lens
       const aliMatch = aliMatches[0];
       console.log(`[analyzeImage] ✅ Match Lens — ${aliMatches.length} candidats AliExpress, meilleur: ${(aliMatch.link || '').slice(0, 60)}`);
-      return { aliMatch };
+
+      // ── PIPELINE DE COMPARAISON VISUELLE AVANCÉE ──────────────────────────────
+      // Après le résultat Google Lens, on lance un pipeline SAM + DINOv2
+      // pour affiner la comparaison visuelle entre l'image Etsy et le candidat AliExpress.
+
+      const aliImageUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl || null;
+      let visualSimilarity = null;
+
+      if (aliImageUrl && process.env.VISUAL_API_URL) {
+        try {
+          console.log('[visualPipeline] Lancement du pipeline SAM + DINOv2...');
+
+          // STEP 1 — Object Segmentation (SAM)
+          // Détecte et segmente tous les objets dans chaque image.
+          // On conserve le masque principal (plus grande région / plus haute confiance)
+          // et on supprime l'arrière-plan.
+          const samRes = await axios.post(
+            `${process.env.VISUAL_API_URL}/segment`,
+            {
+              images: [etsyImageUrl, aliImageUrl],
+              pipeline: {
+                step: 1,
+                name: 'object_segmentation',
+                model: 'Segment Anything Model (SAM)',
+                description: 'Detect and segment all objects in the image',
+                input: 'raw image',
+                output: 'object masks',
+                rules: [
+                  'Select the largest or highest confidence mask as main object',
+                  'Discard all background',
+                ],
+              },
+            },
+            { timeout: 30000 }
+          );
+          const masks = samRes.data?.masks || [];
+          console.log(`[visualPipeline] STEP 1 SAM — ${masks.length} masques retournés`);
+
+          // STEP 2 — Object Extraction
+          // Extrait uniquement l'objet principal à partir du masque SAM.
+          // Méthodes : crop bounding-box OU application du masque avec fond noir/transparent.
+          // Output : image normalisée 224×224 ou 336×336 (objet seul).
+          const extractRes = await axios.post(
+            `${process.env.VISUAL_API_URL}/extract`,
+            {
+              images: [etsyImageUrl, aliImageUrl],
+              masks,
+              pipeline: {
+                step: 2,
+                name: 'object_extraction',
+                description: 'Extract only the main object from the image',
+                input: 'image + mask',
+                methods: [
+                  'crop bounding box of object',
+                  'or apply mask and replace background with black/transparent',
+                ],
+                output: 'object-only normalized image (224x224 or 336x336)',
+              },
+            },
+            { timeout: 30000 }
+          );
+          const croppedImages = extractRes.data?.croppedImages || [];
+          console.log(`[visualPipeline] STEP 2 Extraction — ${croppedImages.length} images extraites`);
+
+          // STEP 3 — Feature Extraction (DINOv2)
+          // Extrait les features visuelles globales (cls_embedding) et locales (patch_tokens)
+          // via DINOv2 (PyTorch) à partir de chaque image objet isolé.
+          const dinoRes = await axios.post(
+            `${process.env.VISUAL_API_URL}/features`,
+            {
+              images: croppedImages,
+              pipeline: {
+                step: 3,
+                name: 'feature_extraction',
+                model: 'DINOv2 (PyTorch)',
+                description: 'Extract global and local visual features',
+                input: 'object-only image',
+                output: {
+                  cls_embedding: 'global vector representation',
+                  patch_tokens: 'local patch-level feature vectors',
+                },
+              },
+            },
+            { timeout: 30000 }
+          );
+          const features = dinoRes.data?.features || [];
+          console.log(`[visualPipeline] STEP 3 DINOv2 — ${features.length} feature sets extraits`);
+
+          // STEP 4 — Patch Filtering
+          // Conserve uniquement les patch tokens appartenant à la région de l'objet
+          // en mappant la grille de patches sur le masque SAM.
+          // Supprime les patches appartenant à l'arrière-plan.
+          const patchRes = await axios.post(
+            `${process.env.VISUAL_API_URL}/filter-patches`,
+            {
+              features,
+              masks,
+              pipeline: {
+                step: 4,
+                name: 'patch_filtering',
+                description: 'Keep only patch tokens belonging to the object',
+                input: {
+                  patch_tokens: true,
+                  sam_mask: true,
+                },
+                rules: [
+                  'Map patch grid to SAM mask',
+                  'Keep patches inside object region',
+                  'Remove background patches',
+                ],
+                output: 'filtered_patch_tokens',
+              },
+            },
+            { timeout: 30000 }
+          );
+          const filteredPatches = patchRes.data?.filteredPatches || [];
+          console.log(`[visualPipeline] STEP 4 Patch Filtering — ${filteredPatches.length} patch sets filtrés`);
+
+          // STEP 5 — Similarity Scoring
+          // Calcule la similarité cosinus entre les cls_embeddings (score global)
+          // et entre les filtered_patch_tokens (score local moyen).
+          // Score final = moyenne pondérée des deux scores.
+          if (features.length >= 2 && filteredPatches.length >= 2) {
+            const scoreRes = await axios.post(
+              `${process.env.VISUAL_API_URL}/similarity`,
+              {
+                featuresA: { cls_embedding: features[0]?.cls_embedding, patch_tokens: filteredPatches[0] },
+                featuresB: { cls_embedding: features[1]?.cls_embedding, patch_tokens: filteredPatches[1] },
+              },
+              { timeout: 15000 }
+            );
+            visualSimilarity = scoreRes.data?.similarity ?? null;
+            console.log(`[visualPipeline] ✅ Score similarité DINOv2 : ${visualSimilarity}`);
+          }
+
+        } catch (pipelineErr) {
+          // Le pipeline visuel est optionnel : on ne bloque pas le résultat Lens
+          console.warn('[visualPipeline] ⚠️ Erreur pipeline SAM+DINOv2 (non bloquant):', pipelineErr.message);
+        }
+      } else {
+        console.log('[visualPipeline] VISUAL_API_URL non défini — pipeline SAM+DINOv2 ignoré');
+      }
+      // ── FIN PIPELINE VISUEL ────────────────────────────────────────────────────
+
+      return { aliMatch, visualSimilarity };
     }
 
     const dropshippers = [];
@@ -326,17 +470,21 @@ router.post('/search-dropship', async (req, res) => {
 
           if (r1) {
             dropshippers.push({
-              shopName:   listing.shopName,
-              shopUrl:    listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
-              shopAvatar: null,
-              shopImage:  img1,
-              listingUrl: listing.link,
-              aliUrl:     r1.aliMatch.link || r1.aliMatch.url || null,
-              aliImage:   r1.aliMatch.imageUrl || r1.aliMatch.thumbnailUrl || null,
+              shopName:         listing.shopName,
+              shopUrl:          listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
+              shopAvatar:       null,
+              shopImage:        img1,
+              listingUrl:       listing.link,
+              aliUrl:           r1.aliMatch.link || r1.aliMatch.url || null,
+              aliImage:         r1.aliMatch.imageUrl || r1.aliMatch.thumbnailUrl || null,
+              visualSimilarity: r1.visualSimilarity ?? null,
             });
+            const simLabel = r1.visualSimilarity !== null
+              ? ` | Similarité DINOv2 : ${(r1.visualSimilarity * 100).toFixed(1)}%`
+              : '';
             send({
               step:    'match',
-              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | Lens match`,
+              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | Lens match${simLabel}`,
               shop:    dropshippers[dropshippers.length - 1],
             });
           }
