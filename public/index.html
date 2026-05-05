@@ -137,7 +137,7 @@
 
     /* Input row: input + add btn + tags inline + trash */
     .input-row { width:100%; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .input-row input, #keyword-input { flex:1; min-width:160px; padding:16px 20px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
+    .input-row input, #keyword-input { flex:1; min-width:160px; padding:16px 24px; background:var(--glass); border:1px solid var(--glass-border); border-radius:999px; color:var(--text); font-family:'Croissant One',cursive; font-size:1.05rem; outline:none; backdrop-filter:blur(16px); transition:border-color 0.2s,box-shadow 0.2s; text-align:center; }
     .input-row input::placeholder, #keyword-input::placeholder { color:var(--muted); }
     .input-row input:focus, #keyword-input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(34,197,94,0.15); }
     #add-keyword-btn { width:48px; height:48px; flex-shrink:0; background:var(--green); border:none; border-radius:14px; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(34,197,94,0.4); position:relative; }
@@ -167,7 +167,7 @@
     .mode-tab.active { background:rgba(249,115,22,0.28); color:#f97316; border:2px solid rgba(249,115,22,0.6); }
     .mode-tab:not(.active) { border:2px solid transparent; }
     .mode-tab:hover:not(.active) { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.7); }
-    #category-select { width:80%; align-self:center; background:#1a1a2e; color:#e0e0e0; border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:10px 14px; font-size:0.9rem; cursor:pointer; outline:none; display:none; }
+    #category-select { width:80%; align-self:center; background:var(--glass); color:#e0e0e0; border:1px solid var(--glass-border); border-radius:999px; padding:13px 24px; font-size:0.95rem; font-family:'Croissant One',cursive; cursor:pointer; outline:none; display:none; backdrop-filter:blur(16px); text-align:center; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.4)' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:calc(100% - 18px) center; padding-right:40px; }
     #category-select:focus { border-color:#f97316; }    
 #start-btn { box-shadow:none !important; border:none; padding:0; height:3.5rem; width:65% !important; align-self:center; margin-top:8px; }
     #start-btn:disabled { cursor:not-allowed; opacity:0.6; }
@@ -414,7 +414,7 @@
           <!-- MODE TOGGLE -->
           <div id="mode-toggle-row">
             <button class="mode-tab active" id="tab-keyword" onclick="setSearchMode('keyword')">🔍 Keyword</button>
-            <button class="mode-tab" id="tab-category" onclick="setSearchMode('category')">📦 AliExpress Category</button>
+            <button class="mode-tab" id="tab-category" onclick="setSearchMode('category')" style="line-height:1.2;">📦 AliExpress<br><span style="font-size:0.72em;opacity:0.85;">Category</span></button>
           </div>
           <input type="text" id="keyword-input" placeholder="Enter keyword">
           <select id="category-select">
@@ -1265,6 +1265,9 @@
                 } else if (ev.step === 'analyzing' && ev.total && ev.done !== undefined) {
                   syncProgressFromAnalyzing(ev.total, ev.done);
                   advanceStep('analyzing', ev.message);
+                } else if (ev.step === 'shop_done' && ev.total && ev.done !== undefined) {
+                  // Mise à jour temps réel du compteur d'annonces analysées
+                  syncProgressFromAnalyzing(ev.total, ev.done);
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
                   showErrorPopup(ev.message);
@@ -1411,7 +1414,10 @@
                 advanceStep('analyzing', ev.message);
               } else if (ev.step === 'analyzing') {
                 _activateStepDot('analyzing');
+                if (ev.total && ev.done !== undefined) syncProgressFromAnalyzing(ev.total, ev.done);
                 advanceStep('analyzing', ev.message);
+              } else if (ev.step === 'shop_done' && ev.total && ev.done !== undefined) {
+                syncProgressFromAnalyzing(ev.total, ev.done);
               } else if (ev.step === 'error') {
                 document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
                 hasError = true;
