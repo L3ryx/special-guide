@@ -6,10 +6,9 @@ const path    = require('path');
 const http    = require('http');
 const { Server } = require('socket.io');
 
-const scrapeRoutes    = require('./routes/scrape');
-const aliSearchRoutes = require('./routes/aliSearch');
+const scrapeRoutes = require('./routes/scrape');
 const { router: authRouter } = require('./routes/auth');
-const shopRoutes      = require('./routes/shopRoutes');
+const shopRoutes   = require('./routes/shopRoutes');
 
 const app    = express();
 const server = http.createServer(app);
@@ -67,7 +66,6 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 // ── Routes API ──
 app.use('/api', scrapeRoutes);
-app.use('/api', aliSearchRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/shops', shopRoutes);
 
