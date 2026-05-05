@@ -165,19 +165,7 @@ async function getShopListings(shopIdOrName, limit = 20) {
 }
 
 async function getShopInfo(shopIdOrName) {
-  // L'API Etsy v3 /shops/{id} n'accepte que des IDs numériques.
-  // Si un nom est fourni, on résout d'abord via /shops?shop_name=
-  let resolvedId = shopIdOrName;
-  if (isNaN(shopIdOrName)) {
-    const lookup = await axios.get(
-      `${BASE}/shops?shop_name=${encodeURIComponent(shopIdOrName)}`,
-      { headers: headers(), timeout: 15000 }
-    );
-    const found = lookup.data.results || [];
-    if (!found.length) throw new Error(`Shop "${shopIdOrName}" introuvable sur Etsy`);
-    resolvedId = found[0].shop_id;
-  }
-  const r = await axios.get(`${BASE}/shops/${resolvedId}`, {
+  const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}`, {
     headers: headers(), timeout: 30000,
   });
   const s = r.data;
@@ -192,16 +180,12 @@ async function getShopInfo(shopIdOrName) {
 }
 
 async function getListingDetail(listingId) {
-  // Étape 1 : récupérer le listing (shop_id est toujours présent dans la réponse v3)
-  // Note: includes=shop n'est PAS supporté par l'API Etsy v3 sur /listings/{id}
   const r = await axios.get(`${BASE}/listings/${listingId}?includes=images`, {
-    headers: headers(), timeout: 20000,
+    headers: headers(), timeout: 30000,
   });
 
   const item = r.data;
-  const shopId = item.shop_id || null;
-  console.log(`[getListingDetail] listing ${listingId} | shop_id: ${shopId}`);
-
+  console.log('[getListingDetail]', listingId, '| images in response:', item.images?.length, '| keys:', Object.keys(item).join(','));
   const images = (item.images || [])
     .map(img => cleanImage(img.url_fullxfull || img.url_570xN || img.url_170x135 || null))
     .filter(Boolean)
@@ -211,26 +195,14 @@ async function getListingDetail(listingId) {
     ? `${item.price.currency_code} ${(item.price.amount / item.price.divisor).toFixed(2)}`
     : null;
 
-  // Étape 2 : résoudre shop_name via /shops/{shop_id} (endpoint fiable)
-  let shopName = null;
-  if (shopId) {
-    try {
-      const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
-        headers: headers(), timeout: 15000,
-      });
-      shopName = shopRes.data.shop_name || null;
-      console.log(`[getListingDetail] shop_id ${shopId} → shop_name: ${shopName}`);
-    } catch(e) {
-      console.warn(`[getListingDetail] /shops/${shopId} failed:`, e.message);
-    }
-  }
-
-  // is_digital et type ('physical' | 'download') sont fournis par l'API Etsy v3
-  const isDigital = item.is_digital === true || item.type === 'download';
-
-  return { title: item.title || null, price, images, shopName, shopId, isDigital };
+  return {
+    title:    item.title || null,
+    price,
+    images,
+    shopName: item.shop?.shop_name || null,
+    shopId:   item.shop_id || null,
+  };
 }
-
 
 function handleEtsyError(e) {
   const status = e.response?.status;
