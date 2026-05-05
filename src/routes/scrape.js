@@ -385,38 +385,46 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
     return null;
   }
 
-  // Prendre le premier résultat Etsy
+  // Prendre le premier résultat Etsy pour l'image
   const best = etsyResults[0];
   const etsyLink = best.link || best.url || '';
   const etsyImage = best.imageUrl || best.thumbnailUrl || null;
 
   // Extraire le nom de boutique depuis l'URL Etsy
-  // Format: https://www.etsy.com/listing/123/... ou https://www.etsy.com/shop/ShopName
+  // Priorité : chercher une URL /shop/ dans TOUS les résultats Etsy
   let shopName = null;
   let shopUrl  = null;
   let shopAvatar = null;
 
-  const listingMatch = etsyLink.match(/etsy\.com\/listing\/(\d+)/);
-  const shopMatch    = etsyLink.match(/etsy\.com\/shop\/([^/?&#]+)/);
-
-  if (shopMatch) {
-    shopName = shopMatch[1];
-    shopUrl  = `https://www.etsy.com/shop/${shopName}`;
-  } else if (listingMatch) {
-    // Essayer de récupérer le shop name via l'API Etsy
-    try {
-      const { getListingDetail } = require('../services/etsyApi');
-      const detail = await getListingDetail(listingMatch[1]);
-      if (detail.shopName) {
-        shopName = detail.shopName;
-        shopUrl  = `https://www.etsy.com/shop/${shopName}`;
-      }
-    } catch(e) {
-      console.warn('[lensSearchEtsy] Impossible de résoudre listing→shop:', e.message);
+  // 1. Scanner tous les résultats pour trouver une URL /shop/ShopName directe
+  for (const candidate of etsyResults) {
+    const cLink = candidate.link || candidate.url || '';
+    const cShopMatch = cLink.match(/etsy\.com\/shop\/([^/?&#]+)/);
+    if (cShopMatch && cShopMatch[1]) {
+      shopName = cShopMatch[1];
+      shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+      break;
     }
   }
 
-  // Récupérer l'avatar de la boutique si on a le shopName
+  // 2. Fallback : résoudre via listing ID avec l'API Etsy (inclut shop_name + shop_id)
+  if (!shopName) {
+    const listingMatch = etsyLink.match(/etsy\.com\/listing\/(\d+)/);
+    if (listingMatch) {
+      try {
+        const { getListingDetail } = require('../services/etsyApi');
+        const detail = await getListingDetail(listingMatch[1]);
+        if (detail.shopName) {
+          shopName = detail.shopName;
+          shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+        }
+      } catch(e) {
+        console.warn('[lensSearchEtsy] Impossible de résoudre listing→shop:', e.message);
+      }
+    }
+  }
+
+  // 3. Récupérer l'avatar de la boutique via API Etsy
   if (shopName) {
     try {
       const { getShopInfo } = require('../services/etsyApi');
@@ -428,7 +436,7 @@ async function lensSearchEtsy(aliImageUrl, isAborted = () => false) {
     }
   }
 
-  console.log(`[lensSearchEtsy] ✅ Résultat Etsy: ${shopName || 'inconnu'} | image: ${etsyImage?.slice(0,60)}`);
+  console.log(`[lensSearchEtsy] ✅ Résultat Etsy: ${shopName || 'inconnu'} | avatar: ${shopAvatar ? 'oui' : 'non'} | image: ${etsyImage?.slice(0,60)}`);
   return {
     etsyImage,
     etsyLink,
