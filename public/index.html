@@ -946,10 +946,10 @@
       document.getElementById('progress-msg').textContent = '';
       var kl = document.getElementById('progress-keyword-label');
       if (kl) kl.textContent = keyword || '';
-      // Compteur visible immédiatement au lancement
+      // Counter shown immediately on launch
       var pages = parseInt(document.getElementById('pages-select')?.value || '5', 10);
       var counter = document.getElementById('listing-counter');
-      if (counter) counter.textContent = '0 / ' + pages + ' annonces analysées — ' + pages + ' restantes';
+      if (counter) counter.textContent = '0 / ' + pages + ' listings analyzed — ' + pages + ' remaining';
     }
 
     var _progressCurrent = 0;
@@ -994,7 +994,7 @@
       _totalShops = 0; _startTime = 0; _estimated = false; _estimatedMs = 0;
       var el = document.getElementById('progress-fill');
       if (el) { el.style.width = '0%'; el.classList.remove('burning'); }
-      // Reset du compteur
+      // Reset counter
       var counter = document.getElementById('listing-counter');
       if (counter) { counter.textContent = ''; }
     }
@@ -1009,11 +1009,11 @@
         var pct = 10 + Math.round((done / total) * 82);
         _progressTarget = Math.max(_progressCurrent, pct);
       }
-      // Compteur : mis à jour à chaque appel Lens (shop_done)
+      // Counter: updated on each Lens call (shop_done)
       var counter = document.getElementById('listing-counter');
       if (counter) {
         var remaining = Math.max(0, total - done);
-        counter.textContent = done + ' / ' + total + ' annonces analysées — ' + remaining + ' restantes';
+        counter.textContent = done + ' / ' + total + ' listings analyzed — ' + remaining + ' remaining';
       }
     }
 
@@ -1239,7 +1239,7 @@
                   syncProgressFromAnalyzing(ev.total, ev.done);
                   advanceStep('analyzing', ev.message);
                 } else if (ev.step === 'shop_done' && ev.total && ev.done !== undefined) {
-                  // Mise à jour temps réel du compteur d'annonces analysées
+                  // Real-time counter update
                   syncProgressFromAnalyzing(ev.total, ev.done);
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
@@ -1316,11 +1316,11 @@
       document.getElementById('results-count').textContent = '';
       document.documentElement.classList.remove('unlocked');
       window.scrollTo({ top: 0 });
-      // Init compteur immédiatement
+      // Init counter immediately
       (function() {
         var pages = parseInt(document.getElementById('pages-select')?.value || '5', 10);
         var counter = document.getElementById('listing-counter');
-        if (counter) counter.textContent = '0 / ' + pages + ' annonces analysées — ' + pages + ' restantes';
+        if (counter) counter.textContent = '0 / ' + pages + ' listings analyzed — ' + pages + ' remaining';
       })();
 
       const catSelect = document.getElementById('category-select');
