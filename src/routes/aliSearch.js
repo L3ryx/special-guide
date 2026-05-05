@@ -16,18 +16,53 @@ function getSerperKey() {
   return key;
 }
 
-// ── Catégories AliExpress disponibles ────────────────────────────────────────
+// ── Catégories AliExpress disponibles (hors hi-tech) ─────────────────────────
 const ALI_CATEGORIES = [
-  'home decor',
-  'jewelry accessories',
-  'phone accessories',
-  'wall art prints',
-  'candles holders',
-  'baby kids toys',
-  'pet accessories',
-  'kitchen gadgets',
-  'clothing women',
-  'outdoor camping',
+  // Maison & Déco
+  'home decor trending',
+  'wall art prints boho',
+  'candles holders decor',
+  'macrame wall hanging',
+  'aesthetic room decor',
+  'vase ceramic minimalist',
+  'fairy lights bedroom decor',
+  // Bijoux & Accessoires
+  'jewelry accessories women',
+  'minimalist necklace pendant',
+  'crystal bracelet gemstone',
+  'earrings boho statement',
+  'rings vintage aesthetic',
+  // Mode & Vêtements
+  'clothing women aesthetic',
+  'oversized hoodie women',
+  'cottagecore dress women',
+  'accessories scrunchies hair',
+  'tote bag canvas printed',
+  // Animaux
+  'pet accessories dog cat',
+  'cat collar bandana cute',
+  'dog accessories gift',
+  // Bébé & Enfants
+  'baby kids toys educational',
+  'baby shower gift cute',
+  'kids room decor nursery',
+  // Bien-être & Nature
+  'crystal healing stones set',
+  'yoga accessories meditation',
+  'essential oil diffuser',
+  'dried flowers bouquet',
+  // Cuisine & Maison
+  'kitchen gadgets unique',
+  'personalized cutting board',
+  'mug cute aesthetic',
+  // Papeterie & Art
+  'stationery cute aesthetic',
+  'stickers pack journal',
+  'art supply craft tools',
+  // Outdoor & Sport
+  'outdoor camping accessories',
+  'hiking gear accessories',
+  'beach accessories summer',
 ];
 
 // ── Stop signal ───────────────────────────────────────────────────────────────
