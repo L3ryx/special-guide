@@ -180,13 +180,16 @@ async function getShopInfo(shopIdOrName) {
 }
 
 async function getListingDetail(listingId) {
-  // On inclut "images" ET "shop" pour récupérer shop_name directement
-  const r = await axios.get(`${BASE}/listings/${listingId}?includes=images,shop`, {
-    headers: headers(), timeout: 30000,
+  // Étape 1 : récupérer le listing (shop_id est toujours présent dans la réponse v3)
+  // Note: includes=shop n'est PAS supporté par l'API Etsy v3 sur /listings/{id}
+  const r = await axios.get(`${BASE}/listings/${listingId}?includes=images`, {
+    headers: headers(), timeout: 20000,
   });
 
   const item = r.data;
-  console.log('[getListingDetail]', listingId, '| images:', item.images?.length, '| shop_name:', item.shop?.shop_name || 'N/A', '| shop_id:', item.shop_id);
+  const shopId = item.shop_id || null;
+  console.log(`[getListingDetail] listing ${listingId} | shop_id: ${shopId}`);
+
   const images = (item.images || [])
     .map(img => cleanImage(img.url_fullxfull || img.url_570xN || img.url_170x135 || null))
     .filter(Boolean)
@@ -196,30 +199,23 @@ async function getListingDetail(listingId) {
     ? `${item.price.currency_code} ${(item.price.amount / item.price.divisor).toFixed(2)}`
     : null;
 
-  // Si l'API ne retourne pas le shop dans l'objet, on résout via shop_id
-  let shopName = item.shop?.shop_name || null;
-  const shopId = item.shop_id || item.shop?.shop_id || null;
-
-  if (!shopName && shopId) {
+  // Étape 2 : résoudre shop_name via /shops/{shop_id} (endpoint fiable)
+  let shopName = null;
+  if (shopId) {
     try {
       const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
         headers: headers(), timeout: 15000,
       });
       shopName = shopRes.data.shop_name || null;
-      console.log('[getListingDetail] Resolved shopName via shop_id:', shopName);
+      console.log(`[getListingDetail] shop_id ${shopId} → shop_name: ${shopName}`);
     } catch(e) {
-      console.warn('[getListingDetail] Could not resolve shop_id', shopId, ':', e.message);
+      console.warn(`[getListingDetail] /shops/${shopId} failed:`, e.message);
     }
   }
 
-  return {
-    title:    item.title || null,
-    price,
-    images,
-    shopName,
-    shopId,
-  };
+  return { title: item.title || null, price, images, shopName, shopId };
 }
+
 
 function handleEtsyError(e) {
   const status = e.response?.status;
