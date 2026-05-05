@@ -225,7 +225,10 @@ async function getListingDetail(listingId) {
     }
   }
 
-  return { title: item.title || null, price, images, shopName, shopId };
+  // is_digital et type ('physical' | 'download') sont fournis par l'API Etsy v3
+  const isDigital = item.is_digital === true || item.type === 'download';
+
+  return { title: item.title || null, price, images, shopName, shopId, isDigital };
 }
 
 
