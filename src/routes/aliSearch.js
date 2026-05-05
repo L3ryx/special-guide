@@ -198,12 +198,14 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
     const lm = link.match(/etsy\.com\/listing\/(\d+)/);
     if (lm) listingId = lm[1];
 
+    let resolvedShopId = null;
     if (!shopName && listingId) {
       try {
         const detail = await getListingDetail(listingId);
         if (detail.shopName) {
-          shopName = detail.shopName;
-          shopUrl  = `https://www.etsy.com/shop/${shopName}`;
+          shopName      = detail.shopName;
+          resolvedShopId = detail.shopId || null;
+          shopUrl       = `https://www.etsy.com/shop/${shopName}`;
           console.log(`[aliSearch] shopName via API listing ${listingId}: ${shopName}`);
         }
       } catch(e) {
@@ -246,10 +248,10 @@ async function findEtsyListingsFromImage(aliImageUrl, isAborted) {
     if (seenShops.has(shopName)) continue;
     seenShops.add(shopName);
 
-    // 5. Récupérer avatar via API Etsy getShopInfo
+    // 5. Récupérer avatar via API Etsy getShopInfo (on passe l'ID numérique si dispo)
     if (!isAborted()) {
       try {
-        const info = await getShopInfo(shopName);
+        const info = await getShopInfo(resolvedShopId || shopName);
         shopAvatar = info.shopAvatar || null;
         shopUrl    = info.shopUrl || shopUrl;
         console.log(`[aliSearch] ✅ ${shopName} | avatar: ${shopAvatar ? 'oui' : 'non'}`);
