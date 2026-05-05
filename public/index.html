@@ -272,14 +272,14 @@
     .shop-result-avatar { width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.15); }
     .shop-result-avatar-ph { width:40px; height:40px; border-radius:50%; flex-shrink:0; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
     .shop-result-info { flex:1; min-width:0; }
-    .shop-result-name { font-weight:700; font-size:0.9rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .shop-result-name { font-weight:700; font-size:0.9rem; color:#fff; white-space:normal; overflow:visible; word-break:break-word; }
     .shop-result-tag { font-size:0.62rem; color:#a78bfa; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; margin-top:2px; }
     .btn-save-shop { width:34px; height:34px; border-radius:8px; border:none; background:rgba(255,255,255,0.07); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:1rem; transition:all 0.2s; flex-shrink:0; }
     .btn-save-shop:hover { background:rgba(255,255,255,0.14); transform:scale(1.1); }
     .btn-save-shop.saved { color:#22c55e; }
     .btn-save-shop.saving { opacity:0.5; cursor:not-allowed; }
-    .shop-result-btn { flex-shrink:0; padding:8px 14px; border-radius:9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; font-family:'Croissant One',cursive; font-size:0.75rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:all 0.2s; }
-    .shop-result-btn:hover { background:rgba(255,255,255,0.18); }
+    .shop-result-btn { flex-shrink:0; padding:8px 16px; border-radius:9px; background:#f97316; border:none; color:#fff; font-family:'Croissant One',cursive; font-size:0.75rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:all 0.2s; box-shadow:0 2px 8px rgba(249,115,22,0.35); }
+    .shop-result-btn:hover { background:#ea6c0a; box-shadow:0 4px 14px rgba(249,115,22,0.5); }
     .empty { text-align:center; padding:40px 20px; color:var(--muted); }
     @media(max-width:640px){ #main-view{padding:60px 14px 20px} .input-row input{font-size:0.95rem;padding:14px 16px} #add-keyword-btn{width:46px;height:46px} }
 
@@ -944,6 +944,10 @@
     function initProgress(keyword) {
       resetProgress();
       document.getElementById('progress-msg').textContent = '';
+      // Initialiser le compteur dès le lancement
+      var pages = parseInt(document.getElementById('pages-select')?.value || '5', 10);
+      var counter = document.getElementById('listing-counter');
+      if (counter) counter.textContent = '0 / ' + pages + ' boutiques analysées — ' + pages + ' restantes';
       var kl = document.getElementById('progress-keyword-label');
       if (kl) kl.textContent = keyword || '';
     }
@@ -1005,10 +1009,11 @@
         var pct = 10 + Math.round((done / total) * 82);
         _progressTarget = Math.max(_progressCurrent, pct);
       }
-      // Mise à jour du compteur Lens
+      // Compteur Lens : mis à jour à chaque shop_done
       var counter = document.getElementById('listing-counter');
       if (counter && total > 0) {
-        counter.textContent = 'Recherche Lens ' + done + ' / ' + total;
+        var remaining = total - done;
+        counter.textContent = done + ' / ' + total + ' boutiques analysées — ' + remaining + ' restantes';
       }
     }
 
@@ -1481,11 +1486,10 @@
       info.appendChild(tagEl);
       inner.appendChild(info);
 
-      // ── Boutons visite ──
+      // ── Bouton Visit ──
       const btnsWrap = document.createElement('div');
       btnsWrap.style.cssText = 'display:flex;flex-direction:column;gap:5px;flex-shrink:0;';
 
-      // Bouton boutique
       const visitBtn = document.createElement('a');
       if (shopUrl) {
         visitBtn.href = shopUrl; visitBtn.target = '_blank'; visitBtn.rel = 'noopener';
@@ -1494,18 +1498,8 @@
         visitBtn.onclick = function(e){ e.preventDefault(); showToast('Boutique URL non trouvée', '#ef4444'); };
       }
       visitBtn.className = 'shop-result-btn';
-      visitBtn.textContent = '🏪 Boutique ↗';
+      visitBtn.textContent = 'Visit ' + (shop.shopName || 'Shop');
       btnsWrap.appendChild(visitBtn);
-
-      // Bouton annonce (si listing disponible)
-      if (listingUrl) {
-        const listingBtn = document.createElement('a');
-        listingBtn.href = listingUrl; listingBtn.target = '_blank'; listingBtn.rel = 'noopener';
-        listingBtn.className = 'shop-result-btn';
-        listingBtn.style.cssText = 'font-size:0.68rem;padding:6px 10px;opacity:0.8;';
-        listingBtn.textContent = '🔗 Annonce ↗';
-        btnsWrap.appendChild(listingBtn);
-      }
 
       inner.appendChild(btnsWrap);
       card.appendChild(inner);
