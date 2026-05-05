@@ -165,7 +165,19 @@ async function getShopListings(shopIdOrName, limit = 20) {
 }
 
 async function getShopInfo(shopIdOrName) {
-  const r = await axios.get(`${BASE}/shops/${encodeURIComponent(shopIdOrName)}`, {
+  // L'API Etsy v3 /shops/{id} n'accepte que des IDs numériques.
+  // Si un nom est fourni, on résout d'abord via /shops?shop_name=
+  let resolvedId = shopIdOrName;
+  if (isNaN(shopIdOrName)) {
+    const lookup = await axios.get(
+      `${BASE}/shops?shop_name=${encodeURIComponent(shopIdOrName)}`,
+      { headers: headers(), timeout: 15000 }
+    );
+    const found = lookup.data.results || [];
+    if (!found.length) throw new Error(`Shop "${shopIdOrName}" introuvable sur Etsy`);
+    resolvedId = found[0].shop_id;
+  }
+  const r = await axios.get(`${BASE}/shops/${resolvedId}`, {
     headers: headers(), timeout: 30000,
   });
   const s = r.data;
