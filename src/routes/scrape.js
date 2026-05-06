@@ -264,18 +264,18 @@ router.post('/search-dropship', async (req, res) => {
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse Google Lens...' });
 
     // ── STEP 3 : Google Lens ──
-    const { uploadImageFree } = require('../services/freeImageUploader');
-
     /**
      * Recherche Google Lens pour une image Etsy.
      * Retourne les candidats AliExpress trouvés.
      *
      * @returns {{ aliMatch: object }|null}
      */
+    const { uploadImageFree } = require('../services/freeImageUploader');
+
     async function analyzeImage(etsyImageUrl) {
       if (!etsyImageUrl || isAborted()) return null;
 
-      // Upload de l'image Etsy pour obtenir une URL publique
+      // Upload vers ImgBB pour obtenir une URL publique stable
       const pubUrl = await uploadImageFree(etsyImageUrl);
       if (!pubUrl || isAborted()) return null;
 
