@@ -84,11 +84,11 @@ router.delete('/auto-state', requireAuth, async (req, res) => {
 router.get('/auto-state', requireAuth, async (req, res) => {
   try {
     const state = await AutoSearchState.findOne({ userId: req.user.id });
-    if (!state) return res.json({ keywordQueue: [], usedKeywords: [], usedShops: [] });
+    if (!state) return res.json({ keywordQueue: [], usedKeywords: [] });
     res.json({
       keywordQueue: state.keywordQueue,
       usedKeywords: state.usedKeywords,
-      usedShops:    state.usedShops,
+      // usedShops non retourné
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -98,10 +98,10 @@ router.get('/auto-state', requireAuth, async (req, res) => {
 // ── SAVE auto-search state ──
 router.post('/auto-state', requireAuth, async (req, res) => {
   try {
-    const { keywordQueue, usedKeywords, usedShops } = req.body;
+    const { keywordQueue, usedKeywords } = req.body;
     await AutoSearchState.findOneAndUpdate(
       { userId: req.user.id },
-      { $set: { keywordQueue: keywordQueue || [], usedKeywords: usedKeywords || [], usedShops: usedShops || [], updatedAt: new Date() } },
+      { $set: { keywordQueue: keywordQueue || [], usedKeywords: usedKeywords || [], updatedAt: new Date() } },
       { upsert: true, new: true }
     );
     res.json({ ok: true });
@@ -110,21 +110,7 @@ router.post('/auto-state', requireAuth, async (req, res) => {
   }
 });
 
-// ── ADD used shop ──
-router.post('/auto-state/shop', requireAuth, async (req, res) => {
-  try {
-    const { shopName } = req.body;
-    if (!shopName) return res.status(400).json({ error: 'shopName required' });
-    await AutoSearchState.findOneAndUpdate(
-      { userId: req.user.id },
-      { $addToSet: { usedShops: shopName }, $set: { updatedAt: new Date() } },
-      { upsert: true }
-    );
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// ── ADD used shop — supprimé, boutiques non enregistrées côté serveur ──
 
 // ── UPDATE keyword queue ──
 router.post('/auto-state/queue', requireAuth, async (req, res) => {
