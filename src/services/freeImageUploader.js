@@ -44,50 +44,38 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── Uploadcare — nécessite UPLOADCARE_PUBLIC_KEY dans les variables d'environnement ──
-async function uploadToUploadcare(buffer, mimeType) {
-  const publicKey = process.env.UPLOADCARE_PUBLIC_KEY;
-  if (!publicKey) {
-    console.error('[freeUploader] ❌ UPLOADCARE_PUBLIC_KEY manquante dans les variables d\'environnement.');
-    return null;
-  }
-
-  console.log('[freeUploader] 🔄 Upload vers Uploadcare...');
+// ── Litterbox (catbox.moe) — sans clé API, expiration 1h ──
+async function uploadToLitterbox(buffer, mimeType) {
+  console.log('[freeUploader] 🔄 Upload litterbox.catbox.moe...');
   try {
-    const ext      = mimeType === 'image/png' ? 'png' : 'jpg';
-    const filename = `image.${ext}`;
-
     const form = new FormData();
-    form.append('UPLOADCARE_PUB_KEY', publicKey);
-    form.append('UPLOADCARE_STORE',   '1');
-    form.append('file', buffer, { filename, contentType: mimeType });
+    form.append('reqtype', 'fileupload');
+    form.append('time', '1h');
+    form.append('fileToUpload', buffer, { filename: 'image.jpg', contentType: mimeType });
 
     const res = await axios.post(
-      'https://upload.uploadcare.com/base/',
+      'https://litterbox.catbox.moe/resources/internals/api.php',
       form,
-      { headers: form.getHeaders(), timeout: 30000 }
+      { headers: form.getHeaders(), timeout: 20000, responseType: 'text' }
     );
 
-    const fileUuid = res.data?.file;
-    if (fileUuid) {
-      const url = `https://ucarecdn.com/${fileUuid}/`;
-      console.log(`[freeUploader] ✅ Uploadcare OK → ${url}`);
+    const url = (typeof res.data === 'string' ? res.data : '').trim();
+    if (url.startsWith('https://')) {
+      console.log(`[freeUploader] ✅ Litterbox OK → ${url}`);
       return url;
     }
-
-    console.warn(`[freeUploader] ⚠️ Uploadcare — réponse inattendue:`, res.data);
+    console.warn(`[freeUploader] ⚠️ Litterbox — réponse inattendue: ${url}`);
   } catch (e) {
     const status = e.response?.status;
-    const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+    const detail = e.response?.data ? String(e.response.data) : e.message;
     const code   = e.code || '';
-    console.error(`[freeUploader] ❌ Uploadcare FAILED — HTTP ${status || 'réseau'} code=${code}: ${detail}`);
+    console.error(`[freeUploader] ❌ Litterbox FAILED — HTTP ${status || 'réseau'} code=${code}: ${detail}`);
   }
   return null;
 }
 
 /**
- * Télécharge une image Etsy et l'héberge sur Uploadcare.
- * Nécessite la variable d'environnement UPLOADCARE_PUBLIC_KEY.
+ * Télécharge une image Etsy et l'héberge sur litterbox.catbox.moe.
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -109,13 +97,13 @@ async function uploadImageFree(etsyUrl) {
 
   console.log(`[freeUploader] 📤 Upload en cours (${img.buffer.length} bytes)...`);
 
-  const url = await uploadToUploadcare(img.buffer, img.mimeType);
+  const url = await uploadToLitterbox(img.buffer, img.mimeType);
   if (url) {
     uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
     return url;
   }
 
-  console.error('[freeUploader] ❌ ÉCHEC upload Uploadcare. Pipeline arrêté.');
+  console.error('[freeUploader] ❌ ÉCHEC upload Litterbox. Pipeline arrêté.');
   return null;
 }
 
