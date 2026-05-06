@@ -926,7 +926,7 @@
       shopNames.forEach(function(name) {
         if (name && !_usedShops.includes(name)) {
           _usedShops.push(name);
-          saveShopToDb(name);
+          // shops analysés lors de la recherche ne sont pas enregistrés sur le serveur
         }
       });
     }
