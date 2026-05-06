@@ -236,35 +236,15 @@ router.post('/search-dropship', async (req, res) => {
 
   try {
 
-    // ── STEP 1 : Récupérer les boutiques déjà analysées ──
-    const AutoSearchState = require('../models/autoSearchModel');
-    let usedShops = [];
-    try {
-      const jwt = require('jsonwebtoken');
-      const JWT_SECRET = process.env.JWT_SECRET;
-      const header = req.headers.authorization || '';
-      const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
-      if (token) {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const state = await AutoSearchState.findOne({ userId: decoded.id });
-        if (state?.usedShops?.length) {
-          usedShops = state.usedShops;
-          console.log('[search-dropship] Excluding', usedShops.length, 'already-seen shops');
-        }
-      }
-    } catch(e) {
-      console.warn('[search-dropship] Could not load usedShops:', e.message);
-    }
-
-    // ── STEP 2 : Scraping Etsy ──
+    // ── STEP 1 : Scraping Etsy ──
     send({ step: 'scraping', message: '🔍 Recherche Etsy pour "' + keyword + '"...' });
 
     let listings = [];
     try {
       listings = await fetchListingsForDropship(
         keyword,
-        (page, count, avgPageMs, maxPages) => send({ step: 'scraping', page, maxPages, avgPageMs, message: '📄 Page ' + page + '/' + maxPages + ' — ' + count + ' boutiques...' }),
-        usedShops,
+        null,
+        [],
         isAborted,
         maxPages
       );
@@ -401,7 +381,7 @@ router.post('/search-dropship', async (req, res) => {
         if (!listing) continue;
         analyzed++;
         const shopStart = Date.now();
-        send({ step: 'analyzing', total: listings.length, done: analyzed, message: `🔎 ${analyzed}/${listings.length} — ${dropshippers.length} dropshippers` });
+        send({ step: 'analyzing', total: listings.length, done: analyzed, message: `🔎 ${analyzed} / ${listings.length} boutiques analysées` });
 
         try {
           const img1 = listing.image;
