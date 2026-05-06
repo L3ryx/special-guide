@@ -1251,7 +1251,7 @@
                   advanceStep('match', ev.message);
                 } else if (ev.step === 'analyzing' && ev.total && ev.done !== undefined) {
                   syncProgressFromAnalyzing(ev.total, ev.done);
-                  document.getElementById('progress-msg').textContent = `🔎 ${ev.done} / ${ev.total} boutiques analysées`;
+                  document.getElementById('progress-msg').textContent = `🔎 ${ev.done} / ${ev.total} shops analyzed`;
                 } else if (ev.step === 'scraping' || ev.step === 'init') {
                   document.getElementById('progress-msg').textContent = ev.message || '';
                 } else if (ev.step === 'error') {
