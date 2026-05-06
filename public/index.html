@@ -1240,22 +1240,20 @@
                   if (tag) tag.className = 'keyword-tag done';
                 } else if (ev.step === 'match') {
                   if (ev.shop) {
-                    if (_autoSearch && ev.shop.shopName && _usedShops.includes(ev.shop.shopName)) {
-                      // skip
-                    } else {
-                      renderShopResult(ev.shop, keyword);
-                      totalMatches++;
-                      document.getElementById('results-section').style.display = 'block';
-                      document.documentElement.classList.add('unlocked');
-                      document.documentElement.style.overflowY = 'auto';
-                      document.body.style.overflowY = 'auto';
-                      if (ev.shop.shopName) saveUsedShops([ev.shop.shopName]);
-                    }
+                    renderShopResult(ev.shop, keyword);
+                    totalMatches++;
+                    document.getElementById('results-section').style.display = 'block';
+                    document.documentElement.classList.add('unlocked');
+                    document.documentElement.style.overflowY = 'auto';
+                    document.body.style.overflowY = 'auto';
+                    if (ev.shop.shopName) saveUsedShops([ev.shop.shopName]);
                   }
                   advanceStep('match', ev.message);
                 } else if (ev.step === 'analyzing' && ev.total && ev.done !== undefined) {
                   syncProgressFromAnalyzing(ev.total, ev.done);
-                  advanceStep('analyzing', ev.message);
+                  document.getElementById('progress-msg').textContent = `🔎 ${ev.done} / ${ev.total} boutiques analysées`;
+                } else if (ev.step === 'scraping' || ev.step === 'init') {
+                  document.getElementById('progress-msg').textContent = ev.message || '';
                 } else if (ev.step === 'error') {
                   document.getElementById('progress-msg').textContent = '❌ ' + ev.message;
                   showErrorPopup(ev.message);
