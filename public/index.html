@@ -847,7 +847,7 @@
         const d = await r.json();
         _keywordQueue = d.keywordQueue || [];
         _usedKeywords = d.usedKeywords || [];
-        _usedShops    = d.usedShops    || [];
+        _usedShops    = []; // boutiques non rechargées depuis le serveur
         updateQueueDisplay();
       } catch(e) { console.warn('loadAutoState failed:', e.message); }
     }
