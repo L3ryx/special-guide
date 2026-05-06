@@ -14,7 +14,7 @@ setInterval(() => {
 
 // ── Télécharger l'image depuis Etsy ──
 async function downloadEtsyImage(etsyUrl) {
-  const smallUrl = etsyUrl.replace(/_(fullxfull|\d{3,4}x[^.]*)\\.(?=\w+$)/i, '_570x.');
+  const smallUrl = etsyUrl.replace(/_(fullxfull|\d{3,4}x[^.]*)\.(?=\w+$)/i, '_570x.');
   const urlsToTry = smallUrl !== etsyUrl ? [smallUrl, etsyUrl] : [etsyUrl];
 
   console.log(`[freeUploader] 📥 Téléchargement image Etsy: ${etsyUrl.slice(0, 80)}...`);
@@ -44,38 +44,45 @@ async function downloadEtsyImage(etsyUrl) {
   return null;
 }
 
-// ── Litterbox (catbox.moe) — sans clé API, expiration 1h ──
-async function uploadToLitterbox(buffer, mimeType) {
-  console.log('[freeUploader] 🔄 Upload litterbox.catbox.moe...');
+// ── ImgBB — clé API via IMGBB_API_KEY ──
+async function uploadToImgBB(buffer, mimeType) {
+  const apiKey = process.env.IMGBB_API_KEY;
+  if (!apiKey) {
+    console.error('[freeUploader] ❌ IMGBB_API_KEY manquant');
+    return null;
+  }
+
+  console.log('[freeUploader] 🔄 Upload imgbb.com...');
   try {
-    const form = new FormData();
-    form.append('reqtype', 'fileupload');
-    form.append('time', '1h');
-    form.append('fileToUpload', buffer, { filename: 'image.jpg', contentType: mimeType });
+    const base64 = buffer.toString('base64');
+    const form   = new FormData();
+    form.append('key', apiKey);
+    form.append('image', base64);
+    form.append('expiration', '3600'); // expire après 1h
 
     const res = await axios.post(
-      'https://litterbox.catbox.moe/resources/internals/api.php',
+      'https://api.imgbb.com/1/upload',
       form,
-      { headers: form.getHeaders(), timeout: 20000, responseType: 'text' }
+      { headers: form.getHeaders(), timeout: 20000 }
     );
 
-    const url = (typeof res.data === 'string' ? res.data : '').trim();
-    if (url.startsWith('https://')) {
-      console.log(`[freeUploader] ✅ Litterbox OK → ${url}`);
+    const url = res.data?.data?.url;
+    if (url) {
+      console.log(`[freeUploader] ✅ ImgBB OK → ${url}`);
       return url;
     }
-    console.warn(`[freeUploader] ⚠️ Litterbox — réponse inattendue: ${url}`);
+    console.warn(`[freeUploader] ⚠️ ImgBB — réponse inattendue: ${JSON.stringify(res.data)}`);
   } catch (e) {
     const status = e.response?.status;
-    const detail = e.response?.data ? String(e.response.data) : e.message;
+    const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
     const code   = e.code || '';
-    console.error(`[freeUploader] ❌ Litterbox FAILED — HTTP ${status || 'réseau'} code=${code}: ${detail}`);
+    console.error(`[freeUploader] ❌ ImgBB FAILED — HTTP ${status || 'réseau'} code=${code}: ${detail}`);
   }
   return null;
 }
 
 /**
- * Télécharge une image Etsy et l'héberge sur litterbox.catbox.moe.
+ * Télécharge une image Etsy et l'héberge sur ImgBB.
  *
  * @param {string} etsyUrl
  * @returns {string|null}
@@ -97,13 +104,13 @@ async function uploadImageFree(etsyUrl) {
 
   console.log(`[freeUploader] 📤 Upload en cours (${img.buffer.length} bytes)...`);
 
-  const url = await uploadToLitterbox(img.buffer, img.mimeType);
+  const url = await uploadToImgBB(img.buffer, img.mimeType);
   if (url) {
     uploadCache.set(etsyUrl, { value: url, ts: Date.now() });
     return url;
   }
 
-  console.error('[freeUploader] ❌ ÉCHEC upload Litterbox. Pipeline arrêté.');
+  console.error('[freeUploader] ❌ ÉCHEC upload ImgBB. Pipeline arrêté.');
   return null;
 }
 
