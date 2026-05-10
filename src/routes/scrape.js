@@ -119,7 +119,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
 
   console.log('[fetchListings] Total unique shopIds to resolve:', shopIdToRaw.size);
 
-  const BATCH = 12;
+  // Batch réduit à 3 pour éviter les 429 Etsy (chaque appel = 1 requête grâce à includes=images,Shop)
+  const BATCH = 3;
   const listings = [];
   const shopIdList = [...shopIdToRaw.entries()];
 
@@ -128,26 +129,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
     const batch = shopIdList.slice(i, i + BATCH);
     const resolved = await Promise.allSettled(
       batch.map(async ([shopId, raw]) => {
-        // Récupérer le nom + image1 depuis le listing principal
-        const { shopName, shopUrl, image } = await getShopNameAndImage(shopId, raw.listingId);
-
-        // Récupérer image2 directement depuis la page boutique (2ème annonce différente)
-        let image2 = null;
-        try {
-          const shopListings = await axios.get(
-            `https://api.etsy.com/v3/application/shops/${shopId}/listings/active?limit=5&includes=images`,
-            { headers: { 'x-api-key': process.env.ETSY_CLIENT_ID }, timeout: 15000 }
-          );
-          const others = (shopListings.data.results || [])
-            .filter(l => l.listing_id !== raw.listingId && l.images?.[0]);
-          if (others.length > 0) {
-            const img = others[0].images[0];
-            image2 = (img.url_fullxfull || img.url_570xN || img.url_170x135 || '').split('?')[0] || null;
-          }
-        } catch (e) {
-          console.warn(`[fetchListings] image2 boutique échouée pour shop ${shopId}:`, e.message);
-        }
-
+        // Un seul appel : listing + images + Shop (nom boutique)
+        const { shopName, shopUrl, image, image2 } = await getShopNameAndImage(shopId, raw.listingId);
         return { shopId, shopName, shopUrl, image, image2, listingId: raw.listingId, link: raw.link, title: raw.title };
       })
     );
@@ -173,7 +156,8 @@ async function fetchListingsForDropship(keyword, onBatch, usedShops = [], isAbor
         source:    'etsy',
       });
     }
-    await new Promise(r => setTimeout(r, 50));
+    // Pause entre chaque batch pour respecter le rate limit Etsy
+    await new Promise(r => setTimeout(r, 400));
   }
 
   console.log('fetchListingsForDropship done:', listings.length, 'unique shops with image');
