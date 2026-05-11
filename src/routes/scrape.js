@@ -231,6 +231,13 @@ router.post('/search-dropship', async (req, res) => {
       return res.end();
     }
 
+    // ── Guard DINOv2 — refus immédiat si pipeline absent ──
+    if (!process.env.VISUAL_API_URL) {
+      console.error('[search-dropship] ❌ ERREUR DINO : VISUAL_API_URL non défini — pipeline SAM+DINOv2 indisponible. La recherche est annulée pour éviter les faux positifs.');
+      send({ step: 'error', message: '❌ Pipeline DINOv2 indisponible (VISUAL_API_URL manquant). Configurez VISUAL_API_URL pour activer la détection visuelle.' });
+      return res.end();
+    }
+
     send({ step: 'analyzing', message: '✅ ' + listings.length + ' boutiques uniques. Analyse Google Lens...' });
 
     // ── STEP 3 : Google Lens ──
@@ -291,7 +298,10 @@ router.post('/search-dropship', async (req, res) => {
      * @returns {number|null} visualSimilarity
      */
     async function runVisualPipeline(etsyImageUrl, aliImageUrl) {
-      if (!process.env.VISUAL_API_URL) return null;
+      if (!process.env.VISUAL_API_URL) {
+        console.error('[runVisualPipeline] ❌ ERREUR DINO : VISUAL_API_URL absent — pipeline SAM+DINOv2 impossible.');
+        throw new Error('dino_unavailable');
+      }
       try {
         console.log('[visualPipeline] Lancement SAM + DINOv2 (fond blanc)...');
 
@@ -383,12 +393,6 @@ router.post('/search-dropship', async (req, res) => {
 
           const pipelineResult = await runVisualPipeline(etsyImg, aliImageUrl);
 
-          // Si pas de pipeline visuel dispo, on se fie à Lens seul (match = trouvé)
-          if (!pipelineResult) {
-            console.log(`[analyzeImage] ✅ Match Lens (sans DINOv2) — ${(aliMatch.link || '').slice(0, 60)}`);
-            return { aliMatch, visualSimilarity: null };
-          }
-
           if (pipelineResult.is_dropship) {
             console.log(`[analyzeImage] ✅ Match DINOv2 — sim: ${pipelineResult.similarity} — ${(aliMatch.link || '').slice(0, 60)}`);
             return { aliMatch, visualSimilarity: pipelineResult.similarity };
@@ -453,6 +457,7 @@ router.post('/search-dropship', async (req, res) => {
         } catch (e) {
           if (e.message === 'serper_401')        { send({ step: 'error', message: '❌ Serper key invalid' }); return; }
           if (e.message === 'serper_no_credits') { send({ step: 'error', message: '❌ Crédits Serper épuisés — recharge sur serper.dev' }); return; }
+          if (e.message === 'dino_unavailable')  { console.error('[worker] ❌ ERREUR DINO : pipeline DINOv2 absent, recherche arrêtée.'); send({ step: 'error', message: '❌ Pipeline DINOv2 indisponible — recherche arrêtée pour éviter les faux positifs.' }); return; }
         }
       }
     }
