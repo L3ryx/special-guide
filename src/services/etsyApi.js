@@ -89,31 +89,49 @@ async function searchListings(keyword, limit = 25, offset = 0) {
 }
 
 /**
- * Pour un shop_id + listingId : récupère shop_name + image1 en UN SEUL appel
- * via ?includes=images,Shop sur le listing principal.
- * image2 est récupérée depuis les images supplémentaires du même listing (index 1).
+ * Pour un shop_id : récupère shop_name + 4 images via 4 listing IDs distincts.
  */
-async function getShopNameAndImage(shopId, listingId) {
-  try {
-    const r = await axios.get(`${BASE}/listings/${listingId}?includes=images,Shop`, {
-      headers: headers(), timeout: 15000,
-    });
-    const item     = r.data;
-    const shopName = item.shop?.shop_name || null;
-    const shopUrl  = shopName ? `https://www.etsy.com/shop/${shopName}` : null;
+async function getShopNameAndImage(shopId, listingId, listingId2 = null, listingId3 = null, listingId4 = null) {
+  // 1. Nom de boutique
+  const shopRes = await axios.get(`${BASE}/shops/${shopId}`, {
+    headers: headers(), timeout: 15000,
+  });
+  const shop     = shopRes.data;
+  const shopName = shop.shop_name;
+  const shopUrl  = `https://www.etsy.com/shop/${shopName}`;
 
-    const imgs = item.images || [];
-    const image  = cleanImage(imgs[0]?.url_fullxfull || imgs[0]?.url_570xN || imgs[0]?.url_170x135 || null);
-    const image2 = cleanImage(imgs[1]?.url_fullxfull || imgs[1]?.url_570xN || imgs[1]?.url_170x135 || null);
-
-    console.log('[etsyApi] getShopNameAndImage:', shopName,
-      '| image1:', !!image, '| image2:', !!image2,
-      '| image3: false | image4: false');
-    return { shopName, shopUrl, image, image2, image3: null, image4: null };
-  } catch(e) {
-    console.warn(`[etsyApi] getShopNameAndImage failed for shop ${shopId} listing ${listingId}:`, e.message);
-    return { shopName: null, shopUrl: null, image: null, image2: null, image3: null, image4: null };
+  // Helper : fetch 1 image pour un listingId donné
+  async function fetchImage(lid, label) {
+    if (!lid) return null;
+    try {
+      const r = await axios.get(`${BASE}/listings/${lid}?includes=images`, {
+        headers: headers(), timeout: 15000,
+      });
+      const item = r.data;
+      return cleanImage(
+        item.images?.[0]?.url_fullxfull ||
+        item.images?.[0]?.url_570xN ||
+        item.images?.[0]?.url_170x135 ||
+        null
+      );
+    } catch(e) {
+      console.warn(`[etsyApi] ${label} failed for listing`, lid, ':', e.message);
+      return null;
+    }
   }
+
+  // 2. Récupérer les 4 images en parallèle
+  const [image, image2, image3, image4] = await Promise.all([
+    fetchImage(listingId,  'image1'),
+    fetchImage(listingId2, 'image2'),
+    fetchImage(listingId3, 'image3'),
+    fetchImage(listingId4, 'image4'),
+  ]);
+
+  console.log('[etsyApi] getShopNameAndImage:', shopName,
+    '| image1:', !!image, '| image2:', !!image2,
+    '| image3:', !!image3, '| image4:', !!image4);
+  return { shopName, shopUrl, image, image2, image3, image4 };
 }
 
 /**
