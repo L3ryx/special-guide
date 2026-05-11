@@ -120,16 +120,35 @@ async function getShopNameAndImage(shopId, listingId, listingId2 = null, listing
     }
   }
 
-  // 2. Récupérer les 4 images en parallèle
+  // 2. Si listingId2 absent, on le cherche directement sur la boutique
+  let resolvedListingId2 = listingId2;
+  if (!resolvedListingId2) {
+    try {
+      const shopListRes = await axios.get(
+        `${BASE}/shops/${shopId}/listings/active?limit=5&includes=images`,
+        { headers: headers(), timeout: 15000 }
+      );
+      const shopListings = shopListRes.data?.results || [];
+      const alt = shopListings.find(l => l.listing_id !== listingId && l.images?.[0]);
+      if (alt) {
+        resolvedListingId2 = alt.listing_id;
+        console.log(`[etsyApi] listingId2 trouvé sur la boutique: ${resolvedListingId2}`);
+      }
+    } catch(e) {
+      console.warn('[etsyApi] Impossible de récupérer les listings de la boutique:', e.message);
+    }
+  }
+
+  // 3. Récupérer les images en parallèle
   const [image, image2, image3, image4] = await Promise.all([
-    fetchImage(listingId,  'image1'),
-    fetchImage(listingId2, 'image2'),
-    fetchImage(listingId3, 'image3'),
-    fetchImage(listingId4, 'image4'),
+    fetchImage(listingId,          'image1'),
+    fetchImage(resolvedListingId2, 'image2'),
+    fetchImage(listingId3,         'image3'),
+    fetchImage(listingId4,         'image4'),
   ]);
 
   console.log('[etsyApi] getShopNameAndImage:', shopName,
-    '| image1:', !!image, '| image2:', !!image2,
+    '| image1:', !!image, '| image2:', !!image2, `(listingId2 ${listingId2 ? 'scan' : 'boutique'})`,
     '| image3:', !!image3, '| image4:', !!image4);
   return { shopName, shopUrl, image, image2, image3, image4 };
 }
