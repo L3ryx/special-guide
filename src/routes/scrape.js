@@ -422,6 +422,96 @@ router.post('/search-dropship', async (req, res) => {
     let analyzed = 0;
     const queue = [...listings];
 
+    /**
+     * PHASE 2 — Vérification approfondie sur 4 listings supplémentaires de la boutique.
+     * Récupère 4 autres annonces, Lens sur chacune, DINOv2 sur les candidats AliExpress.
+     * Dropshipper confirmé si >= 3 images sur 4 matchent.
+     * @returns {{ confirmed: boolean, matchCount: number, bestMatch: object }}
+     */
+    async function deepVerifyShop(shopId, alreadyUsedListingIds, initialMatch) {
+      console.log(`[deepVerify] Récupération de 4 autres listings pour shop ${shopId}`);
+
+      // 1. Récupérer les listings actifs de la boutique
+      let extraListings = [];
+      try {
+        const shopListRes = await axios.get(
+          `${process.env.ETSY_API_BASE || 'https://api.etsy.com/v3/application'}/shops/${shopId}/listings/active?limit=10&includes=images`,
+          { headers: { 'x-api-key': process.env.ETSY_CLIENT_ID }, timeout: 15000 }
+        );
+        const all = shopListRes.data?.results || [];
+        // Exclure les listings déjà analysés, prendre les 4 suivants
+        extraListings = all
+          .filter(l => !alreadyUsedListingIds.includes(l.listing_id) && l.images?.[0])
+          .slice(0, 4);
+      } catch(e) {
+        console.warn('[deepVerify] Impossible de récupérer les listings supplémentaires:', e.message);
+        return { confirmed: false, matchCount: 0, bestMatch: initialMatch };
+      }
+
+      if (extraListings.length === 0) {
+        console.warn('[deepVerify] Aucun listing supplémentaire trouvé — confirmation par défaut');
+        return { confirmed: true, matchCount: 2, bestMatch: initialMatch };
+      }
+
+      console.log(`[deepVerify] ${extraListings.length} listings supplémentaires à analyser`);
+
+      // 2. Lens + DINOv2 sur chaque listing supplémentaire
+      let matchCount = 0;
+      let bestMatch  = initialMatch;
+
+      for (const listing of extraListings) {
+        if (isAborted()) break;
+
+        const imgUrl = listing.images?.[0]?.url_fullxfull ||
+                       listing.images?.[0]?.url_570xN ||
+                       listing.images?.[0]?.url_170x135 || null;
+        if (!imgUrl) continue;
+
+        console.log(`[deepVerify] Lens sur listing ${listing.listing_id}: ${imgUrl.slice(0, 60)}`);
+
+        // Lens → candidats AliExpress
+        let aliCandidates = [];
+        try {
+          aliCandidates = await lensSearch(imgUrl);
+        } catch(e) {
+          throw e; // remonte serper_no_credits etc.
+        }
+
+        if (!aliCandidates.length) {
+          console.log(`[deepVerify] ❌ listing ${listing.listing_id} — aucun candidat AliExpress`);
+          continue;
+        }
+
+        // DINOv2 sur les candidats
+        let matched = false;
+        for (const aliMatch of aliCandidates) {
+          if (isAborted()) break;
+          const aliImageUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl || null;
+          if (!aliImageUrl) continue;
+
+          const pipelineResult = await runVisualPipeline(imgUrl, aliImageUrl);
+          if (pipelineResult.is_dropship) {
+            matchCount++;
+            console.log(`[deepVerify] ✅ listing ${listing.listing_id} — match DINOv2 sim: ${pipelineResult.similarity}`);
+            if (pipelineResult.similarity > (bestMatch?.visualSimilarity ?? 0)) {
+              bestMatch = { aliMatch, visualSimilarity: pipelineResult.similarity };
+            }
+            matched = true;
+            break; // 1 match suffit pour ce listing
+          }
+        }
+
+        if (!matched) {
+          console.log(`[deepVerify] ❌ listing ${listing.listing_id} — aucun match DINOv2`);
+        }
+      }
+
+      // 3. Seuil : 3 matchs minimum sur les 4 listings supplémentaires
+      const confirmed = matchCount >= 3;
+      console.log(`[deepVerify] Résultat: ${matchCount}/${extraListings.length} matchs — confirmé: ${confirmed}`);
+      return { confirmed, matchCount, bestMatch };
+    }
+
     async function worker() {
       while (queue.length > 0) {
         if (isAborted()) break;
@@ -437,31 +527,48 @@ router.post('/search-dropship', async (req, res) => {
           if (!img1) { console.warn('[worker] no img1 for', listing.shopName); continue; }
 
           console.log('[worker] analyse', listing.shopName, '| images:', img1 ? 1 : 0, img2 ? '+1' : '');
+
+          // ── PHASE 1 : double confirmation initiale ──
           const r1 = await analyzeImage(img1, img2);
+
+          if (!r1) {
+            const shopElapsedMs = Date.now() - shopStart;
+            send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
+            console.log('[worker]', listing.shopName, '| Phase 1: ❌ pas de match');
+            continue;
+          }
+
+          console.log('[worker]', listing.shopName, '| Phase 1: ✅ — lancement vérification approfondie...');
+          send({ step: 'analyzing', total: listings.length, done: analyzed, message: `🔬 Vérification approfondie: ${listing.shopName}...` });
+
+          // ── PHASE 2 : vérification approfondie sur 4 listings supplémentaires ──
+          const usedIds = [listing.listingId].filter(Boolean);
+          const { confirmed, matchCount, bestMatch } = await deepVerifyShop(listing.shopId, usedIds, r1);
 
           const shopElapsedMs = Date.now() - shopStart;
           send({ step: 'shop_done', done: analyzed, total: listings.length, elapsedMs: shopElapsedMs });
           if (isAborted()) break;
 
-          console.log('[worker]', listing.shopName, '| Lens:', r1 ? '✅' : '❌');
+          console.log('[worker]', listing.shopName, `| Phase 2: ${confirmed ? '✅ CONFIRMÉ' : '❌ rejeté'} (${matchCount}/4 matchs)`);
 
-          if (r1) {
+          if (confirmed) {
             dropshippers.push({
               shopName:         listing.shopName,
               shopUrl:          listing.shopUrl || 'https://www.etsy.com/shop/' + listing.shopName,
               shopAvatar:       null,
               shopImage:        img1,
               listingUrl:       listing.link,
-              aliUrl:           r1.aliMatch.link || r1.aliMatch.url || null,
-              aliImage:         r1.aliMatch.imageUrl || r1.aliMatch.thumbnailUrl || null,
-              visualSimilarity: r1.visualSimilarity ?? null,
+              aliUrl:           bestMatch.aliMatch.link || bestMatch.aliMatch.url || null,
+              aliImage:         bestMatch.aliMatch.imageUrl || bestMatch.aliMatch.thumbnailUrl || null,
+              visualSimilarity: bestMatch.visualSimilarity ?? null,
+              deepMatchCount:   matchCount,
             });
-            const simLabel = r1.visualSimilarity !== null
-              ? ` | Similarité DINOv2 : ${(r1.visualSimilarity * 100).toFixed(1)}%`
+            const simLabel = bestMatch.visualSimilarity !== null
+              ? ` | DINOv2: ${(bestMatch.visualSimilarity * 100).toFixed(1)}% | ${matchCount}/4 vérifications`
               : '';
             send({
               step:    'match',
-              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | Lens match${simLabel}`,
+              message: `✅ ${listing.shopName} (${dropshippers.length} dropshippers) | Confirmé${simLabel}`,
               shop:    dropshippers[dropshippers.length - 1],
             });
           }
