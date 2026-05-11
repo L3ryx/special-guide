@@ -289,7 +289,7 @@ router.post('/search-dropship', async (req, res) => {
       return all.filter(x => {
         const u = x.link || x.url || '';
         return u.includes('aliexpress.com') && u.includes('/item/') && (x.imageUrl || x.thumbnailUrl);
-      }).slice(0, 2);  // top 2 AliExpress
+      }).slice(0, 4);  // top 4 AliExpress
     }
 
     /**
@@ -339,51 +339,83 @@ router.post('/search-dropship', async (req, res) => {
     }
 
     /**
-     * Analyse une boutique Etsy :
-     * - Lance Lens sur image1 ET image2 du listing
-     * - Pour chaque image Etsy, teste les top 2 candidats AliExpress
-     * - Retourne dès le premier match (1 seul match suffit)
+     * Tente de trouver un match AliExpress pour UNE image Etsy.
+     * Teste jusqu'à 4 candidats AliExpress via DINOv2.
+     * @returns {{ aliMatch, visualSimilarity }} | null
      */
-    async function analyzeImage(img1, img2) {
-      const etsyImages = [img1, img2].filter(Boolean);
+    async function matchOneImage(etsyImg) {
+      if (!etsyImg || isAborted()) return null;
+      console.log(`[matchOneImage] Lens sur: ${etsyImg.slice(0, 60)}`);
 
-      for (const etsyImg of etsyImages) {
-        if (isAborted()) return null;
-        console.log(`[analyzeImage] Lens sur image Etsy: ${etsyImg.slice(0, 60)}`);
-
-        let aliCandidates;
-        try {
-          aliCandidates = await lensSearch(etsyImg);
-        } catch(e) {
-          throw e;  // remonte serper_no_credits etc.
-        }
-
-        if (!aliCandidates.length) {
-          console.log('[analyzeImage] ❌ Aucun candidat AliExpress pour cette image');
-          continue;
-        }
-
-        console.log(`[analyzeImage] ${aliCandidates.length} candidats AliExpress trouvés`);
-
-        // Tester top 2 AliExpress — retourner dès le 1er match
-        for (const aliMatch of aliCandidates) {
-          if (isAborted()) return null;
-          const aliImageUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl || null;
-          if (!aliImageUrl) continue;
-
-          const pipelineResult = await runVisualPipeline(etsyImg, aliImageUrl);
-
-          if (pipelineResult.is_dropship) {
-            console.log(`[analyzeImage] ✅ Match DINOv2 — sim: ${pipelineResult.similarity} — ${(aliMatch.link || '').slice(0, 60)}`);
-            return { aliMatch, visualSimilarity: pipelineResult.similarity };
-          }
-
-          console.log(`[analyzeImage] ❌ Similarité insuffisante (${pipelineResult.similarity}) — candidat suivant`);
-        }
+      let aliCandidates;
+      try {
+        aliCandidates = await lensSearch(etsyImg);
+      } catch(e) {
+        throw e;  // remonte serper_no_credits etc.
       }
 
-      console.log('[analyzeImage] ❌ Aucun match après toutes les combinaisons');
+      if (!aliCandidates.length) {
+        console.log('[matchOneImage] ❌ Aucun candidat AliExpress');
+        return null;
+      }
+
+      console.log(`[matchOneImage] ${aliCandidates.length} candidats AliExpress à tester`);
+
+      for (const aliMatch of aliCandidates) {
+        if (isAborted()) return null;
+        const aliImageUrl = aliMatch.imageUrl || aliMatch.thumbnailUrl || null;
+        if (!aliImageUrl) continue;
+
+        const pipelineResult = await runVisualPipeline(etsyImg, aliImageUrl);
+
+        if (pipelineResult.is_dropship) {
+          console.log(`[matchOneImage] ✅ Match DINOv2 — sim: ${pipelineResult.similarity} — ${(aliMatch.link || '').slice(0, 60)}`);
+          return { aliMatch, visualSimilarity: pipelineResult.similarity };
+        }
+        console.log(`[matchOneImage] ❌ Similarité insuffisante (${pipelineResult.similarity}) — candidat suivant`);
+      }
+
+      console.log('[matchOneImage] ❌ Aucun match pour cette image');
       return null;
+    }
+
+    /**
+     * Analyse une boutique Etsy — double confirmation obligatoire.
+     * img1 ET img2 doivent chacune matcher un candidat AliExpress.
+     * Si img2 est absent, un seul match suffit (pas assez de signal pour exiger 2).
+     * @returns {{ aliMatch, visualSimilarity }} | null
+     */
+    async function analyzeImage(img1, img2) {
+      if (!img1) return null;
+
+      const match1 = await matchOneImage(img1);
+      if (isAborted()) return null;
+
+      // Pas de match sur img1 — inutile de continuer
+      if (!match1) {
+        console.log('[analyzeImage] ❌ img1 sans match — boutique ignorée');
+        return null;
+      }
+
+      // Pas d'img2 disponible — on accepte le match unique (cas rare)
+      if (!img2) {
+        console.log('[analyzeImage] ⚠️ img2 absente — match unique accepté (img1 seule)');
+        return match1;
+      }
+
+      // Double confirmation : img2 doit aussi matcher
+      const match2 = await matchOneImage(img2);
+      if (isAborted()) return null;
+
+      if (!match2) {
+        console.log('[analyzeImage] ❌ img2 sans match — double confirmation échouée, boutique ignorée');
+        return null;
+      }
+
+      // Les deux images matchent → dropshipper confirmé, on retourne le meilleur score
+      const best = match1.visualSimilarity >= match2.visualSimilarity ? match1 : match2;
+      console.log(`[analyzeImage] ✅ Double confirmation — sim1: ${match1.visualSimilarity} sim2: ${match2.visualSimilarity}`);
+      return best;
     }
 
     const dropshippers = [];
