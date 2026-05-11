@@ -299,62 +299,42 @@ router.post('/search-dropship', async (req, res) => {
      */
     async function runVisualPipeline(etsyImageUrl, aliImageUrl) {
       if (!process.env.VISUAL_API_URL) {
-        console.error('[runVisualPipeline] ❌ ERREUR DINO : VISUAL_API_URL absent — pipeline SAM+DINOv2 impossible.');
+        console.error('[runVisualPipeline] ❌ ERREUR DINO : VISUAL_API_URL absent — pipeline DINOv2 impossible.');
         throw new Error('dino_unavailable');
       }
       try {
-        console.log('[visualPipeline] Lancement SAM + DINOv2 (fond blanc)...');
+        console.log('[visualPipeline] Lancement DINOv2...');
 
-        // STEP 1 — Segmentation SAM
-        const samRes = await axios.post(
-          `${process.env.VISUAL_API_URL}/segment`,
+        // STEP 1 — Features DINOv2 (les 2 images en un seul appel)
+        const featRes = await axios.post(
+          `${process.env.VISUAL_API_URL}/features`,
           { images: [etsyImageUrl, aliImageUrl] },
           { timeout: 30000 }
         );
-        const masks = samRes.data?.masks || [];
-
-        // STEP 2 — Extraction objet, fond blanc normalisé
-        const extractRes = await axios.post(
-          `${process.env.VISUAL_API_URL}/extract`,
-          { images: [etsyImageUrl, aliImageUrl], masks, background: 'white' },
-          { timeout: 30000 }
-        );
-        const croppedImages = extractRes.data?.croppedImages || [];
-
-        // STEP 3 — Features DINOv2
-        const dinoRes = await axios.post(
-          `${process.env.VISUAL_API_URL}/features`,
-          { images: croppedImages },
-          { timeout: 30000 }
-        );
-        const features = dinoRes.data?.features || [];
-
-        // STEP 4 — Patch filtering
-        const patchRes = await axios.post(
-          `${process.env.VISUAL_API_URL}/filter-patches`,
-          { features, masks },
-          { timeout: 30000 }
-        );
-        const filteredPatches = patchRes.data?.filteredPatches || [];
-
-        // STEP 5 — Score similarité
-        if (features.length >= 2 && filteredPatches.length >= 2) {
-          const scoreRes = await axios.post(
-            `${process.env.VISUAL_API_URL}/similarity`,
-            {
-              featuresA: { cls_embedding: features[0]?.cls_embedding, patch_tokens: filteredPatches[0] },
-              featuresB: { cls_embedding: features[1]?.cls_embedding, patch_tokens: filteredPatches[1] },
-            },
-            { timeout: 15000 }
-          );
-          const sim = scoreRes.data?.similarity ?? null;
-          console.log(`[visualPipeline] ✅ Score : ${sim} | is_dropship: ${scoreRes.data?.is_dropship}`);
-          return scoreRes.data;  // { similarity, is_dropship, threshold, ... }
+        const features = featRes.data?.features || [];
+        if (features.length < 2) {
+          console.warn('[visualPipeline] ⚠️ Moins de 2 features retournées — skip');
+          throw new Error('dino_unavailable');
         }
-        return null;
+
+        // STEP 2 — Score de similarité
+        const scoreRes = await axios.post(
+          `${process.env.VISUAL_API_URL}/similarity`,
+          {
+            featuresA: { cls_embedding: features[0].cls_embedding, patch_tokens: features[0].patch_tokens },
+            featuresB: { cls_embedding: features[1].cls_embedding, patch_tokens: features[1].patch_tokens },
+          },
+          { timeout: 15000 }
+        );
+
+        const sim = scoreRes.data?.similarity ?? null;
+        console.log(`[visualPipeline] ✅ Score: ${sim} | is_dropship: ${scoreRes.data?.is_dropship}`);
+        return scoreRes.data;  // { similarity, is_dropship, threshold, cls_score, patch_score }
+
       } catch (e) {
-        console.warn('[visualPipeline] ⚠️ Erreur (non bloquant):', e.message);
-        return null;
+        if (e.message === 'dino_unavailable') throw e;
+        console.error('[visualPipeline] ❌ ERREUR DINO :', e.response?.status ?? '', e.message);
+        throw new Error('dino_unavailable');
       }
     }
 
